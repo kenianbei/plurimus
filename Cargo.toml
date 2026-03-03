@@ -9,7 +9,7 @@ license = "MIT"
 repository = "https://github.com/kenianbei/plurimus"
 documentation = "https://docs.rs/plurimus"
 keywords = ["bevy", "ratatui", "tui", "terminal", "cli"]
-categories = ["gui", "libraries"]
+categories = ["command-line-interface", "game-development", "gui"]
 include = ["src/", "LICENSE", "README.md"]
 
 [dependencies]
