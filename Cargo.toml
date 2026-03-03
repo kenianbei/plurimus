@@ -1,0 +1,39 @@
+[package]
+name = "plurimus"
+version = "0.1.0"
+authors = ["Norman Kerr"]
+edition = "2024"
+description = "Provides a set of components and systems to make it easier to build terminal UIs with bevy_ratatui."
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/kenianbei/plurimus"
+documentation = "https://docs.rs/plurimus"
+keywords = ["bevy", "ratatui", "tui", "terminal", "cli"]
+categories = ["gui", "libraries"]
+include = ["src/", "LICENSE", "README.md"]
+
+[dependencies]
+bevy = { version = "0.18.0", default-features = false }
+bevy_ecs = { version = "0.18.0", default-features = false }
+bevy_ratatui = { version = "0.11.1" }
+bevy-trait-query = "0.18.0"
+ratatui = { version = "0.30.0", default-features = false, features = ["unstable-widget-ref"] }
+tachyonfx = { version = "0.25.0", optional = true }
+
+[features]
+default = ["widget"]
+tachyonfx = ["dep:tachyonfx", "widget"]
+ui = ["widget"]
+widget = []
+
+[[example]]
+name = "basic"
+required-features = ["widget"]
+
+[[example]]
+name = "tachyonfx"
+required-features = ["tachyonfx"]
+
+[[example]]
+name = "ui"
+required-features = ["ui"]

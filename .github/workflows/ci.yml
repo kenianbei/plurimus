@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install
+        uses: actions-rust-lang/setup-rust-toolchain@v1.15.3
+        with:
+          toolchain: stable
+
+      - name: Fmt
+        run: cargo fmt --all -- --check
+
+      - name: Build
+        run: cargo build --workspace --all-targets --all-features
+
+      - name: Tests
+        run: cargo test --workspace --all-features -- --nocapture
