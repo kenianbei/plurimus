@@ -1,0 +1,14 @@
+#!/bin/sh
+# Formats and lints staged markdown. Enable with:
+#   git config core.hooksPath .githooks
+set -eu
+
+PRETTIER="prettier@3.6.2"
+MARKDOWNLINT="markdownlint-cli2@0.18.1"
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.md')
+[ -n "$staged" ] || exit 0
+
+printf '%s\n' "$staged" | tr '\n' '\0' | xargs -0 npx -y "$PRETTIER" --write
+printf '%s\n' "$staged" | tr '\n' '\0' | xargs -0 git add
+printf '%s\n' "$staged" | tr '\n' '\0' | xargs -0 npx -y "$MARKDOWNLINT"

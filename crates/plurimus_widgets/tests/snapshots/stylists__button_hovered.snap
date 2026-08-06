@@ -1,0 +1,8 @@
+---
+source: crates/plurimus_ui/tests/stylists.rs
+expression: frame(&app)
+---
+  [ ok ]  
+--
+aaaaaaaaaa
+a: fg:Some(Cyan) bg:Some(Reset) mods:NONE

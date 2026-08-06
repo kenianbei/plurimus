@@ -1,0 +1,22 @@
+[package]
+name = "plurimus_input"
+description = "Input contract for plurimus: terminal input messages, polled state, and bevy_input interop."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_input = { workspace = true }
+bevy_time = { workspace = true }
+plurimus_core = { workspace = true }
+
+[lints]
+workspace = true

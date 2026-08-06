@@ -1,0 +1,35 @@
+[package]
+name = "plurimus_bui"
+description = "bevy_ui bridge for plurimus: taffy layout at one cell per pixel, rasterized to terminal cells."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_camera = { workspace = true }
+bevy_color = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_input_focus = { workspace = true }
+bevy_math = { workspace = true }
+bevy_text = { workspace = true }
+bevy_ui = { workspace = true }
+plurimus_core = { workspace = true }
+plurimus_input = { workspace = true }
+plurimus_ui = { workspace = true }
+unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
+
+[dev-dependencies]
+insta = "1"
+plurimus_test = { workspace = true }
+plurimus_widgets = { workspace = true }
+
+[lints]
+workspace = true

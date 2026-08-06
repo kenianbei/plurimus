@@ -1,0 +1,7 @@
+---
+source: crates/plurimus_2d/tests/render2d.rs
+expression: frame(&app)
+---
+ |   
+ |   
+ |

@@ -1,0 +1,18 @@
+---
+source: crates/plurimus_ui/tests/bui_render.rs
+assertion_line: 293
+expression: composed_styled_frame(&app)
+---
+        
+        
+--
+abcdefgh
+abcdefgh
+a: fg:Some(Reset) bg:Some(Rgb(248, 0, 71)) mods:NONE
+b: fg:Some(Reset) bg:Some(Rgb(233, 0, 120)) mods:NONE
+c: fg:Some(Reset) bg:Some(Rgb(216, 0, 152)) mods:NONE
+d: fg:Some(Reset) bg:Some(Rgb(198, 0, 177)) mods:NONE
+e: fg:Some(Reset) bg:Some(Rgb(177, 0, 198)) mods:NONE
+f: fg:Some(Reset) bg:Some(Rgb(152, 0, 216)) mods:NONE
+g: fg:Some(Reset) bg:Some(Rgb(120, 0, 233)) mods:NONE
+h: fg:Some(Reset) bg:Some(Rgb(71, 0, 248)) mods:NONE

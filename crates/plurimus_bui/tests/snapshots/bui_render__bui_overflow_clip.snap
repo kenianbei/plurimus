@@ -1,0 +1,13 @@
+---
+source: crates/plurimus_ui/tests/bui_render.rs
+expression: frame(&app)
+---
+clippe    
+          
+          
+--
+aaaaaabbbb
+bbbbbbbbbb
+bbbbbbbbbb
+a: fg:Some(Reset) bg:Some(Rgb(255, 0, 255)) mods:NONE
+b: fg:Some(Reset) bg:Some(Reset) mods:NONE

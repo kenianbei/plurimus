@@ -1,0 +1,122 @@
+//! Input contract for plurimus: messages a terminal backend emits into the
+//! main world, and the state derived from them.
+
+pub mod bevy_compat;
+mod keyboard;
+mod mouse;
+mod state;
+mod synthesis;
+
+pub use bevy_input::ButtonInput;
+pub use bevy_input::mouse::MouseButton;
+pub use keyboard::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
+pub use mouse::{CursorCell, MouseKind, MouseMessage};
+pub use state::InputSystems;
+pub use synthesis::ReleaseTimeout;
+
+pub(crate) use state::{track_cursor_cell, update_button_input};
+pub(crate) use synthesis::synthesize_releases;
+
+use bevy_app::{App, Plugin, PreUpdate};
+use bevy_ecs::message::Message;
+use bevy_ecs::prelude::{IntoScheduleConfigs, Resource};
+
+/// Text pasted into the terminal (bracketed paste).
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
+pub struct PasteMessage(pub String);
+
+/// Terminal focus change.
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FocusMessage {
+    /// Whether the terminal gained focus.
+    pub gained: bool,
+}
+
+/// What the active terminal backend can report.
+///
+/// Every capability defaults to present, so no synthesis runs without a
+/// backend saying otherwise. Backends overwrite this after detection, and
+/// should build their value from [`InputCapabilities::none`] rather than
+/// [`Default`]: seeding from the permissive default claims any capability
+/// added later without ever probing for it.
+#[derive(Resource, Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct InputCapabilities {
+    /// Real key-release events arrive (kitty keyboard protocol).
+    pub key_release: bool,
+    /// Modifier keys arrive as [`KeyCode::Modifier`] events (kitty keyboard
+    /// protocol). When unset, [`bevy_compat::forward_keyboard`] synthesizes
+    /// modifier transitions from [`KeyModifiers`] instead.
+    pub modifier_keys: bool,
+}
+
+impl InputCapabilities {
+    /// Every capability absent: the seed a backend refines with what it
+    /// detected.
+    ///
+    /// [`Default`] is the opposite - every capability present - which is
+    /// what an app with no backend attached needs. Seeding detection from
+    /// this instead means a capability added later reads as absent until a
+    /// backend probes for it, rather than being claimed unasked.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            key_release: false,
+            modifier_keys: false,
+        }
+    }
+
+    /// Sets whether real key-release events arrive.
+    #[must_use]
+    pub const fn with_key_release(mut self, reported: bool) -> Self {
+        self.key_release = reported;
+        self
+    }
+
+    /// Sets whether modifier keys arrive as their own key events.
+    #[must_use]
+    pub const fn with_modifier_keys(mut self, reported: bool) -> Self {
+        self.modifier_keys = reported;
+        self
+    }
+}
+
+impl Default for InputCapabilities {
+    fn default() -> Self {
+        Self {
+            key_release: true,
+            modifier_keys: true,
+        }
+    }
+}
+
+/// Registers the input messages, polled state, and the `PreUpdate` phases
+/// backends and consumers order against.
+pub struct InputPlugin;
+
+impl Plugin for InputPlugin {
+    fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<bevy_time::TimePlugin>() {
+            app.add_plugins(bevy_time::TimePlugin);
+        }
+        app.init_resource::<CursorCell>();
+        app.init_resource::<InputCapabilities>();
+        app.init_resource::<ReleaseTimeout>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<ButtonInput<MouseButton>>();
+        app.add_message::<KeyMessage>();
+        app.add_message::<MouseMessage>();
+        app.add_message::<PasteMessage>();
+        app.add_message::<FocusMessage>();
+        app.configure_sets(
+            PreUpdate,
+            (InputSystems::Pump, InputSystems::Update).chain(),
+        );
+        app.add_systems(
+            PreUpdate,
+            (synthesize_releases, update_button_input, track_cursor_cell)
+                .chain()
+                .in_set(InputSystems::Update),
+        );
+    }
+}

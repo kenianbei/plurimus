@@ -1,0 +1,9 @@
+---
+source: crates/plurimus_2d/tests/render2d.rs
+expression: composed_styled_frame(&app)
+---
+▀▀▀
+--
+abb
+a: fg:Some(Green) bg:Some(Reset) mods:NONE
+b: fg:Some(Red) bg:Some(Reset) mods:NONE

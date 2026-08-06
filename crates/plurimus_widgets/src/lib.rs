@@ -1,0 +1,177 @@
+//! Standard widgets mirroring bevy_ui_widgets - the settled strategy:
+//! upstream's component vocabulary and event contract over terminal-native
+//! engines. Most widgets are stateless controllers emitting entity events,
+//! applied by the app or the stock `*_self_update` observers; the text
+//! widgets own their editing state and mutate-then-notify.
+//!
+//! A widget is therefore three separable things: components describing what
+//! it is, systems turning input into events, and a stylist that rebuilds its
+//! [`UiWidget`] from [`UiTheme`] each frame. An app that wants different
+//! looks replaces the stylist and keeps the behaviour; one that wants
+//! different behaviour handles the events itself and keeps the look.
+
+mod activate;
+mod button;
+mod checkbox;
+mod listbox;
+mod menu;
+mod menu_layout;
+mod pane;
+mod popover;
+mod radio;
+mod scrollbar;
+mod self_update;
+mod slider;
+mod stylist;
+mod text;
+mod theme;
+
+pub use plurimus_ui::ValueChange;
+pub use ratatui_textarea;
+pub use ratatui_widgets;
+
+pub use activate::Activate;
+pub use button::{Button, button};
+pub use checkbox::{Checkbox, checkbox};
+pub use listbox::{ActiveDescendant, ListBox, ListBoxMultiSelect, ListItem, list_item, listbox};
+pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
+pub use pane::{Pane, pane};
+pub use popover::{Popover, PopoverAlign, PopoverSide};
+pub use radio::{RadioButton, RadioGroup, radio};
+pub use scrollbar::{Scrollbar, scrollbar};
+pub use self_update::{
+    checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
+};
+pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
+pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
+pub use theme::UiTheme;
+
+pub(crate) use activate::{is_activate_key, widget_click, widget_key};
+pub(crate) use button::style_buttons;
+pub(crate) use checkbox::style_checkboxes;
+pub(crate) use listbox::{listbox_key, listbox_press, style_listboxes, sync_listbox_scroll};
+pub(crate) use menu::{
+    menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
+    style_menu_popups,
+};
+pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
+pub(crate) use pane::style_panes;
+pub(crate) use popover::place_popovers;
+pub(crate) use radio::style_radios;
+pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
+pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
+pub(crate) use text::{
+    install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
+    text_input_blur, text_input_key, text_input_paste,
+};
+
+use bevy_app::{App, Plugin, PreUpdate, Update};
+use bevy_ecs::prelude::Component;
+use bevy_ecs::prelude::IntoScheduleConfigs;
+use bevy_input::keyboard::KeyCode;
+use ratatui_widgets::paragraph::Paragraph;
+
+use plurimus_core::UiWidget;
+use plurimus_ui::{UiPlugin, UiSystems};
+
+// Modifiers arrive as polled state rather than per-event flags, so
+// several keys landing in one frame share the latest modifiers.
+pub(crate) const CTRL_KEYS: [KeyCode; 2] = [KeyCode::ControlLeft, KeyCode::ControlRight];
+pub(crate) const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
+pub(crate) const SHIFT_KEYS: [KeyCode; 2] = [KeyCode::ShiftLeft, KeyCode::ShiftRight];
+
+/// A widget's text label, rendered by the stock stylists.
+#[derive(Component, Debug, Clone)]
+pub struct UiLabel(pub String);
+
+// The stock stylists replace this on the first frame.
+pub(crate) fn placeholder() -> UiWidget {
+    UiWidget::new(Paragraph::new(String::new()))
+}
+
+// Shared track convention: first cell is 0.0, last is 1.0, outside clamps.
+pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
+    let last = length.saturating_sub(1).max(1);
+    let cell = pointer.saturating_sub(start).min(last);
+    f32::from(cell) / f32::from(last)
+}
+
+/// Installs the widget library: stylists, widget observers, and the
+/// layout systems for menus and popovers.
+///
+/// Requires [`plurimus_core::CorePlugin`] first; adds [`UiPlugin`] itself
+/// when absent.
+pub struct WidgetsPlugin;
+
+impl Plugin for WidgetsPlugin {
+    fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<UiPlugin>() {
+            app.add_plugins(UiPlugin);
+        }
+        app.init_resource::<UiTheme>();
+        add_layout_systems(app);
+        add_stylists(app);
+        add_observers(app);
+    }
+}
+
+// Placement reads areas and feeds hover, so it runs between the two.
+fn add_layout_systems(app: &mut App) {
+    app.add_systems(
+        PreUpdate,
+        (
+            install_editor_views.before(UiSystems::Areas),
+            (
+                sync_listbox_scroll,
+                size_menu_popups,
+                place_popovers,
+                place_menu_items,
+            )
+                .chain()
+                .after(UiSystems::Areas)
+                .before(UiSystems::Hover),
+        ),
+    );
+}
+
+fn add_stylists(app: &mut App) {
+    app.add_systems(
+        Update,
+        (
+            style_buttons,
+            style_checkboxes,
+            style_radios,
+            style_sliders,
+            style_scrollbars,
+            style_listboxes,
+            style_panes,
+            style_text_inputs,
+            style_menu_items,
+            style_menu_popups,
+        ),
+    );
+}
+
+fn add_observers(app: &mut App) {
+    app.add_observer(widget_click);
+    app.add_observer(widget_key);
+    app.add_observer(slider_press);
+    app.add_observer(slider_drag);
+    app.add_observer(slider_release);
+    app.add_observer(slider_key);
+    app.add_observer(scrollbar_press);
+    app.add_observer(scrollbar_drag);
+    app.add_observer(scrollbar_release);
+    app.add_observer(listbox_press);
+    app.add_observer(listbox_key);
+    app.add_observer(text_input_key);
+    app.add_observer(text_input_paste);
+    app.add_observer(text_input_blur);
+    app.add_observer(text_editor_key);
+    app.add_observer(text_editor_paste);
+    app.add_observer(text_editor_wheel);
+    app.add_observer(menu_button_activate);
+    app.add_observer(menu_item_click);
+    app.add_observer(menu_key);
+    app.add_observer(menu_dismiss);
+}

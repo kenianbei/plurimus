@@ -1,0 +1,18 @@
+---
+source: crates/plurimus_ui/tests/bui_render.rs
+expression: frame(&app)
+---
+┌──────────────────┐
+│                  │
+│ hi there         │
+│                  │
+└──────────────────┘
+--
+aaaaaaaaaaaaaaaaaaaa
+abbbbbbbbbbbbbbbbbba
+abccccccccbbbbbbbbba
+abbbbbbbbbbbbbbbbbba
+aaaaaaaaaaaaaaaaaaaa
+a: fg:Some(Rgb(0, 255, 0)) bg:Some(Reset) mods:NONE
+b: fg:Some(Reset) bg:Some(Reset) mods:NONE
+c: fg:Some(Yellow) bg:Some(Reset) mods:NONE

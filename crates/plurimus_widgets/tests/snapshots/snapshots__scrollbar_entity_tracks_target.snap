@@ -1,0 +1,8 @@
+---
+source: crates/plurimus_ui/tests/snapshots.rs
+expression: composed_frame(&app)
+---
+l5    ▲
+l6    ║
+l7    █
+l8    ▼

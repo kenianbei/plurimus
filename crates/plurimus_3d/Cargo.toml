@@ -1,0 +1,41 @@
+[package]
+name = "plurimus_3d"
+description = "3d pipeline for plurimus: GPU camera readback converted to terminal cells."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_asset = { workspace = true }
+bevy_camera = { workspace = true }
+bevy_color = { workspace = true }
+bevy_core_pipeline = { workspace = true }
+bevy_diagnostic = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_image = { workspace = true }
+bevy_light = { workspace = true }
+bevy_log = { workspace = true }
+bevy_math = { workspace = true }
+bevy_mesh = { workspace = true }
+bevy_render = { workspace = true }
+bevy_time = { workspace = true }
+bevy_transform = { workspace = true }
+bevy_window = { workspace = true }
+plurimus_core = { workspace = true }
+ratatui-core = { workspace = true }
+
+[dev-dependencies]
+bevy_gltf = { workspace = true }
+bevy_pbr = { workspace = true }
+bevy_tasks = { workspace = true }
+plurimus_test = { workspace = true }
+
+[lints]
+workspace = true

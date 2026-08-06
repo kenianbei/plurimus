@@ -1,0 +1,9 @@
+---
+source: crates/plurimus_ui/tests/text_input.rs
+expression: composed_styled_frame(&app)
+---
+cdefg 
+--
+aaaaab
+a: fg:Some(Yellow) bg:Some(Reset) mods:BOLD
+b: fg:Some(Yellow) bg:Some(Reset) mods:BOLD | REVERSED

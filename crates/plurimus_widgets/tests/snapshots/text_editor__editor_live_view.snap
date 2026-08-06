@@ -1,0 +1,5 @@
+---
+source: crates/plurimus_ui/tests/text_editor.rs
+expression: composed_frame(&app)
+---
+hi

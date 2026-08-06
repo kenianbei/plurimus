@@ -1,0 +1,4 @@
+[alias]
+lint = "clippy --workspace --all-targets --all-features"
+checkall = "check --workspace --all-features"
+testall = "test --workspace --all-features"

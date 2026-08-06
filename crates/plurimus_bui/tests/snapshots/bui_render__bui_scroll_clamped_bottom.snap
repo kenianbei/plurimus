@@ -1,0 +1,10 @@
+---
+source: crates/plurimus_ui/tests/bui_render.rs
+expression: composed_styled_frame(&app)
+---
+r3    
+r4    
+--
+aaaaaa
+aaaaaa
+a: fg:Some(Reset) bg:Some(Reset) mods:NONE

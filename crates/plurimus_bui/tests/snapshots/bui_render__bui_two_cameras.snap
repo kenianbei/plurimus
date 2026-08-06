@@ -1,0 +1,10 @@
+---
+source: crates/plurimus_ui/tests/bui_render.rs
+expression: frame(&app)
+---
+left  right 
+            
+--
+aaaaaaaaaaaa
+aaaaaaaaaaaa
+a: fg:Some(Reset) bg:Some(Reset) mods:NONE

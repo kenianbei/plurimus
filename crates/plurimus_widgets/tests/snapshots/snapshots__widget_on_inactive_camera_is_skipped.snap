@@ -1,0 +1,5 @@
+---
+source: crates/plurimus_ui/tests/snapshots.rs
+expression: frame(&app)
+---
+

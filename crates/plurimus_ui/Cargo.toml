@@ -1,0 +1,31 @@
+[package]
+name = "plurimus_ui"
+description = "UI pipeline for plurimus: interaction, focus, navigation, and scrolling over widget entities."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_input = { workspace = true }
+bevy_input_focus = { workspace = true }
+bevy_math = { workspace = true }
+bevy_window = { workspace = true }
+plurimus_core = { workspace = true }
+plurimus_input = { workspace = true }
+tui-scrollview = { workspace = true }
+
+[dev-dependencies]
+insta = "1"
+plurimus_test = { workspace = true }
+ratatui-widgets = { workspace = true }
+
+[lints]
+workspace = true

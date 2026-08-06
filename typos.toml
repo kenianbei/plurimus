@@ -1,0 +1,5 @@
+# Project and dependency names the dictionary mistakes for misspellings:
+# "ratatui" for "ratatouille", "bui" (the bevy_ui bridge) for "buoy".
+[default.extend-words]
+bui = "bui"
+ratatui = "ratatui"

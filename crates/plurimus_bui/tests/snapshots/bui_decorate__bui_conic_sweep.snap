@@ -1,0 +1,32 @@
+---
+source: crates/plurimus_ui/tests/bui_decorate.rs
+assertion_line: 121
+expression: composed_styled_frame(&app)
+---
+         
+         
+         
+--
+abcdefghi
+jjjjkllll
+mnopkqrst
+a: fg:Some(Reset) bg:Some(Rgb(127, 127, 127)) mods:NONE
+b: fg:Some(Reset) bg:Some(Rgb(123, 123, 123)) mods:NONE
+c: fg:Some(Reset) bg:Some(Rgb(116, 116, 116)) mods:NONE
+d: fg:Some(Reset) bg:Some(Rgb(99, 99, 99)) mods:NONE
+e: fg:Some(Reset) bg:Some(Rgb(255, 255, 255)) mods:NONE
+f: fg:Some(Reset) bg:Some(Rgb(240, 240, 240)) mods:NONE
+g: fg:Some(Reset) bg:Some(Rgb(234, 234, 234)) mods:NONE
+h: fg:Some(Reset) bg:Some(Rgb(231, 231, 231)) mods:NONE
+i: fg:Some(Reset) bg:Some(Rgb(230, 230, 230)) mods:NONE
+j: fg:Some(Reset) bg:Some(Rgb(137, 137, 137)) mods:NONE
+k: fg:Some(Reset) bg:Some(Rgb(188, 188, 188)) mods:NONE
+l: fg:Some(Reset) bg:Some(Rgb(225, 225, 225)) mods:NONE
+m: fg:Some(Reset) bg:Some(Rgb(146, 146, 146)) mods:NONE
+n: fg:Some(Reset) bg:Some(Rgb(149, 149, 149)) mods:NONE
+o: fg:Some(Reset) bg:Some(Rgb(154, 154, 154)) mods:NONE
+p: fg:Some(Reset) bg:Some(Rgb(165, 165, 165)) mods:NONE
+q: fg:Some(Reset) bg:Some(Rgb(207, 207, 207)) mods:NONE
+r: fg:Some(Reset) bg:Some(Rgb(215, 215, 215)) mods:NONE
+s: fg:Some(Reset) bg:Some(Rgb(218, 218, 218)) mods:NONE
+t: fg:Some(Reset) bg:Some(Rgb(219, 219, 219)) mods:NONE

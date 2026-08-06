@@ -1,0 +1,157 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.0"
+authors = ["Norman Kerr"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kenianbei/plurimus"
+readme = "README.md"
+keywords = ["bevy", "ratatui", "tui", "terminal", "cli"]
+categories = ["command-line-interface", "game-development", "gui"]
+rust-version = "1.95"
+
+[workspace.dependencies]
+plurimus_core = { path = "crates/plurimus_core", version = "0.2.0" }
+plurimus_input = { path = "crates/plurimus_input", version = "0.2.0" }
+plurimus_crossterm = { path = "crates/plurimus_crossterm", version = "0.2.0" }
+plurimus_test = { path = "crates/plurimus_test" }
+plurimus_ui = { path = "crates/plurimus_ui", version = "0.2.0" }
+plurimus_widgets = { path = "crates/plurimus_widgets", version = "0.2.0" }
+plurimus_bui = { path = "crates/plurimus_bui", version = "0.2.0" }
+plurimus_2d = { path = "crates/plurimus_2d", version = "0.2.0" }
+plurimus_3d = { path = "crates/plurimus_3d", version = "0.2.0" }
+bevy_app = "0.19"
+bevy_ecs = "0.19"
+bevy_input = { version = "0.19", features = ["keyboard", "mouse"] }
+bevy_time = "0.19"
+bevy_input_focus = { version = "0.19", default-features = false, features = ["std", "keyboard"] }
+bevy_window = "0.19"
+bevy_ui = { version = "0.19", default-features = false }
+bevy_camera = "0.19"
+bevy_color = "0.19"
+bevy_text = { version = "0.19", default-features = false }
+bevy_math = "0.19"
+bevy_transform = "0.19"
+bevy_asset = "0.19"
+bevy_diagnostic = "0.19"
+bevy_render = "0.19"
+bevy_image = "0.19"
+bevy_mesh = "0.19"
+bevy_light = "0.19"
+bevy_log = "0.19"
+bevy_core_pipeline = "0.19"
+bevy_pbr = "0.19"
+bevy_reflect = "0.19"
+bevy_shader = "0.19"
+bevy_tasks = "0.19"
+bevy_gltf = "0.19"
+bevy_world_serialization = "0.19"
+unicode-segmentation = "1"
+unicode-width = "0.2"
+ratatui-core = "0.1.2"
+ratatui-crossterm = "0.1.2"
+ratatui-widgets = "0.3.2"
+ratatui-textarea = { version = "0.9.2", default-features = false }
+tui-scrollview = "0.6.7"
+crossterm = "0.29"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+type_complexity = "allow"
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+complexity = { level = "warn", priority = -1 }
+perf = { level = "warn", priority = -1 }
+style = { level = "warn", priority = -1 }
+
+[package]
+name = "plurimus"
+description = "A Bevy-native terminal renderer: cameras, widgets, and 2d/3d pipelines drawn to terminal cells."
+documentation = "https://docs.rs/plurimus"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+exclude = ["examples/**/*.png"]
+
+[features]
+default = ["crossterm"]
+input = ["dep:plurimus_input"]
+crossterm = ["input", "dep:plurimus_crossterm"]
+ui = ["input", "dep:plurimus_ui"]
+widgets = ["ui", "dep:plurimus_widgets"]
+bevy-ui = ["ui", "dep:plurimus_bui"]
+2d = ["dep:plurimus_2d"]
+3d = ["dep:plurimus_3d"]
+
+[dependencies]
+plurimus_core = { workspace = true }
+plurimus_input = { workspace = true, optional = true }
+plurimus_crossterm = { workspace = true, optional = true }
+plurimus_ui = { workspace = true, optional = true }
+plurimus_widgets = { workspace = true, optional = true }
+plurimus_bui = { workspace = true, optional = true }
+plurimus_2d = { workspace = true, optional = true }
+plurimus_3d = { workspace = true, optional = true }
+
+[dev-dependencies]
+plurimus_test = { workspace = true }
+ratatui-widgets = { workspace = true }
+bevy_app = { workspace = true, features = ["reflect_auto_register"] }
+bevy_asset = { workspace = true }
+bevy_camera = { workspace = true }
+bevy_color = { workspace = true }
+bevy_core_pipeline = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_gltf = { workspace = true }
+bevy_image = { workspace = true, features = ["jpeg", "png"] }
+bevy_input_focus = { workspace = true }
+bevy_light = { workspace = true }
+bevy_math = { workspace = true }
+bevy_mesh = { workspace = true }
+bevy_pbr = { workspace = true, features = ["bevy_gltf"] }
+bevy_tasks = { workspace = true }
+bevy_time = { workspace = true }
+bevy_transform = { workspace = true }
+bevy_ui = { workspace = true }
+bevy_world_serialization = { workspace = true }
+
+[[example]]
+name = "basic"
+test = true
+
+[[example]]
+name = "widgets"
+required-features = ["widgets", "bevy-ui"]
+test = true
+
+[[example]]
+name = "pong"
+required-features = ["widgets", "2d"]
+test = true
+
+[[example]]
+name = "ratman"
+required-features = ["widgets", "2d"]
+test = true
+
+[[example]]
+name = "lander"
+required-features = ["widgets", "3d"]
+test = true
+
+[lints]
+workspace = true

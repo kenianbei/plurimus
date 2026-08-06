@@ -1,0 +1,24 @@
+[package]
+name = "plurimus_crossterm"
+description = "Crossterm integration for plurimus: terminal lifecycle, event translation, and backend supply."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+crossterm = { workspace = true }
+plurimus_core = { workspace = true }
+plurimus_input = { workspace = true }
+ratatui-core = { workspace = true }
+ratatui-crossterm = { workspace = true }
+
+[lints]
+workspace = true

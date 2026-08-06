@@ -1,0 +1,29 @@
+[package]
+name = "plurimus_2d"
+description = "2d pipeline for plurimus: software rasterization of sprites and glyphs to terminal cells."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_math = { workspace = true }
+bevy_transform = { workspace = true }
+plurimus_core = { workspace = true }
+ratatui-core = { workspace = true }
+unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
+
+[dev-dependencies]
+insta = "1"
+plurimus_test = { workspace = true }
+
+[lints]
+workspace = true

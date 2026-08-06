@@ -1,0 +1,21 @@
+[package]
+name = "plurimus_core"
+description = "Core terminal rendering for plurimus: render sub-app, terminal cameras, and buffer compositing."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_color = { workspace = true }
+bevy_ecs = { workspace = true }
+ratatui-core = { workspace = true }
+
+[lints]
+workspace = true

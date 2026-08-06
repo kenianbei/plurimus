@@ -1,0 +1,33 @@
+[package]
+name = "plurimus_widgets"
+description = "Widget library for plurimus: standard widgets, theming, menus, and popovers on the ui pipeline."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
+bevy_input = { workspace = true }
+bevy_input_focus = { workspace = true }
+plurimus_core = { workspace = true }
+plurimus_input = { workspace = true }
+plurimus_ui = { workspace = true }
+ratatui-textarea = { workspace = true }
+ratatui-widgets = { workspace = true }
+unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
+
+[dev-dependencies]
+bevy_math = { workspace = true }
+insta = "1"
+plurimus_test = { workspace = true }
+
+[lints]
+workspace = true

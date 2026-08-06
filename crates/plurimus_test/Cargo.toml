@@ -1,0 +1,18 @@
+[package]
+name = "plurimus_test"
+description = "Test support for plurimus: input injection and composed-frame snapshots."
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bevy_app = { workspace = true }
+plurimus_core = { workspace = true }
+plurimus_input = { workspace = true }
+
+[lints]
+workspace = true

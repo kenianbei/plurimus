@@ -1,0 +1,13 @@
+---
+source: crates/plurimus_ui/tests/stylists.rs
+assertion_line: 174
+expression: composed_styled_frame(&app)
+---
+┌side────┐
+│ [ hi ] │
+└────────┘
+--
+aaaaaaaaaa
+aaaaaaaaaa
+aaaaaaaaaa
+a: fg:Some(Reset) bg:Some(Reset) mods:NONE

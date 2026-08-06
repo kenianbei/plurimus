@@ -1,0 +1,15 @@
+{
+  // Rules stay at markdownlint defaults; only discovery is configured.
+  // MD013 caps lines at 80 but exempts lines with no whitespace past the
+  // limit, which is what lets long code-block lines through.
+  //
+  // No "globs" here on purpose: callers pass their own, so the pre-commit
+  // hook checks only staged files instead of the whole tree.
+  "gitignore": true,
+  "ignores": ["target", "node_modules"],
+  "config": {
+    // Every release repeats the same section headings, so MD024 may only
+    // reject collisions under one version.
+    "MD024": { "siblings_only": true },
+  },
+}

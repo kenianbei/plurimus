@@ -1,0 +1,10 @@
+---
+source: crates/plurimus_ui/tests/stylists.rs
+expression: frame(&app)
+---
+(•) one   
+( ) two   
+--
+aaaaaaaaaa
+aaaaaaaaaa
+a: fg:Some(Reset) bg:Some(Reset) mods:NONE

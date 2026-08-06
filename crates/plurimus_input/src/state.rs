@@ -1,0 +1,118 @@
+//! Polled input state derived from the message stream.
+//!
+//! The message stream says what happened this frame; a game loop usually
+//! wants to know what is held right now. Both views are kept from the same
+//! source here, so a widget can read discrete presses while a movement system
+//! polls [`ButtonInput`](bevy_input::ButtonInput) for the same keys.
+
+use bevy_ecs::prelude::{MessageReader, ResMut};
+use bevy_ecs::schedule::SystemSet;
+use bevy_input::ButtonInput;
+
+use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, MouseMessage};
+
+/// Ordered phases of input handling in `PreUpdate`.
+#[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum InputSystems {
+    /// Backends drain their event source into messages.
+    Pump,
+    /// Core derives state (button state, cursor, synthesis) from messages.
+    Update,
+}
+
+pub(crate) fn update_button_input(
+    mut keys: MessageReader<KeyMessage>,
+    mut mouse: MessageReader<MouseMessage>,
+    mut key_state: ResMut<ButtonInput<KeyCode>>,
+    mut mouse_state: ResMut<ButtonInput<MouseButton>>,
+) {
+    key_state.clear();
+    mouse_state.clear();
+    for key in keys.read() {
+        match key.kind {
+            KeyKind::Press => key_state.press(key.code),
+            KeyKind::Release => key_state.release(key.code),
+            KeyKind::Repeat => {}
+        }
+    }
+    for event in mouse.read() {
+        match event.kind {
+            MouseKind::Down(button) => mouse_state.press(button),
+            MouseKind::Up(button) => mouse_state.release(button),
+            _ => {}
+        }
+    }
+}
+
+pub(crate) fn track_cursor_cell(
+    mut mouse: MessageReader<MouseMessage>,
+    mut cursor: ResMut<CursorCell>,
+) {
+    if let Some(event) = mouse.read().last() {
+        cursor.0 = Some(event.position);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_app::App;
+    use bevy_input::ButtonInput;
+    use plurimus_core::ratatui_core::layout::Position;
+
+    use crate::{
+        CursorCell, InputPlugin, KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton,
+        MouseKind, MouseMessage,
+    };
+
+    fn key(kind: KeyKind) -> KeyMessage {
+        KeyMessage {
+            code: KeyCode::Char('w'),
+            modifiers: KeyModifiers::default(),
+            kind,
+        }
+    }
+
+    #[test]
+    fn press_and_release_drive_button_state() {
+        let mut app = App::new();
+        app.add_plugins(InputPlugin);
+
+        app.world_mut().write_message(key(KeyKind::Press));
+        app.update();
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(state.pressed(KeyCode::Char('w')));
+        assert!(state.just_pressed(KeyCode::Char('w')));
+
+        app.world_mut().write_message(key(KeyKind::Repeat));
+        app.update();
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(state.pressed(KeyCode::Char('w')));
+        assert!(!state.just_pressed(KeyCode::Char('w')));
+
+        app.world_mut().write_message(key(KeyKind::Release));
+        app.update();
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(!state.pressed(KeyCode::Char('w')));
+        assert!(state.just_released(KeyCode::Char('w')));
+    }
+
+    #[test]
+    fn mouse_state_and_cursor_track_messages() {
+        let mut app = App::new();
+        app.add_plugins(InputPlugin);
+
+        app.world_mut().write_message(MouseMessage {
+            kind: MouseKind::Down(MouseButton::Left),
+            position: Position::new(7, 3),
+            modifiers: KeyModifiers::default(),
+        });
+        app.update();
+
+        let state = app.world().resource::<ButtonInput<MouseButton>>();
+        assert!(state.pressed(MouseButton::Left));
+        assert_eq!(
+            app.world().resource::<CursorCell>().0,
+            Some(Position::new(7, 3))
+        );
+    }
+}

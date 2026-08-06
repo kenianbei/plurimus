@@ -1,0 +1,15 @@
+---
+source: crates/plurimus_ui/tests/bui_render.rs
+assertion_line: 244
+expression: composed_styled_frame(&app)
+---
+warm words
+here      
+          
+--
+aaaaaaabbb
+bbbbcccccc
+cccccccccc
+a: fg:Some(Red) bg:Some(Black) mods:NONE
+b: fg:Some(Blue) bg:Some(Black) mods:NONE
+c: fg:Some(Reset) bg:Some(Reset) mods:NONE

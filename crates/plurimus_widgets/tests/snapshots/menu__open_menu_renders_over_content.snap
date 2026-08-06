@@ -1,0 +1,9 @@
+---
+source: crates/plurimus_ui/tests/menu.rs
+expression: composed_frame(&app)
+---
+ [ File ]           
+ ┌──────┐           
+u│ Open │er under   
+ │ Save │           
+ └──────┘

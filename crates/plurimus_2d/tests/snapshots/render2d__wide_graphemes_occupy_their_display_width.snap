@@ -1,0 +1,6 @@
+---
+source: crates/plurimus_2d/tests/render2d.rs
+expression: composed_frame(&app)
+---
+       
+.苹 果 ..
