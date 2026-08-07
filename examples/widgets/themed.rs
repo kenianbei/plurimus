@@ -132,9 +132,9 @@ fn spawn_themed_side(mut commands: Commands, mut map: ResMut<DirectionalNavigati
     spawn_menu(&mut commands, root);
 }
 
-fn spawn_pane(commands: &mut Commands, root: Entity, title: &str, area: Rect) -> Entity {
+fn spawn_pane(commands: &mut Commands, root: Entity, title: &'static str, area: Rect) -> Entity {
     commands
-        .spawn((pane(title.to_owned()), UiArea::Fixed(area), ChildOf(root)))
+        .spawn((pane(title), UiArea::Fixed(area), ChildOf(root)))
         .id()
 }
 

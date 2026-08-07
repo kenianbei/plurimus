@@ -14,6 +14,7 @@ mod activate;
 mod button;
 mod checkbox;
 mod listbox;
+mod listbox_style;
 mod menu;
 mod menu_layout;
 mod pane;
@@ -53,7 +54,8 @@ pub use theme::UiTheme;
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
-pub(crate) use listbox::{listbox_key, listbox_press, style_listboxes, sync_listbox_scroll};
+pub(crate) use listbox::{listbox_key, listbox_press, sync_listbox_scroll};
+pub(crate) use listbox_style::style_listboxes;
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
     style_menu_popups,

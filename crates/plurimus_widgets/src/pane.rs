@@ -8,12 +8,12 @@
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::prelude::{Component, Has, Query, Res, With, Without};
+use bevy_ecs::prelude::{Component, Has, Query, Res};
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
 use super::{UiLabel, placeholder};
-use crate::stylist::{StylistCache, StylistDisabled, UiStyle};
+use crate::stylist::{Stylable, StylistCache, UiStyle};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::FocusWithin;
@@ -40,7 +40,7 @@ pub(crate) fn style_panes(
             &mut StylistCache,
             &mut UiWidget,
         ),
-        (With<Pane>, Without<StylistDisabled>),
+        Stylable<Pane>,
     >,
 ) {
     for (focused, label, over, mut cache, mut widget) in &mut panes {

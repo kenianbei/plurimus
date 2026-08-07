@@ -44,7 +44,7 @@ pub struct UiStyle(pub Style);
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct StylistCache {
-    pub(crate) rendered: bool,
+    rendered: bool,
     hovered: bool,
     pressed: bool,
     disabled: bool,
@@ -104,6 +104,11 @@ pub(crate) type StateQuery<'a> = (
     Option<&'a UiStyle>,
 );
 
+/// Marks a widget the stock stylists own: it is the marker `M` and has not
+/// been exempted. Every stylist filters on this, so a new one cannot forget
+/// to honor [`StylistDisabled`].
+pub(crate) type Stylable<M> = (With<M>, Without<StylistDisabled>);
+
 pub(crate) type LabeledQuery<'w, 's, 'a, M> = Query<
     'w,
     's,
@@ -113,28 +118,21 @@ pub(crate) type LabeledQuery<'w, 's, 'a, M> = Query<
         &'a mut StylistCache,
         &'a mut UiWidget,
     ),
-    (With<M>, Without<StylistDisabled>),
+    Stylable<M>,
 >;
 
-// Decorations wrap the label rather than replace it, so the label's own
-// spans, line style, and alignment all have to survive the splice - a
-// dropped line style silently loses row striping.
+// Decorations wrap the label rather than replace it, so cloning it is what
+// carries its line style and alignment across - dropping either silently
+// loses row striping.
 pub(crate) fn decorate(
     prefix: &'static str,
     label: &Line<'static>,
     suffix: &'static str,
 ) -> Line<'static> {
-    let mut spans = Vec::with_capacity(label.spans.len() + 2);
-    spans.push(Span::raw(prefix));
-    spans.extend(label.spans.iter().cloned());
-    if !suffix.is_empty() {
-        spans.push(Span::raw(suffix));
-    }
-    Line {
-        style: label.style,
-        alignment: label.alignment,
-        spans,
-    }
+    let mut line = label.clone();
+    line.spans.insert(0, Span::raw(prefix));
+    line.spans.push(Span::raw(suffix));
+    line
 }
 
 // Every stylist funnels widget-specific state through this one hash.

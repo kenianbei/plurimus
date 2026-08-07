@@ -8,27 +8,19 @@
 //! scroll machinery to window the rows.
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{
-    Changed, Children, Commands, Component, Has, On, Or, Query, Res, With, Without,
-};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Or, Query, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_input_focus::{FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
-use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
-use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::{
-    StateQuery, StylistCache, StylistDisabled, UiStyle, decorate, hashed_bits, observed,
-};
-use crate::theme::UiTheme;
-use plurimus_core::UiWidget;
-use plurimus_ui::{Checked, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
+use crate::stylist::StylistCache;
+use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollArea, ScrollIntoView, ScrollOffset};
 
 /// A focusable list of [`ListItem`] children. Selection emits
@@ -75,9 +67,6 @@ pub fn listbox() -> impl Bundle {
 pub fn list_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (ListItem, UiLabel(label.into()))
 }
-
-// Drawn beside the cursor row unless a `ListBoxCursor` replaces it.
-const CURSOR_SYMBOL: &str = "> ";
 
 enum ListKey {
     Up,
@@ -209,108 +198,6 @@ fn row_entity(
     row: usize,
 ) -> Option<Entity> {
     list_rows(children, items).nth(row)
-}
-
-pub(crate) fn style_listboxes(
-    theme: Res<UiTheme>,
-    focus: Res<InputFocus>,
-    mut boxes: Query<
-        (
-            StateQuery,
-            &ActiveDescendant,
-            &Children,
-            Has<ListBoxSelectionMarker>,
-            Option<&ListBoxCursor>,
-            &mut StylistCache,
-            &mut UiWidget,
-        ),
-        (With<ListBox>, Without<StylistDisabled>),
-    >,
-    items: Query<(&UiLabel, Has<Checked>, Option<&UiStyle>), With<ListItem>>,
-) {
-    for (state, active, children, marker, cursor, mut cache, mut widget) in &mut boxes {
-        let rows: Vec<Row> = children
-            .iter()
-            .filter_map(|&child| {
-                let (label, checked, over) = items.get(child).ok()?;
-                Some((child, &label.0, checked, over.map(|style| style.0)))
-            })
-            .collect();
-        let selected = active
-            .0
-            .and_then(|item| rows.iter().position(|(row, ..)| *row == item));
-
-        let symbol = cursor.map(|cursor| &cursor.0);
-        let next = observed(
-            state,
-            &focus,
-            hashed_bits((&rows, selected, marker, symbol)),
-        );
-        if !theme.is_changed() && next == *cache {
-            continue;
-        }
-        *cache = next;
-        let gutters = Gutters {
-            marker,
-            cursor: symbol.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL)),
-        };
-        let styles = RowStyles {
-            every: next.resting_style(&theme),
-            cursor: next.style(&theme),
-        };
-        *widget = list_widget(&rows, selected, gutters, styles);
-    }
-}
-
-// A row's entity, label, checked state, and per-row style override.
-type Row<'a> = (Entity, &'a Line<'static>, bool, Option<Style>);
-
-// What every row is drawn in, and what the cursor row adds on top. Keeping
-// them apart is what stops a focused list from repainting all of its rows.
-struct RowStyles {
-    every: Style,
-    cursor: Style,
-}
-
-// The columns a list draws left of its rows: a marker beside every row,
-// and a symbol beside the cursor row.
-struct Gutters {
-    marker: bool,
-    cursor: Line<'static>,
-}
-
-fn list_widget(
-    rows: &[Row],
-    selected: Option<usize>,
-    gutters: Gutters,
-    styles: RowStyles,
-) -> UiWidget {
-    let items: Vec<ListRow> = rows
-        .iter()
-        .map(|(_, label, checked, over)| {
-            let line = if gutters.marker {
-                decorate(if *checked { "▪ " } else { "  " }, label, "")
-            } else {
-                (*label).clone()
-            };
-            let row = ListRow::new(line);
-            // Applied over the whole row rather than the label's own cells,
-            // which is what reaches the cursor gutter.
-            match over {
-                Some(over) => row.style(*over),
-                None => row,
-            }
-        })
-        .collect();
-    let mut highlight = ListState::default();
-    highlight.select(selected);
-    UiWidget::stateful(
-        List::new(items)
-            .style(styles.every)
-            .highlight_style(styles.cursor)
-            .highlight_symbol(gutters.cursor),
-        highlight,
-    )
 }
 
 // Keeps a scrollable ListBox's content size at (content width, item

@@ -1,6 +1,5 @@
 ---
-source: crates/plurimus_widgets/tests/listbox.rs
-assertion_line: 308
+source: crates/plurimus_widgets/tests/listbox_style.rs
 expression: composed_frame(&app)
 ---
   alpha     
