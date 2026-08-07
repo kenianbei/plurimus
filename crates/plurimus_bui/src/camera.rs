@@ -1,10 +1,10 @@
-//! Bridges terminal cameras into bevy_camera so bevy_ui lays out against
+//! Bridges terminal cameras into `bevy_camera` so `bevy_ui` lays out against
 //! terminal viewports.
 //!
 //! One physical pixel is one terminal cell: each camera reports its viewport
 //! and target size in cells with a scale factor of 1, so taffy computes
 //! directly in cells and nothing downstream converts units. The default
-//! terminal camera is mirrored as bevy_ui's `IsDefaultUiCamera`, so a node
+//! terminal camera is mirrored as `bevy_ui`'s `IsDefaultUiCamera`, so a node
 //! that names no camera still lands somewhere.
 
 use bevy_camera::{Camera, RenderTargetInfo, Viewport};

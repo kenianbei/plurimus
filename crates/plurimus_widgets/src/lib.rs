@@ -1,4 +1,4 @@
-//! Standard widgets mirroring bevy_ui_widgets - the settled strategy:
+//! Standard widgets mirroring `bevy_ui_widgets` - the settled strategy:
 //! upstream's component vocabulary and event contract over terminal-native
 //! engines. Most widgets are stateless controllers emitting entity events,
 //! applied by the app or the stock `*_self_update` observers; the text

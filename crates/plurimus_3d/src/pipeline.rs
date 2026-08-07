@@ -1,6 +1,6 @@
 //! Extraction and rasterization of readback frames into camera buffers.
 //!
-//! The GPU work happens on bevy_render's own schedule, so what arrives here
+//! The GPU work happens on `bevy_render`'s own schedule, so what arrives here
 //! is a frame of pixels that is already at least one frame old. Extraction
 //! copies whatever readback has completed into the terminal sub-app, and
 //! rasterization converts it with the camera's strategy; a camera whose

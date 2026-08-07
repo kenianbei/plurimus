@@ -1,9 +1,9 @@
 //! Feeds laid-out node rects into the widget interaction layer, so hover,
-//! press, focus and widget logic run unchanged on bevy_ui nodes.
+//! press, focus and widget logic run unchanged on `bevy_ui` nodes.
 //!
 //! A node's `visible` rect is published as a
 //! [`ComputedWidgetArea`](plurimus_ui::ComputedWidgetArea), which is all
-//! plurimus_ui's routers need - they never learn a bevy_ui tree is involved.
+//! `plurimus_ui`'s routers need - they never learn a `bevy_ui` tree is involved.
 //! Only nodes that can receive something are published: the ones already
 //! hovered, and the ones carrying a `TabIndex`.
 

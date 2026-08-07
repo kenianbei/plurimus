@@ -1,8 +1,8 @@
 //! Adoption of the bevy input-focus stack for windowless terminal apps.
 //!
-//! bevy_input_focus assumes windows and keyboard events, neither of which a
+//! `bevy_input_focus` assumes windows and keyboard events, neither of which a
 //! terminal has, so this file supplies both: terminal key messages forward
-//! into bevy_input, and a virtual [`PrimaryWindow`] is spawned for focus
+//! into `bevy_input`, and a virtual [`PrimaryWindow`] is spawned for focus
 //! dispatch to query. [`FocusWithin`] is then maintained on every ancestor of
 //! the focused entity, which is what lets a pane highlight its border while
 //! something inside it holds focus.

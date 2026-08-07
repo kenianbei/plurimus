@@ -1,6 +1,6 @@
-//! Paints extracted bevy_ui nodes into camera buffers.
+//! Paints extracted `bevy_ui` nodes into camera buffers.
 //!
-//! Runs in the ui pass ahead of every widget, so a bevy_ui tree always sits
+//! Runs in the ui pass ahead of every widget, so a `bevy_ui` tree always sits
 //! beneath widget content in the same camera. Each node paints in the order
 //! extraction settled - shadow, background, border, then text - and each
 //! layer is clipped to the node's inherited clip before a cell is touched, so

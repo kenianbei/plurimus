@@ -1,12 +1,12 @@
-//! bevy_ui layout translated to terminal cells: real `Node` trees, taffy
+//! `bevy_ui` layout translated to terminal cells: real `Node` trees, taffy
 //! layout at one pixel per cell, rasterized by the terminal pipeline.
 //!
-//! Only bevy_ui's layout stack runs; its text, focus, picking, and asset
+//! Only `bevy_ui`'s layout stack runs; its text, focus, picking, and asset
 //! systems stay out. Text uses grapheme-width measurement instead of fonts.
 //!
 //! Computed nodes rasterize beneath every widget, and their areas and wheel
-//! targets bridge into plurimus_ui's routers, so a bevy_ui tree hovers,
-//! clicks and scrolls like any other widget without bevy_ui's own picking.
+//! targets bridge into `plurimus_ui`'s routers, so a `bevy_ui` tree hovers,
+//! clicks and scrolls like any other widget without `bevy_ui`'s own picking.
 
 mod camera;
 mod decorate;
@@ -37,7 +37,7 @@ use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
 // widget, so input arbitration has to agree with what the user sees.
 const BUI_ORDER: plurimus_core::UiOrder = plurimus_core::UiOrder(i32::MIN / 2);
 
-/// Runs bevy_ui's layout systems against terminal cameras, one pixel per
+/// Runs `bevy_ui`'s layout systems against terminal cameras, one pixel per
 /// cell.
 pub struct BuiPlugin;
 

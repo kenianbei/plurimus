@@ -1,4 +1,4 @@
-//! Turning laid-out bevy_ui nodes into paint-ready cell commands.
+//! Turning laid-out `bevy_ui` nodes into paint-ready cell commands.
 //!
 //! Each camera's node tree is walked once and every [`ComputedNode`] becomes
 //! a cell rect with its colors, gradients, shadows, corner glyphs and clip

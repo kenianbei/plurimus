@@ -32,7 +32,7 @@ Each feature enables one crate, and the tiers stack. The default set -
 `plurimus_core`, `plurimus_input`, `plurimus_crossterm` - renders a live
 terminal app and reads its input. Anything not enabled is not compiled.
 
-### Core (plurimus_core)
+### Core (`plurimus_core`)
 
 The render sub-app, cameras, compositing, and the presenter. Always compiled.
 
@@ -47,7 +47,7 @@ The presenter is generic over ratatui's `Backend`, so core renders without a
 terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_color`, and
 `ratatui-core`.
 
-### Input (plurimus_input)
+### Input (`plurimus_input`)
 
 Terminal input in two shapes from the same events. Discrete messages -
 `KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`,
@@ -59,7 +59,7 @@ the kitty keyboard protocol give real press, repeat, and release; elsewhere
 releases are synthesized on a `ReleaseTimeout`, which is degraded but documented
 rather than silent.
 
-### Crossterm (plurimus_crossterm)
+### Crossterm (`plurimus_crossterm`)
 
 Terminal ownership: raw mode, alternate screen, mouse capture, bracketed paste,
 and the kitty keyboard protocol where available, restored on exit and on panic.
@@ -69,7 +69,7 @@ input messages, reports resizes, and supplies the backend to core's presenter.
 The writer is generic: stdout by default, or the controlling terminal via
 `CrosstermPlugin::tty()` so stdout stays free for piped output.
 
-### UI (plurimus_ui)
+### UI (`plurimus_ui`)
 
 Interaction over any entity with an area. It computes widget areas, resolves
 hover with z-order hit testing, and routes pointer press, drag, release, click,
@@ -81,7 +81,7 @@ from.
 Nothing here is specific to stock widgets - an entity of your own with an area
 is hoverable, clickable, and focusable.
 
-### Widgets (plurimus_widgets)
+### Widgets (`plurimus_widgets`)
 
 Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
 menus, popovers, single-line text input, and a multi-line text editor. Theming
@@ -92,18 +92,18 @@ stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
 uncontrolled.
 
-### bevy_ui Layout (plurimus_bui)
+### `bevy_ui` Layout (`plurimus_bui`)
 
-bevy_ui's layout stack - `Node` trees computed by taffy - run against terminal
+`bevy_ui`'s layout stack - `Node` trees computed by taffy - run against terminal
 cameras at one pixel per cell, with backgrounds, borders, gradients, and text.
-Only layout runs: bevy_ui's text, focus, picking, and asset systems stay out,
+Only layout runs: `bevy_ui`'s text, focus, picking, and asset systems stay out,
 and text is measured by grapheme width rather than font rasterization.
 
 Use it instead of hand-computed `Rect`s for responsive panels and nested rows
 and columns. Nodes bridge into the interaction routers, so they hover, click,
 and scroll like other widgets.
 
-### 2d Rendering (plurimus_2d)
+### 2d Rendering (`plurimus_2d`)
 
 `Glyph`, `GlyphBlock`, and `Pixel` entities positioned by `Transform`s,
 projected per camera, so panning and zooming are camera properties.
@@ -111,7 +111,7 @@ projected per camera, so panning and zooming are camera properties.
 in halfblocks or braille for two or eight times the vertical resolution of a
 cell.
 
-### 3d Rendering (plurimus_3d)
+### 3d Rendering (`plurimus_3d`)
 
 A GPU camera read back and converted to cells. `Render3dPlugins` assembles a
 headless bevy render stack; the camera renders to an image, the pixels are read
@@ -281,7 +281,7 @@ features, with no `ui` or `widgets` crate, and re-lays the tiles on resize. `q`
 or ctrl-c quits.
 
 **widgets** runs the control library twice side by side: themed widgets at fixed
-cell rects on the left, the same widget logic under bevy_ui flex layout on the
+cell rects on the left, the same widget logic under `bevy_ui` flex layout on the
 right. Tab and Shift-Tab move focus, arrows navigate and adjust the focused
 slider, Enter or Space activates, the mouse hovers, clicks, and drags, and a
 menu resets or disables every widget. Esc unfocuses; `q` with nothing focused

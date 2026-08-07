@@ -1,4 +1,4 @@
-//! What a ListBox draws: gutters, per-row styles, and where focus lands.
+//! What a `ListBox` draws: gutters, per-row styles, and where focus lands.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;

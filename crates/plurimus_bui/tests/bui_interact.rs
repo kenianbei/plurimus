@@ -1,4 +1,4 @@
-//! Widget logic driven by bevy_ui layout: nodes activate like widgets.
+//! Widget logic driven by `bevy_ui` layout: nodes activate like widgets.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;

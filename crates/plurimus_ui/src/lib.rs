@@ -9,7 +9,7 @@
 //! Everything works from one idea: an entity with a screen area is
 //! interactive. [`ComputedWidgetArea`] is what makes an entity hoverable and
 //! clickable, so anything that can produce a rect joins in - a ratatui widget,
-//! a bevy_ui node, or an app's own component - and the [`UiSystems`] phases
+//! a `bevy_ui` node, or an app's own component - and the [`UiSystems`] phases
 //! run in a fixed order each frame so areas exist before hover resolves and
 //! hover exists before input routes.
 

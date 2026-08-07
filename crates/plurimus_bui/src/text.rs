@@ -1,11 +1,11 @@
-//! Fontless text for bevy_ui nodes: grapheme-width measurement through
+//! Fontless text for `bevy_ui` nodes: grapheme-width measurement through
 //! `ContentSize`, no font machinery involved.
 //!
-//! bevy_text never runs, so a node's text is measured the way a terminal
+//! `bevy_text` never runs, so a node's text is measured the way a terminal
 //! actually renders it - by display width in cells, where a wide grapheme
 //! counts as two - and taffy lays out against that measurement like any other
 //! content. [`Text`] carries styled [`TextSpan`]s that patch the node's
-//! [`TextStyle`], which is what lets one node mix styles without bevy_text's
+//! [`TextStyle`], which is what lets one node mix styles without `bevy_text`'s
 //! section machinery.
 
 use bevy_ecs::prelude::{Changed, Component, Query};
@@ -15,7 +15,7 @@ use bevy_ui::{ContentSize, Measure, MeasureArgs, NodeMeasure};
 use plurimus_core::ratatui_core::style::Style;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-/// Text content of a bevy_ui node, measured and drawn in cells.
+/// Text content of a `bevy_ui` node, measured and drawn in cells.
 #[derive(Component, Debug, Clone, Default, PartialEq)]
 #[require(bevy_ui::Node, ContentSize, TextStyle)]
 pub struct Text(pub Vec<TextSpan>);

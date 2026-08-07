@@ -1,4 +1,4 @@
-//! Stock observers for uncontrolled widgets, mirroring bevy_ui_widgets.
+//! Stock observers for uncontrolled widgets, mirroring `bevy_ui_widgets`.
 //!
 //! Widgets emit [`ValueChange`] and change nothing themselves, which leaves
 //! an app free to validate, reject or transform an edit before it lands. That

@@ -101,9 +101,8 @@ match_bool = "allow"
 # production comparison is against a sentinel and carries its own expect.
 float_cmp = "allow"
 
-# Burn-down: these fire today and are cleared one phase at a time. Each
-# line is deleted by the phase that clears its lint.
-doc_markdown = "allow"
+# Burn-down: this fires today and is cleared by its own phase. The
+# line is deleted when it goes to warn.
 missing_const_for_fn = "allow"
 
 [package]

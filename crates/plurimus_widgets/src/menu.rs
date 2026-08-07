@@ -4,7 +4,7 @@
 //! A menu is assembled rather than built in: the button opens a popup, the
 //! popup is placed by `popover`, and the rows are ordinary entities. Menus
 //! own no geometry and no dismissal logic of their own - they mark
-//! themselves modal and let plurimus_ui's routers swallow outside presses -
+//! themselves modal and let `plurimus_ui`'s routers swallow outside presses -
 //! so what remains here is opening, closing, and moving the highlight.
 
 use bevy_ecs::bundle::Bundle;

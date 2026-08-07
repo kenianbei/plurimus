@@ -1,7 +1,7 @@
-//! Cell-space approximations of bevy_ui decoration: rounded corner glyphs,
+//! Cell-space approximations of `bevy_ui` decoration: rounded corner glyphs,
 //! gradient sampling, and blur-free box shadows.
 //!
-//! bevy_ui describes decoration in continuous pixels, but a cell is the
+//! `bevy_ui` describes decoration in continuous pixels, but a cell is the
 //! smallest thing that can be drawn, so each feature gets the closest honest
 //! equivalent rather than a scaled-down copy. A corner radius becomes at most
 //! one rounded glyph, a gradient is sampled once per cell along its line, and
