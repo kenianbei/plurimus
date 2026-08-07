@@ -41,6 +41,13 @@ pub struct ListBox;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListBoxMultiSelect;
 
+/// Draws a [`ListBox`]'s marker column, telling
+/// [`Checked`](plurimus_ui::Checked) rows apart from the row under the
+/// cursor. Costs two cells of width, so it is asked for rather than
+/// assumed.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ListBoxSelectionMarker;
+
 /// One row of a [`ListBox`]: a child entity carrying its
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
@@ -201,6 +208,7 @@ pub(crate) fn style_listboxes(
             StateQuery,
             &ActiveDescendant,
             &Children,
+            Has<ListBoxSelectionMarker>,
             &mut StylistCache,
             &mut UiWidget,
         ),
@@ -208,7 +216,7 @@ pub(crate) fn style_listboxes(
     >,
     items: Query<(&UiLabel, Has<Checked>), With<ListItem>>,
 ) {
-    for (state, active, children, mut cache, mut widget) in &mut boxes {
+    for (state, active, children, marker, mut cache, mut widget) in &mut boxes {
         let rows: Vec<(Entity, &Line<'static>, bool)> = children
             .iter()
             .filter_map(|&child| {
@@ -219,23 +227,30 @@ pub(crate) fn style_listboxes(
         let selected = active
             .0
             .and_then(|item| rows.iter().position(|(row, ..)| *row == item));
-        let next = observed(state, &focus, hashed_bits((&rows, selected)));
+        let next = observed(state, &focus, hashed_bits((&rows, selected, marker)));
         if !theme.is_changed() && next == *cache {
             continue;
         }
         *cache = next;
-        *widget = list_widget(&rows, selected, next.style(&theme));
+        *widget = list_widget(&rows, selected, marker, next.style(&theme));
     }
 }
 
 fn list_widget(
     rows: &[(Entity, &Line<'static>, bool)],
     selected: Option<usize>,
+    marker: bool,
     style: Style,
 ) -> UiWidget {
     let lines: Vec<Line<'static>> = rows
         .iter()
-        .map(|(_, label, checked)| decorate(if *checked { "▪ " } else { "  " }, label, ""))
+        .map(|(_, label, checked)| {
+            if marker {
+                decorate(if *checked { "▪ " } else { "  " }, label, "")
+            } else {
+                (*label).clone()
+            }
+        })
         .collect();
     let mut highlight = ListState::default();
     highlight.select(selected);

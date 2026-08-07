@@ -1,7 +1,8 @@
 ---
-source: crates/plurimus_ui/tests/listbox.rs
+source: crates/plurimus_widgets/tests/listbox.rs
+assertion_line: 308
 expression: composed_frame(&app)
 ---
-  ▪ alpha   
->   beta    
-    gamma
+  alpha     
+> beta      
+  gamma

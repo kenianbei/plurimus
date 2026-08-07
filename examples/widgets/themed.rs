@@ -20,10 +20,10 @@ use plurimus::widgets::ratatui_textarea::TextArea;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
 use plurimus::widgets::{
-    Activate, RadioGroup, SliderStep, SliderValue, TextEditor, TextInput, UiLabel, UiTheme, button,
-    checkbox, checkbox_self_update, editable_text, list_item, listbox, listbox_self_update,
-    menu_button, menu_item, menu_popup, pane, radio, radio_self_update, scrollbar, slider,
-    slider_self_update, text_editor,
+    Activate, ListBoxSelectionMarker, RadioGroup, SliderStep, SliderValue, TextEditor, TextInput,
+    UiLabel, UiTheme, button, checkbox, checkbox_self_update, editable_text, list_item, listbox,
+    listbox_self_update, menu_button, menu_item, menu_popup, pane, radio, radio_self_update,
+    scrollbar, slider, slider_self_update, text_editor,
 };
 
 use crate::{CHECKBOX_LABEL, DemoState, FIELD_TEXT, RADIO_LABELS, SLIDER_KEY_STEP, SLIDER_START};
@@ -198,7 +198,14 @@ fn spawn_radio_group(commands: &mut Commands, parent: Entity) -> Entity {
 
 fn spawn_listbox(commands: &mut Commands, parent: Entity) {
     let list = commands
-        .spawn((listbox(), UiArea::Fixed(LISTBOX), ChildOf(parent)))
+        .spawn((
+            listbox(),
+            // Selection is worth two cells here: the demo shows a checked
+            // row and a cursor row at once.
+            ListBoxSelectionMarker,
+            UiArea::Fixed(LISTBOX),
+            ChildOf(parent),
+        ))
         .insert(TabIndex(LIST_TAB_INDEX))
         .observe(listbox_self_update)
         .observe(

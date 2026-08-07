@@ -12,8 +12,8 @@ use plurimus_input::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, send_mouse};
 use plurimus_ui::{Checked, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxMultiSelect, WidgetsPlugin, button, list_item, listbox,
-    listbox_self_update,
+    ActiveDescendant, ListBoxMultiSelect, ListBoxSelectionMarker, WidgetsPlugin, button, list_item,
+    listbox, listbox_self_update,
 };
 
 #[derive(Resource, Default)]
@@ -231,6 +231,32 @@ fn columned_row(name: &str, date: &str) -> Vec<Span<'static>> {
         Span::raw(" "),
         Span::styled(date.to_owned(), Style::new().fg(Color::Blue)),
     ]
+}
+
+// Cells between the row's left edge and its text, which is what the
+// marker column costs.
+fn row_indent(marker: bool) -> usize {
+    let mut app = app();
+    let mut container = app
+        .world_mut()
+        .spawn((listbox(), UiArea::Fixed(Rect::new(0, 0, 12, 4))));
+    if marker {
+        container.insert(ListBoxSelectionMarker);
+    }
+    let container = container.id();
+    app.world_mut()
+        .spawn((list_item("alpha"), ChildOf(container)));
+    app.update();
+
+    let frame = composed_frame(&app);
+    let first = frame.lines().next().expect("a rendered row");
+    first.len() - first.trim_start().len()
+}
+
+#[test]
+fn the_selection_marker_column_is_opt_in() {
+    assert_eq!(row_indent(false), 0, "a plain list starts at column zero");
+    assert_eq!(row_indent(true), 2, "the marker column costs two cells");
 }
 
 #[test]
