@@ -77,7 +77,7 @@ fn draw_pixels(
     }
     match camera.mode {
         SubcellMode::Halfblock => {
-            draw_halfblock_pixels(camera, sprites, &mut grids.halfblock, buffer)
+            draw_halfblock_pixels(camera, sprites, &mut grids.halfblock, buffer);
         }
         SubcellMode::Braille => draw_braille_pixels(camera, sprites, &mut grids.braille, buffer),
     }

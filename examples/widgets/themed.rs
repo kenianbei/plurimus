@@ -1,6 +1,8 @@
 //! The left half: stock widget bundles at fixed cell rects, drawn by the
 //! stock stylists from a custom [`UiTheme`].
 
+use core::fmt::Write as _;
+
 use bevy_app::{App, AppExit, Startup, Update};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
@@ -240,9 +242,10 @@ fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
 
 // The bar draws the scroll state, so the area must not draw its own.
 fn spawn_log(commands: &mut Commands, parent: Entity) {
-    let log: String = (1..=LOG_ENTRIES)
-        .map(|entry| format!("log entry {entry}\n"))
-        .collect();
+    let mut log = String::new();
+    for entry in 1..=LOG_ENTRIES {
+        let _ = writeln!(log, "log entry {entry}");
+    }
     let view = commands
         .spawn((
             UiWidget::new(Paragraph::new(log)),

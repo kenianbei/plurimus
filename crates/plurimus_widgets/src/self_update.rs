@@ -69,7 +69,7 @@ fn move_checked_among<M: Component, D: QueryData>(
     selected: Entity,
     commands: &mut Commands,
 ) {
-    for &child in children.iter() {
+    for &child in children {
         if members.contains(child) {
             set_checked(child, child == selected, commands);
         }

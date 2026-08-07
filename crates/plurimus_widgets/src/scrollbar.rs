@@ -38,6 +38,7 @@ pub struct Scrollbar {
 }
 
 /// Spawn bundle for a scrollbar driving `target`.
+#[must_use]
 pub fn scrollbar(target: Entity, orientation: ScrollbarOrientation) -> impl Bundle {
     (
         Scrollbar {

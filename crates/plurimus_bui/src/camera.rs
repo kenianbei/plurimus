@@ -28,13 +28,12 @@ pub(crate) fn sync_bui_cameras(
 ) {
     for (entity, terminal_camera, resolved, camera, is_default) in &mut cameras {
         let viewport = resolved.0;
-        match camera {
-            Some(mut camera) => apply(&mut camera, terminal_camera, viewport, *size),
-            None => {
-                let mut camera = Camera::default();
-                apply(&mut camera, terminal_camera, viewport, *size);
-                commands.entity(entity).insert(camera);
-            }
+        if let Some(mut camera) = camera {
+            apply(&mut camera, terminal_camera, viewport, *size);
+        } else {
+            let mut camera = Camera::default();
+            apply(&mut camera, terminal_camera, viewport, *size);
+            commands.entity(entity).insert(camera);
         }
         let should_be_default = default_camera.0 == Some(entity);
         if should_be_default && !is_default {

@@ -71,6 +71,7 @@ pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
 }
 
 /// Spawn bundle for a menu popup; parent it to its `anchor` button.
+#[must_use]
 pub fn menu_popup(anchor: Entity) -> impl Bundle {
     (
         MenuPopup,

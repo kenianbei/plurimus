@@ -118,9 +118,9 @@ pub(crate) fn place_popovers(
 
 fn popover_rect(anchor: Rect, popover: &Popover, viewport: Rect) -> Rect {
     let size = popover.size;
-    let side = mirror_on_overflow(anchor, size, popover.side, viewport);
+    let placement = mirror_on_overflow(anchor, size, popover.side, viewport);
     let (width, height) = (i32::from(size.width), i32::from(size.height));
-    let (x, y) = match side {
+    let (x, y) = match placement {
         PopoverSide::Top => (
             aligned_x(anchor, width, popover.align),
             i32::from(anchor.top()) - height,
@@ -141,7 +141,12 @@ fn popover_rect(anchor: Rect, popover: &Popover, viewport: Rect) -> Rect {
     Rect::new(x.max(0) as u16, y.max(0) as u16, size.width, size.height).clamp(viewport)
 }
 
-fn mirror_on_overflow(anchor: Rect, size: Size, side: PopoverSide, viewport: Rect) -> PopoverSide {
+fn mirror_on_overflow(
+    anchor: Rect,
+    size: Size,
+    preferred: PopoverSide,
+    viewport: Rect,
+) -> PopoverSide {
     let (width, height) = (i32::from(size.width), i32::from(size.height));
     let overflows = |side| match side {
         PopoverSide::Top => i32::from(anchor.top()) - height < i32::from(viewport.top()),
@@ -149,10 +154,10 @@ fn mirror_on_overflow(anchor: Rect, size: Size, side: PopoverSide, viewport: Rec
         PopoverSide::Left => i32::from(anchor.left()) - width < i32::from(viewport.left()),
         PopoverSide::Right => i32::from(anchor.right()) + width > i32::from(viewport.right()),
     };
-    if overflows(side) && !overflows(side.mirror()) {
-        side.mirror()
+    if overflows(preferred) && !overflows(preferred.mirror()) {
+        preferred.mirror()
     } else {
-        side
+        preferred
     }
 }
 

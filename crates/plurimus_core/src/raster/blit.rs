@@ -158,7 +158,7 @@ pub fn blit_halfblocks(grid: &mut HalfblockGrid, pixels: &PixelGrid<'_>, fit: Re
 /// is the camera's [`Background`](crate::Background).
 pub fn blit_braille(grid: &mut BrailleGrid, pixels: &PixelGrid<'_>, fit: Rect) {
     sample_fit(pixels, fit, |sub_x, sub_y, color| {
-        grid.set(sub_x, sub_y, color)
+        grid.set(sub_x, sub_y, color);
     });
 }
 
@@ -180,10 +180,10 @@ mod tests {
 
     use super::*;
 
-    const RED: u32 = 0xff0000;
-    const GREEN: u32 = 0x00ff00;
-    const BLUE: u32 = 0x0000ff;
-    const WHITE: u32 = 0xffffff;
+    const RED: u32 = 0xff_00_00;
+    const GREEN: u32 = 0x00_ff_00;
+    const BLUE: u32 = 0x00_00_ff;
+    const WHITE: u32 = 0xff_ff_ff;
 
     fn blit_into(buffer: &mut Buffer, pixels: &PixelGrid<'_>) {
         let mut grid = HalfblockGrid::new(buffer.area);
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn xrgb_high_byte_is_ignored() {
-        let pixels = [0xff123456u32];
+        let pixels = [0xff_12_34_56u32];
         let mut buffer = Buffer::empty(Rect::new(0, 0, 1, 1));
 
         blit_into(&mut buffer, &PixelGrid::xrgb32(&pixels, 1, 1));
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn write_rgba8_makes_xrgb_sources_opaque() {
-        let pixels = [0xff123456u32, RED];
+        let pixels = [0xff_12_34_56u32, RED];
         let grid = PixelGrid::xrgb32(&pixels, 2, 1);
         let mut out = Vec::new();
 

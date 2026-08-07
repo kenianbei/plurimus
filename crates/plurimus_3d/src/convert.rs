@@ -182,7 +182,7 @@ mod tests {
         pixels.iter().flatten().copied().collect()
     }
 
-    fn sources<'a>(pixels: &'a [u8], size: UVec2) -> FrameSources<'a> {
+    fn sources(pixels: &[u8], size: UVec2) -> FrameSources<'_> {
         FrameSources {
             pixels,
             size,

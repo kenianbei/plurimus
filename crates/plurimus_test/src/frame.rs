@@ -6,6 +6,8 @@
 //! drawn; the styled form adds a per-cell legend for when color or modifiers
 //! are the thing under test.
 
+use core::fmt::Write as _;
+
 use bevy_app::App;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::style::Style;
@@ -67,7 +69,7 @@ fn frame_to_styled_string(buffer: &Buffer) -> String {
     out.push_str("\n--\n");
     out.push_str(&style_rows.join("\n"));
     for (index, style) in legend.iter().enumerate() {
-        out.push_str(&format!("\n{}: {}", letter(index), describe(*style)));
+        let _ = write!(out, "\n{}: {}", letter(index), describe(*style));
     }
     out
 }

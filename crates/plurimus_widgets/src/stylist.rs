@@ -43,6 +43,10 @@ pub struct UiStyle(pub Style);
 
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the interaction flags a stylist last drew; this is the change-detection key, not a config"
+)]
 pub(crate) struct StylistCache {
     rendered: bool,
     hovered: bool,

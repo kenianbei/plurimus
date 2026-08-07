@@ -59,6 +59,7 @@ pub struct ListItem;
 pub struct ActiveDescendant(pub Option<Entity>);
 
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
+#[must_use]
 pub fn listbox() -> impl Bundle {
     (ListBox, TabIndex(0), placeholder())
 }
@@ -98,7 +99,7 @@ pub(crate) fn listbox_key(
         return;
     }
     match action {
-        ListKey::Select => select_active(listbox, &active, &mut commands),
+        ListKey::Select => select_active(listbox, *active, &mut commands),
         movement => {
             let current = active
                 .0
@@ -141,7 +142,7 @@ fn moved_index(movement: &ListKey, current: Option<usize>, last: usize) -> usize
     }
 }
 
-fn select_active(listbox: Entity, active: &ActiveDescendant, commands: &mut Commands) {
+fn select_active(listbox: Entity, active: ActiveDescendant, commands: &mut Commands) {
     if let Some(item) = active.0 {
         commands.trigger(ValueChange {
             source: listbox,
@@ -179,7 +180,7 @@ pub(crate) fn listbox_press(
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(item)));
-    select_active(listbox, &active, &mut commands);
+    select_active(listbox, *active, &mut commands);
 }
 
 fn list_rows<'a>(

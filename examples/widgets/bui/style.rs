@@ -108,11 +108,11 @@ pub(super) fn sync_slider_track(
         if width == 0 {
             continue;
         }
-        *text = Text::from(track(value.0, range, width));
+        *text = Text::from(track(value.0, *range, width));
     }
 }
 
-fn track(value: f32, range: &SliderRange, width: usize) -> String {
+fn track(value: f32, range: SliderRange, width: usize) -> String {
     let span = (range.end() - range.start()).max(f32::EPSILON);
     let ratio = ((value - range.start()) / span).clamp(0.0, 1.0);
     let thumb = (ratio * (width - 1) as f32).round() as usize;
