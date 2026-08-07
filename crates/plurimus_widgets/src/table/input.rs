@@ -1,29 +1,27 @@
 //! Table interaction: keys through the app's own map, clicks through the
-//! column layout.
-//!
-//! Both handlers resolve a click's column by rebuilding the layout ratatui
-//! computes privately. That is the one place this widget restates a
-//! dependency's arithmetic, and the boundary tests are what catch ratatui
-//! changing it.
+//! column layout that [`geometry`](super::geometry) resolves.
 
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Commands, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{Commands, On, Query, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
-use plurimus_core::ratatui_core::layout::{Constraint, Layout, Rect};
+use plurimus_core::ratatui_core::layout::Rect;
 
+use super::geometry::{
+    Placed, Placement, Rows, bands, body_rows, clicked_column, clicked_row, column_count,
+    page_rows, resolved_widths,
+};
 use super::{
-    ActiveColumn, Table, TableAction, TableColumns, TableCursor, TableFooter, TableHeader,
-    TableHeaderClick, TableKeys, TableLayout, TablePosition, TableRow, TableSelection,
-    cursor_gutter,
+    ActiveColumn, Table, TableAction, TableColumns, TableHeaderClick, TableKeys, TablePosition,
+    TableSelection, cursor_gutter,
 };
 use crate::listbox::ActiveDescendant;
-use plurimus_ui::{ComputedWidgetArea, InteractionDisabled, PointerPress, ValueChange};
-
-type Rows<'w, 's> = Query<'w, 's, (&'static TableRow, Has<TableHeader>, Has<TableFooter>)>;
+use plurimus_ui::{
+    ComputedWidgetArea, InteractionDisabled, PointerPress, ScrollIntoView, ValueChange,
+};
 
 type Navigable<'a> = (
     &'a Children,
@@ -39,23 +37,12 @@ type Pressable<'a> = (
     &'a Children,
     &'a TableColumns,
     &'a TableSelection,
-    &'a ComputedWidgetArea,
-    Option<&'a TableLayout>,
-    Option<&'a TableCursor>,
+    Placement<'a>,
     &'a mut ActiveDescendant,
     &'a mut ActiveColumn,
 );
 
 type Interactive = (With<Table>, Without<InteractionDisabled>);
-
-// The column geometry a click is resolved against, which is ratatui's own
-// layout call plus the gutter it splits off first.
-struct Columns {
-    widths: Vec<Constraint>,
-    layout: TableLayout,
-    gutter: u16,
-    width: u16,
-}
 
 pub(crate) fn table_key(
     mut input: On<FocusedInput<KeyboardInput>>,
@@ -88,23 +75,32 @@ pub(crate) fn table_key(
         column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)));
         return;
     }
-    move_row(action, (children, &rows, *area), &mut active);
+    if let Some(line) = move_row(action, (children, &rows, *area), &mut active) {
+        commands.trigger(ScrollIntoView {
+            entity: table,
+            target: Rect::new(0, line, 1, 1),
+        });
+    }
 }
 
 fn move_row(
     action: TableAction,
     (children, rows, area): (&Children, &Rows, ComputedWidgetArea),
     active: &mut Mut<ActiveDescendant>,
-) {
+) -> Option<u16> {
     let body: Vec<Entity> = body_rows(children, rows).collect();
-    let Some(last) = body.len().checked_sub(1) else {
-        return;
-    };
+    let last = body.len().checked_sub(1)?;
     let current = active
         .0
         .and_then(|row| body.iter().position(|&candidate| candidate == row));
     let index = moved_row(action, current, last, page_rows(children, rows, area));
     active.set_if_neq(ActiveDescendant(Some(body[index])));
+    let (header, _) = bands(children, rows);
+    Some(
+        u16::try_from(index)
+            .unwrap_or(u16::MAX)
+            .saturating_add(u16::from(header)),
+    )
 }
 
 pub(crate) fn table_press(
@@ -114,22 +110,28 @@ pub(crate) fn table_press(
     mut commands: Commands,
 ) {
     let table = event.entity;
-    let Ok((children, columns, selection, area, layout, cursor, mut active, mut column)) =
+    let Ok((children, columns, selection, placement, mut active, mut column)) =
         tables.get_mut(table)
     else {
         return;
     };
-    let geometry = Columns {
-        widths: resolved_widths(columns, children, &rows, area.0.width),
-        layout: layout.copied().unwrap_or_default(),
-        gutter: cursor_gutter(Some(*selection), active.0, cursor),
-        width: area.0.width,
+    let (area, layout, cursor, scroll, offset) = placement;
+    let placed = Placed {
+        area,
+        layout,
+        scroll,
+        offset,
     };
-    let hit = clicked_column(event.position.x.saturating_sub(area.0.x), &geometry);
-    let y = event.position.y.saturating_sub(area.0.y);
+    let widths = resolved_widths(columns, children, &rows, placed.width());
+    let gutter = cursor_gutter(Some(*selection), active.0, cursor);
+    let hit = clicked_column(
+        event.position.x.saturating_sub(area.0.x),
+        &placed.columns(widths, gutter),
+    );
+    let line = placed.line(event.position.y);
     let (header, footer) = bands(children, &rows);
 
-    if header && y == 0 {
+    if header && line == 0 {
         if let Some(column) = hit {
             commands.trigger(TableHeaderClick {
                 entity: table,
@@ -138,7 +140,7 @@ pub(crate) fn table_press(
         }
         return;
     }
-    let Some(row) = clicked_row(y, (header, footer), *area, |index| {
+    let Some(row) = clicked_row(line, header, placed.band((header, footer)), |index| {
         body_rows(children, &rows).nth(index)
     }) else {
         return;
@@ -155,26 +157,6 @@ pub(crate) fn table_press(
         value,
         is_final: true,
     });
-}
-
-// The footer sits at the bottom of the area, so a click on it lands at a
-// `y` a long body would also reach. Only the band between the two is a row.
-fn clicked_row(
-    y: u16,
-    (header, footer): (bool, bool),
-    area: ComputedWidgetArea,
-    row_at: impl FnOnce(usize) -> Option<Entity>,
-) -> Option<Entity> {
-    let body = area
-        .0
-        .height
-        .saturating_sub(u16::from(header))
-        .saturating_sub(u16::from(footer));
-    let index = y.saturating_sub(u16::from(header));
-    if index >= body {
-        return None;
-    }
-    row_at(usize::from(index))
 }
 
 fn position(
@@ -216,71 +198,4 @@ fn moved_column(action: TableAction, current: Option<usize>, count: usize) -> Op
         (TableAction::ColumnNext, Some(index)) => (index + 1).min(last),
         _ => 0,
     })
-}
-
-fn body_rows<'a>(children: &'a Children, rows: &'a Rows) -> impl Iterator<Item = Entity> + 'a {
-    children
-        .iter()
-        .copied()
-        .filter(|&child| matches!(rows.get(child), Ok((_, false, false))))
-}
-
-// Whether the table has a header row and a footer row.
-fn bands(children: &Children, rows: &Rows) -> (bool, bool) {
-    children
-        .iter()
-        .filter_map(|&child| rows.get(child).ok())
-        .fold(
-            (false, false),
-            |(seen_header, seen_footer), (_, header, footer)| {
-                (seen_header || header, seen_footer || footer)
-            },
-        )
-}
-
-fn page_rows(children: &Children, rows: &Rows, area: ComputedWidgetArea) -> usize {
-    let (header, footer) = bands(children, rows);
-    usize::from(area.0.height)
-        .saturating_sub(usize::from(header) + usize::from(footer))
-        .max(1)
-}
-
-// Ratatui reads an empty width set as "never called" and divides the area
-// equally among as many columns as the widest row has.
-fn resolved_widths(
-    columns: &TableColumns,
-    children: &Children,
-    rows: &Rows,
-    width: u16,
-) -> Vec<Constraint> {
-    if !columns.0.is_empty() {
-        return columns.0.clone();
-    }
-    let count = column_count(columns, children, rows);
-    let each = width / u16::try_from(count.max(1)).unwrap_or(u16::MAX);
-    vec![Constraint::Length(each); count]
-}
-
-fn column_count(columns: &TableColumns, children: &Children, rows: &Rows) -> usize {
-    if !columns.0.is_empty() {
-        return columns.0.len();
-    }
-    children
-        .iter()
-        .filter_map(|&child| rows.get(child).ok())
-        .map(|(cells, ..)| cells.0.len())
-        .max()
-        .unwrap_or_default()
-}
-
-fn clicked_column(x: u16, geometry: &Columns) -> Option<usize> {
-    let [_, columns] =
-        Layout::horizontal([Constraint::Length(geometry.gutter), Constraint::Fill(0)])
-            .areas(Rect::new(0, 0, geometry.width, 1));
-    Layout::horizontal(geometry.widths.iter().copied())
-        .flex(geometry.layout.flex)
-        .spacing(geometry.layout.column_spacing)
-        .split(columns)
-        .iter()
-        .position(|rect| x >= rect.x && x < rect.x.saturating_add(rect.width))
 }

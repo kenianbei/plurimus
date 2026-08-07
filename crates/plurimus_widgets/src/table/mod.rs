@@ -18,9 +18,11 @@
 //! sizes cells with taffy, at the cost of an entity and a layout node each,
 //! and knows nothing of headers, striping, or a cursor.
 
+mod geometry;
 mod input;
 mod style;
 
+pub(crate) use geometry::sync_table_scroll;
 pub(crate) use input::{table_key, table_press};
 pub(crate) use style::{mark_changed_tables, style_tables};
 
