@@ -1,0 +1,11 @@
+---
+source: crates/plurimus_widgets/tests/table.rs
+assertion_line: 65
+expression: composed_frame(&app)
+---
+name   date         
+ann    may          
+bo     jun          
+cy     jul          
+                    
+total  3

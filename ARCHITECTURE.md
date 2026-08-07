@@ -100,20 +100,31 @@ menus and popovers are built from. Re-exports `tui_scrollview`.
 
 ### plurimus_widgets
 
-The widget library, mirroring bevy_ui_widgets: upstream's component vocabulary
-and event contract over terminal-native engines. Buttons, checkboxes, radio
-groups, sliders, scrollbars, list boxes, panes, menus, popovers, a single-line
-`EditableText`, and a multi-line `TextEditor` built on ratatui-textarea. Most
-widgets are stateless controllers emitting entity events (`Activate`,
-`ValueChange`); apps apply them, or attach the stock `*_self_update` observers
-for uncontrolled behavior. A stylist rebuilds a widget's `UiWidget` from
-`UiTheme` when the state it last drew differs from the current one, not every
-frame, and they run in the `WidgetSystems::Style` set an app orders its own
-against: `StylistDisabled` exempts an entity so an app takes its look while
-keeping its behavior, and `UiStyle` patches over the style an entity would
-otherwise resolve to, on a widget or on one list row. A `UiLabel` is a ratatui
-`Line`, so a label carries per-span style of its own. Re-exports
-`ratatui_widgets` and `ratatui_textarea`.
+The widget library, mirroring bevy_ui_widgets where upstream has a counterpart:
+its component vocabulary and event contract over terminal-native engines.
+Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
+menus, popovers, a single-line `EditableText`, and a multi-line `TextEditor`
+built on ratatui-textarea; `Table` is past the parity list, upstream having no
+table to mirror. Most widgets are stateless controllers emitting entity events
+(`Activate`, `ValueChange`); apps apply them, or attach the stock
+`*_self_update` observers for uncontrolled behavior. A stylist rebuilds a
+widget's `UiWidget` from `UiTheme` when the state it last drew differs from the
+current one, not every frame, and they run in the `WidgetSystems::Style` set an
+app orders its own against: `StylistDisabled` exempts an entity so an app takes
+its look while keeping its behavior, and `UiStyle` patches over the style an
+entity would otherwise resolve to, on a widget or on one list or table row. A
+`UiLabel` is a ratatui `Line`, so a label carries per-span style of its own.
+
+A `Table`'s rows are child entities holding their own cells, banded by
+`TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
+opt-in: `TableSelection` makes the table a tab stop and chooses row, column, or
+cell granularity, and its movement keys are data in `TableKeys` rather than the
+closed match every other widget still uses. A header click reports its column so
+the app can sort - the crate supplies the geometry and never the ordering.
+Because a scroll area windows a widget whole, a scrolled table's bands scroll
+with its body.
+
+Re-exports `ratatui_widgets`, `ratatui_textarea`, and `bevy_input`'s `Key`.
 
 ### plurimus_bui
 

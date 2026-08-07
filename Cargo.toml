@@ -168,6 +168,11 @@ required-features = ["widgets", "bevy-ui"]
 test = true
 
 [[example]]
+name = "table"
+required-features = ["widgets"]
+test = true
+
+[[example]]
 name = "pong"
 required-features = ["widgets", "2d"]
 test = true

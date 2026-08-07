@@ -24,9 +24,11 @@ mod scrollbar;
 mod self_update;
 mod slider;
 mod stylist;
+mod table;
 mod text;
 mod theme;
 
+pub use bevy_input::keyboard::Key;
 pub use plurimus_ui::ValueChange;
 pub use ratatui_textarea;
 pub use ratatui_widgets;
@@ -45,9 +47,15 @@ pub use radio::{RadioButton, RadioGroup, radio};
 pub use scrollbar::{Scrollbar, scrollbar};
 pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
+    table_self_update,
 };
 pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
 pub use stylist::{StylistDisabled, UiStyle};
+pub use table::{
+    ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
+    TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect, TablePosition,
+    TableRow, TableSelection, TableStripe, table, table_footer, table_header, table_row,
+};
 pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
 pub use theme::UiTheme;
 
@@ -66,6 +74,9 @@ pub(crate) use popover::place_popovers;
 pub(crate) use radio::style_radios;
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
+pub(crate) use table::{
+    mark_changed_tables, style_tables, sync_table_scroll, table_key, table_press,
+};
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
     text_input_blur, text_input_key, text_input_paste,
@@ -159,6 +170,7 @@ fn add_layout_systems(app: &mut App) {
             )
                 .chain()
                 .in_set(WidgetSystems::Layout),
+            (mark_changed_tables, sync_table_scroll).in_set(WidgetSystems::Layout),
         ),
     );
 }
@@ -173,6 +185,7 @@ fn add_stylists(app: &mut App) {
             style_sliders,
             style_scrollbars,
             style_listboxes,
+            style_tables,
             style_panes,
             style_text_inputs,
             style_menu_items,
@@ -194,6 +207,8 @@ fn add_observers(app: &mut App) {
     app.add_observer(scrollbar_release);
     app.add_observer(listbox_press);
     app.add_observer(listbox_key);
+    app.add_observer(table_press);
+    app.add_observer(table_key);
     app.add_observer(text_input_key);
     app.add_observer(text_input_paste);
     app.add_observer(text_input_blur);

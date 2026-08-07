@@ -20,6 +20,31 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`ListBoxSelectionMarker`** and **`ListBoxCursor`**, so a list box's marker
   column and cursor symbol are the app's to choose. An empty cursor symbol gives
   bar-style selection with no gutter at all.
+- **`Table`**, a widget for tabular text over ratatui's table engine. Rows are
+  child entities carrying their own cells, so an app builds a table the way it
+  builds anything else. `TableColumns` sets the widths, `TableHeader` and
+  `TableFooter` mark a row as a band, `TableStripe` bands alternate body rows,
+  `TableCheckedStyle` paints the selected ones, and `TableLayout` sets column
+  spacing and where spare width goes. Adding a `ScrollArea` makes it scrollable,
+  as it does a list box.
+- **`TableSelection`** makes a table interactive at row, column, or cell
+  granularity - a table without it draws and hovers but is not a tab stop and
+  consumes no keys. Selection emits `ValueChange<TablePosition>` in every mode,
+  and `table_self_update` applies it to `Checked` for uncontrolled use, with
+  `TableMultiSelect` for multiple rows.
+- **`TableKeys`**, a table's movement bindings as data rather than a closed
+  match, so an app remaps arrows to `j`/`k` by editing a list instead of
+  reimplementing movement beside the widget. `TableAction` names what a key
+  does; the default map keeps the arrows, `Home`/`End`, `PageUp`/`PageDown`, and
+  Enter and space.
+- **`TableHeaderClick`**, reporting the column whose header was clicked so an
+  app can sort. The crate supplies the geometry; the ordering stays with the
+  app, which is the only side that knows whether a column is text or numbers.
+- **`Key`** is re-exported from `plurimus_widgets`, so an app can name the key
+  type `TableKeys` holds without depending on `bevy_input` directly.
+- **A `table` example**: a sortable, scrollable process list showing striping, a
+  bolded header, a totals footer, remapped movement keys, and app-side sorting
+  driven by header clicks.
 
 ### Changed
 
