@@ -50,6 +50,12 @@ pub struct ListBoxMultiSelect;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListBoxSelectionMarker;
 
+/// Replaces the symbol drawn beside a [`ListBox`]'s cursor row, which
+/// shifts row content right by its width. An empty line frees the gutter
+/// entirely, leaving the cursor shown by its highlight style alone.
+#[derive(Component, Debug, Clone)]
+pub struct ListBoxCursor(pub Line<'static>);
+
 /// One row of a [`ListBox`]: a child entity carrying its
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
@@ -69,6 +75,9 @@ pub fn listbox() -> impl Bundle {
 pub fn list_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (ListItem, UiLabel(label.into()))
 }
+
+// Drawn beside the cursor row unless a `ListBoxCursor` replaces it.
+const CURSOR_SYMBOL: &str = "> ";
 
 enum ListKey {
     Up,
@@ -211,6 +220,7 @@ pub(crate) fn style_listboxes(
             &ActiveDescendant,
             &Children,
             Has<ListBoxSelectionMarker>,
+            Option<&ListBoxCursor>,
             &mut StylistCache,
             &mut UiWidget,
         ),
@@ -218,7 +228,7 @@ pub(crate) fn style_listboxes(
     >,
     items: Query<(&UiLabel, Has<Checked>, Option<&UiStyle>), With<ListItem>>,
 ) {
-    for (state, active, children, marker, mut cache, mut widget) in &mut boxes {
+    for (state, active, children, marker, cursor, mut cache, mut widget) in &mut boxes {
         let rows: Vec<Row> = children
             .iter()
             .filter_map(|&child| {
@@ -230,16 +240,25 @@ pub(crate) fn style_listboxes(
             .0
             .and_then(|item| rows.iter().position(|(row, ..)| *row == item));
 
-        let next = observed(state, &focus, hashed_bits((&rows, selected, marker)));
+        let symbol = cursor.map(|cursor| &cursor.0);
+        let next = observed(
+            state,
+            &focus,
+            hashed_bits((&rows, selected, marker, symbol)),
+        );
         if !theme.is_changed() && next == *cache {
             continue;
         }
         *cache = next;
+        let gutters = Gutters {
+            marker,
+            cursor: symbol.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL)),
+        };
         let styles = RowStyles {
             every: next.resting_style(&theme),
             cursor: next.style(&theme),
         };
-        *widget = list_widget(&rows, selected, marker, styles);
+        *widget = list_widget(&rows, selected, gutters, styles);
     }
 }
 
@@ -253,11 +272,23 @@ struct RowStyles {
     cursor: Style,
 }
 
-fn list_widget(rows: &[Row], selected: Option<usize>, marker: bool, styles: RowStyles) -> UiWidget {
+// The columns a list draws left of its rows: a marker beside every row,
+// and a symbol beside the cursor row.
+struct Gutters {
+    marker: bool,
+    cursor: Line<'static>,
+}
+
+fn list_widget(
+    rows: &[Row],
+    selected: Option<usize>,
+    gutters: Gutters,
+    styles: RowStyles,
+) -> UiWidget {
     let items: Vec<ListRow> = rows
         .iter()
         .map(|(_, label, checked, over)| {
-            let line = if marker {
+            let line = if gutters.marker {
                 decorate(if *checked { "▪ " } else { "  " }, label, "")
             } else {
                 (*label).clone()
@@ -277,7 +308,7 @@ fn list_widget(rows: &[Row], selected: Option<usize>, marker: bool, styles: RowS
         List::new(items)
             .style(styles.every)
             .highlight_style(styles.cursor)
-            .highlight_symbol("> "),
+            .highlight_symbol(gutters.cursor),
         highlight,
     )
 }

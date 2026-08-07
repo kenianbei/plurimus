@@ -12,8 +12,8 @@ use plurimus_input::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, send_mouse};
 use plurimus_ui::{Checked, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxMultiSelect, ListBoxSelectionMarker, UiLabel, UiStyle, WidgetsPlugin,
-    button, list_item, listbox, listbox_self_update,
+    ActiveDescendant, ListBoxCursor, ListBoxMultiSelect, ListBoxSelectionMarker, UiLabel, UiStyle,
+    WidgetsPlugin, button, list_item, listbox, listbox_self_update,
 };
 
 #[derive(Resource, Default)]
@@ -257,6 +257,43 @@ fn row_indent(marker: bool) -> usize {
 fn the_selection_marker_column_is_opt_in() {
     assert_eq!(row_indent(false), 0, "a plain list starts at column zero");
     assert_eq!(row_indent(true), 2, "the marker column costs two cells");
+}
+
+// The cursor row as rendered, symbol column included.
+fn cursor_row_text(symbol: Option<&'static str>) -> String {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    if let Some(symbol) = symbol {
+        app.world_mut()
+            .entity_mut(container)
+            .insert(ListBoxCursor(Line::from(symbol)));
+    }
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ActiveDescendant(Some(items[0])));
+    app.update();
+
+    composed_frame(&app)
+        .lines()
+        .next()
+        .expect("the cursor row")
+        .to_owned()
+}
+
+#[test]
+fn the_cursor_symbol_is_replaceable() {
+    assert!(
+        cursor_row_text(None).starts_with("> alpha"),
+        "the default symbol stays when nothing asks otherwise"
+    );
+    assert!(
+        cursor_row_text(Some("▌ ")).starts_with("▌ alpha"),
+        "a custom symbol renders and shifts the row by its width"
+    );
+    assert!(
+        cursor_row_text(Some("")).starts_with("alpha"),
+        "an empty symbol frees the gutter for bar-style selection"
+    );
 }
 
 // The style grid, one letter per cell, one line per row.
