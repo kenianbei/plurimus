@@ -28,6 +28,7 @@ mod table;
 mod text;
 mod theme;
 
+pub use bevy_input::keyboard::Key;
 pub use plurimus_ui::ValueChange;
 pub use ratatui_textarea;
 pub use ratatui_widgets;
