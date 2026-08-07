@@ -259,6 +259,47 @@ fn the_selection_marker_column_is_opt_in() {
     assert_eq!(row_indent(true), 2, "the marker column costs two cells");
 }
 
+// The style grid, one letter per cell, one line per row.
+fn style_grid(app: &App) -> Vec<String> {
+    let frame = composed_styled_frame(app);
+    let grid = frame
+        .split("\n--\n")
+        .nth(1)
+        .expect("a style grid")
+        .to_owned();
+    grid.lines()
+        .take_while(|line| !line.contains(": fg:"))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn focus_paints_the_cursor_row_and_leaves_the_others() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    app.update();
+    let unfocused = style_grid(&app);
+
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ActiveDescendant(Some(items[1])));
+    app.update();
+    let focused = style_grid(&app);
+
+    assert_eq!(
+        unfocused[0], focused[0],
+        "a row that is not the cursor keeps its style while the list is focused"
+    );
+    assert_eq!(
+        unfocused[2], focused[2],
+        "and so does every other non-cursor row"
+    );
+    assert_ne!(
+        unfocused[1], focused[1],
+        "the cursor row is the one that takes the focus style"
+    );
+}
+
 // The style-grid row for the cursor row, whose first two cells are the
 // `> ` gutter. Uniform means the row's style reached the gutter too.
 fn cursor_row_styles(on_row: bool) -> String {

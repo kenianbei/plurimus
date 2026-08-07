@@ -235,14 +235,25 @@ pub(crate) fn style_listboxes(
             continue;
         }
         *cache = next;
-        *widget = list_widget(&rows, selected, marker, next.style(&theme));
+        let styles = RowStyles {
+            every: next.resting_style(&theme),
+            cursor: next.style(&theme),
+        };
+        *widget = list_widget(&rows, selected, marker, styles);
     }
 }
 
 // A row's entity, label, checked state, and per-row style override.
 type Row<'a> = (Entity, &'a Line<'static>, bool, Option<Style>);
 
-fn list_widget(rows: &[Row], selected: Option<usize>, marker: bool, style: Style) -> UiWidget {
+// What every row is drawn in, and what the cursor row adds on top. Keeping
+// them apart is what stops a focused list from repainting all of its rows.
+struct RowStyles {
+    every: Style,
+    cursor: Style,
+}
+
+fn list_widget(rows: &[Row], selected: Option<usize>, marker: bool, styles: RowStyles) -> UiWidget {
     let items: Vec<ListRow> = rows
         .iter()
         .map(|(_, label, checked, over)| {
@@ -263,7 +274,10 @@ fn list_widget(rows: &[Row], selected: Option<usize>, marker: bool, style: Style
     let mut highlight = ListState::default();
     highlight.select(selected);
     UiWidget::stateful(
-        List::new(items).style(style).highlight_symbol("> "),
+        List::new(items)
+            .style(styles.every)
+            .highlight_style(styles.cursor)
+            .highlight_symbol("> "),
         highlight,
     )
 }

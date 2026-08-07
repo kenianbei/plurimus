@@ -73,6 +73,20 @@ impl StylistCache {
         }
     }
 
+    // The widget's look with its pointer and focus state set aside, for
+    // container widgets that show those on one row rather than all of
+    // them. Disabled survives, because a disabled container is disabled
+    // throughout.
+    pub(crate) fn resting_style(&self, theme: &UiTheme) -> Style {
+        Self {
+            hovered: false,
+            pressed: false,
+            focused: false,
+            ..*self
+        }
+        .style(theme)
+    }
+
     pub(crate) fn focus_only(focused: bool, over: Option<&UiStyle>) -> Self {
         Self {
             focused,
