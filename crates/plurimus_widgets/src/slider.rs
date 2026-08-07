@@ -23,7 +23,7 @@ use plurimus_core::ratatui_core::widgets::Widget;
 
 use super::ValueChange;
 use crate::placeholder;
-use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
+use crate::stylist::{StateQuery, StylistCache, StylistDisabled, hashed_bits, observed};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{
@@ -209,7 +209,7 @@ pub(crate) fn style_sliders(
             &mut StylistCache,
             &mut UiWidget,
         ),
-        With<Slider>,
+        (With<Slider>, Without<StylistDisabled>),
     >,
 ) {
     for (state, value, range, mut cache, mut widget) in &mut sliders {

@@ -27,7 +27,7 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::{Popover, PopoverAlign, PopoverSide};
-use crate::stylist::{LabeledQuery, StylistCache, restyle};
+use crate::stylist::{LabeledQuery, StylistCache, StylistDisabled, restyle};
 use crate::theme::UiTheme;
 use crate::{Activate, Button, UiLabel, is_activate_key, placeholder};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
@@ -253,7 +253,10 @@ pub(crate) fn style_menu_items(
 
 pub(crate) fn style_menu_popups(
     theme: Res<UiTheme>,
-    mut popups: Query<(&mut StylistCache, &mut UiWidget), With<MenuPopup>>,
+    mut popups: Query<
+        (&mut StylistCache, &mut UiWidget),
+        (With<MenuPopup>, Without<StylistDisabled>),
+    >,
 ) {
     for (mut cache, mut widget) in &mut popups {
         if cache.rendered && !theme.is_changed() {

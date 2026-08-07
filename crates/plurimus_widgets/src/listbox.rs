@@ -22,7 +22,7 @@ use plurimus_core::ratatui_core::style::Style;
 use ratatui_widgets::list::{List, ListState};
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
+use crate::stylist::{StateQuery, StylistCache, StylistDisabled, hashed_bits, observed};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
@@ -203,7 +203,7 @@ pub(crate) fn style_listboxes(
             &mut StylistCache,
             &mut UiWidget,
         ),
-        With<ListBox>,
+        (With<ListBox>, Without<StylistDisabled>),
     >,
     items: Query<(&UiLabel, Has<Checked>), With<ListItem>>,
 ) {

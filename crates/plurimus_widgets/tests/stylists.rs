@@ -10,8 +10,8 @@ use plurimus_input::{MouseButton, MouseKind};
 use plurimus_test::{composed_styled_frame, write_mouse};
 use plurimus_ui::{InteractionDisabled, UiArea};
 use plurimus_widgets::{
-    RadioGroup, WidgetsPlugin, button, checkbox, checkbox_self_update, radio, radio_self_update,
-    slider,
+    RadioGroup, StylistDisabled, WidgetsPlugin, button, checkbox, checkbox_self_update, radio,
+    radio_self_update, slider,
 };
 
 fn app(cols: u16, rows: u16) -> App {
@@ -142,6 +142,40 @@ fn slider_states() {
     focus(&mut app, track);
     app.update();
     insta::assert_snapshot!("slider_at_100_focused", composed_styled_frame(&app));
+}
+
+#[test]
+fn a_disabled_stylist_leaves_the_widget_to_the_app() {
+    use plurimus_core::UiWidget;
+    use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
+
+    let mut app = app(10, 1);
+    let button = app
+        .world_mut()
+        .spawn((
+            button("ok"),
+            StylistDisabled,
+            UiArea::Fixed(Rect::new(0, 0, 10, 1)),
+        ))
+        .id();
+    app.update();
+
+    app.world_mut()
+        .entity_mut(button)
+        .insert(UiWidget::new(Paragraph::new("mine")));
+    app.update();
+    let owned = composed_styled_frame(&app);
+
+    focus(&mut app, button);
+    write_mouse(&mut app, MouseKind::Moved, 4, 0);
+    app.update();
+    app.update();
+
+    assert_eq!(
+        owned,
+        composed_styled_frame(&app),
+        "focus and hover must not restyle an exempt widget"
+    );
 }
 
 #[test]

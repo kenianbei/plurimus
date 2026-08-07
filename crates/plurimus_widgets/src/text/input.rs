@@ -20,7 +20,7 @@ use plurimus_input::PasteMessage;
 use super::field::TextField;
 use super::state::TextInput;
 use super::word::{word_end_forward, word_start_backward, word_start_forward};
-use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
+use crate::stylist::{StateQuery, StylistCache, StylistDisabled, hashed_bits, observed};
 use crate::theme::UiTheme;
 use crate::{ALT_KEYS, CTRL_KEYS, ValueChange, placeholder};
 use plurimus_core::UiWidget;
@@ -155,7 +155,7 @@ pub(crate) fn style_text_inputs(
     focus: Res<InputFocus>,
     mut fields: Query<
         (StateQuery, &TextInput, &mut StylistCache, &mut UiWidget),
-        With<EditableText>,
+        (With<EditableText>, Without<StylistDisabled>),
     >,
 ) {
     for (state, text, mut cache, mut widget) in &mut fields {

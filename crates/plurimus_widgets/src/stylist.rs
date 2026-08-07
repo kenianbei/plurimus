@@ -16,7 +16,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, Has, Query, Res, With};
+use bevy_ecs::prelude::{Component, Has, Query, Res, With, Without};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
 
@@ -24,6 +24,11 @@ use crate::UiLabel;
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
+
+/// Exempts an entity from the stock stylists, leaving its [`UiWidget`] to
+/// the app. Behavior - selection, keys, scrolling, events - is untouched.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct StylistDisabled;
 
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
@@ -68,7 +73,7 @@ pub(crate) type LabeledQuery<'w, 's, 'a, M> = Query<
         &'a mut StylistCache,
         &'a mut UiWidget,
     ),
-    With<M>,
+    (With<M>, Without<StylistDisabled>),
 >;
 
 // Every stylist funnels widget-specific state through this one hash.
