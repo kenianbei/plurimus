@@ -201,7 +201,6 @@ impl ModalScope<'_, '_> {
     }
 }
 
-/// Where directional navigation starts from when nothing real is focused.
 #[derive(SystemParam)]
 pub(crate) struct NavigationOrigin<'w, 's> {
     windows: Query<'w, 's, (), With<Window>>,

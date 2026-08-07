@@ -33,6 +33,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keep whatever color they carry. Disabled list boxes still dim throughout.
 - **A list box no longer draws its selection marker column** unless it carries
   `ListBoxSelectionMarker`, making every list two cells narrower by default.
+- **Many accessors and builder methods are now `const fn`**, so they can be
+  called in `const` contexts: `PixelGrid::width`/`height`,
+  `HalfblockGrid::subcell_area` and its braille counterpart,
+  `TerminalSize::rect`, `PresenterPlugin::new`, `CrosstermPlugin::with_writer`
+  and its `mouse`/`paste`/`detect_color_depth` builders, `ScrollArea::new`,
+  `max_offset`, `SliderRange::new`/`start`/`end`, `PopoverSide::mirror`,
+  `Sprite`'s `style` and `mirrored` builders, and the text-state cursor
+  accessors.
+- **The spawn-bundle constructors are `#[must_use]`** - `listbox()`,
+  `menu_popup()`, `scrollbar()`, and `slider()` - so dropping the bundle instead
+  of spawning it is now a warning rather than a silent no-op.
 
 ## [0.2.0] - 2026-08-05
 
