@@ -9,7 +9,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, On, Query, Res};
+use bevy_ecs::prelude::{Commands, Component, On, Query, Res, Without};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::Position;
 use ratatui_widgets::scrollbar::{
@@ -17,7 +17,7 @@ use ratatui_widgets::scrollbar::{
 };
 
 use super::placeholder;
-use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
+use crate::stylist::{StateQuery, StylistCache, StylistDisabled, hashed_bits, observed};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease};
@@ -137,7 +137,10 @@ fn track_value(start: u16, length: u16, pointer: u16, max: u16) -> u16 {
 pub(crate) fn style_scrollbars(
     theme: Res<UiTheme>,
     focus: Res<InputFocus>,
-    mut bars: Query<(StateQuery, &Scrollbar, &mut StylistCache, &mut UiWidget)>,
+    mut bars: Query<
+        (StateQuery, &Scrollbar, &mut StylistCache, &mut UiWidget),
+        Without<StylistDisabled>,
+    >,
     targets: Query<(&ScrollArea, &ScrollOffset, &ComputedWidgetArea)>,
 ) {
     for (state, bar, mut cache, mut widget) in &mut bars {

@@ -11,7 +11,6 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Commands, Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
-use unicode_width::UnicodeWidthStr;
 
 use crate::UiLabel;
 use crate::menu::{MenuAccess, MenuItem, MenuPopup};

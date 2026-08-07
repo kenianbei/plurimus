@@ -21,13 +21,14 @@ use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::ratatui_core::style::Style;
+use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::ratatui_core::widgets::Widget;
 use ratatui_widgets::block::Block;
 use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::{Popover, PopoverAlign, PopoverSide};
-use crate::stylist::{LabeledQuery, StylistCache, restyle};
+use crate::stylist::{LabeledQuery, Stylable, StylistCache, UiStyle, decorate, restyle};
 use crate::theme::UiTheme;
 use crate::{Activate, Button, UiLabel, is_activate_key, placeholder};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
@@ -58,7 +59,7 @@ pub struct MenuOpen;
 pub struct MenuItem;
 
 /// Spawn bundle for a menu button.
-pub fn menu_button(label: impl Into<String>) -> impl Bundle {
+pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         MenuButton,
         Button,
@@ -85,7 +86,7 @@ pub fn menu_popup(anchor: Entity) -> impl Bundle {
 }
 
 /// Spawn bundle for a menu item; parent it to a [`MenuPopup`].
-pub fn menu_item(label: impl Into<String>) -> impl Bundle {
+pub fn menu_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         MenuItem,
         UiLabel(label.into()),
@@ -247,21 +248,24 @@ pub(crate) fn style_menu_items(
     mut items: LabeledQuery<MenuItem>,
 ) {
     restyle(&theme, &focus, &mut items, |_, label, style| {
-        UiWidget::new(Paragraph::new(format!(" {label} ")).style(style))
+        UiWidget::new(Paragraph::new(decorate(" ", label, " ")).style(style))
     });
 }
 
 pub(crate) fn style_menu_popups(
     theme: Res<UiTheme>,
-    mut popups: Query<(&mut StylistCache, &mut UiWidget), With<MenuPopup>>,
+    mut popups: Query<(Option<&UiStyle>, &mut StylistCache, &mut UiWidget), Stylable<MenuPopup>>,
 ) {
-    for (mut cache, mut widget) in &mut popups {
-        if cache.rendered && !theme.is_changed() {
+    for (over, mut cache, mut widget) in &mut popups {
+        // A popup frame has no hover or press to resolve, so its state is
+        // the override alone.
+        let next = StylistCache::styled(over);
+        if !theme.is_changed() && next == *cache {
             continue;
         }
-        cache.rendered = true;
+        *cache = next;
         *widget = UiWidget::new(PopupFrame {
-            style: theme.normal,
+            style: next.style(&theme),
         });
     }
 }

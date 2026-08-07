@@ -7,7 +7,7 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{composed_frame, press_key, send_mouse};
+use plurimus_test::{press_key, send_mouse};
 use plurimus_ui::{Checked, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxMultiSelect, WidgetsPlugin, button, list_item, listbox,
@@ -220,18 +220,4 @@ fn keyboard_keeps_the_active_row_visible() {
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 0)
     );
-}
-
-#[test]
-fn listbox_renders_rows_and_highlight() {
-    let mut app = app();
-    app.add_observer(listbox_self_update);
-    let (_, _) = spawn_listbox(&mut app);
-
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Down);
-    app.update();
-
-    insta::assert_snapshot!(composed_frame(&app));
 }

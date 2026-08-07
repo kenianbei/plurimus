@@ -151,7 +151,7 @@ fn spawn_radio_group(commands: &mut Commands, root: Entity) {
         .observe(
             |on: On<ValueChange<Entity>>, labels: Query<&UiLabel>, mut state: ResMut<DemoState>| {
                 if let Ok(label) = labels.get(on.value) {
-                    state.bui.radio = label.0.clone();
+                    state.bui.radio = label.0.to_string();
                 }
             },
         )
@@ -161,7 +161,7 @@ fn spawn_radio_group(commands: &mut Commands, root: Entity) {
             Node::default(),
             RadioButton,
             TabIndex(RADIO_TAB_INDEX + index as i32),
-            UiLabel((*label).to_owned()),
+            UiLabel((*label).into()),
             Text::default(),
             BackgroundColor(Color::NONE),
             ChildOf(group),

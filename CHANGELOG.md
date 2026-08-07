@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`WidgetSystems`**, the set the stock widget systems run in, so an app can
+  order its own systems against widget layout or styling instead of guessing.
+- **`StylistDisabled`**, which exempts one entity from the stock stylists. The
+  widget keeps its behavior - selection, keys, scrolling, events - while the app
+  owns what it draws.
+- **`UiStyle`**, a style patched over the one an entity would otherwise resolve
+  to. On a widget it composes with hover and focus rather than replacing them;
+  on a list row it styles the full row, which is what a striped or state-colored
+  list needs.
+- **`ListBoxSelectionMarker`** and **`ListBoxCursor`**, so a list box's marker
+  column and cursor symbol are the app's to choose. An empty cursor symbol gives
+  bar-style selection with no gutter at all.
+
+### Changed
+
+- **`UiLabel` carries a ratatui `Line`** rather than a `String`, so a label can
+  hold per-span style - independently colored columns in a list row, a dimmed
+  shortcut beside a menu item. Every widget constructor now takes
+  `impl Into<Line<'static>>`; string literals still work unchanged, but a
+  borrowed non-`'static` `&str` needs `.to_owned()`.
+- **A focused list box highlights its cursor row** instead of repainting every
+  row. A pane whose contents hold focus still shows it on the border, and rows
+  keep whatever color they carry. Disabled list boxes still dim throughout.
+- **A list box no longer draws its selection marker column** unless it carries
+  `ListBoxSelectionMarker`, making every list two cells narrower by default.
+
 ## [0.2.0] - 2026-08-05
 
 A complete rebuild as a multi-crate workspace. Nothing carries over from 0.1.0.

@@ -14,6 +14,7 @@ mod activate;
 mod button;
 mod checkbox;
 mod listbox;
+mod listbox_style;
 mod menu;
 mod menu_layout;
 mod pane;
@@ -33,7 +34,10 @@ pub use ratatui_widgets;
 pub use activate::Activate;
 pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
-pub use listbox::{ActiveDescendant, ListBox, ListBoxMultiSelect, ListItem, list_item, listbox};
+pub use listbox::{
+    ActiveDescendant, ListBox, ListBoxCursor, ListBoxMultiSelect, ListBoxSelectionMarker, ListItem,
+    list_item, listbox,
+};
 pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
@@ -43,13 +47,15 @@ pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
 };
 pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
+pub use stylist::{StylistDisabled, UiStyle};
 pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
 pub use theme::UiTheme;
 
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
-pub(crate) use listbox::{listbox_key, listbox_press, style_listboxes, sync_listbox_scroll};
+pub(crate) use listbox::{listbox_key, listbox_press, sync_listbox_scroll};
+pub(crate) use listbox_style::style_listboxes;
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
     style_menu_popups,
@@ -68,10 +74,12 @@ pub(crate) use text::{
 use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::prelude::IntoScheduleConfigs;
+use bevy_ecs::schedule::SystemSet;
 use bevy_input::keyboard::KeyCode;
 use ratatui_widgets::paragraph::Paragraph;
 
 use plurimus_core::UiWidget;
+use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::{UiPlugin, UiSystems};
 
 // Modifiers arrive as polled state rather than per-event flags, so
@@ -81,8 +89,12 @@ pub(crate) const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
 pub(crate) const SHIFT_KEYS: [KeyCode; 2] = [KeyCode::ShiftLeft, KeyCode::ShiftRight];
 
 /// A widget's text label, rendered by the stock stylists.
+///
+/// A [`Line`] rather than a `String`, so a label can carry per-span style -
+/// columns in a list row, a dimmed shortcut beside a menu item. Converts
+/// from `String` and `&str`, so a plain label stays a plain label.
 #[derive(Component, Debug, Clone)]
-pub struct UiLabel(pub String);
+pub struct UiLabel(pub Line<'static>);
 
 // The stock stylists replace this on the first frame.
 pub(crate) fn placeholder() -> UiWidget {
@@ -96,11 +108,23 @@ pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
     f32::from(cell) / f32::from(last)
 }
 
+/// Phases of widget maintenance, in different schedules. Apps interleave
+/// their own systems against these - a stylist replacing a stock one runs
+/// [`after`](IntoScheduleConfigs::after) [`WidgetSystems::Style`].
+#[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum WidgetSystems {
+    /// `PreUpdate`: listbox scroll sync, popup sizing, and popover and menu
+    /// row placement, between [`UiSystems::Areas`] and [`UiSystems::Hover`].
+    Layout,
+    /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`].
+    Style,
+}
+
 /// Installs the widget library: stylists, widget observers, and the
 /// layout systems for menus and popovers.
 ///
 /// Requires [`plurimus_core::CorePlugin`] first; adds [`UiPlugin`] itself
-/// when absent.
+/// when absent. Its systems run in the [`WidgetSystems`] phases.
 pub struct WidgetsPlugin;
 
 impl Plugin for WidgetsPlugin {
@@ -117,6 +141,12 @@ impl Plugin for WidgetsPlugin {
 
 // Placement reads areas and feeds hover, so it runs between the two.
 fn add_layout_systems(app: &mut App) {
+    app.configure_sets(
+        PreUpdate,
+        WidgetSystems::Layout
+            .after(UiSystems::Areas)
+            .before(UiSystems::Hover),
+    );
     app.add_systems(
         PreUpdate,
         (
@@ -128,8 +158,7 @@ fn add_layout_systems(app: &mut App) {
                 place_menu_items,
             )
                 .chain()
-                .after(UiSystems::Areas)
-                .before(UiSystems::Hover),
+                .in_set(WidgetSystems::Layout),
         ),
     );
 }
@@ -148,7 +177,8 @@ fn add_stylists(app: &mut App) {
             style_text_inputs,
             style_menu_items,
             style_menu_popups,
-        ),
+        )
+            .in_set(WidgetSystems::Style),
     );
 }
 

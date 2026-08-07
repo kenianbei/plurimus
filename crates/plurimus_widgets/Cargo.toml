@@ -22,7 +22,6 @@ plurimus_ui = { workspace = true }
 ratatui-textarea = { workspace = true }
 ratatui-widgets = { workspace = true }
 unicode-segmentation = { workspace = true }
-unicode-width = { workspace = true }
 
 [dev-dependencies]
 bevy_math = { workspace = true }

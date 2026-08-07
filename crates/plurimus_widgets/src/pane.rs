@@ -8,11 +8,12 @@
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::prelude::{Component, Has, Query, Res, With};
+use bevy_ecs::prelude::{Component, Has, Query, Res};
+use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
 use super::{UiLabel, placeholder};
-use crate::stylist::StylistCache;
+use crate::stylist::{Stylable, StylistCache, UiStyle};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::FocusWithin;
@@ -25,16 +26,25 @@ pub struct Pane;
 
 /// Spawn bundle for a pane; parent widgets to it so the border follows
 /// their focus.
-pub fn pane(title: impl Into<String>) -> impl Bundle {
+pub fn pane(title: impl Into<Line<'static>>) -> impl Bundle {
     (Pane, UiLabel(title.into()), placeholder())
 }
 
 pub(crate) fn style_panes(
     theme: Res<UiTheme>,
-    mut panes: Query<(Has<FocusWithin>, &UiLabel, &mut StylistCache, &mut UiWidget), With<Pane>>,
+    mut panes: Query<
+        (
+            Has<FocusWithin>,
+            &UiLabel,
+            Option<&UiStyle>,
+            &mut StylistCache,
+            &mut UiWidget,
+        ),
+        Stylable<Pane>,
+    >,
 ) {
-    for (focused, label, mut cache, mut widget) in &mut panes {
-        let next = StylistCache::focus_only(focused);
+    for (focused, label, over, mut cache, mut widget) in &mut panes {
+        let next = StylistCache::focus_only(focused, over);
         if !theme.is_changed() && next == *cache {
             continue;
         }

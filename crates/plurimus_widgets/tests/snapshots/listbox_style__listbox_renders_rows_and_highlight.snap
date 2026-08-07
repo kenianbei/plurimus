@@ -1,0 +1,7 @@
+---
+source: crates/plurimus_widgets/tests/listbox_style.rs
+expression: composed_frame(&app)
+---
+  alpha     
+> beta      
+  gamma

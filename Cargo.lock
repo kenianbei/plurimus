@@ -3010,7 +3010,6 @@ dependencies = [
  "ratatui-textarea",
  "ratatui-widgets",
  "unicode-segmentation",
- "unicode-width",
 ]
 
 [[package]]

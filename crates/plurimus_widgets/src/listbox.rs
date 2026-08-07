@@ -8,24 +8,19 @@
 //! scroll machinery to window the rows.
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{
-    Changed, Children, Commands, Component, Has, On, Or, Query, Res, With, Without,
-};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Or, Query, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_input_focus::{FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
-use plurimus_core::ratatui_core::style::Style;
-use ratatui_widgets::list::{List, ListState};
+use plurimus_core::ratatui_core::text::Line;
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
-use crate::theme::UiTheme;
-use plurimus_core::UiWidget;
-use plurimus_ui::{Checked, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
+use crate::stylist::StylistCache;
+use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollArea, ScrollIntoView, ScrollOffset};
 
 /// A focusable list of [`ListItem`] children. Selection emits
@@ -39,6 +34,19 @@ pub struct ListBox;
 /// Allows multiple [`Checked`](plurimus_ui::Checked) items in a [`ListBox`].
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListBoxMultiSelect;
+
+/// Draws a [`ListBox`]'s marker column, telling
+/// [`Checked`](plurimus_ui::Checked) rows apart from the row under the
+/// cursor. Costs two cells of width, so it is asked for rather than
+/// assumed.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ListBoxSelectionMarker;
+
+/// Replaces the symbol drawn beside a [`ListBox`]'s cursor row, which
+/// shifts row content right by its width. An empty line frees the gutter
+/// entirely, leaving the cursor shown by its highlight style alone.
+#[derive(Component, Debug, Clone)]
+pub struct ListBoxCursor(pub Line<'static>);
 
 /// One row of a [`ListBox`]: a child entity carrying its
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
@@ -56,7 +64,7 @@ pub fn listbox() -> impl Bundle {
 }
 
 /// Spawn bundle for one list row.
-pub fn list_item(label: impl Into<String>) -> impl Bundle {
+pub fn list_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (ListItem, UiLabel(label.into()))
 }
 
@@ -190,54 +198,6 @@ fn row_entity(
     row: usize,
 ) -> Option<Entity> {
     list_rows(children, items).nth(row)
-}
-
-pub(crate) fn style_listboxes(
-    theme: Res<UiTheme>,
-    focus: Res<InputFocus>,
-    mut boxes: Query<
-        (
-            StateQuery,
-            &ActiveDescendant,
-            &Children,
-            &mut StylistCache,
-            &mut UiWidget,
-        ),
-        With<ListBox>,
-    >,
-    items: Query<(&UiLabel, Has<Checked>), With<ListItem>>,
-) {
-    for (state, active, children, mut cache, mut widget) in &mut boxes {
-        let rows: Vec<(Entity, &str, bool)> = children
-            .iter()
-            .filter_map(|&child| {
-                let (label, checked) = items.get(child).ok()?;
-                Some((child, label.0.as_str(), checked))
-            })
-            .collect();
-        let selected = active
-            .0
-            .and_then(|item| rows.iter().position(|(row, ..)| *row == item));
-        let next = observed(state, &focus, hashed_bits((&rows, selected)));
-        if !theme.is_changed() && next == *cache {
-            continue;
-        }
-        *cache = next;
-        *widget = list_widget(&rows, selected, next.style(&theme));
-    }
-}
-
-fn list_widget(rows: &[(Entity, &str, bool)], selected: Option<usize>, style: Style) -> UiWidget {
-    let lines: Vec<String> = rows
-        .iter()
-        .map(|(_, label, checked)| format!("{} {label}", if *checked { "▪" } else { " " }))
-        .collect();
-    let mut highlight = ListState::default();
-    highlight.select(selected);
-    UiWidget::stateful(
-        List::new(lines).style(style).highlight_symbol("> "),
-        highlight,
-    )
 }
 
 // Keeps a scrollable ListBox's content size at (content width, item
