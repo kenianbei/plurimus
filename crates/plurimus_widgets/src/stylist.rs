@@ -73,10 +73,8 @@ impl StylistCache {
         }
     }
 
-    // The widget's look with its pointer and focus state set aside, for
-    // container widgets that show those on one row rather than all of
-    // them. Disabled survives, because a disabled container is disabled
-    // throughout.
+    // Pointer and focus set aside, for containers showing those on one
+    // row. Disabled survives: a disabled container is disabled throughout.
     pub(crate) fn resting_style(&self, theme: &UiTheme) -> Style {
         Self {
             hovered: false,
@@ -121,9 +119,8 @@ pub(crate) type LabeledQuery<'w, 's, 'a, M> = Query<
     Stylable<M>,
 >;
 
-// Decorations wrap the label rather than replace it, so cloning it is what
-// carries its line style and alignment across - dropping either silently
-// loses row striping.
+// Cloning is what carries the label's line style and alignment across;
+// dropping either silently loses row striping.
 pub(crate) fn decorate(
     prefix: &'static str,
     label: &Line<'static>,

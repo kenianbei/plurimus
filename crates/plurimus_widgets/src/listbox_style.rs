@@ -23,10 +23,8 @@ use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::Checked;
 
-// Drawn beside the cursor row unless a `ListBoxCursor` replaces it.
 const CURSOR_SYMBOL: &str = "> ";
 
-// Drawn beside every row when the marker column is asked for.
 const CHECKED_MARKER: &str = "▪ ";
 const UNCHECKED_MARKER: &str = "  ";
 
@@ -36,14 +34,11 @@ type Row<'a> = (Entity, &'a Line<'static>, bool, Option<Style>);
 type RowItems<'w, 's> =
     Query<'w, 's, (&'static UiLabel, Has<Checked>, Option<&'static UiStyle>), With<ListItem>>;
 
-// What every row is drawn in, and what the cursor row adds on top.
 struct RowStyles {
     every: Style,
     cursor: Style,
 }
 
-// The columns a list draws left of its rows: a marker beside every row,
-// and a symbol beside the cursor row.
 struct Gutters {
     marker: bool,
     cursor: Line<'static>,

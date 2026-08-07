@@ -42,7 +42,7 @@ fn spawn_listbox(app: &mut App) -> (Entity, [Entity; 3]) {
     (container, items)
 }
 
-// One row is all a styling test needs; returns the list box.
+// Returns the list box, not the row.
 fn spawn_row(app: &mut App, label: impl Into<Line<'static>>) -> Entity {
     let container = app
         .world_mut()
