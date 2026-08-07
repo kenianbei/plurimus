@@ -11,21 +11,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`WidgetSystems`**, the set the stock widget systems run in, so an app can
   order its own systems against widget layout or styling instead of guessing.
 - **`StylistDisabled`**, which exempts one entity from the stock stylists. The
-  widget keeps its behavior - selection, keys, scrolling, events - while the
-  app owns what it draws.
-- **`UiStyle`**, a style patched over the one an entity would otherwise
-  resolve to. On a widget it composes with hover and focus rather than
-  replacing them; on a list row it styles the full row, which is what a
-  striped or state-colored list needs.
+  widget keeps its behavior - selection, keys, scrolling, events - while the app
+  owns what it draws.
+- **`UiStyle`**, a style patched over the one an entity would otherwise resolve
+  to. On a widget it composes with hover and focus rather than replacing them;
+  on a list row it styles the full row, which is what a striped or state-colored
+  list needs.
 - **`ListBoxSelectionMarker`** and **`ListBoxCursor`**, so a list box's marker
-  column and cursor symbol are the app's to choose. An empty cursor symbol
-  gives bar-style selection with no gutter at all.
+  column and cursor symbol are the app's to choose. An empty cursor symbol gives
+  bar-style selection with no gutter at all.
 
 ### Changed
 
-- **`UiLabel` carries a ratatui `Line`** rather than a `String`, so a label
-  can hold per-span style - independently colored columns in a list row, a
-  dimmed shortcut beside a menu item. Every widget constructor now takes
+- **`UiLabel` carries a ratatui `Line`** rather than a `String`, so a label can
+  hold per-span style - independently colored columns in a list row, a dimmed
+  shortcut beside a menu item. Every widget constructor now takes
   `impl Into<Line<'static>>`; string literals still work unchanged, but a
   borrowed non-`'static` `&str` needs `.to_owned()`.
 - **A focused list box highlights its cursor row** instead of repainting every
