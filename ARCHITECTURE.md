@@ -106,8 +106,14 @@ groups, sliders, scrollbars, list boxes, panes, menus, popovers, a single-line
 `EditableText`, and a multi-line `TextEditor` built on ratatui-textarea. Most
 widgets are stateless controllers emitting entity events (`Activate`,
 `ValueChange`); apps apply them, or attach the stock `*_self_update` observers
-for uncontrolled behavior. Stylists render each widget from `UiTheme` every
-frame. Re-exports `ratatui_widgets` and `ratatui_textarea`.
+for uncontrolled behavior. A stylist rebuilds a widget's `UiWidget` from
+`UiTheme` when the state it last drew differs from the current one, not every
+frame, and they run in the `WidgetSystems::Style` set an app orders its own
+against: `StylistDisabled` exempts an entity so an app takes its look while
+keeping its behavior, and `UiStyle` patches over the style an entity would
+otherwise resolve to, on a widget or on one list row. A `UiLabel` is a
+ratatui `Line`, so a label carries per-span style of its own. Re-exports
+`ratatui_widgets` and `ratatui_textarea`.
 
 ### plurimus_bui
 
