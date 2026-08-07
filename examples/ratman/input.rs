@@ -34,7 +34,7 @@ pub fn handle_keys(
     }
 }
 
-fn steer(code: KeyCode) -> Option<Dir> {
+const fn steer(code: KeyCode) -> Option<Dir> {
     match code {
         KeyCode::Up | KeyCode::Char('w') => Some(Dir::Up),
         KeyCode::Down | KeyCode::Char('s') => Some(Dir::Down),

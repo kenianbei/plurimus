@@ -76,7 +76,7 @@ fn draw_corners(rows: &mut [Vec<char>], maze: &Maze, tile: IVec2) {
 }
 
 /// Where a line sits along the axis it faces across.
-fn face_span(positive: bool) -> Range<usize> {
+const fn face_span(positive: bool) -> Range<usize> {
     let start = if positive {
         TILE as usize - WALL_INSET - WALL_THICKNESS
     } else {
@@ -86,7 +86,7 @@ fn face_span(positive: bool) -> Range<usize> {
 }
 
 /// The half of the tile a corner elbow reaches into.
-fn arm_span(positive: bool) -> Range<usize> {
+const fn arm_span(positive: bool) -> Range<usize> {
     let middle = TILE as usize - WALL_INSET - WALL_THICKNESS;
     if positive {
         middle..TILE as usize

@@ -27,7 +27,7 @@ struct Window {
 }
 
 impl Window {
-    fn end(&self) -> u16 {
+    const fn end(&self) -> u16 {
         self.start.saturating_add(self.area.width)
     }
 }

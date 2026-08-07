@@ -103,7 +103,7 @@ fn is_running(phase: Res<Phase>, size: Res<TerminalSize>, pending: Res<LevelPend
 }
 
 #[must_use]
-pub fn terminal_fits(size: TerminalSize) -> bool {
+pub const fn terminal_fits(size: TerminalSize) -> bool {
     size.cols >= REQUIRED_COLS && size.rows >= REQUIRED_ROWS
 }
 

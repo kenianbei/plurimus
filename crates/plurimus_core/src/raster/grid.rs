@@ -44,7 +44,7 @@ impl HalfblockGrid {
     /// The grid's area in absolute subcell coordinates: cell columns,
     /// half-rows at twice the vertical resolution.
     #[must_use]
-    pub fn subcell_area(&self) -> Rect {
+    pub const fn subcell_area(&self) -> Rect {
         Rect::new(
             self.area.x,
             self.area.y * 2,

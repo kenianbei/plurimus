@@ -74,8 +74,8 @@ pedantic = { level = "warn", priority = -1 }
 
 # Nursery is not enabled as a group: redundant_pub_crate would rewrite the
 # module idiom, and suboptimal_flops would change floating-point results.
-# Two of its lints are selected by hand; missing_const_for_fn is the other,
-# below.
+# Two of its lints are selected by hand.
+missing_const_for_fn = "warn"
 redundant_clone = "warn"
 
 # A terminal renderer narrows f32 world coordinates to u16 cells and
@@ -100,10 +100,6 @@ match_bool = "allow"
 # assert those exact values; a tolerance would weaken them. The one
 # production comparison is against a sentinel and carries its own expect.
 float_cmp = "allow"
-
-# Burn-down: this fires today and is cleared by its own phase. The
-# line is deleted when it goes to warn.
-missing_const_for_fn = "allow"
 
 [package]
 name = "plurimus"

@@ -79,7 +79,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
     /// Presents through `writer`, which must reach the controlling
     /// terminal.
     #[must_use]
-    pub fn with_writer(writer: W) -> Self {
+    pub const fn with_writer(writer: W) -> Self {
         Self {
             mouse: true,
             paste: true,
@@ -90,7 +90,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
 
     /// Sets mouse capture ([`plurimus_input::MouseMessage`]); on by default.
     #[must_use]
-    pub fn mouse(mut self, mouse: bool) -> Self {
+    pub const fn mouse(mut self, mouse: bool) -> Self {
         self.mouse = mouse;
         self
     }
@@ -98,7 +98,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
     /// Sets bracketed paste ([`plurimus_input::PasteMessage`]); on by
     /// default.
     #[must_use]
-    pub fn paste(mut self, paste: bool) -> Self {
+    pub const fn paste(mut self, paste: bool) -> Self {
         self.paste = paste;
         self
     }
@@ -109,7 +109,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
     /// value; disable instead when the app manages the resource
     /// dynamically.
     #[must_use]
-    pub fn detect_color_depth(mut self, detect: bool) -> Self {
+    pub const fn detect_color_depth(mut self, detect: bool) -> Self {
         self.detect_color_depth = detect;
         self
     }

@@ -151,7 +151,7 @@ struct Run {
 }
 
 impl Run {
-    fn is_empty(&self) -> bool {
+    const fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
 

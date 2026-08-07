@@ -54,7 +54,7 @@ pub struct PresenterPlugin<B: Backend + Send + Sync + 'static> {
 impl<B: Backend + Send + Sync + 'static> PresenterPlugin<B> {
     /// Presents through `backend`.
     #[must_use]
-    pub fn new(backend: B) -> Self {
+    pub const fn new(backend: B) -> Self {
         Self {
             backend: Mutex::new(Some(backend)),
         }

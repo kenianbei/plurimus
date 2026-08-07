@@ -92,7 +92,7 @@ pub(super) fn physical_code(code: KeyCode) -> BevyKeyCode {
     }
 }
 
-pub(super) fn modifier_physical(modifier: ModifierKey) -> BevyKeyCode {
+pub(super) const fn modifier_physical(modifier: ModifierKey) -> BevyKeyCode {
     use ModifierKey as M;
     match modifier {
         M::ShiftLeft => BevyKeyCode::ShiftLeft,
@@ -145,7 +145,7 @@ pub(super) fn logical_key(code: KeyCode) -> Key {
     }
 }
 
-pub(super) fn modifier_logical(modifier: ModifierKey) -> Key {
+pub(super) const fn modifier_logical(modifier: ModifierKey) -> Key {
     use ModifierKey as M;
     match modifier {
         M::ShiftLeft | M::ShiftRight => Key::Shift,

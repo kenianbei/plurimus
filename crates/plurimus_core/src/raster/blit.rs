@@ -58,13 +58,13 @@ impl<'a> PixelGrid<'a> {
 
     /// Pixel columns.
     #[must_use]
-    pub fn width(&self) -> usize {
+    pub const fn width(&self) -> usize {
         self.width
     }
 
     /// Pixel rows.
     #[must_use]
-    pub fn height(&self) -> usize {
+    pub const fn height(&self) -> usize {
         self.height
     }
 
@@ -108,12 +108,12 @@ fn rgba_color(pixel: &[u8]) -> Option<Color> {
     Some(Color::Rgb(pixel[0], pixel[1], pixel[2]))
 }
 
-fn xrgb_color(pixel: u32) -> Color {
+const fn xrgb_color(pixel: u32) -> Color {
     let [red, green, blue] = xrgb_channels(pixel);
     Color::Rgb(red, green, blue)
 }
 
-fn xrgb_channels(pixel: u32) -> [u8; 3] {
+const fn xrgb_channels(pixel: u32) -> [u8; 3] {
     [(pixel >> 16) as u8, (pixel >> 8) as u8, pixel as u8]
 }
 

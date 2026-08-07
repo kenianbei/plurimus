@@ -34,7 +34,7 @@ pub enum PopoverSide {
 impl PopoverSide {
     /// The opposite side, used when the preferred side overflows.
     #[must_use]
-    pub fn mirror(self) -> Self {
+    pub const fn mirror(self) -> Self {
         match self {
             Self::Top => Self::Bottom,
             Self::Bottom => Self::Top,
@@ -179,7 +179,7 @@ fn aligned_y(anchor: Rect, height: i32, align: PopoverAlign) -> i32 {
     )
 }
 
-fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -> i32 {
+const fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -> i32 {
     match align {
         PopoverAlign::Start => start,
         PopoverAlign::Center => start + (anchor_span - span) / 2,
@@ -187,7 +187,7 @@ fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -> i32 
     }
 }
 
-fn localize(rect: Rect, viewport: Rect) -> Rect {
+const fn localize(rect: Rect, viewport: Rect) -> Rect {
     Rect::new(
         rect.x.saturating_sub(viewport.x),
         rect.y.saturating_sub(viewport.y),

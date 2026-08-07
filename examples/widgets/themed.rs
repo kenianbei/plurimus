@@ -78,7 +78,7 @@ pub(crate) fn add_themed_side(app: &mut App) {
 // so hover and press carry a modifier apiece to stay visible underneath
 // it. On a `Pane`, whose whole rendering is its border, the same focused
 // style reads as a border color change.
-fn demo_theme() -> UiTheme {
+const fn demo_theme() -> UiTheme {
     UiTheme {
         normal: Style::new().fg(Color::Gray),
         hovered: Style::new().fg(Color::White).add_modifier(Modifier::BOLD),

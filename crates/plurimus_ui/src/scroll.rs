@@ -39,7 +39,7 @@ pub struct ScrollArea {
 impl ScrollArea {
     /// A scroll area with automatic scrollbars.
     #[must_use]
-    pub fn new(content_size: Size) -> Self {
+    pub const fn new(content_size: Size) -> Self {
         Self {
             content_size,
             scrollbars: ScrollbarVisibility::Automatic,
@@ -101,7 +101,7 @@ pub struct WheelAxes {
 }
 
 impl WheelAxes {
-    fn consumes(self, (columns, rows): (i16, i16)) -> bool {
+    const fn consumes(self, (columns, rows): (i16, i16)) -> bool {
         (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
     }
 }
@@ -216,7 +216,7 @@ pub(crate) fn scroll_into_view(
     apply_offset(event.entity, revealed, &mut offset, &mut commands);
 }
 
-fn wheel_step(kind: MouseKind) -> Option<(i16, i16)> {
+const fn wheel_step(kind: MouseKind) -> Option<(i16, i16)> {
     match kind {
         MouseKind::ScrollUp => Some((0, -1)),
         MouseKind::ScrollDown => Some((0, 1)),
@@ -245,7 +245,7 @@ pub fn apply_offset(
 
 /// The largest valid [`ScrollOffset`] for `content` windowed by `area`.
 #[must_use]
-pub fn max_offset(content: Size, area: Rect) -> Position {
+pub const fn max_offset(content: Size, area: Rect) -> Position {
     Position::new(
         content.width.saturating_sub(area.width),
         content.height.saturating_sub(area.height),

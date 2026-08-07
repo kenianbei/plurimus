@@ -24,7 +24,7 @@ impl Dir {
     pub const ALL: [Self; 4] = [Self::Up, Self::Left, Self::Down, Self::Right];
 
     #[must_use]
-    pub fn delta(self) -> IVec2 {
+    pub const fn delta(self) -> IVec2 {
         match self {
             Self::Up => IVec2::NEG_Y,
             Self::Down => IVec2::Y,
@@ -34,7 +34,7 @@ impl Dir {
     }
 
     #[must_use]
-    pub fn opposite(self) -> Self {
+    pub const fn opposite(self) -> Self {
         match self {
             Self::Up => Self::Down,
             Self::Down => Self::Up,
@@ -46,7 +46,7 @@ impl Dir {
     /// The world-space heading: the same step, with Y flipped because
     /// tile rows run down while world Y runs up.
     #[must_use]
-    pub fn heading(self) -> Vec2 {
+    pub const fn heading(self) -> Vec2 {
         let step = self.delta();
         Vec2::new(step.x as f32, -step.y as f32)
     }
@@ -68,7 +68,7 @@ pub struct Actor {
 
 impl Actor {
     #[must_use]
-    pub fn new(tile: IVec2, direction: Dir, speed: f32) -> Self {
+    pub const fn new(tile: IVec2, direction: Dir, speed: f32) -> Self {
         Self {
             tile,
             direction,
@@ -80,7 +80,7 @@ impl Actor {
     }
 
     #[must_use]
-    pub fn opening_doors(mut self) -> Self {
+    pub const fn opening_doors(mut self) -> Self {
         self.opens_doors = true;
         self
     }
@@ -109,7 +109,7 @@ impl Actor {
     }
 
     /// Puts the actor back on a tile center, facing `direction`.
-    pub fn reset(&mut self, tile: IVec2, direction: Dir) {
+    pub const fn reset(&mut self, tile: IVec2, direction: Dir) {
         self.tile = tile;
         self.direction = direction;
         self.queued = direction;

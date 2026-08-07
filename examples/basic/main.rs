@@ -66,7 +66,7 @@ fn layout_tiles(
     }
 }
 
-fn slot_rect(index: u16, screen: Rect) -> Rect {
+const fn slot_rect(index: u16, screen: Rect) -> Rect {
     let width = screen.width / COLUMNS;
     let height = screen.height / ROWS;
     Rect::new(

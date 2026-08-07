@@ -188,7 +188,7 @@ fn cycle_edges(
     }
 }
 
-fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
+const fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
     match source {
         None => Some(EdgeSource::Luminance),
         Some(EdgeSource::Luminance) => Some(EdgeSource::Depth),

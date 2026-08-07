@@ -79,7 +79,7 @@ fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
     })
 }
 
-fn convert_kind(kind: KeyEventKind) -> KeyKind {
+const fn convert_kind(kind: KeyEventKind) -> KeyKind {
     match kind {
         KeyEventKind::Press => KeyKind::Press,
         KeyEventKind::Repeat => KeyKind::Repeat,
@@ -87,7 +87,7 @@ fn convert_kind(kind: KeyEventKind) -> KeyKind {
     }
 }
 
-fn convert_code(code: event::KeyCode) -> Option<KeyCode> {
+const fn convert_code(code: event::KeyCode) -> Option<KeyCode> {
     match code {
         event::KeyCode::Char(c) => Some(KeyCode::Char(c)),
         event::KeyCode::Enter => Some(KeyCode::Enter),
@@ -113,7 +113,7 @@ fn convert_code(code: event::KeyCode) -> Option<KeyCode> {
     }
 }
 
-fn convert_modifier_key(modifier: event::ModifierKeyCode) -> Option<KeyCode> {
+const fn convert_modifier_key(modifier: event::ModifierKeyCode) -> Option<KeyCode> {
     use event::ModifierKeyCode as Ct;
     let key = match modifier {
         Ct::LeftShift => ModifierKey::ShiftLeft,
@@ -151,7 +151,7 @@ fn convert_mouse(mouse: MouseEvent) -> MouseMessage {
     }
 }
 
-fn convert_mouse_kind(kind: MouseEventKind) -> MouseKind {
+const fn convert_mouse_kind(kind: MouseEventKind) -> MouseKind {
     match kind {
         MouseEventKind::Down(button) => MouseKind::Down(convert_button(button)),
         MouseEventKind::Up(button) => MouseKind::Up(convert_button(button)),
@@ -164,7 +164,7 @@ fn convert_mouse_kind(kind: MouseEventKind) -> MouseKind {
     }
 }
 
-fn convert_button(button: event::MouseButton) -> MouseButton {
+const fn convert_button(button: event::MouseButton) -> MouseButton {
     match button {
         event::MouseButton::Left => MouseButton::Left,
         event::MouseButton::Right => MouseButton::Right,

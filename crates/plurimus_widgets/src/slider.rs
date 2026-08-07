@@ -58,23 +58,23 @@ pub struct SliderRange {
 impl SliderRange {
     /// A range from `start` to `end`.
     #[must_use]
-    pub fn new(start: f32, end: f32) -> Self {
+    pub const fn new(start: f32, end: f32) -> Self {
         Self { start, end }
     }
 
     /// Lower bound.
     #[must_use]
-    pub fn start(&self) -> f32 {
+    pub const fn start(&self) -> f32 {
         self.start
     }
 
     /// Upper bound.
     #[must_use]
-    pub fn end(&self) -> f32 {
+    pub const fn end(&self) -> f32 {
         self.end
     }
 
-    fn clamp(self, value: f32) -> f32 {
+    const fn clamp(self, value: f32) -> f32 {
         value.clamp(self.start, self.end)
     }
 }

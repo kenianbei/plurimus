@@ -41,12 +41,12 @@ pub(crate) struct Canvas<'a> {
 }
 
 impl<'a> Canvas<'a> {
-    pub(crate) fn new(buffer: &'a mut Buffer, dest: Rect) -> Self {
+    pub(crate) const fn new(buffer: &'a mut Buffer, dest: Rect) -> Self {
         Self { buffer, dest }
     }
 
     #[cfg(test)]
-    pub(crate) fn full(buffer: &'a mut Buffer) -> Self {
+    pub(crate) const fn full(buffer: &'a mut Buffer) -> Self {
         let dest = buffer.area;
         Self { buffer, dest }
     }

@@ -18,7 +18,7 @@ pub(crate) const DEPTH_BYTES_PER_PIXEL: usize = 4;
 
 /// Row stride of the depth transfer buffer: the copy pass, buffer
 /// sizing, and CPU unpack must all agree on it.
-pub(crate) fn depth_row_stride(width: u32) -> usize {
+pub(crate) const fn depth_row_stride(width: u32) -> usize {
     RenderDevice::align_copy_bytes_per_row(width as usize * DEPTH_BYTES_PER_PIXEL)
 }
 
