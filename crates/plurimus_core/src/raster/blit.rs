@@ -23,7 +23,7 @@ enum PixelData<'a> {
 
 /// A borrowed pixel grid to blit from, rows top to bottom.
 pub struct PixelGrid<'a> {
-    data: PixelData<'a>,
+    pixels: PixelData<'a>,
     width: usize,
     height: usize,
 }
@@ -32,12 +32,12 @@ impl<'a> PixelGrid<'a> {
     /// Tightly packed RGBA bytes; fully transparent pixels are skipped
     /// when blitted, leaving their subcells untouched for compositing.
     ///
-    /// Debug-asserts that `data` holds at least `width * height` pixels.
+    /// Debug-asserts that `pixels` holds at least `width * height` pixels.
     #[must_use]
-    pub fn rgba8(data: &'a [u8], width: usize, height: usize) -> Self {
-        debug_assert!(data.len() >= width * height * RGBA_CHANNELS);
+    pub fn rgba8(pixels: &'a [u8], width: usize, height: usize) -> Self {
+        debug_assert!(pixels.len() >= width * height * RGBA_CHANNELS);
         Self {
-            data: PixelData::Rgba8(data),
+            pixels: PixelData::Rgba8(pixels),
             width,
             height,
         }
@@ -45,12 +45,12 @@ impl<'a> PixelGrid<'a> {
 
     /// Packed `0x00RRGGBB` words; always opaque, high byte ignored.
     ///
-    /// Debug-asserts that `data` holds at least `width * height` pixels.
+    /// Debug-asserts that `pixels` holds at least `width * height` pixels.
     #[must_use]
-    pub fn xrgb32(data: &'a [u32], width: usize, height: usize) -> Self {
-        debug_assert!(data.len() >= width * height);
+    pub fn xrgb32(pixels: &'a [u32], width: usize, height: usize) -> Self {
+        debug_assert!(pixels.len() >= width * height);
         Self {
-            data: PixelData::Xrgb32(data),
+            pixels: PixelData::Xrgb32(pixels),
             width,
             height,
         }
@@ -75,7 +75,7 @@ impl<'a> PixelGrid<'a> {
     pub fn write_rgba8(&self, out: &mut Vec<u8>) {
         out.clear();
         let pixel_count = self.width * self.height;
-        match self.data {
+        match self.pixels {
             PixelData::Rgba8(bytes) => {
                 out.extend_from_slice(&bytes[..pixel_count * RGBA_CHANNELS]);
             }
@@ -91,7 +91,7 @@ impl<'a> PixelGrid<'a> {
 
     fn color_at(&self, x: usize, y: usize) -> Option<Color> {
         let index = y * self.width + x;
-        match self.data {
+        match self.pixels {
             PixelData::Rgba8(bytes) => {
                 let start = index * RGBA_CHANNELS;
                 rgba_color(&bytes[start..start + RGBA_CHANNELS])

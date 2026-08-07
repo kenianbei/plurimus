@@ -152,13 +152,13 @@ fn bar_chart(title: &'static str, _frame: u32) -> UiWidget {
 }
 
 fn sparkline(title: &'static str, frame: u32) -> UiWidget {
-    let data: Vec<u64> = (0..24)
+    let samples: Vec<u64> = (0..24)
         .map(|step| u64::from((step + frame / 4) % 9))
         .collect();
     UiWidget::new(
         Sparkline::default()
             .block(framed(title))
-            .data(data)
+            .data(samples)
             .style(Style::new().fg(Color::Cyan)),
     )
 }

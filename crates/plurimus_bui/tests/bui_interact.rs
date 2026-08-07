@@ -25,6 +25,10 @@ fn app() -> App {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one arrange-drive-assert body; splitting it hides what the test drives"
+)]
 fn node_button_activates_by_click_and_enter() {
     let mut app = app();
 

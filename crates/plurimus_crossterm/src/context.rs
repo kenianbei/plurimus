@@ -115,9 +115,9 @@ pub(crate) fn open_tty() -> io::Result<std::fs::File> {
 /// directly only when building a custom terminal lifecycle.
 pub fn install_panic_hook() {
     let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
+    std::panic::set_hook(Box::new(move |panic_info| {
         restore();
-        previous(info);
+        previous(panic_info);
     }));
 }
 

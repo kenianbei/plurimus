@@ -138,11 +138,11 @@ pub(crate) fn store_depth_readback(
 }
 
 /// Strips wgpu's row-alignment padding and reinterprets the bytes as
-/// `f32` depths. Wrong-length data (a stale readback from a just-resized
+/// `f32` depths. A wrong-length readback (from a just-resized
 /// target) is ignored, keeping the previous frame.
-fn copy_unpadded_f32(data: &[u8], size: UVec2, frame: &mut DepthFrame) {
+fn copy_unpadded_f32(bytes: &[u8], size: UVec2, frame: &mut DepthFrame) {
     let row_bytes = size.x as usize * DEPTH_BYTES_PER_PIXEL;
-    let Some(rows) = unpadded_rows(data, row_bytes, size.y as usize) else {
+    let Some(rows) = unpadded_rows(bytes, row_bytes, size.y as usize) else {
         return;
     };
     frame.size = size;
@@ -164,22 +164,22 @@ mod tests {
     use super::{DEPTH_BYTES_PER_PIXEL, DepthFrame, copy_unpadded_f32};
 
     fn padded_depth_rows(depths: &[&[f32]], stride: usize) -> Vec<u8> {
-        let mut data = Vec::new();
+        let mut padded = Vec::new();
         for row in depths {
             let mut bytes: Vec<u8> = row.iter().flat_map(|d| d.to_ne_bytes()).collect();
             bytes.resize(stride, 0xEE);
-            data.extend_from_slice(&bytes);
+            padded.extend_from_slice(&bytes);
         }
-        data
+        padded
     }
 
     #[test]
     fn strips_padding_and_reinterprets_depths() {
-        let data = padded_depth_rows(&[&[1.0, 0.5], &[0.25, 0.0]], 256);
+        let bytes = padded_depth_rows(&[&[1.0, 0.5], &[0.25, 0.0]], 256);
         let mut frame = DepthFrame::default();
 
         copy_unpadded_f32(
-            &data[..256 + 2 * DEPTH_BYTES_PER_PIXEL],
+            &bytes[..256 + 2 * DEPTH_BYTES_PER_PIXEL],
             UVec2::new(2, 2),
             &mut frame,
         );
