@@ -115,6 +115,10 @@ pub enum ModifierKey {
 /// tier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one flag per modifier the protocol reports; a bitflags type would be the same set behind an API break"
+)]
 pub struct KeyModifiers {
     /// Control held.
     pub ctrl: bool,

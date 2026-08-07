@@ -125,7 +125,7 @@ fn typing_edits_the_single_line_field() {
     press_key(&mut app, KeyCode::Char('!'));
 
     let frame = composed_frame(&app);
-    assert!(frame.contains(&format!("{}!", FIELD_TEXT)), "{frame}");
+    assert!(frame.contains(&format!("{FIELD_TEXT}!")), "{frame}");
 }
 
 #[test]
@@ -236,7 +236,7 @@ fn typing_edits_the_bui_side_field() {
         .unwrap()
         .value()
         .to_owned();
-    assert_eq!(value, format!("{}?", FIELD_TEXT));
+    assert_eq!(value, format!("{FIELD_TEXT}?"));
 }
 
 #[test]

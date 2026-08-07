@@ -1,7 +1,7 @@
-//! Cell-space approximations of bevy_ui decoration: rounded corner glyphs,
+//! Cell-space approximations of `bevy_ui` decoration: rounded corner glyphs,
 //! gradient sampling, and blur-free box shadows.
 //!
-//! bevy_ui describes decoration in continuous pixels, but a cell is the
+//! `bevy_ui` describes decoration in continuous pixels, but a cell is the
 //! smallest thing that can be drawn, so each feature gets the closest honest
 //! equivalent rather than a scaled-down copy. A corner radius becomes at most
 //! one rounded glyph, a gradient is sampled once per cell along its line, and
@@ -27,6 +27,10 @@ const CELL_SCALE: f32 = 1.0;
 const HINT_MIN: f32 = 1e-3;
 
 #[derive(Debug, Clone, Copy, Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "a rectangle has four corners and each rounds independently"
+)]
 pub(crate) struct RoundedCorners {
     pub(crate) top_left: bool,
     pub(crate) top_right: bool,
@@ -220,6 +224,10 @@ fn color_at(stops: &[GradientStop], along: f32) -> LinearRgba {
         if along <= to.position {
             let span = (to.position - from.position).max(f32::EPSILON);
             let mut position = (along - from.position) / span;
+            #[expect(
+                clippy::float_cmp,
+                reason = "1.0 is the sentinel for a linear stop; powf(1.0) is identity, so this only skips the call"
+            )]
             if from.exponent != 1.0 {
                 position = position.powf(from.exponent);
             }

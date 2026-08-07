@@ -15,7 +15,7 @@ enum CharKind {
 }
 
 impl CharKind {
-    fn of(character: char) -> Self {
+    const fn of(character: char) -> Self {
         if character.is_whitespace() {
             Self::Space
         } else if character != '_' && character.is_ascii_punctuation() {

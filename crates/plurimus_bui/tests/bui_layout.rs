@@ -1,4 +1,4 @@
-//! Proves bevy_ui/taffy layout resolves in exact terminal cells.
+//! Proves `bevy_ui/taffy` layout resolves in exact terminal cells.
 
 use bevy_app::App;
 use bevy_ui::{ComputedNode, FlexDirection, Node, UiRect, Val};

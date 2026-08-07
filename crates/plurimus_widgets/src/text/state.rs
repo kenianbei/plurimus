@@ -40,7 +40,7 @@ impl TextInput {
 
     /// The cursor as a char index into the value.
     #[must_use]
-    pub fn cursor(&self) -> usize {
+    pub const fn cursor(&self) -> usize {
         self.cursor
     }
 
@@ -57,7 +57,7 @@ impl TextInput {
     }
 
     /// Moves the cursor to the start of the value.
-    pub fn move_start(&mut self) {
+    pub const fn move_start(&mut self) {
         self.cursor = 0;
     }
 

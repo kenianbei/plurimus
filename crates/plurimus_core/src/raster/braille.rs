@@ -49,7 +49,7 @@ impl BrailleGrid {
     /// The grid's area in absolute subcell coordinates: doubled columns,
     /// quadrupled rows.
     #[must_use]
-    pub fn subcell_area(&self) -> Rect {
+    pub const fn subcell_area(&self) -> Rect {
         Rect::new(
             self.area.x * 2,
             self.area.y * 4,

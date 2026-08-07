@@ -194,8 +194,19 @@ CI gates every change: `cargo fmt --all -- --check`,
 `cargo test --workspace --all-features`, and
 `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps`,
 plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
-MSRV toolchain, typos, and cargo-deny. The GPU smoke tests are `#[ignore]`d
-because they need a wgpu adapter; run
-`cargo test --workspace --all-features -- --ignored` when touching the 3d
-stack - they are the only coverage of the headless render stack's plugin
-composition.
+MSRV toolchain, prettier and markdownlint over the markdown, typos, cargo-deny,
+and cargo-semver-checks. The GPU smoke tests are `#[ignore]`d because they need
+a wgpu adapter; run `cargo test --workspace --all-features -- --ignored` when
+touching the 3d stack - they are the only coverage of the headless render
+stack's plugin composition.
+
+Because clippy runs with `-D warnings`, the lint configuration is a gate rather
+than advice. `[workspace.lints]`, inherited by every crate, warns `missing_docs`
+and clippy's `pedantic` group alongside `style`, `complexity`, `perf`, and
+`suspicious`, denies `correctness`, and selects `missing_const_for_fn` and
+`redundant_clone` out of `nursery`. The lints a terminal renderer cannot honor
+are allowed at the workspace with the reason inline: the four narrowing-cast
+lints, `needless_pass_by_value`, `type_complexity`, `float_cmp`, and
+`match_bool`. `clippy.toml` carries the hard tier of the project's size limits -
+50 lines per function, 5 parameters, 5 levels of nesting - so a breach fails the
+build; file length has no lint and is enforced by review.

@@ -30,7 +30,7 @@ impl Glyph {
 
     /// Sets the glyph's style.
     #[must_use]
-    pub fn style(mut self, style: Style) -> Self {
+    pub const fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
@@ -64,7 +64,7 @@ impl GlyphBlock {
 
     /// Sets the block's style.
     #[must_use]
-    pub fn style(mut self, style: Style) -> Self {
+    pub const fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
@@ -116,7 +116,7 @@ impl PixelBlock {
 
     /// Sets whether the bitmap stamps mirrored horizontally.
     #[must_use]
-    pub fn mirrored(mut self, mirrored: bool) -> Self {
+    pub const fn mirrored(mut self, mirrored: bool) -> Self {
         self.mirrored = mirrored;
         self
     }

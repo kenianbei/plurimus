@@ -1,5 +1,5 @@
 //! Every stock plurimus widget, split-screen: themed widgets placed by
-//! fixed cell rects on the left, the same widget logic driven by bevy_ui
+//! fixed cell rects on the left, the same widget logic driven by `bevy_ui`
 //! layout on the right. Tab/Shift-Tab and arrows move focus (the pane
 //! holding focus highlights its border), Enter/Space activates, arrows
 //! adjust the focused slider and walk open menus, the mouse
@@ -52,7 +52,7 @@ const FIELD_TEXT: &str = "edit me";
 #[derive(Component)]
 struct ThemedCamera;
 
-/// Marks the camera hosting the bevy_ui node tree.
+/// Marks the camera hosting the `bevy_ui` node tree.
 #[derive(Component)]
 struct BuiCamera;
 

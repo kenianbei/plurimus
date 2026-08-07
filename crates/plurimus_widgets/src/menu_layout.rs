@@ -57,7 +57,7 @@ pub(crate) fn place_menu_items(
             continue;
         };
         let mut index = 0;
-        for &child in children.iter() {
+        for &child in children {
             let Ok((mut area, mut computed, own_camera)) = items.get_mut(child) else {
                 continue;
             };

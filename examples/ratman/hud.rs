@@ -41,9 +41,9 @@ pub fn update_hud(
     score: Res<Score>,
     lives: Res<Lives>,
     cheese: Query<&Cheese>,
-    mut lines: Query<&mut UiWidget, With<HudLine>>,
+    mut hud_lines: Query<&mut UiWidget, With<HudLine>>,
 ) {
-    let Ok(mut line) = lines.single_mut() else {
+    let Ok(mut line) = hud_lines.single_mut() else {
         return;
     };
     let text = format!(
@@ -64,7 +64,7 @@ pub fn update_notice(
     let Ok((entity, mut widget, mut area)) = notices.single_mut() else {
         return;
     };
-    let Some(text) = notice_text(&phase, &size) else {
+    let Some(text) = notice_text(*phase, *size) else {
         commands.entity(entity).insert(UiHidden);
         return;
     };
@@ -81,7 +81,7 @@ pub fn update_notice(
     );
 }
 
-fn notice_text(phase: &Phase, size: &TerminalSize) -> Option<String> {
+fn notice_text(phase: Phase, size: TerminalSize) -> Option<String> {
     if !terminal_fits(size) {
         return Some(format!(
             "the terminal is too small\nthe maze needs {REQUIRED_COLS} x {REQUIRED_ROWS} cells"

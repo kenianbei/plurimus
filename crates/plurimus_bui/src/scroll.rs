@@ -1,8 +1,8 @@
 //! Wheel scrolling for bui nodes with scroll overflow.
 //!
 //! A node whose [`Overflow`] is set to scroll registers as a wheel target, so
-//! plurimus_ui's wheel router treats it exactly like a scrollable widget.
-//! Ticks are applied to bevy_ui's own [`ScrollPosition`] rather than to any
+//! `plurimus_ui`'s wheel router treats it exactly like a scrollable widget.
+//! Ticks are applied to `bevy_ui`'s own [`ScrollPosition`] rather than to any
 //! state of ours, which is what keeps scrolled layout the business of the
 //! next taffy pass instead of something this crate has to recompute.
 

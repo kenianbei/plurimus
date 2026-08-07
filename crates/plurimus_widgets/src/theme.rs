@@ -38,6 +38,10 @@ impl Default for UiTheme {
 }
 
 impl UiTheme {
+    #[expect(
+        clippy::fn_params_excessive_bools,
+        reason = "the four states of the documented precedence; a struct of them trips struct_excessive_bools instead"
+    )]
     pub(crate) fn resolve(
         &self,
         hovered: bool,

@@ -1,0 +1,10 @@
+# The hard tier of the size limits in the project's code rules, and nothing
+# else. CI runs `-D warnings`, so a threshold set at the target would make the
+# target the hard limit; the target and warning bands stay prose.
+too-many-lines-threshold = 50
+too-many-arguments-threshold = 5
+excessive-nesting-threshold = 5
+
+# `item` is absent deliberately: the rules permit it for loop variables, and a
+# lint stricter than the rule it encodes gets suppressed rather than read.
+disallowed-names = ["data", "data1", "info", "obj", "result", "temp", "tmp", "val"]

@@ -34,7 +34,7 @@ pub enum PopoverSide {
 impl PopoverSide {
     /// The opposite side, used when the preferred side overflows.
     #[must_use]
-    pub fn mirror(self) -> Self {
+    pub const fn mirror(self) -> Self {
         match self {
             Self::Top => Self::Bottom,
             Self::Bottom => Self::Top,
@@ -118,9 +118,9 @@ pub(crate) fn place_popovers(
 
 fn popover_rect(anchor: Rect, popover: &Popover, viewport: Rect) -> Rect {
     let size = popover.size;
-    let side = mirror_on_overflow(anchor, size, popover.side, viewport);
+    let placement = mirror_on_overflow(anchor, size, popover.side, viewport);
     let (width, height) = (i32::from(size.width), i32::from(size.height));
-    let (x, y) = match side {
+    let (x, y) = match placement {
         PopoverSide::Top => (
             aligned_x(anchor, width, popover.align),
             i32::from(anchor.top()) - height,
@@ -141,7 +141,12 @@ fn popover_rect(anchor: Rect, popover: &Popover, viewport: Rect) -> Rect {
     Rect::new(x.max(0) as u16, y.max(0) as u16, size.width, size.height).clamp(viewport)
 }
 
-fn mirror_on_overflow(anchor: Rect, size: Size, side: PopoverSide, viewport: Rect) -> PopoverSide {
+fn mirror_on_overflow(
+    anchor: Rect,
+    size: Size,
+    preferred: PopoverSide,
+    viewport: Rect,
+) -> PopoverSide {
     let (width, height) = (i32::from(size.width), i32::from(size.height));
     let overflows = |side| match side {
         PopoverSide::Top => i32::from(anchor.top()) - height < i32::from(viewport.top()),
@@ -149,10 +154,10 @@ fn mirror_on_overflow(anchor: Rect, size: Size, side: PopoverSide, viewport: Rec
         PopoverSide::Left => i32::from(anchor.left()) - width < i32::from(viewport.left()),
         PopoverSide::Right => i32::from(anchor.right()) + width > i32::from(viewport.right()),
     };
-    if overflows(side) && !overflows(side.mirror()) {
-        side.mirror()
+    if overflows(preferred) && !overflows(preferred.mirror()) {
+        preferred.mirror()
     } else {
-        side
+        preferred
     }
 }
 
@@ -174,7 +179,7 @@ fn aligned_y(anchor: Rect, height: i32, align: PopoverAlign) -> i32 {
     )
 }
 
-fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -> i32 {
+const fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -> i32 {
     match align {
         PopoverAlign::Start => start,
         PopoverAlign::Center => start + (anchor_span - span) / 2,
@@ -182,7 +187,7 @@ fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -> i32 
     }
 }
 
-fn localize(rect: Rect, viewport: Rect) -> Rect {
+const fn localize(rect: Rect, viewport: Rect) -> Rect {
     Rect::new(
         rect.x.saturating_sub(viewport.x),
         rect.y.saturating_sub(viewport.y),

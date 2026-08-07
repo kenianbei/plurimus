@@ -220,7 +220,7 @@ fn chaser_tile(ghosts: &Query<(&mut Ghost, &mut Actor), Without<Player>>) -> IVe
         .map_or(IVec2::ZERO, |(_, actor)| actor.tile)
 }
 
-fn speed_for(state: GhostState) -> f32 {
+const fn speed_for(state: GhostState) -> f32 {
     match state {
         GhostState::Chasing => CHASE_SPEED,
         GhostState::Frightened => FRIGHTENED_SPEED,
@@ -229,7 +229,7 @@ fn speed_for(state: GhostState) -> f32 {
 }
 
 impl Ghost {
-    fn body_color(&self) -> Color {
+    const fn body_color(&self) -> Color {
         match self.state {
             GhostState::Chasing => self.color,
             GhostState::Frightened => GHOST_FRIGHTENED,

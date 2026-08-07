@@ -99,11 +99,11 @@ pub fn add_game(app: &mut App) {
 }
 
 fn is_running(phase: Res<Phase>, size: Res<TerminalSize>, pending: Res<LevelPending>) -> bool {
-    *phase == Phase::Playing && terminal_fits(&size) && !pending.0
+    *phase == Phase::Playing && terminal_fits(*size) && !pending.0
 }
 
 #[must_use]
-pub fn terminal_fits(size: &TerminalSize) -> bool {
+pub const fn terminal_fits(size: TerminalSize) -> bool {
     size.cols >= REQUIRED_COLS && size.rows >= REQUIRED_ROWS
 }
 

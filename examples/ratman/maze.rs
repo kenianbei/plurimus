@@ -154,7 +154,7 @@ impl Maze {
     }
 }
 
-fn read_tile(symbol: char) -> Tile {
+const fn read_tile(symbol: char) -> Tile {
     match symbol {
         WALL => Tile::Wall,
         DOOR => Tile::Door,
@@ -164,7 +164,7 @@ fn read_tile(symbol: char) -> Tile {
 
 /// Wraps a tile column through the tunnels; rows do not wrap.
 #[must_use]
-pub fn wrap(tile: IVec2) -> IVec2 {
+pub const fn wrap(tile: IVec2) -> IVec2 {
     IVec2::new(tile.x.rem_euclid(COLS), tile.y)
 }
 

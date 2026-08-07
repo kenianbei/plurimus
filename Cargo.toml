@@ -65,12 +65,41 @@ opt-level = 3
 missing_docs = "warn"
 
 [workspace.lints.clippy]
-type_complexity = "allow"
 correctness = { level = "deny", priority = -1 }
 suspicious = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 perf = { level = "warn", priority = -1 }
 style = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Nursery is not enabled as a group: redundant_pub_crate would rewrite the
+# module idiom, and suboptimal_flops would change floating-point results.
+# Two of its lints are selected by hand.
+missing_const_for_fn = "warn"
+redundant_clone = "warn"
+
+# A terminal renderer narrows f32 world coordinates to u16 cells and
+# luminance to u8. These casts are the crate's job, not an oversight, so
+# the question of whether one is clamped belongs to review.
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+
+# Bevy system parameters are values by construction, and every crate here
+# is dense with them.
+needless_pass_by_value = "allow"
+
+# Query types are genuinely that shape.
+type_complexity = "allow"
+
+# A two-arm match on a bool is a value match; house style.
+match_bool = "allow"
+
+# Layout and scroll values are exact at one pixel per cell, and the tests
+# assert those exact values; a tolerance would weaken them. The one
+# production comparison is against a sentinel and carries its own expect.
+float_cmp = "allow"
 
 [package]
 name = "plurimus"

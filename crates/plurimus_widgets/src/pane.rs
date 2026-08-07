@@ -1,7 +1,7 @@
 //! A bordered container whose border restyles while focus is inside it.
 //!
 //! The pane itself is not focusable; it reacts to
-//! [`FocusWithin`](plurimus_ui::FocusWithin), which plurimus_ui maintains on
+//! [`FocusWithin`](plurimus_ui::FocusWithin), which `plurimus_ui` maintains on
 //! every ancestor of the focused entity. That is what lets a pane highlight
 //! while a widget nested anywhere inside it holds focus, without the pane
 //! knowing what its children are.

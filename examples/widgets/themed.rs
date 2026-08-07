@@ -1,6 +1,8 @@
 //! The left half: stock widget bundles at fixed cell rects, drawn by the
 //! stock stylists from a custom [`UiTheme`].
 
+use core::fmt::Write as _;
+
 use bevy_app::{App, AppExit, Startup, Update};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
@@ -76,7 +78,7 @@ pub(crate) fn add_themed_side(app: &mut App) {
 // so hover and press carry a modifier apiece to stay visible underneath
 // it. On a `Pane`, whose whole rendering is its border, the same focused
 // style reads as a border color change.
-fn demo_theme() -> UiTheme {
+const fn demo_theme() -> UiTheme {
     UiTheme {
         normal: Style::new().fg(Color::Gray),
         hovered: Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
@@ -240,9 +242,10 @@ fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
 
 // The bar draws the scroll state, so the area must not draw its own.
 fn spawn_log(commands: &mut Commands, parent: Entity) {
-    let log: String = (1..=LOG_ENTRIES)
-        .map(|entry| format!("log entry {entry}\n"))
-        .collect();
+    let mut log = String::new();
+    for entry in 1..=LOG_ENTRIES {
+        let _ = writeln!(log, "log entry {entry}");
+    }
     let view = commands
         .spawn((
             UiWidget::new(Paragraph::new(log)),

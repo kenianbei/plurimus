@@ -16,7 +16,7 @@ const PRESSED: Color = Color::srgb(0.35, 0.75, 0.35);
 const DISABLED: Color = Color::srgb(0.1, 0.1, 0.1);
 pub(super) const IDLE_BORDER: Color = Color::srgb(0.6, 0.6, 0.6);
 const FOCUS_BORDER: Color = Color::srgb(1.0, 0.8, 0.0);
-/// The themed side's focus lift, in bevy_color terms.
+/// The themed side's focus lift, in `bevy_color` terms.
 const FOCUS_FILL: Color = Color::srgb(0.19, 0.19, 0.25);
 
 const TRACK_BEFORE: char = '━';
@@ -108,11 +108,11 @@ pub(super) fn sync_slider_track(
         if width == 0 {
             continue;
         }
-        *text = Text::from(track(value.0, range, width));
+        *text = Text::from(track(value.0, *range, width));
     }
 }
 
-fn track(value: f32, range: &SliderRange, width: usize) -> String {
+fn track(value: f32, range: SliderRange, width: usize) -> String {
     let span = (range.end() - range.start()).max(f32::EPSILON);
     let ratio = ((value - range.start()) / span).clamp(0.0, 1.0);
     let thumb = (ratio * (width - 1) as f32).round() as usize;

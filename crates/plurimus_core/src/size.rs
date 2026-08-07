@@ -54,7 +54,7 @@ pub(crate) fn apply_terminal_resize(
 impl TerminalSize {
     /// The full-terminal rectangle at the origin.
     #[must_use]
-    pub fn rect(&self) -> Rect {
+    pub const fn rect(&self) -> Rect {
         Rect::new(0, 0, self.cols, self.rows)
     }
 }

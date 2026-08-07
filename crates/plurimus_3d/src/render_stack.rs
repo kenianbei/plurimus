@@ -1,6 +1,6 @@
 //! The headless bevy render stack the 3d pipeline runs on.
 //!
-//! bevy_render normally comes with a window, a swapchain and a full plugin
+//! `bevy_render` normally comes with a window, a swapchain and a full plugin
 //! set; none of that applies when the output is a texture read back to the
 //! CPU. This assembles the smallest stack that still renders - and stops
 //! short of materials, so an app adds `PbrPlugin` and its own asset loading

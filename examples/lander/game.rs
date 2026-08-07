@@ -188,7 +188,7 @@ fn cycle_edges(
     }
 }
 
-fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
+const fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
     match source {
         None => Some(EdgeSource::Luminance),
         Some(EdgeSource::Luminance) => Some(EdgeSource::Depth),
@@ -204,7 +204,7 @@ fn burn(
     phase: Phase,
 ) {
     let impulse = match code {
-        KeyCode::Char('w') | KeyCode::Char(' ') | KeyCode::Up => Vec2::new(0.0, IMPULSE_UP),
+        KeyCode::Char('w' | ' ') | KeyCode::Up => Vec2::new(0.0, IMPULSE_UP),
         KeyCode::Char('a') | KeyCode::Left => Vec2::new(-IMPULSE_SIDE, 0.0),
         KeyCode::Char('d') | KeyCode::Right => Vec2::new(IMPULSE_SIDE, 0.0),
         _ => return,

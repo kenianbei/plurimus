@@ -1,4 +1,4 @@
-//! The right half: the same widget logic driven by a real bevy_ui node
+//! The right half: the same widget logic driven by a real `bevy_ui` node
 //! tree, laid out by taffy at one cell per pixel. Nothing here is styled
 //! by the stock stylists - node colors are mutated by the systems below.
 

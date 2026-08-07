@@ -32,7 +32,7 @@ pub enum Strategy3d {
 
 impl Strategy3d {
     /// Render-target pixel density per terminal cell.
-    pub(crate) fn pixels_per_cell(&self) -> UVec2 {
+    pub(crate) const fn pixels_per_cell(&self) -> UVec2 {
         match self {
             Self::Halfblocks | Self::Luminance(_) | Self::Depth(_) | Self::None => UVec2::new(1, 2),
             Self::Braille => UVec2::new(2, 4),

@@ -38,7 +38,7 @@ fn app() -> App {
     app
 }
 
-fn scroll_area(height: u16) -> ScrollArea {
+const fn scroll_area(height: u16) -> ScrollArea {
     ScrollArea {
         content_size: Size::new(4, height),
         scrollbars: ScrollbarVisibility::Never,

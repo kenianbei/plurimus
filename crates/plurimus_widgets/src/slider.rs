@@ -7,6 +7,8 @@
 //! slider emits [`ValueChange`] and does not move itself unless the stock
 //! observer is attached.
 
+use core::cmp::Ordering;
+
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
@@ -56,23 +58,23 @@ pub struct SliderRange {
 impl SliderRange {
     /// A range from `start` to `end`.
     #[must_use]
-    pub fn new(start: f32, end: f32) -> Self {
+    pub const fn new(start: f32, end: f32) -> Self {
         Self { start, end }
     }
 
     /// Lower bound.
     #[must_use]
-    pub fn start(&self) -> f32 {
+    pub const fn start(&self) -> f32 {
         self.start
     }
 
     /// Upper bound.
     #[must_use]
-    pub fn end(&self) -> f32 {
+    pub const fn end(&self) -> f32 {
         self.end
     }
 
-    fn clamp(&self, value: f32) -> f32 {
+    const fn clamp(self, value: f32) -> f32 {
         value.clamp(self.start, self.end)
     }
 }
@@ -94,6 +96,7 @@ impl Default for SliderStep {
 }
 
 /// Spawn bundle for a slider over `start..=end` at `value`.
+#[must_use]
 pub fn slider(start: f32, end: f32, value: f32) -> impl Bundle {
     (
         Slider,
@@ -155,7 +158,7 @@ fn seek(
     let Ok((area, value, range)) = sliders.get(entity) else {
         return;
     };
-    let target = track_value(area.0, range, x);
+    let target = track_value(area.0, *range, x);
     emit(entity, value.0, target, is_final, commands);
 }
 
@@ -183,7 +186,7 @@ pub(crate) fn slider_key(
     emit(input.focused_entity, value.0, target, true, &mut commands);
 }
 
-fn track_value(area: Rect, range: &SliderRange, x: u16) -> f32 {
+fn track_value(area: Rect, range: SliderRange, x: u16) -> f32 {
     let ratio = super::track_ratio(area.x, area.width, x);
     range.clamp(range.start + ratio * (range.end - range.start))
 }
@@ -241,12 +244,10 @@ impl Widget for &SliderTrack {
         let thumb_offset = (self.ratio * f32::from(last)).round();
         let thumb = area.x + thumb_offset as u16;
         for x in area.left()..area.right() {
-            let symbol = if x == thumb {
-                "█"
-            } else if x < thumb {
-                "━"
-            } else {
-                "─"
+            let symbol = match x.cmp(&thumb) {
+                Ordering::Equal => "█",
+                Ordering::Less => "━",
+                Ordering::Greater => "─",
             };
             if let Some(cell) = buffer.cell_mut((x, y)) {
                 cell.set_symbol(symbol);
@@ -266,9 +267,9 @@ mod tests {
     fn track_value_maps_cells_to_range() {
         let area = Rect::new(2, 0, 11, 1);
         let range = SliderRange::new(0.0, 100.0);
-        assert!((track_value(area, &range, 2) - 0.0).abs() < f32::EPSILON);
-        assert!((track_value(area, &range, 7) - 50.0).abs() < f32::EPSILON);
-        assert!((track_value(area, &range, 12) - 100.0).abs() < f32::EPSILON);
-        assert!((track_value(area, &range, 40) - 100.0).abs() < f32::EPSILON);
+        assert!((track_value(area, range, 2) - 0.0).abs() < f32::EPSILON);
+        assert!((track_value(area, range, 7) - 50.0).abs() < f32::EPSILON);
+        assert!((track_value(area, range, 12) - 100.0).abs() < f32::EPSILON);
+        assert!((track_value(area, range, 40) - 100.0).abs() < f32::EPSILON);
     }
 }

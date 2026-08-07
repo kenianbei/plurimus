@@ -116,7 +116,7 @@ fn update_panel(
     }
 }
 
-fn phase_word(phase: Phase) -> &'static str {
+const fn phase_word(phase: Phase) -> &'static str {
     match phase {
         Phase::Flying => "FLYING",
         Phase::Landed => "LANDED",

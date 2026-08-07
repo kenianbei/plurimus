@@ -52,11 +52,11 @@ pub enum EdgeSource {
 }
 
 impl EdgeSource {
-    fn reads_luminance(self) -> bool {
+    const fn reads_luminance(self) -> bool {
         matches!(self, Self::Luminance | Self::Both)
     }
 
-    fn reads_depth(self) -> bool {
+    const fn reads_depth(self) -> bool {
         matches!(self, Self::Depth | Self::Both)
     }
 }

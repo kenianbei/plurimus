@@ -1,10 +1,10 @@
-//! Bridges terminal cameras into bevy_camera so bevy_ui lays out against
+//! Bridges terminal cameras into `bevy_camera` so `bevy_ui` lays out against
 //! terminal viewports.
 //!
 //! One physical pixel is one terminal cell: each camera reports its viewport
 //! and target size in cells with a scale factor of 1, so taffy computes
 //! directly in cells and nothing downstream converts units. The default
-//! terminal camera is mirrored as bevy_ui's `IsDefaultUiCamera`, so a node
+//! terminal camera is mirrored as `bevy_ui`'s `IsDefaultUiCamera`, so a node
 //! that names no camera still lands somewhere.
 
 use bevy_camera::{Camera, RenderTargetInfo, Viewport};
@@ -28,13 +28,12 @@ pub(crate) fn sync_bui_cameras(
 ) {
     for (entity, terminal_camera, resolved, camera, is_default) in &mut cameras {
         let viewport = resolved.0;
-        match camera {
-            Some(mut camera) => apply(&mut camera, terminal_camera, viewport, *size),
-            None => {
-                let mut camera = Camera::default();
-                apply(&mut camera, terminal_camera, viewport, *size);
-                commands.entity(entity).insert(camera);
-            }
+        if let Some(mut camera) = camera {
+            apply(&mut camera, terminal_camera, viewport, *size);
+        } else {
+            let mut camera = Camera::default();
+            apply(&mut camera, terminal_camera, viewport, *size);
+            commands.entity(entity).insert(camera);
         }
         let should_be_default = default_camera.0 == Some(entity);
         if should_be_default && !is_default {

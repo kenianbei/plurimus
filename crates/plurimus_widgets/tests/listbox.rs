@@ -1,4 +1,4 @@
-//! ListBox keyboard navigation and selection flows, fully headless.
+//! `ListBox` keyboard navigation and selection flows, fully headless.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;

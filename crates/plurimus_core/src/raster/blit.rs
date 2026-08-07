@@ -23,7 +23,7 @@ enum PixelData<'a> {
 
 /// A borrowed pixel grid to blit from, rows top to bottom.
 pub struct PixelGrid<'a> {
-    data: PixelData<'a>,
+    pixels: PixelData<'a>,
     width: usize,
     height: usize,
 }
@@ -32,12 +32,12 @@ impl<'a> PixelGrid<'a> {
     /// Tightly packed RGBA bytes; fully transparent pixels are skipped
     /// when blitted, leaving their subcells untouched for compositing.
     ///
-    /// Debug-asserts that `data` holds at least `width * height` pixels.
+    /// Debug-asserts that `pixels` holds at least `width * height` pixels.
     #[must_use]
-    pub fn rgba8(data: &'a [u8], width: usize, height: usize) -> Self {
-        debug_assert!(data.len() >= width * height * RGBA_CHANNELS);
+    pub fn rgba8(pixels: &'a [u8], width: usize, height: usize) -> Self {
+        debug_assert!(pixels.len() >= width * height * RGBA_CHANNELS);
         Self {
-            data: PixelData::Rgba8(data),
+            pixels: PixelData::Rgba8(pixels),
             width,
             height,
         }
@@ -45,12 +45,12 @@ impl<'a> PixelGrid<'a> {
 
     /// Packed `0x00RRGGBB` words; always opaque, high byte ignored.
     ///
-    /// Debug-asserts that `data` holds at least `width * height` pixels.
+    /// Debug-asserts that `pixels` holds at least `width * height` pixels.
     #[must_use]
-    pub fn xrgb32(data: &'a [u32], width: usize, height: usize) -> Self {
-        debug_assert!(data.len() >= width * height);
+    pub fn xrgb32(pixels: &'a [u32], width: usize, height: usize) -> Self {
+        debug_assert!(pixels.len() >= width * height);
         Self {
-            data: PixelData::Xrgb32(data),
+            pixels: PixelData::Xrgb32(pixels),
             width,
             height,
         }
@@ -58,13 +58,13 @@ impl<'a> PixelGrid<'a> {
 
     /// Pixel columns.
     #[must_use]
-    pub fn width(&self) -> usize {
+    pub const fn width(&self) -> usize {
         self.width
     }
 
     /// Pixel rows.
     #[must_use]
-    pub fn height(&self) -> usize {
+    pub const fn height(&self) -> usize {
         self.height
     }
 
@@ -75,7 +75,7 @@ impl<'a> PixelGrid<'a> {
     pub fn write_rgba8(&self, out: &mut Vec<u8>) {
         out.clear();
         let pixel_count = self.width * self.height;
-        match self.data {
+        match self.pixels {
             PixelData::Rgba8(bytes) => {
                 out.extend_from_slice(&bytes[..pixel_count * RGBA_CHANNELS]);
             }
@@ -91,7 +91,7 @@ impl<'a> PixelGrid<'a> {
 
     fn color_at(&self, x: usize, y: usize) -> Option<Color> {
         let index = y * self.width + x;
-        match self.data {
+        match self.pixels {
             PixelData::Rgba8(bytes) => {
                 let start = index * RGBA_CHANNELS;
                 rgba_color(&bytes[start..start + RGBA_CHANNELS])
@@ -108,12 +108,12 @@ fn rgba_color(pixel: &[u8]) -> Option<Color> {
     Some(Color::Rgb(pixel[0], pixel[1], pixel[2]))
 }
 
-fn xrgb_color(pixel: u32) -> Color {
+const fn xrgb_color(pixel: u32) -> Color {
     let [red, green, blue] = xrgb_channels(pixel);
     Color::Rgb(red, green, blue)
 }
 
-fn xrgb_channels(pixel: u32) -> [u8; 3] {
+const fn xrgb_channels(pixel: u32) -> [u8; 3] {
     [(pixel >> 16) as u8, (pixel >> 8) as u8, pixel as u8]
 }
 
@@ -158,7 +158,7 @@ pub fn blit_halfblocks(grid: &mut HalfblockGrid, pixels: &PixelGrid<'_>, fit: Re
 /// is the camera's [`Background`](crate::Background).
 pub fn blit_braille(grid: &mut BrailleGrid, pixels: &PixelGrid<'_>, fit: Rect) {
     sample_fit(pixels, fit, |sub_x, sub_y, color| {
-        grid.set(sub_x, sub_y, color)
+        grid.set(sub_x, sub_y, color);
     });
 }
 
@@ -180,10 +180,10 @@ mod tests {
 
     use super::*;
 
-    const RED: u32 = 0xff0000;
-    const GREEN: u32 = 0x00ff00;
-    const BLUE: u32 = 0x0000ff;
-    const WHITE: u32 = 0xffffff;
+    const RED: u32 = 0xff_00_00;
+    const GREEN: u32 = 0x00_ff_00;
+    const BLUE: u32 = 0x00_00_ff;
+    const WHITE: u32 = 0xff_ff_ff;
 
     fn blit_into(buffer: &mut Buffer, pixels: &PixelGrid<'_>) {
         let mut grid = HalfblockGrid::new(buffer.area);
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn xrgb_high_byte_is_ignored() {
-        let pixels = [0xff123456u32];
+        let pixels = [0xff_12_34_56u32];
         let mut buffer = Buffer::empty(Rect::new(0, 0, 1, 1));
 
         blit_into(&mut buffer, &PixelGrid::xrgb32(&pixels, 1, 1));
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn write_rgba8_makes_xrgb_sources_opaque() {
-        let pixels = [0xff123456u32, RED];
+        let pixels = [0xff_12_34_56u32, RED];
         let grid = PixelGrid::xrgb32(&pixels, 2, 1);
         let mut out = Vec::new();
 

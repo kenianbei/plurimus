@@ -76,13 +76,20 @@ const ALL_OCTANTS: [CompassOctant; 8] = [
 
 type AutoEdges = Vec<(Entity, CompassOctant, Entity)>;
 
+/// What the last rebuild left behind: the focusable count it saw, and the
+/// edges it added, which are the only ones the next rebuild may reset.
+#[derive(SystemParam)]
+pub(crate) struct AutoEdgeState<'s> {
+    previous_count: Local<'s, usize>,
+    tracked: Local<'s, AutoEdges>,
+}
+
 pub(crate) fn build_navigation_map(
     config: Res<NavigationConfig>,
     auto: Res<AutoNavigationConfig>,
     focusables: FocusableQuery,
     mut map: ResMut<DirectionalNavigationMap>,
-    mut previous_count: Local<usize>,
-    mut auto_edges: Local<AutoEdges>,
+    mut state: AutoEdgeState,
 ) {
     if !config.auto_build {
         return;
@@ -90,19 +97,19 @@ pub(crate) fn build_navigation_map(
     // Adds, removals, and filter flips all change the count; a same-count
     // swap still marks the added area Changed.
     let count = focusables.iter().len();
-    let is_stale = count != *previous_count
+    let is_stale = count != *state.previous_count
         || config.is_changed()
         || auto.is_changed()
         || focusables.iter().any(|(_, area)| area.is_changed());
     if !is_stale {
         return;
     }
-    *previous_count = count;
+    *state.previous_count = count;
     rebuild_auto_edges(
         &mut map,
         &focusable_areas(&focusables),
         &auto,
-        &mut auto_edges,
+        &mut state.tracked,
     );
 }
 
@@ -194,35 +201,51 @@ impl ModalScope<'_, '_> {
     }
 }
 
+#[derive(SystemParam)]
+pub(crate) struct NavigationOrigin<'w, 's> {
+    windows: Query<'w, 's, (), With<Window>>,
+    tab_navigation: TabNavigation<'w, 's>,
+}
+
+impl NavigationOrigin<'_, '_> {
+    // The virtual window holds focus before any widget does, and it is not
+    // a navigable position.
+    fn current(&self, focus: &InputFocus) -> Option<Entity> {
+        focus.get().filter(|&entity| !self.windows.contains(entity))
+    }
+
+    // Entry mirrors tab navigation, so it also requires a TabGroup.
+    fn focus_first_widget(&self, focus: &mut InputFocus) {
+        if let Ok(first) = self
+            .tab_navigation
+            .navigate(&InputFocus::default(), NavAction::First)
+        {
+            focus.set(first, FocusCause::Navigated);
+        }
+    }
+}
+
 // Observes the virtual window, so only arrows no focused widget consumed
 // arrive here. The event's target is the window by now; the navigation
 // source is the actual focus.
 pub(crate) fn navigate_on_arrows(
     input: On<FocusedInput<KeyboardInput>>,
-    windows: Query<(), With<Window>>,
+    origin: NavigationOrigin,
     scope: ModalScope,
-    tab_navigation: TabNavigation,
     map: Res<DirectionalNavigationMap>,
     mut focus: ResMut<InputFocus>,
 ) {
     let Some(octant) = arrow_octant(&input.input) else {
         return;
     };
-    let Some(current) = focus.get().filter(|&entity| !windows.contains(entity)) else {
-        focus_first_widget(&tab_navigation, &mut focus);
+    let Some(current) = origin.current(&focus) else {
+        origin.focus_first_widget(&mut focus);
         return;
     };
     if let Some(candidate) = map.get_neighbor(current, octant).get()
         && scope.allows(current, candidate)
     {
         focus.set(candidate, FocusCause::Navigated);
-    }
-}
-
-// Entry mirrors tab navigation, so it also requires a TabGroup.
-fn focus_first_widget(tab_navigation: &TabNavigation, focus: &mut InputFocus) {
-    if let Ok(first) = tab_navigation.navigate(&InputFocus::default(), NavAction::First) {
-        focus.set(first, FocusCause::Navigated);
     }
 }
 

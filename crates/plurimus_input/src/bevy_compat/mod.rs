@@ -1,4 +1,4 @@
-//! Forwards the plurimus input contract into bevy_input's native keyboard
+//! Forwards the plurimus input contract into `bevy_input`'s native keyboard
 //! vocabulary, for consumers of the bevy input-focus stack.
 //!
 //! The physical `KeyCode` mapping is best-effort: terminals report logical

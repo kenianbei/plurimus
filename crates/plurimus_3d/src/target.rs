@@ -133,11 +133,11 @@ pub(crate) fn store_readback(
 }
 
 /// Copies readback bytes into `frame`, stripping wgpu's 256-byte row
-/// alignment padding. Data of the wrong length (a stale readback from a
-/// just-resized target) is ignored, keeping the previous frame.
-fn copy_unpadded(data: &[u8], size: UVec2, frame: &mut ReadbackFrame) {
+/// alignment padding. A wrong-length readback (from a just-resized
+/// target) is ignored, keeping the previous frame.
+fn copy_unpadded(bytes: &[u8], size: UVec2, frame: &mut ReadbackFrame) {
     let row_bytes = size.x as usize * BYTES_PER_PIXEL;
-    let Some(rows) = unpadded_rows(data, row_bytes, size.y as usize) else {
+    let Some(rows) = unpadded_rows(bytes, row_bytes, size.y as usize) else {
         return;
     };
     frame.size = size;
@@ -150,18 +150,18 @@ fn copy_unpadded(data: &[u8], size: UVec2, frame: &mut ReadbackFrame) {
 
 /// Iterates the payload rows of a readback whose rows were written at
 /// wgpu's 256-byte copy alignment; `None` for wrong-length (stale)
-/// data or zero rows.
+/// input, or zero rows.
 pub(crate) fn unpadded_rows(
-    data: &[u8],
+    bytes: &[u8],
     row_bytes: usize,
     rows: usize,
 ) -> Option<impl Iterator<Item = &[u8]>> {
     let stride = RenderDevice::align_copy_bytes_per_row(row_bytes);
     let expected = rows.checked_sub(1)? * stride + row_bytes;
-    if data.len() < expected {
+    if bytes.len() < expected {
         return None;
     }
-    Some((0..rows).map(move |row| &data[row * stride..row * stride + row_bytes]))
+    Some((0..rows).map(move |row| &bytes[row * stride..row * stride + row_bytes]))
 }
 
 #[cfg(test)]
@@ -189,20 +189,20 @@ mod tests {
     const PADDING: u8 = 0xEE;
 
     fn padded_rows(width: usize, rows: usize, stride: usize) -> Vec<u8> {
-        let mut data = vec![PADDING; stride * rows];
+        let mut padded = vec![PADDING; stride * rows];
         for row in 0..rows {
             let marker = row as u8 + 1;
-            data[row * stride..row * stride + width * 4].fill(marker);
+            padded[row * stride..row * stride + width * 4].fill(marker);
         }
-        data
+        padded
     }
 
     #[test]
     fn strips_row_padding_from_unaligned_widths() {
-        let data = padded_rows(80, 2, 512);
+        let bytes = padded_rows(80, 2, 512);
         let mut frame = ReadbackFrame::default();
 
-        copy_unpadded(&data, UVec2::new(80, 2), &mut frame);
+        copy_unpadded(&bytes, UVec2::new(80, 2), &mut frame);
 
         assert_eq!(frame.pixels.len(), 80 * 4 * 2);
         assert!(frame.pixels[..80 * 4].iter().all(|byte| *byte == 1));
@@ -211,10 +211,10 @@ mod tests {
 
     #[test]
     fn aligned_widths_copy_without_padding() {
-        let data = padded_rows(64, 3, 256);
+        let bytes = padded_rows(64, 3, 256);
         let mut frame = ReadbackFrame::default();
 
-        copy_unpadded(&data, UVec2::new(64, 3), &mut frame);
+        copy_unpadded(&bytes, UVec2::new(64, 3), &mut frame);
 
         assert_eq!(frame.pixels.len(), 64 * 4 * 3);
         assert_eq!(frame.pixels[64 * 4 * 2], 3);
@@ -236,10 +236,10 @@ mod tests {
 
     #[test]
     fn single_row_needs_no_stride_beyond_its_pixels() {
-        let data = padded_rows(3, 1, 256);
+        let bytes = padded_rows(3, 1, 256);
         let mut frame = ReadbackFrame::default();
 
-        copy_unpadded(&data[..12], UVec2::new(3, 1), &mut frame);
+        copy_unpadded(&bytes[..12], UVec2::new(3, 1), &mut frame);
 
         assert_eq!(frame.pixels.len(), 12);
     }

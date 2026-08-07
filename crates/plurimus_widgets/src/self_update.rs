@@ -1,4 +1,4 @@
-//! Stock observers for uncontrolled widgets, mirroring bevy_ui_widgets.
+//! Stock observers for uncontrolled widgets, mirroring `bevy_ui_widgets`.
 //!
 //! Widgets emit [`ValueChange`] and change nothing themselves, which leaves
 //! an app free to validate, reject or transform an edit before it lands. That
@@ -69,7 +69,7 @@ fn move_checked_among<M: Component, D: QueryData>(
     selected: Entity,
     commands: &mut Commands,
 ) {
-    for &child in children.iter() {
+    for &child in children {
         if members.contains(child) {
             set_checked(child, child == selected, commands);
         }
