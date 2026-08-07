@@ -5,13 +5,14 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::{MouseButton, MouseKind};
 use plurimus_test::{composed_styled_frame, write_mouse};
 use plurimus_ui::{InteractionDisabled, UiArea};
 use plurimus_widgets::{
-    RadioGroup, StylistDisabled, WidgetsPlugin, button, checkbox, checkbox_self_update, radio,
-    radio_self_update, slider,
+    RadioGroup, StylistDisabled, UiStyle, WidgetsPlugin, button, checkbox, checkbox_self_update,
+    radio, radio_self_update, slider,
 };
 
 fn app(cols: u16, rows: u16) -> App {
@@ -142,6 +143,65 @@ fn slider_states() {
     focus(&mut app, track);
     app.update();
     insta::assert_snapshot!("slider_at_100_focused", composed_styled_frame(&app));
+}
+
+// The style legend line covering the widget's own cells.
+fn legend_of(frame: &str, letter: char) -> String {
+    frame
+        .lines()
+        .find(|line| line.starts_with(&format!("{letter}: ")))
+        .expect("the letter is in the legend")
+        .to_owned()
+}
+
+#[test]
+fn a_ui_style_patches_the_theme_rather_than_replacing_it() {
+    let mut app = app(10, 1);
+    let target = app
+        .world_mut()
+        .spawn((
+            button("ok"),
+            UiStyle(Style::new().bg(Color::Indexed(236))),
+            UiArea::Fixed(Rect::new(0, 0, 10, 1)),
+        ))
+        .id();
+    focus(&mut app, target);
+    app.update();
+    app.update();
+
+    let frame = composed_styled_frame(&app);
+    let styled = legend_of(&frame, 'a');
+    assert!(styled.contains("bg:Some(Indexed(236))"), "{styled}");
+    assert!(
+        styled.contains("fg:Some(Yellow)") && styled.contains("BOLD"),
+        "the theme's focused style survives the patch: {styled}"
+    );
+}
+
+#[test]
+fn changing_a_ui_style_rebuilds_the_widget() {
+    let mut app = app(10, 1);
+    let target = app
+        .world_mut()
+        .spawn((
+            button("ok"),
+            UiStyle(Style::new().bg(Color::Red)),
+            UiArea::Fixed(Rect::new(0, 0, 10, 1)),
+        ))
+        .id();
+    app.update();
+    let before = composed_styled_frame(&app);
+
+    app.world_mut()
+        .entity_mut(target)
+        .insert(UiStyle(Style::new().bg(Color::Blue)));
+    app.update();
+
+    assert_ne!(
+        before,
+        composed_styled_frame(&app),
+        "the cache must notice an override change with no other state change"
+    );
 }
 
 #[test]

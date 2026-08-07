@@ -31,6 +31,16 @@ use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
 #[derive(Component, Debug, Clone, Copy)]
 pub struct StylistDisabled;
 
+/// Patched over the style an entity would otherwise resolve to.
+///
+/// Patched rather than substituted, so an override setting only `bg` keeps
+/// the theme's foreground and modifiers, and a widget carrying one still
+/// shows hover and focus. On a [`ListItem`](crate::ListItem) child it
+/// styles that row, covering the full row width where a label's own line
+/// style stops at the cursor gutter.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct UiStyle(pub Style);
+
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct StylistCache {
@@ -40,19 +50,33 @@ pub(crate) struct StylistCache {
     disabled: bool,
     pub(crate) checked: bool,
     focused: bool,
+    over: Option<Style>,
     value_bits: u64,
 }
 
 impl StylistCache {
     pub(crate) fn style(&self, theme: &UiTheme) -> Style {
-        theme.resolve(self.hovered, self.pressed, self.disabled, self.focused)
+        let base = theme.resolve(self.hovered, self.pressed, self.disabled, self.focused);
+        match self.over {
+            Some(over) => base.patch(over),
+            None => base,
+        }
     }
 
-    pub(crate) fn focus_only(focused: bool) -> Self {
+    // For widgets with no interaction state to resolve; the theme's normal
+    // style is what `style` returns when every flag is false.
+    pub(crate) fn styled(over: Option<&UiStyle>) -> Self {
         Self {
             rendered: true,
-            focused,
+            over: over.map(|style| style.0),
             ..Self::default()
+        }
+    }
+
+    pub(crate) fn focus_only(focused: bool, over: Option<&UiStyle>) -> Self {
+        Self {
+            focused,
+            ..Self::styled(over)
         }
     }
 }
@@ -63,6 +87,7 @@ pub(crate) type StateQuery<'a> = (
     Has<Pressed>,
     Has<InteractionDisabled>,
     Has<Checked>,
+    Option<&'a UiStyle>,
 );
 
 pub(crate) type LabeledQuery<'w, 's, 'a, M> = Query<
@@ -106,18 +131,25 @@ pub(crate) fn hashed_bits(state: impl Hash) -> u64 {
 }
 
 pub(crate) fn observed(
-    (entity, hovered, pressed, disabled, checked): (Entity, &Hovered, bool, bool, bool),
+    (entity, hovered, pressed, disabled, checked, over): (
+        Entity,
+        &Hovered,
+        bool,
+        bool,
+        bool,
+        Option<&UiStyle>,
+    ),
     focus: &InputFocus,
     value_bits: u64,
 ) -> StylistCache {
     StylistCache {
-        rendered: true,
         hovered: hovered.0,
         pressed,
         disabled,
         checked,
         focused: focus.get() == Some(entity),
         value_bits,
+        ..StylistCache::styled(over)
     }
 }
 

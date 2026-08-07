@@ -46,7 +46,7 @@ pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
 };
 pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
-pub use stylist::StylistDisabled;
+pub use stylist::{StylistDisabled, UiStyle};
 pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
 pub use theme::UiTheme;
 

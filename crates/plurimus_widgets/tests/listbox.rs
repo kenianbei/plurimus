@@ -12,8 +12,8 @@ use plurimus_input::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, send_mouse};
 use plurimus_ui::{Checked, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxMultiSelect, ListBoxSelectionMarker, WidgetsPlugin, button, list_item,
-    listbox, listbox_self_update,
+    ActiveDescendant, ListBoxMultiSelect, ListBoxSelectionMarker, UiLabel, UiStyle, WidgetsPlugin,
+    button, list_item, listbox, listbox_self_update,
 };
 
 #[derive(Resource, Default)]
@@ -257,6 +257,48 @@ fn row_indent(marker: bool) -> usize {
 fn the_selection_marker_column_is_opt_in() {
     assert_eq!(row_indent(false), 0, "a plain list starts at column zero");
     assert_eq!(row_indent(true), 2, "the marker column costs two cells");
+}
+
+// The style-grid row for the cursor row, whose first two cells are the
+// `> ` gutter. Uniform means the row's style reached the gutter too.
+fn cursor_row_styles(on_row: bool) -> String {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    let tint = Style::new().bg(Color::Indexed(236));
+    if on_row {
+        app.world_mut().entity_mut(items[0]).insert(UiStyle(tint));
+    } else {
+        app.world_mut()
+            .entity_mut(items[0])
+            .insert(UiLabel(Line::from("alpha").style(tint)));
+    }
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ActiveDescendant(Some(items[0])));
+    app.update();
+
+    let frame = composed_styled_frame(&app);
+    let grid = frame.split("\n--\n").nth(1).expect("a style grid");
+    grid.lines().next().expect("the cursor row").to_owned()
+}
+
+#[test]
+fn a_row_style_covers_the_cursor_gutter_where_a_line_style_does_not() {
+    let on_row = cursor_row_styles(true);
+    assert!(
+        on_row
+            .chars()
+            .all(|cell| cell == on_row.chars().next().unwrap()),
+        "UiStyle paints the whole row including the gutter: {on_row}"
+    );
+
+    let on_label = cursor_row_styles(false);
+    assert!(
+        !on_label
+            .chars()
+            .all(|cell| cell == on_label.chars().next().unwrap()),
+        "a label's line style stops at the gutter: {on_label}"
+    );
 }
 
 #[test]

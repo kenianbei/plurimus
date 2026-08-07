@@ -20,10 +20,12 @@ use bevy_input_focus::{FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
-use ratatui_widgets::list::{List, ListState};
+use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::{StateQuery, StylistCache, StylistDisabled, decorate, hashed_bits, observed};
+use crate::stylist::{
+    StateQuery, StylistCache, StylistDisabled, UiStyle, decorate, hashed_bits, observed,
+};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
@@ -214,19 +216,20 @@ pub(crate) fn style_listboxes(
         ),
         (With<ListBox>, Without<StylistDisabled>),
     >,
-    items: Query<(&UiLabel, Has<Checked>), With<ListItem>>,
+    items: Query<(&UiLabel, Has<Checked>, Option<&UiStyle>), With<ListItem>>,
 ) {
     for (state, active, children, marker, mut cache, mut widget) in &mut boxes {
-        let rows: Vec<(Entity, &Line<'static>, bool)> = children
+        let rows: Vec<Row> = children
             .iter()
             .filter_map(|&child| {
-                let (label, checked) = items.get(child).ok()?;
-                Some((child, &label.0, checked))
+                let (label, checked, over) = items.get(child).ok()?;
+                Some((child, &label.0, checked, over.map(|style| style.0)))
             })
             .collect();
         let selected = active
             .0
             .and_then(|item| rows.iter().position(|(row, ..)| *row == item));
+
         let next = observed(state, &focus, hashed_bits((&rows, selected, marker)));
         if !theme.is_changed() && next == *cache {
             continue;
@@ -236,26 +239,31 @@ pub(crate) fn style_listboxes(
     }
 }
 
-fn list_widget(
-    rows: &[(Entity, &Line<'static>, bool)],
-    selected: Option<usize>,
-    marker: bool,
-    style: Style,
-) -> UiWidget {
-    let lines: Vec<Line<'static>> = rows
+// A row's entity, label, checked state, and per-row style override.
+type Row<'a> = (Entity, &'a Line<'static>, bool, Option<Style>);
+
+fn list_widget(rows: &[Row], selected: Option<usize>, marker: bool, style: Style) -> UiWidget {
+    let items: Vec<ListRow> = rows
         .iter()
-        .map(|(_, label, checked)| {
-            if marker {
+        .map(|(_, label, checked, over)| {
+            let line = if marker {
                 decorate(if *checked { "▪ " } else { "  " }, label, "")
             } else {
                 (*label).clone()
+            };
+            let row = ListRow::new(line);
+            // Applied over the whole row rather than the label's own cells,
+            // which is what reaches the cursor gutter.
+            match over {
+                Some(over) => row.style(*over),
+                None => row,
             }
         })
         .collect();
     let mut highlight = ListState::default();
     highlight.select(selected);
     UiWidget::stateful(
-        List::new(lines).style(style).highlight_symbol("> "),
+        List::new(items).style(style).highlight_symbol("> "),
         highlight,
     )
 }

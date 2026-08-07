@@ -28,7 +28,7 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::{Popover, PopoverAlign, PopoverSide};
-use crate::stylist::{LabeledQuery, StylistCache, StylistDisabled, decorate, restyle};
+use crate::stylist::{LabeledQuery, StylistCache, StylistDisabled, UiStyle, decorate, restyle};
 use crate::theme::UiTheme;
 use crate::{Activate, Button, UiLabel, is_activate_key, placeholder};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
@@ -255,17 +255,20 @@ pub(crate) fn style_menu_items(
 pub(crate) fn style_menu_popups(
     theme: Res<UiTheme>,
     mut popups: Query<
-        (&mut StylistCache, &mut UiWidget),
+        (Option<&UiStyle>, &mut StylistCache, &mut UiWidget),
         (With<MenuPopup>, Without<StylistDisabled>),
     >,
 ) {
-    for (mut cache, mut widget) in &mut popups {
-        if cache.rendered && !theme.is_changed() {
+    for (over, mut cache, mut widget) in &mut popups {
+        // A popup frame has no hover or press to resolve, so its state is
+        // the override alone.
+        let next = StylistCache::styled(over);
+        if !theme.is_changed() && next == *cache {
             continue;
         }
-        cache.rendered = true;
+        *cache = next;
         *widget = UiWidget::new(PopupFrame {
-            style: theme.normal,
+            style: next.style(&theme),
         });
     }
 }
