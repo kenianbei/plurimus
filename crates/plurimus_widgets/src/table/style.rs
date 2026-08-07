@@ -21,7 +21,7 @@ use super::{
     TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
 };
 use crate::listbox::ActiveDescendant;
-use crate::stylist::{StateQuery, Stylable, StylistCache, UiStyle, observed};
+use crate::stylist::{StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::Checked;
@@ -34,6 +34,9 @@ type RowChanged = Or<(
     Changed<TableFooter>,
 )>;
 
+// The cursor is deliberately absent: it reaches the stylist through
+// `StylistCache`, which compares values inside the stylist's own system
+// rather than depending on this one having run after whatever moved it.
 type ContentChanged = Or<(
     Changed<Children>,
     Changed<TableColumns>,
@@ -42,8 +45,6 @@ type ContentChanged = Or<(
     Changed<TableCheckedStyle>,
     Changed<TableCursor>,
     Changed<TableSelection>,
-    Changed<ActiveDescendant>,
-    Changed<ActiveColumn>,
 )>;
 
 type TableRows<'w, 's> = Query<
@@ -119,8 +120,13 @@ struct Highlight {
 
 // A row's edit has to reach the table it belongs to, and so does a change to
 // the table's own content components.
+// `With<TableRow>` narrows the archetypes this scans: `Or` matches an
+// archetype carrying any one of its terms, so without it every entity in
+// the app holding `Checked` or `UiStyle` - every list row, checkbox and
+// menu item - would be tick-scanned each frame, in apps with no table at
+// all. Every band row carries `TableRow`, so nothing is lost.
 pub(crate) fn mark_changed_tables(
-    rows: Query<&ChildOf, RowChanged>,
+    rows: Query<&ChildOf, (With<TableRow>, RowChanged)>,
     changed: Query<Entity, (With<Table>, ContentChanged)>,
     mut content: Query<&mut TableContent>,
 ) {
@@ -145,13 +151,20 @@ pub(crate) fn style_tables(
     rows: TableRows,
 ) {
     for (state, children, columns, look, cursor, content, mut cache, mut widget) in &mut tables {
-        let next = observed(state, &focus, 0);
+        let (stripe, checked, layout, symbol) = look;
+        let (selection, active, column) = cursor;
+        // Where the cursor is, as a `Copy` scalar pair rather than the row
+        // content every other aggregate stylist hashes. Comparing it here
+        // is what frees the cursor from depending on system order.
+        let next = observed(
+            state,
+            &focus,
+            hashed_bits((active.map(|active| active.0), column.map(|column| column.0))),
+        );
         if !theme.is_changed() && !content.is_changed() && next == *cache {
             continue;
         }
         *cache = next;
-        let (stripe, checked, layout, symbol) = look;
-        let (selection, active, column) = cursor;
         let styles = RowStyles {
             stripe: stripe.map(|stripe| stripe.0),
             checked: checked.map(|checked| checked.0),
@@ -185,30 +198,25 @@ fn bands(
         };
         let over = over.map(|style| style.0);
         if is_header {
-            bands.header = Some(row_widget(cells, patched(None, None, over)));
+            bands.header = Some(row_widget(cells, over.unwrap_or_default()));
         } else if is_footer {
-            bands.footer = Some(row_widget(cells, patched(None, None, over)));
+            bands.footer = Some(row_widget(cells, over.unwrap_or_default()));
         } else {
             if active == Some(row) {
                 bands.cursor = Some(bands.body.len());
             }
             let banded = styles.stripe.filter(|_| bands.body.len() % 2 == 1);
             let checked = styles.checked.filter(|_| checked);
-            bands
-                .body
-                .push(row_widget(cells, patched(banded, checked, over)));
+            // An unset `Style` patches as the identity, so an absent stripe
+            // or override drops out of the chain rather than branching.
+            let style = banded
+                .unwrap_or_default()
+                .patch(checked.unwrap_or_default())
+                .patch(over.unwrap_or_default());
+            bands.body.push(row_widget(cells, style));
         }
     }
     bands
-}
-
-// A `Style` with every field unset patches as the identity, in both
-// directions, which is what lets the absent cases share one expression.
-fn patched(stripe: Option<Style>, checked: Option<Style>, over: Option<Style>) -> Style {
-    stripe
-        .unwrap_or_default()
-        .patch(checked.unwrap_or_default())
-        .patch(over.unwrap_or_default())
 }
 
 fn row_widget(cells: &TableRow, style: Style) -> Row<'static> {

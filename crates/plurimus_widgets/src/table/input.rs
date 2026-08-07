@@ -11,8 +11,8 @@ use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
 
 use super::geometry::{
-    Placed, Placement, Rows, bands, body_rows, clicked_column, clicked_row, column_count,
-    page_rows, resolved_widths,
+    Placed, Placement, Rows, bands, body_height, body_rows, clicked_column, clicked_row,
+    column_count, resolved_widths,
 };
 use super::{
     ActiveColumn, Table, TableAction, TableColumns, TableHeaderClick, TableKeys, TablePosition,
@@ -62,6 +62,9 @@ pub(crate) fn table_key(
     input.propagate(false);
 
     if action == TableAction::Select {
+        if input.input.repeat {
+            return;
+        }
         let value = position(*selection, *active, *column);
         commands.trigger(ValueChange {
             source: table,
@@ -93,9 +96,10 @@ fn move_row(
     let current = active
         .0
         .and_then(|row| body.iter().position(|&candidate| candidate == row));
-    let index = moved_row(action, current, last, page_rows(children, rows, area));
+    let (header, footer) = bands(children, rows);
+    let page = usize::from(body_height(area, (header, footer))).max(1);
+    let index = moved_row(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(body[index])));
-    let (header, _) = bands(children, rows);
     Some(
         u16::try_from(index)
             .unwrap_or(u16::MAX)
@@ -123,7 +127,7 @@ pub(crate) fn table_press(
         offset,
     };
     let widths = resolved_widths(columns, children, &rows, placed.width());
-    let gutter = cursor_gutter(Some(*selection), active.0, cursor);
+    let gutter = cursor_gutter(*selection, active.0, cursor);
     let hit = clicked_column(
         event.position.x.saturating_sub(area.0.x),
         &placed.columns(widths, gutter),
@@ -140,9 +144,9 @@ pub(crate) fn table_press(
         }
         return;
     }
-    let Some(row) = clicked_row(line, header, placed.band((header, footer)), |index| {
-        body_rows(children, &rows).nth(index)
-    }) else {
+    let Some(row) = clicked_row(line, header, placed.band((header, footer)))
+        .and_then(|index| body_rows(children, &rows).nth(index))
+    else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));

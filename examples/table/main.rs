@@ -80,6 +80,7 @@ struct StatusLine;
 /// than the text they were formatted into.
 #[derive(Component)]
 struct Process {
+    name: &'static str,
     pid: u32,
     cpu: f32,
     mem: u32,
@@ -147,7 +148,12 @@ fn spawn_demo(mut commands: Commands) {
     for (name, pid, cpu, mem) in PROCESSES {
         commands.spawn((
             table_row(cells(name, pid, cpu, mem)),
-            Process { pid, cpu, mem },
+            Process {
+                name,
+                pid,
+                cpu,
+                mem,
+            },
             ChildOf(table),
         ));
     }
@@ -195,7 +201,7 @@ fn sort_by_column(
     click: On<TableHeaderClick>,
     mut sorted: ResMut<Sorted>,
     tables: Query<&Children, With<ProcessTable>>,
-    rows: Query<(Entity, &Process, &TableRow)>,
+    rows: Query<(Entity, &Process)>,
     mut commands: Commands,
 ) {
     let Ok(children) = tables.get(click.entity) else {
@@ -204,15 +210,15 @@ fn sort_by_column(
     sorted.descending = sorted.column == Some(click.column) && !sorted.descending;
     sorted.column = Some(click.column);
 
-    let mut body: Vec<(Entity, &Process, &TableRow)> = children
+    let mut body: Vec<(Entity, &Process)> = children
         .iter()
         .filter_map(|&child| rows.get(child).ok())
         .collect();
-    body.sort_by(|left, right| order(click.column, left.1, right.1, (left.2, right.2)));
+    body.sort_by(|left, right| order(click.column, left.1, right.1));
     if sorted.descending {
         body.reverse();
     }
-    let order: Vec<Entity> = body.iter().map(|(row, ..)| *row).collect();
+    let order: Vec<Entity> = body.iter().map(|(row, _)| *row).collect();
     commands
         .entity(click.entity)
         .detach_children(&order)
@@ -221,17 +227,12 @@ fn sort_by_column(
 
 // Text sorts as text and numbers as numbers, which is the judgement the
 // crate cannot make for an app.
-fn order(
-    column: usize,
-    left: &Process,
-    right: &Process,
-    (left_cells, right_cells): (&TableRow, &TableRow),
-) -> core::cmp::Ordering {
+fn order(column: usize, left: &Process, right: &Process) -> core::cmp::Ordering {
     match column {
         1 => left.pid.cmp(&right.pid),
         2 => left.cpu.total_cmp(&right.cpu),
         3 => left.mem.cmp(&right.mem),
-        _ => name_of(left_cells).cmp(&name_of(right_cells)),
+        _ => left.name.cmp(right.name),
     }
 }
 
@@ -266,9 +267,9 @@ fn update_status(
         .unwrap_or(&"none");
     let arrow = if sorted.descending { "desc" } else { "asc" };
     let selected = if selection.0.is_empty() {
-        "nothing".to_owned()
+        "nothing"
     } else {
-        selection.0.clone()
+        &selection.0
     };
     for mut widget in &mut lines {
         *widget = UiWidget::new(Paragraph::new(format!(

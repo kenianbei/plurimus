@@ -59,7 +59,9 @@ impl Placed<'_> {
 
     // Only an unscrolled table needs bounding; see `clicked_row`.
     pub(super) fn band(&self, bands: (bool, bool)) -> Option<u16> {
-        self.scroll.is_none().then(|| body_band(*self.area, bands))
+        self.scroll
+            .is_none()
+            .then(|| body_height(*self.area, bands))
     }
 
     pub(super) fn columns(&self, widths: Vec<Constraint>, gutter: u16) -> Columns {
@@ -80,20 +82,14 @@ impl Placed<'_> {
 // on it lands at a line a long enough body would also reach. A scrolled
 // table draws its footer directly after its rows, where running out of rows
 // is the answer by itself.
-pub(super) fn clicked_row(
-    line: u16,
-    header: bool,
-    band: Option<u16>,
-    row_at: impl FnOnce(usize) -> Option<Entity>,
-) -> Option<Entity> {
+pub(super) fn clicked_row(line: u16, header: bool, band: Option<u16>) -> Option<usize> {
     let index = line.saturating_sub(u16::from(header));
-    if band.is_some_and(|band| index >= band) {
-        return None;
-    }
-    row_at(usize::from(index))
+    band.is_none_or(|band| index < band)
+        .then(|| usize::from(index))
 }
 
-fn body_band(area: ComputedWidgetArea, (header, footer): (bool, bool)) -> u16 {
+// The rows a table has room for between its bands.
+pub(super) fn body_height(area: ComputedWidgetArea, (header, footer): (bool, bool)) -> u16 {
     area.0
         .height
         .saturating_sub(u16::from(header))
@@ -123,15 +119,20 @@ pub(super) fn resolved_widths(
     if !columns.0.is_empty() {
         return columns.0.clone();
     }
-    let count = column_count(columns, children, rows);
+    let count = widest_row(children, rows);
     let each = width / u16::try_from(count.max(1)).unwrap_or(u16::MAX);
     vec![Constraint::Length(each); count]
 }
 
 pub(super) fn column_count(columns: &TableColumns, children: &Children, rows: &Rows) -> usize {
-    if !columns.0.is_empty() {
-        return columns.0.len();
+    if columns.0.is_empty() {
+        widest_row(children, rows)
+    } else {
+        columns.0.len()
     }
+}
+
+fn widest_row(children: &Children, rows: &Rows) -> usize {
     children
         .iter()
         .filter_map(|&child| rows.get(child).ok())
@@ -161,13 +162,6 @@ pub(super) fn bands(children: &Children, rows: &Rows) -> (bool, bool) {
                 (seen_header || header, seen_footer || footer)
             },
         )
-}
-
-pub(super) fn page_rows(children: &Children, rows: &Rows, area: ComputedWidgetArea) -> usize {
-    let (header, footer) = bands(children, rows);
-    usize::from(area.0.height)
-        .saturating_sub(usize::from(header) + usize::from(footer))
-        .max(1)
 }
 
 // Content is one line per row, header and footer included: a scroll area

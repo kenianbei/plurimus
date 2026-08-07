@@ -8,7 +8,7 @@ use bevy_input::keyboard::Key;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::KeyCode;
+use plurimus_input::{KeyCode, KeyKind, KeyMessage, KeyModifiers};
 use plurimus_test::{click, press_key};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::ActiveDescendant;
@@ -378,4 +378,74 @@ fn multi_select_toggles_instead_of_moving() {
         [true, false, false],
         "and clicking one again clears it"
     );
+}
+
+// The other column tests assert against positions worked out by hand, which
+// would still pass if ratatui changed its column layout and every click
+// started landing one column over. This one reads where the cells actually
+// rendered and checks the hit test agrees, so it fails if the two ever part.
+#[test]
+fn the_hit_test_agrees_with_where_the_cells_rendered() {
+    let mut app = App::new();
+    app.add_plugins((CorePlugin, WidgetsPlugin));
+    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.world_mut().spawn(TerminalCamera::default());
+    let world = app.world_mut();
+    let table = world
+        .spawn((
+            table([Constraint::Length(6), Constraint::Length(6)]),
+            TableSelection::Cell,
+            TableCursor("".into()),
+            UiArea::Fixed(AREA),
+        ))
+        .id();
+    world.spawn((table_row(["aaa", "bbb"]), ChildOf(table)));
+    app.update();
+
+    let frame = plurimus_test::composed_frame(&app);
+    let row = frame.lines().next().expect("the rendered row");
+    let first = row.find('a').expect("the first column's text");
+    let second = row.find('b').expect("the second column's text");
+
+    for (x, expected) in [(first, 0), (second, 1)] {
+        click(&mut app, u16::try_from(x).expect("a cell column"), 0);
+        assert_eq!(
+            column(&app, table),
+            Some(expected),
+            "clicking where column {expected} is drawn selects it: {row:?}"
+        );
+    }
+}
+
+// Autorepeat moves a cursor but must not re-select, which is the rule
+// `is_activate_key` already applies to every other widget.
+#[test]
+fn a_held_key_repeats_movement_but_not_selection() {
+    let (mut app, table, rows) = app(TableSelection::Row);
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Enter);
+    let selections = app.world().resource::<Selected>().0.len();
+
+    repeat_key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        app.world().resource::<Selected>().0.len(),
+        selections,
+        "a repeated Enter selects nothing further"
+    );
+
+    repeat_key(&mut app, KeyCode::Down);
+    assert_eq!(
+        cursor(&app, table),
+        Some(rows[1]),
+        "but a repeated arrow still moves the cursor"
+    );
+}
+
+fn repeat_key(app: &mut App, code: KeyCode) {
+    app.world_mut().write_message(KeyMessage {
+        code,
+        modifiers: KeyModifiers::default(),
+        kind: KeyKind::Repeat,
+    });
+    app.update();
 }

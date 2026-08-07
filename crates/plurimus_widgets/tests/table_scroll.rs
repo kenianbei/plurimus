@@ -22,11 +22,17 @@ fn app() -> (App, Entity, Vec<Entity>) {
     app_with(
         [Constraint::Length(6), Constraint::Length(6)],
         TableSelection::Row,
+        true,
     )
 }
 
-// Header, eight body rows, footer: ten lines of content in a six-line area.
-fn app_with(widths: [Constraint; 2], selection: TableSelection) -> (App, Entity, Vec<Entity>) {
+// Header, eight body rows, footer: ten lines of content in a six-line area,
+// scrollable unless a test wants the truncating unscrolled layout.
+fn app_with(
+    widths: [Constraint; 2],
+    selection: TableSelection,
+    scrollable: bool,
+) -> (App, Entity, Vec<Entity>) {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize { cols: 20, rows: 6 });
@@ -38,10 +44,14 @@ fn app_with(widths: [Constraint; 2], selection: TableSelection) -> (App, Entity,
             table(widths),
             selection,
             TableCursor("".into()),
-            ScrollArea::new(Size::new(20, 10)),
             UiArea::Fixed(AREA),
         ))
         .id();
+    if scrollable {
+        world
+            .entity_mut(table)
+            .insert(ScrollArea::new(Size::new(20, 10)));
+    }
     world.spawn((table_header(["name", "date"]), ChildOf(table)));
     let rows = (0..BODY)
         .map(|index| {
@@ -177,27 +187,11 @@ fn column(app: &App, table: Entity) -> Option<usize> {
 // line one of them would otherwise answer for.
 #[test]
 fn an_unscrolled_table_ignores_a_click_on_the_footer_over_a_long_body() {
-    let mut app = App::new();
-    app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
-    app.world_mut().spawn(TerminalCamera::default());
-    let world = app.world_mut();
-    let table = world
-        .spawn((
-            table([Constraint::Length(6), Constraint::Length(6)]),
-            TableSelection::Row,
-            UiArea::Fixed(AREA),
-        ))
-        .id();
-    world.spawn((table_header(["name", "date"]), ChildOf(table)));
-    for index in 0..BODY {
-        world.spawn((
-            table_row([format!("row{index}"), "x".into()]),
-            ChildOf(table),
-        ));
-    }
-    world.spawn((table_footer(["total", "8"]), ChildOf(table)));
-    app.update();
+    let (mut app, table, _) = app_with(
+        [Constraint::Length(6), Constraint::Length(6)],
+        TableSelection::Row,
+        false,
+    );
 
     click(&mut app, 2, 5);
 
@@ -233,6 +227,7 @@ fn a_scrolled_table_resolves_columns_against_its_content_width() {
     let (mut app, table, _) = app_with(
         [Constraint::Fill(1), Constraint::Fill(1)],
         TableSelection::Cell,
+        true,
     );
 
     click(&mut app, 19, 1);

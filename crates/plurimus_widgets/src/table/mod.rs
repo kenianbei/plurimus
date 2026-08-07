@@ -238,15 +238,16 @@ impl Default for TableKeys {
     }
 }
 
-// The cells ratatui reserves left of the first column. `WhenSelected`
-// spacing reserves them only while a row is selected, so click routing has
-// to ask the same question the stylist answered.
+// The cells ratatui reserves left of the first column. The stylist asks for
+// `HighlightSpacing::WhenSelected`, so the gutter appears exactly while a row
+// cursor exists; click routing restates that rule here because ratatui does
+// not report the width it settled on.
 pub(crate) fn cursor_gutter(
-    selection: Option<TableSelection>,
+    selection: TableSelection,
     active: Option<Entity>,
     cursor: Option<&TableCursor>,
 ) -> u16 {
-    if !selection.is_some_and(TableSelection::tracks_row) || active.is_none() {
+    if !selection.tracks_row() || active.is_none() {
         return 0;
     }
     let width = cursor.map_or(CURSOR_SYMBOL.chars().count(), |cursor| cursor.0.width());
