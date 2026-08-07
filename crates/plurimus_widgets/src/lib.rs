@@ -68,6 +68,7 @@ pub(crate) use text::{
 use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_ecs::prelude::Component;
 use bevy_ecs::prelude::IntoScheduleConfigs;
+use bevy_ecs::schedule::SystemSet;
 use bevy_input::keyboard::KeyCode;
 use ratatui_widgets::paragraph::Paragraph;
 
@@ -96,11 +97,23 @@ pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
     f32::from(cell) / f32::from(last)
 }
 
+/// Phases of widget maintenance, in different schedules. Apps interleave
+/// their own systems against these - a stylist replacing a stock one runs
+/// [`after`](IntoScheduleConfigs::after) [`WidgetSystems::Style`].
+#[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum WidgetSystems {
+    /// `PreUpdate`: listbox scroll sync, popup sizing, and popover and menu
+    /// row placement, between [`UiSystems::Areas`] and [`UiSystems::Hover`].
+    Layout,
+    /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`].
+    Style,
+}
+
 /// Installs the widget library: stylists, widget observers, and the
 /// layout systems for menus and popovers.
 ///
 /// Requires [`plurimus_core::CorePlugin`] first; adds [`UiPlugin`] itself
-/// when absent.
+/// when absent. Its systems run in the [`WidgetSystems`] phases.
 pub struct WidgetsPlugin;
 
 impl Plugin for WidgetsPlugin {
@@ -117,6 +130,12 @@ impl Plugin for WidgetsPlugin {
 
 // Placement reads areas and feeds hover, so it runs between the two.
 fn add_layout_systems(app: &mut App) {
+    app.configure_sets(
+        PreUpdate,
+        WidgetSystems::Layout
+            .after(UiSystems::Areas)
+            .before(UiSystems::Hover),
+    );
     app.add_systems(
         PreUpdate,
         (
@@ -128,8 +147,7 @@ fn add_layout_systems(app: &mut App) {
                 place_menu_items,
             )
                 .chain()
-                .after(UiSystems::Areas)
-                .before(UiSystems::Hover),
+                .in_set(WidgetSystems::Layout),
         ),
     );
 }
@@ -148,7 +166,8 @@ fn add_stylists(app: &mut App) {
             style_text_inputs,
             style_menu_items,
             style_menu_popups,
-        ),
+        )
+            .in_set(WidgetSystems::Style),
     );
 }
 
