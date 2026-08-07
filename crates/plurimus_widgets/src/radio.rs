@@ -11,9 +11,10 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::prelude::{Component, Res};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
+use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::stylist::{LabeledQuery, StylistCache, restyle};
+use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
 use crate::theme::UiTheme;
 use crate::{UiLabel, placeholder};
 use plurimus_core::UiWidget;
@@ -31,7 +32,7 @@ pub struct RadioButton;
 pub struct RadioGroup;
 
 /// Spawn bundle for a radio option; parent it to a [`RadioGroup`].
-pub fn radio(label: impl Into<String>) -> impl Bundle {
+pub fn radio(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         RadioButton,
         UiLabel(label.into()),
@@ -46,7 +47,7 @@ pub(crate) fn style_radios(
     mut radios: LabeledQuery<RadioButton>,
 ) {
     restyle(&theme, &focus, &mut radios, |state, label, style| {
-        let mark = if state.checked { "•" } else { " " };
-        UiWidget::new(Paragraph::new(format!("({mark}) {label}")).style(style))
+        let mark = if state.checked { "(•) " } else { "( ) " };
+        UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
     });
 }

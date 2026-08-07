@@ -74,6 +74,7 @@ use bevy_input::keyboard::KeyCode;
 use ratatui_widgets::paragraph::Paragraph;
 
 use plurimus_core::UiWidget;
+use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::{UiPlugin, UiSystems};
 
 // Modifiers arrive as polled state rather than per-event flags, so
@@ -83,8 +84,12 @@ pub(crate) const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
 pub(crate) const SHIFT_KEYS: [KeyCode; 2] = [KeyCode::ShiftLeft, KeyCode::ShiftRight];
 
 /// A widget's text label, rendered by the stock stylists.
+///
+/// A [`Line`] rather than a `String`, so a label can carry per-span style -
+/// columns in a list row, a dimmed shortcut beside a menu item. Converts
+/// from `String` and `&str`, so a plain label stays a plain label.
 #[derive(Component, Debug, Clone)]
-pub struct UiLabel(pub String);
+pub struct UiLabel(pub Line<'static>);
 
 // The stock stylists replace this on the first frame.
 pub(crate) fn placeholder() -> UiWidget {

@@ -34,7 +34,7 @@ fn focused_label(app: &mut App) -> Option<String> {
     let focused = app.world().resource::<InputFocus>().get()?;
     app.world()
         .get::<UiLabel>(focused)
-        .map(|label| label.0.clone())
+        .map(|label| label.0.to_string())
 }
 
 fn is_pane_highlighted(app: &mut App, title: &str) -> bool {
@@ -42,7 +42,7 @@ fn is_pane_highlighted(app: &mut App, title: &str) -> bool {
     let mut panes = world.query_filtered::<(&UiLabel, Has<FocusWithin>), With<Pane>>();
     panes
         .iter(world)
-        .find(|(label, _)| label.0 == title)
+        .find(|(label, _)| label.0.to_string() == title)
         .map(|(_, focused)| focused)
         .expect("pane exists")
 }

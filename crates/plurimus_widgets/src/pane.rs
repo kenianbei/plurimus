@@ -9,6 +9,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{Component, Has, Query, Res, With, Without};
+use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
 use super::{UiLabel, placeholder};
@@ -25,7 +26,7 @@ pub struct Pane;
 
 /// Spawn bundle for a pane; parent widgets to it so the border follows
 /// their focus.
-pub fn pane(title: impl Into<String>) -> impl Bundle {
+pub fn pane(title: impl Into<Line<'static>>) -> impl Bundle {
     (Pane, UiLabel(title.into()), placeholder())
 }
 

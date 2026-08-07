@@ -134,7 +134,7 @@ fn spawn_themed_side(mut commands: Commands, mut map: ResMut<DirectionalNavigati
 
 fn spawn_pane(commands: &mut Commands, root: Entity, title: &str, area: Rect) -> Entity {
     commands
-        .spawn((pane(title), UiArea::Fixed(area), ChildOf(root)))
+        .spawn((pane(title.to_owned()), UiArea::Fixed(area), ChildOf(root)))
         .id()
 }
 
@@ -176,7 +176,7 @@ fn spawn_radio_group(commands: &mut Commands, parent: Entity) -> Entity {
         .observe(
             |on: On<ValueChange<Entity>>, labels: Query<&UiLabel>, mut state: ResMut<DemoState>| {
                 if let Ok(label) = labels.get(on.value) {
-                    state.themed.radio = label.0.clone();
+                    state.themed.radio = label.0.to_string();
                 }
             },
         )
@@ -204,7 +204,7 @@ fn spawn_listbox(commands: &mut Commands, parent: Entity) {
         .observe(
             |on: On<ValueChange<Entity>>, labels: Query<&UiLabel>, mut state: ResMut<DemoState>| {
                 if let Ok(label) = labels.get(on.value) {
-                    state.themed.choice = label.0.clone();
+                    state.themed.choice = label.0.to_string();
                 }
             },
         )

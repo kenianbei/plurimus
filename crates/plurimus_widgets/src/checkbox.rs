@@ -10,9 +10,10 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::prelude::{Component, Res};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
+use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::stylist::{LabeledQuery, StylistCache, restyle};
+use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
 use crate::theme::UiTheme;
 use crate::{UiLabel, placeholder};
 use plurimus_core::UiWidget;
@@ -26,7 +27,7 @@ use plurimus_ui::Hovered;
 pub struct Checkbox;
 
 /// Spawn bundle for a standard checkbox.
-pub fn checkbox(label: impl Into<String>) -> impl Bundle {
+pub fn checkbox(label: impl Into<Line<'static>>) -> impl Bundle {
     (Checkbox, UiLabel(label.into()), TabIndex(0), placeholder())
 }
 
@@ -36,7 +37,7 @@ pub(crate) fn style_checkboxes(
     mut boxes: LabeledQuery<Checkbox>,
 ) {
     restyle(&theme, &focus, &mut boxes, |state, label, style| {
-        let mark = if state.checked { "x" } else { " " };
-        UiWidget::new(Paragraph::new(format!("[{mark}] {label}")).style(style))
+        let mark = if state.checked { "[x] " } else { "[ ] " };
+        UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
     });
 }

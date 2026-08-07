@@ -19,6 +19,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Component, Has, Query, Res, With, Without};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
+use plurimus_core::ratatui_core::text::{Line, Span};
 
 use crate::UiLabel;
 use crate::theme::UiTheme;
@@ -76,6 +77,27 @@ pub(crate) type LabeledQuery<'w, 's, 'a, M> = Query<
     (With<M>, Without<StylistDisabled>),
 >;
 
+// Decorations wrap the label rather than replace it, so the label's own
+// spans, line style, and alignment all have to survive the splice - a
+// dropped line style silently loses row striping.
+pub(crate) fn decorate(
+    prefix: &'static str,
+    label: &Line<'static>,
+    suffix: &'static str,
+) -> Line<'static> {
+    let mut spans = Vec::with_capacity(label.spans.len() + 2);
+    spans.push(Span::raw(prefix));
+    spans.extend(label.spans.iter().cloned());
+    if !suffix.is_empty() {
+        spans.push(Span::raw(suffix));
+    }
+    Line {
+        style: label.style,
+        alignment: label.alignment,
+        spans,
+    }
+}
+
 // Every stylist funnels widget-specific state through this one hash.
 pub(crate) fn hashed_bits(state: impl Hash) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -103,7 +125,7 @@ pub(crate) fn restyle<M: Component>(
     theme: &Res<UiTheme>,
     focus: &InputFocus,
     widgets: &mut LabeledQuery<M>,
-    render: impl Fn(&StylistCache, &str, Style) -> UiWidget,
+    render: impl Fn(&StylistCache, &Line<'static>, Style) -> UiWidget,
 ) {
     for (state, label, mut cache, mut widget) in widgets.iter_mut() {
         let next = observed(state, focus, 0);

@@ -5,9 +5,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
+use plurimus_core::ratatui_core::style::{Color, Style};
+use plurimus_core::ratatui_core::text::{Line, Span};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{composed_frame, press_key, send_mouse};
+use plurimus_test::{composed_frame, composed_styled_frame, press_key, send_mouse};
 use plurimus_ui::{Checked, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxMultiSelect, WidgetsPlugin, button, list_item, listbox,
@@ -219,6 +221,50 @@ fn keyboard_keeps_the_active_row_visible() {
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 0)
+    );
+}
+
+// The shape an app builds columns from: one row, several styled spans.
+fn columned_row(name: &str, date: &str) -> Vec<Span<'static>> {
+    vec![
+        Span::styled(name.to_owned(), Style::new().fg(Color::Green)),
+        Span::raw(" "),
+        Span::styled(date.to_owned(), Style::new().fg(Color::Blue)),
+    ]
+}
+
+#[test]
+fn a_row_keeps_a_style_per_span() {
+    let mut app = app();
+    let container = app
+        .world_mut()
+        .spawn((listbox(), UiArea::Fixed(Rect::new(0, 0, 12, 4))))
+        .id();
+    app.world_mut()
+        .spawn((list_item(columned_row("ann", "may")), ChildOf(container)));
+    app.update();
+
+    let frame = composed_styled_frame(&app);
+    assert!(frame.contains("Green"), "the name column keeps its style");
+    assert!(frame.contains("Blue"), "the date column keeps its own");
+}
+
+#[test]
+fn a_row_keeps_its_line_style_through_the_marker_column() {
+    let mut app = app();
+    let container = app
+        .world_mut()
+        .spawn((listbox(), UiArea::Fixed(Rect::new(0, 0, 12, 4))))
+        .id();
+    app.world_mut().spawn((
+        list_item(Line::from("striped").style(Style::new().bg(Color::Indexed(236)))),
+        ChildOf(container),
+    ));
+    app.update();
+
+    assert!(
+        composed_styled_frame(&app).contains("Indexed(236)"),
+        "decorating a label must not drop its line style"
     );
 }
 

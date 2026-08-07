@@ -19,10 +19,11 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::ratatui_core::style::Style;
+use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::list::{List, ListState};
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::{StateQuery, StylistCache, StylistDisabled, hashed_bits, observed};
+use crate::stylist::{StateQuery, StylistCache, StylistDisabled, decorate, hashed_bits, observed};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
@@ -56,7 +57,7 @@ pub fn listbox() -> impl Bundle {
 }
 
 /// Spawn bundle for one list row.
-pub fn list_item(label: impl Into<String>) -> impl Bundle {
+pub fn list_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (ListItem, UiLabel(label.into()))
 }
 
@@ -208,11 +209,11 @@ pub(crate) fn style_listboxes(
     items: Query<(&UiLabel, Has<Checked>), With<ListItem>>,
 ) {
     for (state, active, children, mut cache, mut widget) in &mut boxes {
-        let rows: Vec<(Entity, &str, bool)> = children
+        let rows: Vec<(Entity, &Line<'static>, bool)> = children
             .iter()
             .filter_map(|&child| {
                 let (label, checked) = items.get(child).ok()?;
-                Some((child, label.0.as_str(), checked))
+                Some((child, &label.0, checked))
             })
             .collect();
         let selected = active
@@ -227,10 +228,14 @@ pub(crate) fn style_listboxes(
     }
 }
 
-fn list_widget(rows: &[(Entity, &str, bool)], selected: Option<usize>, style: Style) -> UiWidget {
-    let lines: Vec<String> = rows
+fn list_widget(
+    rows: &[(Entity, &Line<'static>, bool)],
+    selected: Option<usize>,
+    style: Style,
+) -> UiWidget {
+    let lines: Vec<Line<'static>> = rows
         .iter()
-        .map(|(_, label, checked)| format!("{} {label}", if *checked { "▪" } else { " " }))
+        .map(|(_, label, checked)| decorate(if *checked { "▪ " } else { "  " }, label, ""))
         .collect();
     let mut highlight = ListState::default();
     highlight.select(selected);
