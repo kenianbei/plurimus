@@ -74,21 +74,16 @@ impl Placed<'_> {
     }
 }
 
-// `line` is content-space: the row of the table's own drawing, which a
-// scrolled table's offset has already been added to.
-//
-// `band` bounds it only for an unscrolled table, whose footer ratatui pins
-// to the bottom of the area rather than to the end of the body - so a click
-// on it lands at a line a long enough body would also reach. A scrolled
-// table draws its footer directly after its rows, where running out of rows
-// is the answer by itself.
+// `line` is content-space, so a scrolled table's offset is already in it.
+// `band` bounds it only when unscrolled: ratatui pins that footer to the
+// bottom of the area rather than to the end of the body, so a click on it
+// lands at a line a long enough body would also reach.
 pub(super) fn clicked_row(line: u16, header: bool, band: Option<u16>) -> Option<usize> {
     let index = line.saturating_sub(u16::from(header));
     band.is_none_or(|band| index < band)
         .then(|| usize::from(index))
 }
 
-// The rows a table has room for between its bands.
 pub(super) fn body_height(area: ComputedWidgetArea, (header, footer): (bool, bool)) -> u16 {
     area.0
         .height

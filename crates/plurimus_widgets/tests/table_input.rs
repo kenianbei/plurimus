@@ -380,10 +380,9 @@ fn multi_select_toggles_instead_of_moving() {
     );
 }
 
-// The other column tests assert against positions worked out by hand, which
-// would still pass if ratatui changed its column layout and every click
-// started landing one column over. This one reads where the cells actually
-// rendered and checks the hit test agrees, so it fails if the two ever part.
+// The other column tests use positions worked out by hand, which would still
+// pass if ratatui moved its columns and every click landed one over. This one
+// reads where the cells rendered, so it fails if the two ever part.
 #[test]
 fn the_hit_test_agrees_with_where_the_cells_rendered() {
     let mut app = App::new();

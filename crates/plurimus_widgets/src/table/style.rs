@@ -34,9 +34,8 @@ type RowChanged = Or<(
     Changed<TableFooter>,
 )>;
 
-// The cursor is deliberately absent: it reaches the stylist through
-// `StylistCache`, which compares values inside the stylist's own system
-// rather than depending on this one having run after whatever moved it.
+// The cursor is absent by design: it reaches the stylist through
+// `StylistCache`, which needs no ordering against whatever moved it.
 type ContentChanged = Or<(
     Changed<Children>,
     Changed<TableColumns>,
@@ -118,13 +117,9 @@ struct Highlight {
     column: Option<usize>,
 }
 
-// A row's edit has to reach the table it belongs to, and so does a change to
-// the table's own content components.
-// `With<TableRow>` narrows the archetypes this scans: `Or` matches an
-// archetype carrying any one of its terms, so without it every entity in
-// the app holding `Checked` or `UiStyle` - every list row, checkbox and
-// menu item - would be tick-scanned each frame, in apps with no table at
-// all. Every band row carries `TableRow`, so nothing is lost.
+// A row's edit has to reach the table it belongs to. `With<TableRow>` is
+// load-bearing: `Or` matches an archetype holding any one of its terms, so
+// without it every `Checked` or `UiStyle` entity in the app is scanned.
 pub(crate) fn mark_changed_tables(
     rows: Query<&ChildOf, (With<TableRow>, RowChanged)>,
     changed: Query<Entity, (With<Table>, ContentChanged)>,
@@ -153,9 +148,8 @@ pub(crate) fn style_tables(
     for (state, children, columns, look, cursor, content, mut cache, mut widget) in &mut tables {
         let (stripe, checked, layout, symbol) = look;
         let (selection, active, column) = cursor;
-        // Where the cursor is, as a `Copy` scalar pair rather than the row
-        // content every other aggregate stylist hashes. Comparing it here
-        // is what frees the cursor from depending on system order.
+        // A `Copy` scalar pair, not the row content other aggregate stylists
+        // hash, and compared here so the cursor needs no system ordering.
         let next = observed(
             state,
             &focus,
@@ -248,9 +242,8 @@ fn table_widget(bands: Bands, chrome: Chrome, highlight: Highlight) -> UiWidget 
     )
 }
 
-// Only the coordinates the selection mode tracks reach the state: a row
-// index left in a column-selecting table would reserve the cursor gutter
-// for a cursor that is not drawn.
+// Only the coordinates the mode tracks reach the state: a stray row index
+// would reserve the cursor gutter for a cursor that is never drawn.
 fn cursor_state(
     selection: Option<TableSelection>,
     row: Option<usize>,

@@ -109,9 +109,8 @@ impl Default for TableLayout {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TableCheckedStyle(pub Style);
 
-// Carries one tick: what a table draws has changed. Rows are children, so a
-// `Changed` filter on the table cannot see a row's edit; `mark_changed_tables`
-// forwards it here.
+// Rows are children, so a `Changed` filter on the table cannot see a row's
+// edit; `mark_changed_tables` forwards it here.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub(crate) struct TableContent;
 
@@ -238,10 +237,8 @@ impl Default for TableKeys {
     }
 }
 
-// The cells ratatui reserves left of the first column. The stylist asks for
-// `HighlightSpacing::WhenSelected`, so the gutter appears exactly while a row
-// cursor exists; click routing restates that rule here because ratatui does
-// not report the width it settled on.
+// The cells ratatui reserves left of the first column. It never reports the
+// width it settled on, so this restates the rule `WhenSelected` spacing sets.
 pub(crate) fn cursor_gutter(
     selection: TableSelection,
     active: Option<Entity>,
