@@ -13,18 +13,23 @@ use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
-use ratatui_widgets::table::{Cell, Row, Table as RatatuiTable, TableState};
+use plurimus_core::ratatui_core::text::Line;
+use ratatui_widgets::table::{Cell, HighlightSpacing, Row, Table as RatatuiTable, TableState};
 
 use super::{
-    Table, TableColumns, TableContent, TableFooter, TableHeader, TableLayout, TableRow, TableStripe,
+    ActiveColumn, CURSOR_SYMBOL, Table, TableCheckedStyle, TableColumns, TableContent, TableCursor,
+    TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
 };
+use crate::listbox::ActiveDescendant;
 use crate::stylist::{StateQuery, Stylable, StylistCache, UiStyle, observed};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
+use plurimus_ui::Checked;
 
 type RowChanged = Or<(
     Changed<TableRow>,
     Changed<UiStyle>,
+    Changed<Checked>,
     Changed<TableHeader>,
     Changed<TableFooter>,
 )>;
@@ -34,18 +39,40 @@ type ContentChanged = Or<(
     Changed<TableColumns>,
     Changed<TableStripe>,
     Changed<TableLayout>,
+    Changed<TableCheckedStyle>,
+    Changed<TableCursor>,
+    Changed<TableSelection>,
+    Changed<ActiveDescendant>,
+    Changed<ActiveColumn>,
 )>;
 
 type TableRows<'w, 's> = Query<
     'w,
     's,
     (
+        Entity,
         &'static TableRow,
         Has<TableHeader>,
         Has<TableFooter>,
         Option<&'static UiStyle>,
+        Has<Checked>,
     ),
 >;
+
+// How a table's rows are painted, before any interaction state.
+type Look<'a> = (
+    Option<&'a TableStripe>,
+    Option<&'a TableCheckedStyle>,
+    Option<&'a TableLayout>,
+    Option<&'a TableCursor>,
+);
+
+// Where the cursor is, absent on a presentational table.
+type Cursor<'a> = (
+    Option<&'a TableSelection>,
+    Option<&'a ActiveDescendant>,
+    Option<&'a ActiveColumn>,
+);
 
 type Tables<'w, 's> = Query<
     'w,
@@ -54,8 +81,8 @@ type Tables<'w, 's> = Query<
         StateQuery<'static>,
         &'static Children,
         &'static TableColumns,
-        Option<&'static TableStripe>,
-        Option<&'static TableLayout>,
+        Look<'static>,
+        Cursor<'static>,
         Ref<'static, TableContent>,
         &'static mut StylistCache,
         &'static mut UiWidget,
@@ -68,6 +95,26 @@ struct Bands {
     header: Option<Row<'static>>,
     footer: Option<Row<'static>>,
     body: Vec<Row<'static>>,
+    cursor: Option<usize>,
+}
+
+// The per-row styles a table resolves before its rows' own overrides.
+struct RowStyles {
+    stripe: Option<Style>,
+    checked: Option<Style>,
+}
+
+struct Chrome<'a> {
+    columns: &'a TableColumns,
+    layout: TableLayout,
+    base: Style,
+}
+
+struct Highlight {
+    selection: Option<TableSelection>,
+    style: Style,
+    symbol: Line<'static>,
+    column: Option<usize>,
 }
 
 // A row's edit has to reach the table it belongs to, and so does a change to
@@ -97,67 +144,114 @@ pub(crate) fn style_tables(
     mut tables: Tables,
     rows: TableRows,
 ) {
-    for (state, children, columns, stripe, layout, content, mut cache, mut widget) in &mut tables {
+    for (state, children, columns, look, cursor, content, mut cache, mut widget) in &mut tables {
         let next = observed(state, &focus, 0);
         if !theme.is_changed() && !content.is_changed() && next == *cache {
             continue;
         }
         *cache = next;
-        let bands = bands(children, &rows, stripe.map(|stripe| stripe.0));
-        *widget = table_widget(
-            bands,
+        let (stripe, checked, layout, symbol) = look;
+        let (selection, active, column) = cursor;
+        let styles = RowStyles {
+            stripe: stripe.map(|stripe| stripe.0),
+            checked: checked.map(|checked| checked.0),
+        };
+        let bands = bands(children, &rows, &styles, active.and_then(|active| active.0));
+        let chrome = Chrome {
             columns,
-            layout.copied().unwrap_or_default(),
-            next.resting_style(&theme),
-        );
+            layout: layout.copied().unwrap_or_default(),
+            base: next.resting_style(&theme),
+        };
+        let highlight = Highlight {
+            selection: selection.copied(),
+            style: next.style(&theme),
+            symbol: symbol.map_or_else(|| Line::from(CURSOR_SYMBOL), |cursor| cursor.0.clone()),
+            column: column.and_then(|column| column.0),
+        };
+        *widget = table_widget(bands, chrome, highlight);
     }
 }
 
-fn bands(children: &Children, rows: &TableRows, stripe: Option<Style>) -> Bands {
+fn bands(
+    children: &Children,
+    rows: &TableRows,
+    styles: &RowStyles,
+    active: Option<Entity>,
+) -> Bands {
     let mut bands = Bands::default();
     for &child in children {
-        let Ok((cells, is_header, is_footer, over)) = rows.get(child) else {
+        let Ok((row, cells, is_header, is_footer, over, checked)) = rows.get(child) else {
             continue;
         };
         let over = over.map(|style| style.0);
         if is_header {
-            bands.header = Some(row_widget(cells, patched(None, over)));
+            bands.header = Some(row_widget(cells, patched(None, None, over)));
         } else if is_footer {
-            bands.footer = Some(row_widget(cells, patched(None, over)));
+            bands.footer = Some(row_widget(cells, patched(None, None, over)));
         } else {
-            let banded = stripe.filter(|_| bands.body.len() % 2 == 1);
-            bands.body.push(row_widget(cells, patched(banded, over)));
+            if active == Some(row) {
+                bands.cursor = Some(bands.body.len());
+            }
+            let banded = styles.stripe.filter(|_| bands.body.len() % 2 == 1);
+            let checked = styles.checked.filter(|_| checked);
+            bands
+                .body
+                .push(row_widget(cells, patched(banded, checked, over)));
         }
     }
     bands
 }
 
 // A `Style` with every field unset patches as the identity, in both
-// directions, which is what lets an absent stripe and an absent override
-// share one expression.
-fn patched(stripe: Option<Style>, over: Option<Style>) -> Style {
-    stripe.unwrap_or_default().patch(over.unwrap_or_default())
+// directions, which is what lets the absent cases share one expression.
+fn patched(stripe: Option<Style>, checked: Option<Style>, over: Option<Style>) -> Style {
+    stripe
+        .unwrap_or_default()
+        .patch(checked.unwrap_or_default())
+        .patch(over.unwrap_or_default())
 }
 
 fn row_widget(cells: &TableRow, style: Style) -> Row<'static> {
     Row::new(cells.0.iter().cloned().map(Cell::from)).style(style)
 }
 
-fn table_widget(
-    bands: Bands,
-    columns: &TableColumns,
-    layout: TableLayout,
-    base: Style,
-) -> UiWidget {
-    let mut table = RatatuiTable::new(bands.body, columns.0.iter().copied())
-        .style(base)
-        .column_spacing(layout.column_spacing)
-        .flex(layout.flex);
+fn table_widget(bands: Bands, chrome: Chrome, highlight: Highlight) -> UiWidget {
+    let mut table = RatatuiTable::new(bands.body, chrome.columns.0.iter().copied())
+        .style(chrome.base)
+        .column_spacing(chrome.layout.column_spacing)
+        .flex(chrome.layout.flex)
+        .highlight_symbol(highlight.symbol)
+        .highlight_spacing(HighlightSpacing::WhenSelected);
+    table = match highlight.selection {
+        Some(TableSelection::Row) => table.row_highlight_style(highlight.style),
+        Some(TableSelection::Column) => table.column_highlight_style(highlight.style),
+        Some(TableSelection::Cell) => table.cell_highlight_style(highlight.style),
+        None => table,
+    };
     if let Some(header) = bands.header {
         table = table.header(header);
     }
     if let Some(footer) = bands.footer {
         table = table.footer(footer);
     }
-    UiWidget::stateful(table, TableState::default())
+    UiWidget::stateful(
+        table,
+        cursor_state(highlight.selection, bands.cursor, highlight.column),
+    )
+}
+
+// Only the coordinates the selection mode tracks reach the state: a row
+// index left in a column-selecting table would reserve the cursor gutter
+// for a cursor that is not drawn.
+fn cursor_state(
+    selection: Option<TableSelection>,
+    row: Option<usize>,
+    column: Option<usize>,
+) -> TableState {
+    let tracked = |axis: fn(TableSelection) -> bool, value: Option<usize>| {
+        selection.is_some_and(axis).then_some(value).flatten()
+    };
+    TableState::new()
+        .with_selected(tracked(TableSelection::tracks_row, row))
+        .with_selected_column(tracked(TableSelection::tracks_column, column))
 }

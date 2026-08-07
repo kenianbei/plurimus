@@ -18,19 +18,27 @@
 //! sizes cells with taffy, at the cost of an entity and a layout node each,
 //! and knows nothing of headers, striping, or a cursor.
 
+mod input;
 mod style;
 
+pub(crate) use input::{table_key, table_press};
 pub(crate) use style::{mark_changed_tables, style_tables};
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::prelude::Component;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::{Component, EntityEvent};
+use bevy_input::keyboard::Key;
+use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Constraint, Flex};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 
+use crate::listbox::ActiveDescendant;
 use crate::placeholder;
 use crate::stylist::StylistCache;
 use plurimus_ui::Hovered;
+
+pub(crate) const CURSOR_SYMBOL: &str = "> ";
 
 /// A table of [`TableRow`] children, drawn as one ratatui `Table`.
 ///
@@ -93,11 +101,155 @@ impl Default for TableLayout {
     }
 }
 
+/// Styles a [`Checked`](plurimus_ui::Checked) body row, which is where a
+/// [`TableMultiSelect`] table's selection shows. Patched over the striping
+/// and under the row's own [`UiStyle`](crate::UiStyle).
+#[derive(Component, Debug, Clone, Copy)]
+pub struct TableCheckedStyle(pub Style);
+
 // Carries one tick: what a table draws has changed. Rows are children, so a
 // `Changed` filter on the table cannot see a row's edit; `mark_changed_tables`
 // forwards it here.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub(crate) struct TableContent;
+
+/// Makes a [`Table`] interactive, at the stated granularity.
+///
+/// Adding it makes the table a tab stop and gives it keys and clicks;
+/// without it a table draws and hovers but emits nothing. Selection emits
+/// [`ValueChange<TablePosition>`](crate::ValueChange) on the table in every
+/// mode.
+///
+/// Requires [`TabIndex`], which Bevy does not remove when this component
+/// goes: removing it leaves a non-interactive table in the tab order.
+/// [`InteractionDisabled`](plurimus_ui::InteractionDisabled) is how a table
+/// is turned off.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[require(TabIndex, ActiveDescendant, ActiveColumn, TableKeys)]
+pub enum TableSelection {
+    /// The cursor is a row.
+    #[default]
+    Row,
+    /// The cursor is a column.
+    Column,
+    /// The cursor is one cell.
+    Cell,
+}
+
+impl TableSelection {
+    pub(crate) const fn tracks_row(self) -> bool {
+        matches!(self, Self::Row | Self::Cell)
+    }
+
+    pub(crate) const fn tracks_column(self) -> bool {
+        matches!(self, Self::Column | Self::Cell)
+    }
+}
+
+/// Allows multiple [`Checked`](plurimus_ui::Checked) rows in a [`Table`].
+#[derive(Component, Debug, Clone, Copy)]
+pub struct TableMultiSelect;
+
+/// The cursor's column, as [`ActiveDescendant`] is its row.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ActiveColumn(pub Option<usize>);
+
+/// A position in a [`Table`]. A coordinate the table's [`TableSelection`]
+/// does not track is `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TablePosition {
+    /// The row entity.
+    pub row: Option<Entity>,
+    /// The column index.
+    pub column: Option<usize>,
+}
+
+/// Replaces the symbol drawn beside a [`Table`]'s cursor row, which shifts
+/// every column right by its width while a row is selected. An empty line
+/// frees the gutter, leaving the cursor shown by its highlight alone.
+#[derive(Component, Debug, Clone)]
+pub struct TableCursor(pub Line<'static>);
+
+/// A click on a [`Table`]'s [`TableHeader`] row, carrying the column under
+/// the pointer. Sorting is the app's: reorder the row entities and the
+/// table redraws.
+#[derive(EntityEvent, Debug, Clone, Copy)]
+pub struct TableHeaderClick {
+    /// The table that was clicked.
+    pub entity: Entity,
+    /// The column under the pointer.
+    pub column: usize,
+}
+
+/// What a key does to a [`Table`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TableAction {
+    /// Move the cursor up one row.
+    RowPrev,
+    /// Move the cursor down one row.
+    RowNext,
+    /// Move the cursor to the first row.
+    RowFirst,
+    /// Move the cursor to the last row.
+    RowLast,
+    /// Move the cursor up by the visible body height.
+    PageUp,
+    /// Move the cursor down by the visible body height.
+    PageDown,
+    /// Move the cursor one column left.
+    ColumnPrev,
+    /// Move the cursor one column right.
+    ColumnNext,
+    /// Select what the cursor is on.
+    Select,
+}
+
+impl TableAction {
+    pub(crate) const fn moves_column(self) -> bool {
+        matches!(self, Self::ColumnPrev | Self::ColumnNext)
+    }
+}
+
+/// A [`Table`]'s key bindings, scanned in order so the first match wins.
+///
+/// Replace it to remap: two keys may share an action by appearing twice.
+/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
+/// `Enter` and space to select.
+#[derive(Component, Debug, Clone)]
+pub struct TableKeys(pub Vec<(Key, TableAction)>);
+
+impl Default for TableKeys {
+    fn default() -> Self {
+        Self(vec![
+            (Key::ArrowUp, TableAction::RowPrev),
+            (Key::ArrowDown, TableAction::RowNext),
+            (Key::ArrowLeft, TableAction::ColumnPrev),
+            (Key::ArrowRight, TableAction::ColumnNext),
+            (Key::Home, TableAction::RowFirst),
+            (Key::End, TableAction::RowLast),
+            (Key::PageUp, TableAction::PageUp),
+            (Key::PageDown, TableAction::PageDown),
+            (Key::Enter, TableAction::Select),
+            (Key::Character(" ".into()), TableAction::Select),
+        ])
+    }
+}
+
+// The cells ratatui reserves left of the first column. `WhenSelected`
+// spacing reserves them only while a row is selected, so click routing has
+// to ask the same question the stylist answered.
+pub(crate) fn cursor_gutter(
+    selection: Option<TableSelection>,
+    active: Option<Entity>,
+    cursor: Option<&TableCursor>,
+) -> u16 {
+    if !selection.is_some_and(TableSelection::tracks_row) || active.is_none() {
+        return 0;
+    }
+    let width = cursor.map_or(CURSOR_SYMBOL.chars().count(), |cursor| cursor.0.width());
+    u16::try_from(width).unwrap_or(u16::MAX)
+}
 
 /// Spawn bundle for a table; parent [`table_row`]s to it.
 #[must_use]

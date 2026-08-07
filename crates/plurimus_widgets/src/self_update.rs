@@ -13,7 +13,8 @@ use bevy_ecs::prelude::{Children, Commands, Has, On, Query, With};
 use bevy_ecs::query::QueryData;
 
 use super::{
-    ListBox, ListBoxMultiSelect, ListItem, RadioButton, SliderRange, SliderValue, ValueChange,
+    ListBox, ListBoxMultiSelect, ListItem, RadioButton, SliderRange, SliderValue, Table,
+    TableMultiSelect, TablePosition, TableRow, ValueChange,
 };
 use plurimus_ui::Checked;
 
@@ -53,6 +54,30 @@ pub fn listbox_self_update(
         return;
     }
     move_checked_among(children, &items, change.value, &mut commands);
+}
+
+/// Applies table selection to [`Checked`]: single-select moves it among the
+/// rows, multi-select toggles the selected one. A selection that tracks only
+/// a column carries no row, and changes nothing.
+pub fn table_self_update(
+    change: On<ValueChange<TablePosition>>,
+    tables: Query<(&Children, Has<TableMultiSelect>), With<Table>>,
+    rows: Query<Has<Checked>, With<TableRow>>,
+    mut commands: Commands,
+) {
+    let Ok((children, multi_select)) = tables.get(change.source) else {
+        return;
+    };
+    let Some(selected) = change.value.row else {
+        return;
+    };
+    if multi_select {
+        if let Ok(checked) = rows.get(selected) {
+            set_checked(selected, !checked, &mut commands);
+        }
+        return;
+    }
+    move_checked_among(children, &rows, selected, &mut commands);
 }
 
 fn set_checked(entity: Entity, checked: bool, commands: &mut Commands) {

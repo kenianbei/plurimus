@@ -46,12 +46,14 @@ pub use radio::{RadioButton, RadioGroup, radio};
 pub use scrollbar::{Scrollbar, scrollbar};
 pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
+    table_self_update,
 };
 pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
 pub use stylist::{StylistDisabled, UiStyle};
 pub use table::{
-    Table, TableColumns, TableFooter, TableHeader, TableLayout, TableRow, TableStripe, table,
-    table_footer, table_header, table_row,
+    ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
+    TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect, TablePosition,
+    TableRow, TableSelection, TableStripe, table, table_footer, table_header, table_row,
 };
 pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
 pub use theme::UiTheme;
@@ -71,7 +73,7 @@ pub(crate) use popover::place_popovers;
 pub(crate) use radio::style_radios;
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
-pub(crate) use table::{mark_changed_tables, style_tables};
+pub(crate) use table::{mark_changed_tables, style_tables, table_key, table_press};
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
     text_input_blur, text_input_key, text_input_paste,
@@ -202,6 +204,8 @@ fn add_observers(app: &mut App) {
     app.add_observer(scrollbar_release);
     app.add_observer(listbox_press);
     app.add_observer(listbox_key);
+    app.add_observer(table_press);
+    app.add_observer(table_key);
     app.add_observer(text_input_key);
     app.add_observer(text_input_paste);
     app.add_observer(text_input_blur);

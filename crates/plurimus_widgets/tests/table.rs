@@ -11,11 +11,12 @@ use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, TerminalWidget, UiWidget};
 use plurimus_test::composed_frame;
 use plurimus_test::composed_styled_frame;
-use plurimus_ui::{InteractionDisabled, UiArea};
+use plurimus_ui::{Checked, InteractionDisabled, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
-    StylistDisabled, Table, TableColumns, TableFooter, TableHeader, TableLayout, TableRow,
-    TableStripe, UiStyle, UiTheme, WidgetsPlugin, table, table_footer, table_header, table_row,
+    ActiveColumn, ActiveDescendant, StylistDisabled, Table, TableCheckedStyle, TableColumns,
+    TableCursor, TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
+    UiStyle, UiTheme, WidgetsPlugin, table, table_footer, table_header, table_row,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -248,6 +249,12 @@ fn a_row_edit_reaches_the_stylist() {
         }),
         "a row becoming the footer band"
     );
+    assert!(
+        rebuilds_after(|app, _, rows| {
+            app.world_mut().entity_mut(rows[0]).insert(Checked);
+        }),
+        "a row being checked"
+    );
 }
 
 #[test]
@@ -294,6 +301,42 @@ fn a_table_edit_reaches_the_stylist() {
     );
 }
 
+#[test]
+fn a_cursor_change_reaches_the_stylist() {
+    assert!(
+        rebuilds_after(|app, table, rows| {
+            app.world_mut()
+                .entity_mut(table)
+                .insert(ActiveDescendant(Some(rows[1])));
+        }),
+        "the cursor row"
+    );
+    assert!(
+        rebuilds_after(|app, table, _| {
+            app.world_mut()
+                .entity_mut(table)
+                .insert(ActiveColumn(Some(1)));
+        }),
+        "the cursor column"
+    );
+    assert!(
+        rebuilds_after(|app, table, _| {
+            app.world_mut()
+                .entity_mut(table)
+                .insert(TableCursor(Line::from("* ")));
+        }),
+        "the cursor symbol"
+    );
+    assert!(
+        rebuilds_after(|app, table, _| {
+            app.world_mut()
+                .entity_mut(table)
+                .insert(TableCheckedStyle(Style::new().bg(TINT)));
+        }),
+        "the checked style"
+    );
+}
+
 // Hover is deliberately absent: a table with no cursor row resolves its
 // style through `resting_style`, which sets hover, press and focus aside,
 // so hovering one changes nothing it draws.
@@ -320,6 +363,29 @@ fn a_state_change_reaches_the_stylist() {
             app.world_mut().resource_mut::<UiTheme>().normal = Style::new().fg(Color::Red);
         }),
         "the theme"
+    );
+}
+
+// Adding `TableSelection` brings its required components with it, so only a
+// mode that changes on a table already carrying one tests the mode itself.
+#[test]
+fn a_changed_selection_mode_reaches_the_stylist() {
+    let mut app = app();
+    let (table, _) = spawn_table(&mut app);
+    app.world_mut()
+        .entity_mut(table)
+        .insert(TableSelection::Row);
+    app.update();
+    let before = content(&app, table);
+
+    app.world_mut()
+        .entity_mut(table)
+        .insert(TableSelection::Cell);
+    app.update();
+
+    assert!(
+        !Arc::ptr_eq(&before, &content(&app, table)),
+        "switching from row to cell selection repaints the highlight"
     );
 }
 
