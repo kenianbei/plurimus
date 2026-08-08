@@ -38,8 +38,8 @@ pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;
 pub use size::{TerminalResized, TerminalSize};
 pub use sub_app::{
-    ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp, TerminalRenderAppExt,
-    TerminalRenderSystems,
+    CompositeSystems, ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp,
+    TerminalRenderAppExt, TerminalRenderSystems,
 };
 pub use viewport::{CameraSystems, Edge, ResolvedViewport, Viewport};
 pub use widget::placement::{UiArea, UiCamera, UiHidden, UiOrder, resolve_area, resolve_camera};

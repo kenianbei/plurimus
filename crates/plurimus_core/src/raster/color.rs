@@ -140,12 +140,13 @@ fn distance(a: [u8; 3], b: [u8; 3]) -> u32 {
 #[cfg(test)]
 mod tests {
     use bevy_app::App;
-    use bevy_ecs::prelude::Query;
+    use bevy_ecs::prelude::{Query, ResMut};
+    use bevy_ecs::schedule::IntoScheduleConfigs;
     use ratatui_core::style::{Color, Style};
 
     use super::{ColorDepth, downsample};
     use crate::{
-        CameraBuffer, CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp,
+        CameraBuffer, CompositeSystems, CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp,
         TerminalRenderAppExt, TerminalRenderSystems, TerminalSize,
     };
 
@@ -172,6 +173,38 @@ mod tests {
             buffer
                 .0
                 .set_string(0, 0, "R", Style::new().fg(Color::Rgb(255, 0, 0)));
+        }
+    }
+
+    #[test]
+    fn post_process_runs_between_merge_and_downsample() {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.insert_resource(TerminalSize { cols: 2, rows: 1 });
+        app.insert_resource(ColorDepth::Ansi16);
+        app.world_mut().spawn(TerminalCamera::default());
+        app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_truecolor);
+        app.add_terminal_systems(
+            TerminalRenderSystems::Composite,
+            recolor_raw_red.in_set(CompositeSystems::PostProcess),
+        );
+
+        app.update();
+
+        let frame = app
+            .sub_app(TerminalRenderApp)
+            .world()
+            .resource::<FrameBuffer>();
+        assert_eq!(frame.0.cell((0, 0)).unwrap().fg, Color::LightGreen);
+    }
+
+    /// Recolors only if the composed cell still holds the raw rasterized RGB,
+    /// so running before merge or after downsample leaves the frame red and
+    /// fails the assertion.
+    fn recolor_raw_red(mut frame: ResMut<FrameBuffer>) {
+        let cell = frame.0.cell_mut((0, 0)).unwrap();
+        if cell.fg == Color::Rgb(255, 0, 0) {
+            cell.fg = Color::Rgb(0, 255, 0);
         }
     }
 
