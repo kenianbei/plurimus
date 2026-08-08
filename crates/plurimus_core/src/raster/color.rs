@@ -140,8 +140,7 @@ fn distance(a: [u8; 3], b: [u8; 3]) -> u32 {
 #[cfg(test)]
 mod tests {
     use bevy_app::App;
-    use bevy_ecs::prelude::{Query, ResMut};
-    use bevy_ecs::schedule::IntoScheduleConfigs;
+    use bevy_ecs::prelude::{IntoScheduleConfigs, Query, ResMut};
     use ratatui_core::style::{Color, Style};
 
     use super::{ColorDepth, downsample};
@@ -152,20 +151,31 @@ mod tests {
 
     #[test]
     fn ansi16_depth_downsamples_composed_cell_colors() {
+        let mut app = ansi16_app();
+
+        app.update();
+
+        assert_eq!(frame_fg(&app), Color::LightRed);
+    }
+
+    fn ansi16_app() -> App {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
         app.insert_resource(TerminalSize { cols: 2, rows: 1 });
         app.insert_resource(ColorDepth::Ansi16);
         app.world_mut().spawn(TerminalCamera::default());
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_truecolor);
+        app
+    }
 
-        app.update();
-
-        let frame = app
-            .sub_app(TerminalRenderApp)
+    fn frame_fg(app: &App) -> Color {
+        app.sub_app(TerminalRenderApp)
             .world()
-            .resource::<FrameBuffer>();
-        assert_eq!(frame.0.cell((0, 0)).unwrap().fg, Color::LightRed);
+            .resource::<FrameBuffer>()
+            .0
+            .cell((0, 0))
+            .unwrap()
+            .fg
     }
 
     fn paint_truecolor(mut cameras: Query<&mut CameraBuffer>) {
@@ -178,12 +188,7 @@ mod tests {
 
     #[test]
     fn post_process_runs_between_merge_and_downsample() {
-        let mut app = App::new();
-        app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 2, rows: 1 });
-        app.insert_resource(ColorDepth::Ansi16);
-        app.world_mut().spawn(TerminalCamera::default());
-        app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_truecolor);
+        let mut app = ansi16_app();
         app.add_terminal_systems(
             TerminalRenderSystems::Composite,
             recolor_raw_red.in_set(CompositeSystems::PostProcess),
@@ -191,11 +196,7 @@ mod tests {
 
         app.update();
 
-        let frame = app
-            .sub_app(TerminalRenderApp)
-            .world()
-            .resource::<FrameBuffer>();
-        assert_eq!(frame.0.cell((0, 0)).unwrap().fg, Color::LightGreen);
+        assert_eq!(frame_fg(&app), Color::LightGreen);
     }
 
     /// Recolors only if the composed cell still holds the raw rasterized RGB,

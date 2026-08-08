@@ -33,8 +33,7 @@ pub struct TerminalRender;
 pub enum TerminalRenderSystems {
     /// Pipelines write cells into camera buffers.
     Rasterize,
-    /// Camera buffers merge into the frame buffer, which is then
-    /// post-processed and reduced to the terminal's color depth.
+    /// The composed frame is built; see [`CompositeSystems`] for its passes.
     Composite,
     /// The composed frame goes to the terminal.
     Present,
