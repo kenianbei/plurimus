@@ -10,11 +10,11 @@ Every frame flows through the same pipeline. Terminal-relevant data is extracted
 from the main world into a dedicated terminal render sub-app; pipelines
 rasterize that data into per-camera buffers (world-space pipelines first, the ui
 pass on top); the compositor merges camera buffers into a single frame buffer in
-camera order; and the presenter diffs the composed frame against the previous
-one, writing only the changed cells through a ratatui `Backend`. Multiple
-`TerminalCamera`s with cell-space viewports split the terminal the way multiple
-cameras split a window - a map view, a sidebar, and a minimap are three cameras
-with three viewports.
+camera order and downsamples it to the terminal's color depth; and the presenter
+diffs the composed frame against the previous one, writing only the changed
+cells through a ratatui `Backend`. Multiple `TerminalCamera`s with cell-space
+viewports split the terminal the way multiple cameras split a window - a map
+view, a sidebar, and a minimap are three cameras with three viewports.
 
 Consumers adopt the workspace in tiers. Core alone renders to any `Backend`;
 adding input and crossterm gives a live terminal; the ui, widgets, and bevy-ui
@@ -27,7 +27,7 @@ flowchart TB
 
     subgraph subapp["SubApp"]
         rasterize["Rasterize<br/>world pass / ui pass"]
-        composite["Composite<br/>merge buffers in camera order"]
+        composite["Composite<br/>merge / post-process / downsample"]
         present["Present<br/>diff against the previous frame"]
     end
 
@@ -57,14 +57,16 @@ The render pipeline. `CorePlugin` installs the terminal render sub-app: an
 extract schedule copies data out of the main world, then the `TerminalRender`
 schedule runs its three phases - `Rasterize` (pipelines write cells into
 `CameraBuffer`s, world-space passes beneath the ui pass), `Composite` (camera
-buffers merge into the `FrameBuffer` in camera order), and `Present`. Core owns
-`TerminalCamera` and viewport resolution against `TerminalSize`, the subcell
-raster primitives in `raster` (halfblock and braille grids, blits, color
-averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
-placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
-pass with no other crate involved. `PresenterPlugin<B>` diffs the composed frame
-and writes changed cells through any ratatui-core `Backend`. Re-exports
-`ratatui_core`.
+buffers merge into the `FrameBuffer` in camera order, apps post-process the
+composed frame in `CompositeSystems::PostProcess` while colors are still what
+the widgets chose, then colors downsample to the terminal's `ColorDepth`), and
+`Present`. Core owns `TerminalCamera` and viewport resolution against
+`TerminalSize`, the subcell raster primitives in `raster` (halfblock and braille
+grids, blits, color averaging, `ColorDepth` downsampling), and the widget
+primitive: a `UiWidget` placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and
+drawn in one z-sorted pass with no other crate involved. `PresenterPlugin<B>`
+diffs the composed frame and writes changed cells through any ratatui-core
+`Backend`. Re-exports `ratatui_core`.
 
 ### plurimus_input
 

@@ -33,7 +33,7 @@ pub struct TerminalRender;
 pub enum TerminalRenderSystems {
     /// Pipelines write cells into camera buffers.
     Rasterize,
-    /// Camera buffers merge into the frame buffer.
+    /// The composed frame is built; see [`CompositeSystems`] for its passes.
     Composite,
     /// The composed frame goes to the terminal.
     Present,
@@ -47,6 +47,19 @@ pub enum RasterizeSystems {
     World,
     /// The ui pipeline, drawn on top.
     Ui,
+}
+
+/// Ordered passes within [`TerminalRenderSystems::Composite`]: apps may
+/// post-process the composed frame after cameras merge and before color
+/// depth is reduced, while every color is still what the widgets chose.
+#[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum CompositeSystems {
+    /// Camera buffers merge into the frame buffer.
+    Merge,
+    /// Apps mutate or read the composed frame here.
+    PostProcess,
+    /// Color depth reduction, after every color has been decided.
+    Downsample,
 }
 
 /// Registers systems in the terminal render sub-app without exposing its
@@ -108,6 +121,16 @@ pub(crate) fn install(app: &mut App) {
             .chain()
             .in_set(TerminalRenderSystems::Rasterize),
     );
+    sub_app.configure_sets(
+        TerminalRender,
+        (
+            CompositeSystems::Merge,
+            CompositeSystems::PostProcess,
+            CompositeSystems::Downsample,
+        )
+            .chain()
+            .in_set(TerminalRenderSystems::Composite),
+    );
     sub_app.init_resource::<FrameBuffer>();
     sub_app.init_resource::<size::TerminalSize>();
     sub_app.init_resource::<raster::ColorDepth>();
@@ -121,9 +144,10 @@ pub(crate) fn install(app: &mut App) {
     );
     sub_app.add_systems(
         TerminalRender,
-        (compositor::composite, raster::downsample_frame)
-            .chain()
-            .in_set(TerminalRenderSystems::Composite),
+        (
+            compositor::composite.in_set(CompositeSystems::Merge),
+            raster::downsample_frame.in_set(CompositeSystems::Downsample),
+        ),
     );
     sub_app.set_extract(extract::extract);
     app.insert_sub_app(TerminalRenderApp, sub_app);
