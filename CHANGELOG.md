@@ -45,6 +45,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A `table` example**: a sortable, scrollable process list showing striping, a
   bolded header, a totals footer, remapped movement keys, and app-side sorting
   driven by header clicks.
+- **`CompositeSystems`**, the ordered passes of the composite phase. Its
+  `PostProcess` set runs after cameras merge and before color depth is reduced,
+  so an app can mutate or read the composed frame while every color is still
+  what the widgets chose.
 
 ### Changed
 
