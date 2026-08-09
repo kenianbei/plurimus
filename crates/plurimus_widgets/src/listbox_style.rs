@@ -169,9 +169,8 @@ fn list_row(content: &RowContent, marker: bool) -> ListRow<'static> {
     let source = content.text.map_or(slice::from_ref(content.label), |text| {
         text.0.lines.as_slice()
     });
-    // Continuation lines take a marker-width blank, so a row's text stays
-    // in one column however many lines it has. Ratatui blanks the cursor
-    // gutter itself, which is why only this one is drawn by hand.
+    // Ratatui blanks the cursor gutter below a row's first line; the
+    // marker column is ours, so its continuation blanks are drawn here.
     let mut drawn = Text::from(
         source
             .iter()

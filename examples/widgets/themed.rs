@@ -318,9 +318,7 @@ fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
         .insert(TabIndex(EDITOR_TAB_INDEX));
 }
 
-// The bar draws the scroll state, so the area must not draw its own. The
-// extent is the list's own business now: `sync_row_scroll` sums the row
-// heights, which is the only way a two-line row scrolls correctly.
+// The bar draws the scroll state, so the area must not draw its own.
 fn spawn_log(commands: &mut Commands, parent: Entity) {
     let view = commands
         .spawn((

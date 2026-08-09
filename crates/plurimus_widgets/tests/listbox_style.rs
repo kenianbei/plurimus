@@ -451,9 +451,8 @@ fn listbox_renders_rows_and_highlight() {
     insta::assert_snapshot!(composed_frame(&app));
 }
 
-// The marker column is plurimus's own, drawn into the row's text, so a
-// multi-line row has to indent its continuation lines by hand. The cursor
-// gutter beside them is ratatui's and blanks itself.
+// Guards the one gutter plurimus indents by hand: ratatui blanks the
+// cursor column below a row's first line, the marker column is ours.
 #[test]
 fn a_tall_rows_continuation_lines_keep_the_gutter_width() {
     let mut app = app();
