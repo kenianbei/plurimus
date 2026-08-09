@@ -13,10 +13,14 @@
 //! engine they share.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::marker::PhantomData;
 
-use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, Has, Query, Res, With, Without};
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Component, Has, Query, RemovedComponents, Res, With, Without};
+use bevy_ecs::query::QueryFilter;
+use bevy_ecs::system::SystemParam;
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span};
@@ -163,6 +167,74 @@ pub(crate) fn observed(
         focused: focus.get() == Some(entity),
         value_bits,
         ..StylistCache::styled(over)
+    }
+}
+
+/// Marks a container whose content changed: a row added, edited, restyled,
+/// or checked.
+///
+/// A container's rows are children, and a child's change never marks its
+/// parent, so no query filter on the container can see one.
+/// [`mark_dirty_content`] forwards it here, and the stylist reads this
+/// beside its [`StylistCache`] rather than hashing every row's content to
+/// find out.
+#[derive(Component)]
+pub(crate) struct ContentDirty<M: Send + Sync + 'static>(PhantomData<M>);
+
+impl<M: Send + Sync + 'static> Default for ContentDirty<M> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+// A row clearing one of these reaches its container by no other route:
+// `Changed` never fires for a component that goes, and the row itself keeps
+// no record that it had one.
+#[derive(SystemParam)]
+pub(crate) struct ClearedRows<'w, 's> {
+    checked: RemovedComponents<'w, 's, Checked>,
+    styled: RemovedComponents<'w, 's, UiStyle>,
+    parents: Query<'w, 's, &'static ChildOf>,
+}
+
+impl ClearedRows<'_, '_> {
+    // A despawned row resolves to nothing, which is right: its container
+    // hears about it through `Changed<Children>` instead.
+    fn parents(&mut self) -> Vec<Entity> {
+        self.checked
+            .read()
+            .chain(self.styled.read())
+            .filter_map(|row| self.parents.get(row).ok())
+            .map(ChildOf::parent)
+            .collect()
+    }
+}
+
+/// Forwards a row's change to the container that draws it.
+///
+/// `RowsChanged` filters the rows, `SelfChanged` the containers themselves.
+/// Both need a `With<..>` term beside any `Or`, which matches an archetype
+/// holding **any** one of its terms and would otherwise scan every entity
+/// in the app carrying one.
+pub(crate) fn mark_dirty_content<M, RowsChanged, SelfChanged>(
+    rows: Query<&ChildOf, RowsChanged>,
+    changed: Query<Entity, SelfChanged>,
+    mut cleared: ClearedRows,
+    mut content: Query<&mut ContentDirty<M>>,
+) where
+    M: Send + Sync + 'static,
+    RowsChanged: QueryFilter + 'static,
+    SelfChanged: QueryFilter + 'static,
+{
+    let touched = rows
+        .iter()
+        .map(ChildOf::parent)
+        .chain(changed.iter())
+        .chain(cleared.parents());
+    for container in touched {
+        if let Ok(mut dirty) = content.get_mut(container) {
+            dirty.set_changed();
+        }
     }
 }
 

@@ -74,8 +74,9 @@ pub(crate) use popover::place_popovers;
 pub(crate) use radio::style_radios;
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
+pub(crate) use stylist::mark_dirty_content;
 pub(crate) use table::{
-    mark_changed_tables, style_tables, sync_table_scroll, table_key, table_press,
+    TableRowsChanged, TableSelfChanged, style_tables, sync_table_scroll, table_key, table_press,
 };
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
@@ -170,7 +171,11 @@ fn add_layout_systems(app: &mut App) {
             )
                 .chain()
                 .in_set(WidgetSystems::Layout),
-            (mark_changed_tables, sync_table_scroll).in_set(WidgetSystems::Layout),
+            (
+                mark_dirty_content::<Table, TableRowsChanged, TableSelfChanged>,
+                sync_table_scroll,
+            )
+                .in_set(WidgetSystems::Layout),
         ),
     );
 }

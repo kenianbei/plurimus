@@ -207,16 +207,26 @@ fn content(app: &App, table: Entity) -> Arc<dyn TerminalWidget> {
         .content()
 }
 
-// Whether the stylist rebuilt the widget in response to `change`.
-fn rebuilds_after(change: impl FnOnce(&mut App, Entity, [Entity; 3])) -> bool {
+// Whether the stylist rebuilt the widget in response to `change`, with the
+// table already carrying whatever `setup` left on it.
+fn rebuilds_after_setup(
+    setup: impl FnOnce(&mut App, Entity, [Entity; 3]),
+    change: impl FnOnce(&mut App, Entity, [Entity; 3]),
+) -> bool {
     let mut app = app();
     let (table, rows) = spawn_table(&mut app);
+    setup(&mut app, table, rows);
     app.update();
     let before = content(&app, table);
 
     change(&mut app, table, rows);
     app.update();
     !Arc::ptr_eq(&before, &content(&app, table))
+}
+
+// Whether the stylist rebuilt the widget in response to `change`.
+fn rebuilds_after(change: impl FnOnce(&mut App, Entity, [Entity; 3])) -> bool {
+    rebuilds_after_setup(|_, _, _| {}, change)
 }
 
 #[test]
@@ -254,6 +264,36 @@ fn a_row_edit_reaches_the_stylist() {
             app.world_mut().entity_mut(rows[0]).insert(Checked);
         }),
         "a row being checked"
+    );
+}
+
+// `Changed` never fires for a component that goes, so a removal reaches the
+// stylist only through the forwarder's `RemovedComponents` readers.
+#[test]
+fn a_removed_row_component_reaches_the_stylist() {
+    assert!(
+        rebuilds_after_setup(
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).insert(Checked);
+            },
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).remove::<Checked>();
+            },
+        ),
+        "a row unchecked in place, the cursor never moving"
+    );
+    assert!(
+        rebuilds_after_setup(
+            |app, _, rows| {
+                app.world_mut()
+                    .entity_mut(rows[0])
+                    .insert(UiStyle(Style::new().fg(Color::Green)));
+            },
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).remove::<UiStyle>();
+            },
+        ),
+        "a row's style override cleared by removing it"
     );
 }
 

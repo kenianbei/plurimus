@@ -7,9 +7,9 @@
 //! a query filter on the table cannot: rows are children, and a child's change
 //! never marks its parent.
 
-use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut, Ref};
+use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::{ChildOf, Children};
+use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
@@ -17,34 +17,45 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::table::{Cell, HighlightSpacing, Row, Table as RatatuiTable, TableState};
 
 use super::{
-    ActiveColumn, CURSOR_SYMBOL, Table, TableCheckedStyle, TableColumns, TableContent, TableCursor,
-    TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
+    ActiveColumn, CURSOR_SYMBOL, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
+    TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
 };
 use crate::listbox::ActiveDescendant;
-use crate::stylist::{StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed};
+use crate::stylist::{
+    ContentDirty, StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed,
+};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::Checked;
 
-type RowChanged = Or<(
-    Changed<TableRow>,
-    Changed<UiStyle>,
-    Changed<Checked>,
-    Changed<TableHeader>,
-    Changed<TableFooter>,
-)>;
+// `With<TableRow>` is load-bearing: `Or` matches an archetype holding any
+// one of its terms, so without it every `Checked` or `UiStyle` entity in the
+// app is scanned.
+pub(crate) type TableRowsChanged = (
+    With<TableRow>,
+    Or<(
+        Changed<TableRow>,
+        Changed<UiStyle>,
+        Changed<Checked>,
+        Changed<TableHeader>,
+        Changed<TableFooter>,
+    )>,
+);
 
 // The cursor is absent by design: it reaches the stylist through
 // `StylistCache`, which needs no ordering against whatever moved it.
-type ContentChanged = Or<(
-    Changed<Children>,
-    Changed<TableColumns>,
-    Changed<TableStripe>,
-    Changed<TableLayout>,
-    Changed<TableCheckedStyle>,
-    Changed<TableCursor>,
-    Changed<TableSelection>,
-)>;
+pub(crate) type TableSelfChanged = (
+    With<Table>,
+    Or<(
+        Changed<Children>,
+        Changed<TableColumns>,
+        Changed<TableStripe>,
+        Changed<TableLayout>,
+        Changed<TableCheckedStyle>,
+        Changed<TableCursor>,
+        Changed<TableSelection>,
+    )>,
+);
 
 type TableRows<'w, 's> = Query<
     'w,
@@ -83,7 +94,7 @@ type Tables<'w, 's> = Query<
         &'static TableColumns,
         Look<'static>,
         Cursor<'static>,
-        Ref<'static, TableContent>,
+        Ref<'static, ContentDirty<Table>>,
         &'static mut StylistCache,
         &'static mut UiWidget,
     ),
@@ -115,28 +126,6 @@ struct Highlight {
     style: Style,
     symbol: Line<'static>,
     column: Option<usize>,
-}
-
-// A row's edit has to reach the table it belongs to. `With<TableRow>` is
-// load-bearing: `Or` matches an archetype holding any one of its terms, so
-// without it every `Checked` or `UiStyle` entity in the app is scanned.
-pub(crate) fn mark_changed_tables(
-    rows: Query<&ChildOf, (With<TableRow>, RowChanged)>,
-    changed: Query<Entity, (With<Table>, ContentChanged)>,
-    mut content: Query<&mut TableContent>,
-) {
-    for row in &rows {
-        touch(&mut content, row.parent());
-    }
-    for table in &changed {
-        touch(&mut content, table);
-    }
-}
-
-fn touch(content: &mut Query<&mut TableContent>, table: Entity) {
-    if let Ok(mut marker) = content.get_mut(table) {
-        marker.set_changed();
-    }
 }
 
 pub(crate) fn style_tables(
