@@ -38,8 +38,8 @@ pub use activate::Activate;
 pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
 pub use listbox::{
-    ActiveDescendant, ListBox, ListBoxCursor, ListBoxMultiSelect, ListBoxSelectionMarker, ListItem,
-    list_item, listbox,
+    ActiveDescendant, ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect,
+    ListBoxSelectionMarker, ListItem, list_item, listbox,
 };
 pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
 pub use pane::{Pane, pane};

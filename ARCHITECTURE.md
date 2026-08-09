@@ -124,16 +124,18 @@ child's change never marks its parent, so one generic pass in
 container before any stylist runs, and a second computes the container's scroll
 extent from its rows. A stylist reads that signal rather than hashing every row
 to find out, which is what keeps a settled list of any length free on an idle
-frame.
+frame. Both also take their movement keys from a component of `(Key, Action)`
+bindings - `ListBoxKeys`, `TableKeys` - scanned in order so the first match
+wins, which is how an app remaps a list to vim keys without reimplementing
+movement beside the widget; the sliders, menus, and text widgets still match
+keys inline.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
 opt-in: `TableSelection` makes the table a tab stop and chooses row, column, or
-cell granularity, and its movement keys are data in `TableKeys` rather than the
-closed match every other widget still uses. A header click reports its column so
-the app can sort - the crate supplies the geometry and never the ordering.
-Because a scroll area windows a widget whole, a scrolled table's bands scroll
-with its body.
+cell granularity. A header click reports its column so the app can sort - the
+crate supplies the geometry and never the ordering. Because a scroll area
+windows a widget whole, a scrolled table's bands scroll with its body.
 
 Re-exports `ratatui_widgets`, `ratatui_textarea`, and `bevy_input`'s `Key`.
 

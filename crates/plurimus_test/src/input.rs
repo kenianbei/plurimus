@@ -37,6 +37,19 @@ pub fn press_key(app: &mut App, code: KeyCode) {
     app.update();
 }
 
+/// Queues an autorepeat of `code` with no modifiers, then ticks the app.
+///
+/// A held key, as a terminal reports it on the kitty tier: widgets repeat
+/// movement on one but must not re-activate.
+pub fn repeat_key(app: &mut App, code: KeyCode) {
+    app.world_mut().write_message(KeyMessage {
+        code,
+        modifiers: KeyModifiers::default(),
+        kind: KeyKind::Repeat,
+    });
+    app.update();
+}
+
 /// Queues a key press carrying `modifiers`, then ticks the app.
 pub fn press_key_with(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
     write_key_with(app, code, modifiers);

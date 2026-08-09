@@ -2,13 +2,14 @@
 //!
 //! Rows are entities carrying [`ListItem`], not strings, so an app builds a
 //! list the same way it builds anything else and each row can hold its own
-//! components. The list box owns selection and keyboard movement; making it
+//! components. The list box owns selection and keyboard movement, its
+//! bindings data in [`ListBoxKeys`] rather than a closed match; making it
 //! scrollable is a separate decision, and adding a
 //! [`ScrollArea`](plurimus_ui::ScrollArea) is all it takes for the generic
 //! scroll machinery to window the rows.
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Children, Commands, Component, On, Query, With, Without};
 use bevy_input::ButtonState;
@@ -18,7 +19,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::text::Line;
 
-use super::{UiLabel, ValueChange, is_activate_key, placeholder};
+use super::{UiLabel, ValueChange, placeholder};
 use crate::rows::ContentDirty;
 use crate::stylist::StylistCache;
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
@@ -29,7 +30,14 @@ use plurimus_ui::{ScrollIntoView, ScrollOffset};
 /// [`listbox_self_update`](super::listbox_self_update) for uncontrolled
 /// behavior.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ActiveDescendant, ContentDirty<Self>)]
+#[require(
+    Hovered,
+    StylistCache,
+    ActiveDescendant,
+    ContentDirty<Self>,
+    ListBoxKeys,
+    ComputedWidgetArea
+)]
 pub struct ListBox;
 
 /// Allows multiple [`Checked`](plurimus_ui::Checked) items in a [`ListBox`].
@@ -76,46 +84,99 @@ pub fn list_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (ListItem, UiLabel(label.into()))
 }
 
-enum ListKey {
+/// What a key does to a [`ListBox`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ListBoxAction {
+    /// Move the cursor up one row.
     Up,
+    /// Move the cursor down one row.
     Down,
+    /// Move the cursor to the first row.
     First,
+    /// Move the cursor to the last row.
     Last,
+    /// Move the cursor up by the visible height.
+    PageUp,
+    /// Move the cursor down by the visible height.
+    PageDown,
+    /// Select the row the cursor is on.
     Select,
+}
+
+/// A [`ListBox`]'s key bindings, scanned in order so the first match wins.
+///
+/// Replace it to remap: two keys may share an action by appearing twice.
+/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
+/// `Enter` and space to select.
+#[derive(Component, Debug, Clone)]
+pub struct ListBoxKeys(pub Vec<(Key, ListBoxAction)>);
+
+impl Default for ListBoxKeys {
+    fn default() -> Self {
+        Self(vec![
+            (Key::ArrowUp, ListBoxAction::Up),
+            (Key::ArrowDown, ListBoxAction::Down),
+            (Key::Home, ListBoxAction::First),
+            (Key::End, ListBoxAction::Last),
+            (Key::PageUp, ListBoxAction::PageUp),
+            (Key::PageDown, ListBoxAction::PageDown),
+            (Key::Enter, ListBoxAction::Select),
+            (Key::Character(" ".into()), ListBoxAction::Select),
+        ])
+    }
 }
 
 pub(crate) fn listbox_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     mut boxes: Query<
-        (&Children, &mut ActiveDescendant),
+        (
+            &Children,
+            &ListBoxKeys,
+            &ComputedWidgetArea,
+            &mut ActiveDescendant,
+        ),
         (With<ListBox>, Without<InteractionDisabled>),
     >,
     items: Query<(), With<ListItem>>,
     mut commands: Commands,
 ) {
     let listbox = input.focused_entity;
-    let Ok((children, mut active)) = boxes.get_mut(listbox) else {
+    let Ok((children, keys, area, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let Some(action) = list_key(&input.input) else {
+    let Some(action) = bound_action(keys, &input.input) else {
         return;
     };
     input.propagate(false);
-    let rows: Vec<Entity> = list_rows(children, &items).collect();
-    if rows.is_empty() {
+    if action == ListBoxAction::Select {
+        if !input.input.repeat && list_rows(children, &items).next().is_some() {
+            select_active(listbox, *active, &mut commands);
+        }
         return;
     }
-    match action {
-        ListKey::Select => select_active(listbox, *active, &mut commands),
-        movement => {
-            let current = active
-                .0
-                .and_then(|item| rows.iter().position(|&row| row == item));
-            let index = moved_index(&movement, current, rows.len() - 1);
-            active.set_if_neq(ActiveDescendant(Some(rows[index])));
-            reveal_row(listbox, index, &mut commands);
-        }
+    let rows: Vec<Entity> = list_rows(children, &items).collect();
+    if let Some(index) = move_active(action, &rows, *area, &mut active) {
+        reveal_row(listbox, index, &mut commands);
     }
+}
+
+// Focus dispatch is unordered against `UiSystems::Areas`, so the area is a
+// frame stale and zero on the first, which pages by a single row.
+fn move_active(
+    action: ListBoxAction,
+    rows: &[Entity],
+    area: ComputedWidgetArea,
+    active: &mut Mut<ActiveDescendant>,
+) -> Option<usize> {
+    let last = rows.len().checked_sub(1)?;
+    let current = active
+        .0
+        .and_then(|item| rows.iter().position(|&row| row == item));
+    let page = usize::from(area.0.height).max(1);
+    let index = moved_index(action, current, last, page);
+    active.set_if_neq(ActiveDescendant(Some(rows[index])));
+    Some(index)
 }
 
 fn reveal_row(listbox: Entity, index: usize, commands: &mut Commands) {
@@ -126,25 +187,23 @@ fn reveal_row(listbox: Entity, index: usize, commands: &mut Commands) {
     });
 }
 
-fn list_key(input: &KeyboardInput) -> Option<ListKey> {
+fn bound_action(keys: &ListBoxKeys, input: &KeyboardInput) -> Option<ListBoxAction> {
     if input.state != ButtonState::Pressed {
         return None;
     }
-    match &input.logical_key {
-        Key::ArrowUp => Some(ListKey::Up),
-        Key::ArrowDown => Some(ListKey::Down),
-        Key::Home => Some(ListKey::First),
-        Key::End => Some(ListKey::Last),
-        _ if is_activate_key(input) => Some(ListKey::Select),
-        _ => None,
-    }
+    keys.0
+        .iter()
+        .find(|(key, _)| *key == input.logical_key)
+        .map(|(_, action)| *action)
 }
 
-fn moved_index(movement: &ListKey, current: Option<usize>, last: usize) -> usize {
-    match (movement, current) {
-        (ListKey::Up, Some(index)) => index.saturating_sub(1),
-        (ListKey::Down, Some(index)) => (index + 1).min(last),
-        (ListKey::Last, _) => last,
+fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
+    match (action, current) {
+        (ListBoxAction::Up, Some(index)) => index.saturating_sub(1),
+        (ListBoxAction::Down, Some(index)) => (index + 1).min(last),
+        (ListBoxAction::PageUp, Some(index)) => index.saturating_sub(page),
+        (ListBoxAction::PageDown, Some(index)) => index.saturating_add(page).min(last),
+        (ListBoxAction::Last, _) => last,
         _ => 0,
     }
 }
