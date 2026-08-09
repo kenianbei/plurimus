@@ -30,6 +30,10 @@ use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
 
+// The default symbol beside a cursor row, shared by every widget that draws
+// one so the crate's cursor cannot differ between two of them.
+pub(crate) const CURSOR_SYMBOL: &str = "> ";
+
 /// Exempts an entity from the stock stylists, leaving its [`UiWidget`] to
 /// the app. Behavior - selection, keys, scrolling, events - is untouched.
 #[derive(Component, Debug, Clone, Copy)]

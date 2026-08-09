@@ -17,12 +17,12 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::table::{Cell, HighlightSpacing, Row, Table as RatatuiTable, TableState};
 
 use super::{
-    ActiveColumn, CURSOR_SYMBOL, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
-    TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
+    ActiveColumn, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter, TableHeader,
+    TableLayout, TableRow, TableSelection, TableStripe,
 };
 use crate::listbox::ActiveDescendant;
 use crate::stylist::{
-    ContentDirty, StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed,
+    CURSOR_SYMBOL, ContentDirty, StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed,
 };
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;

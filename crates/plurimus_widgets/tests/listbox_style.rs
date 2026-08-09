@@ -1,5 +1,7 @@
 //! What a `ListBox` draws: gutters, per-row styles, and where focus lands.
 
+use std::sync::Arc;
+
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
@@ -7,13 +9,13 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::{Line, Span};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, TerminalWidget, UiWidget};
 use plurimus_input::KeyCode;
 use plurimus_test::{composed_frame, composed_styled_frame, press_key};
-use plurimus_ui::UiArea;
+use plurimus_ui::{Checked, InteractionDisabled, UiArea};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, UiLabel, UiStyle, WidgetsPlugin,
-    list_item, listbox, listbox_self_update,
+    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, UiLabel, UiStyle, UiTheme,
+    WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -230,6 +232,176 @@ fn a_row_keeps_its_line_style_through_the_marker_column() {
     assert!(
         composed_styled_frame(&app).contains("Indexed(236)"),
         "decorating a label must not drop its line style"
+    );
+}
+
+fn content(app: &App, container: Entity) -> Arc<dyn TerminalWidget> {
+    app.world()
+        .entity(container)
+        .get::<UiWidget>()
+        .expect("a styled list box")
+        .content()
+}
+
+// Whether the stylist rebuilt the widget in response to `change`, with the
+// list already carrying whatever `setup` left on it.
+fn rebuilds_after_setup(
+    setup: impl FnOnce(&mut App, Entity, [Entity; 3]),
+    change: impl FnOnce(&mut App, Entity, [Entity; 3]),
+) -> bool {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    setup(&mut app, container, items);
+    app.update();
+    let before = content(&app, container);
+
+    change(&mut app, container, items);
+    app.update();
+    !Arc::ptr_eq(&before, &content(&app, container))
+}
+
+fn rebuilds_after(change: impl FnOnce(&mut App, Entity, [Entity; 3])) -> bool {
+    rebuilds_after_setup(|_, _, _| {}, change)
+}
+
+// The stylist reads no row unless something says a row changed, so every
+// signal below is the only thing standing between an edit and a stale list.
+#[test]
+fn a_row_edit_reaches_the_stylist() {
+    assert!(
+        rebuilds_after(|app, _, items| {
+            app.world_mut()
+                .entity_mut(items[0])
+                .insert(UiLabel(Line::from("edited")));
+        }),
+        "a row's label"
+    );
+    assert!(
+        rebuilds_after(|app, _, items| {
+            app.world_mut()
+                .entity_mut(items[0])
+                .insert(UiStyle(Style::new().fg(Color::Green)));
+        }),
+        "a row's style override"
+    );
+    assert!(
+        rebuilds_after(|app, _, items| {
+            app.world_mut().entity_mut(items[0]).insert(Checked);
+        }),
+        "a row being checked"
+    );
+}
+
+// `Changed` never fires for a component that goes, so these reach the
+// stylist through the forwarder's `RemovedComponents` readers alone.
+#[test]
+fn a_removed_row_component_reaches_the_stylist() {
+    assert!(
+        rebuilds_after_setup(
+            |app, _, items| {
+                app.world_mut().entity_mut(items[0]).insert(Checked);
+            },
+            |app, _, items| {
+                app.world_mut().entity_mut(items[0]).remove::<Checked>();
+            },
+        ),
+        "a row unchecked in place, the cursor never moving"
+    );
+    assert!(
+        rebuilds_after_setup(
+            |app, _, items| {
+                app.world_mut()
+                    .entity_mut(items[0])
+                    .insert(UiStyle(Style::new().fg(Color::Green)));
+            },
+            |app, _, items| {
+                app.world_mut().entity_mut(items[0]).remove::<UiStyle>();
+            },
+        ),
+        "a row's style override cleared by removing it"
+    );
+}
+
+#[test]
+fn a_list_edit_reaches_the_stylist() {
+    assert!(
+        rebuilds_after(|app, container, _| {
+            app.world_mut()
+                .spawn((list_item("delta"), ChildOf(container)));
+        }),
+        "a row appearing"
+    );
+    // The one case only the list's own `Children` can report: the row that
+    // would have reported it is gone.
+    assert!(
+        rebuilds_after(|app, _, items| {
+            app.world_mut().entity_mut(items[0]).despawn();
+        }),
+        "a row disappearing"
+    );
+    assert!(
+        rebuilds_after(|app, container, items| {
+            app.world_mut().entity_mut(container).add_child(items[0]);
+        }),
+        "a row moving to the end of the order"
+    );
+    assert!(
+        rebuilds_after(|app, container, _| {
+            app.world_mut()
+                .entity_mut(container)
+                .insert(ListBoxCursor(Line::from("* ")));
+        }),
+        "the cursor symbol"
+    );
+    assert!(
+        rebuilds_after(|app, container, _| {
+            app.world_mut()
+                .entity_mut(container)
+                .insert(ListBoxSelectionMarker);
+        }),
+        "the marker column"
+    );
+}
+
+#[test]
+fn a_state_change_reaches_the_stylist() {
+    assert!(
+        rebuilds_after(|app, container, items| {
+            app.world_mut()
+                .entity_mut(container)
+                .insert(ActiveDescendant(Some(items[1])));
+        }),
+        "the cursor row, which is the hashed path rather than a forwarded one"
+    );
+    assert!(
+        rebuilds_after(|app, container, _| {
+            app.world_mut()
+                .entity_mut(container)
+                .insert(InteractionDisabled);
+        }),
+        "the list being disabled"
+    );
+    assert!(
+        rebuilds_after(|app, container, _| {
+            app.world_mut()
+                .entity_mut(container)
+                .insert(UiStyle(Style::new().fg(Color::Green)));
+        }),
+        "the list's own style override"
+    );
+    assert!(
+        rebuilds_after(|app, _, _| {
+            app.world_mut().resource_mut::<UiTheme>().normal = Style::new().fg(Color::Red);
+        }),
+        "the theme"
+    );
+}
+
+#[test]
+fn an_idle_frame_rebuilds_nothing() {
+    assert!(
+        !rebuilds_after(|app, _, _| app.update()),
+        "a settled list is left alone frame after frame"
     );
 }
 

@@ -19,7 +19,7 @@ use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::ratatui_core::text::Line;
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::StylistCache;
+use crate::stylist::{ContentDirty, StylistCache};
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollArea, ScrollIntoView, ScrollOffset};
 
@@ -28,7 +28,7 @@ use plurimus_ui::{ScrollArea, ScrollIntoView, ScrollOffset};
 /// [`listbox_self_update`](super::listbox_self_update) for uncontrolled
 /// behavior.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ActiveDescendant)]
+#[require(Hovered, StylistCache, ActiveDescendant, ContentDirty<Self>)]
 pub struct ListBox;
 
 /// Allows multiple [`Checked`](plurimus_ui::Checked) items in a [`ListBox`].

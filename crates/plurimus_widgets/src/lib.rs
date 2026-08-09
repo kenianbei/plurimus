@@ -63,7 +63,7 @@ pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{listbox_key, listbox_press, sync_listbox_scroll};
-pub(crate) use listbox_style::style_listboxes;
+pub(crate) use listbox_style::{ListRowsChanged, ListSelfChanged, style_listboxes};
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
     style_menu_popups,
@@ -172,6 +172,7 @@ fn add_layout_systems(app: &mut App) {
                 .chain()
                 .in_set(WidgetSystems::Layout),
             (
+                mark_dirty_content::<ListBox, ListRowsChanged, ListSelfChanged>,
                 mark_dirty_content::<Table, TableRowsChanged, TableSelfChanged>,
                 sync_table_scroll,
             )
