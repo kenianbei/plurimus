@@ -19,6 +19,7 @@ use bevy_ecs::query::QueryFilter;
 use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
 
+use crate::listbox::{ListItemText, row_height};
 use crate::stylist::UiStyle;
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea};
 
@@ -95,12 +96,15 @@ pub(crate) fn mark_dirty_content<Container, Row, RowsChanged, SelfChanged>(
     }
 }
 
-/// Keeps a scrollable container's content size at (content width, row
-/// count), so the generic scroll machinery windows it correctly.
+/// Keeps a scrollable container's content size at (content width, summed
+/// row heights), so the generic scroll machinery windows it correctly.
 ///
 /// A scroll area windows a widget whole, so the content is as tall as every
 /// row the container draws - which is why a scrolled table's header band
 /// scrolls with its body.
+///
+/// Only a list box's rows can be taller than one line, through
+/// [`ListItemText`]; a table's rows read `None` and sum to their count.
 pub(crate) fn sync_row_scroll<Container: Component, Row: Component>(
     mut containers: Query<
         (&ComputedWidgetArea, &Children, &mut ScrollArea),
@@ -110,17 +114,19 @@ pub(crate) fn sync_row_scroll<Container: Component, Row: Component>(
                 Changed<Children>,
                 Changed<ComputedWidgetArea>,
                 Changed<ScrollArea>,
+                Changed<ContentDirty<Container>>,
             )>,
         ),
     >,
-    rows: Query<(), With<Row>>,
+    rows: Query<Option<&ListItemText>, With<Row>>,
 ) {
     for (area, children, mut scroll) in &mut containers {
-        let lines = children.iter().filter(|&&row| rows.contains(row)).count();
-        let content = Size::new(
-            scroll.content_width(area.0.width),
-            u16::try_from(lines).unwrap_or(u16::MAX),
-        );
+        let lines: u16 = children
+            .iter()
+            .filter_map(|&child| rows.get(child).ok())
+            .map(row_height)
+            .fold(0, u16::saturating_add);
+        let content = Size::new(scroll.content_width(area.0.width), lines);
         if scroll.content_size != content {
             scroll.content_size = content;
         }

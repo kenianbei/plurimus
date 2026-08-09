@@ -17,7 +17,7 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::ratatui_core::text::Line;
+use plurimus_core::ratatui_core::text::{Line, Text};
 
 use super::{UiLabel, ValueChange, placeholder};
 use crate::rows::ContentDirty;
@@ -67,6 +67,17 @@ pub struct ListBoxCursor(pub Line<'static>);
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListItem;
+
+/// Draws a [`ListItem`] as more than one terminal row, in place of its
+/// [`UiLabel`].
+///
+/// Explicit line breaks only: the list truncates a line rather than
+/// wrapping it, so a row is exactly as tall as the [`Text`] has lines. An
+/// empty one still takes a row. Only the list box reads this - every other
+/// widget draws the single-line [`UiLabel`], which stays the row's label
+/// for anything that asks.
+#[derive(Component, Debug, Clone)]
+pub struct ListItemText(pub Text<'static>);
 
 /// The highlighted item. Keyboard focus stays on the [`ListBox`] itself;
 /// this tracks which row its keys act on.
@@ -138,7 +149,7 @@ pub(crate) fn listbox_key(
         ),
         (With<ListBox>, Without<InteractionDisabled>),
     >,
-    items: Query<(), With<ListItem>>,
+    items: RowTexts,
     mut commands: Commands,
 ) {
     let listbox = input.focused_entity;
@@ -150,14 +161,14 @@ pub(crate) fn listbox_key(
     };
     input.propagate(false);
     if action == ListBoxAction::Select {
-        if !input.input.repeat && list_rows(children, &items).next().is_some() {
+        if !input.input.repeat && row_spans(children, &items).next().is_some() {
             select_active(listbox, *active, &mut commands);
         }
         return;
     }
-    let rows: Vec<Entity> = list_rows(children, &items).collect();
-    if let Some(index) = move_active(action, &rows, *area, &mut active) {
-        reveal_row(listbox, index, &mut commands);
+    let rows: Vec<RowSpan> = row_spans(children, &items).collect();
+    if let Some(span) = move_active(action, &rows, *area, &mut active) {
+        reveal_row(listbox, span, &mut commands);
     }
 }
 
@@ -165,25 +176,26 @@ pub(crate) fn listbox_key(
 // frame stale and zero on the first, which pages by a single row.
 fn move_active(
     action: ListBoxAction,
-    rows: &[Entity],
+    rows: &[RowSpan],
     area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
-) -> Option<usize> {
+) -> Option<RowSpan> {
     let last = rows.len().checked_sub(1)?;
     let current = active
         .0
-        .and_then(|item| rows.iter().position(|&row| row == item));
+        .and_then(|item| rows.iter().position(|row| row.entity == item));
+    // A page is a count of items rather than of lines, so a page of
+    // multi-line rows travels further than one screen - never less.
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
-    active.set_if_neq(ActiveDescendant(Some(rows[index])));
-    Some(index)
+    active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));
+    Some(rows[index])
 }
 
-fn reveal_row(listbox: Entity, index: usize, commands: &mut Commands) {
-    let row = u16::try_from(index).unwrap_or(u16::MAX);
+fn reveal_row(listbox: Entity, span: RowSpan, commands: &mut Commands) {
     commands.trigger(ScrollIntoView {
         entity: listbox,
-        target: Rect::new(0, row, 1, 1),
+        target: Rect::new(0, span.top, 1, span.height),
     });
 }
 
@@ -229,7 +241,7 @@ pub(crate) fn listbox_press(
         ),
         With<ListBox>,
     >,
-    items: Query<(), With<ListItem>>,
+    items: RowTexts,
     mut commands: Commands,
 ) {
     let listbox = event.entity;
@@ -237,32 +249,57 @@ pub(crate) fn listbox_press(
         return;
     };
     let scrolled = offset.map_or(0, |offset| offset.0.y);
-    let row = event
+    let line = event
         .position
         .y
         .saturating_sub(area.0.y)
         .saturating_add(scrolled);
-    let Some(item) = row_entity(children, &items, usize::from(row)) else {
+    let Some(span) = row_spans(children, &items).find(|span| span.contains(line)) else {
         return;
     };
-    active.set_if_neq(ActiveDescendant(Some(item)));
+    active.set_if_neq(ActiveDescendant(Some(span.entity)));
     select_active(listbox, *active, &mut commands);
 }
 
-fn list_rows<'a>(
-    children: &'a Children,
-    items: &'a Query<(), With<ListItem>>,
-) -> impl Iterator<Item = Entity> + 'a {
-    children
-        .iter()
-        .copied()
-        .filter(|child| items.contains(*child))
+/// The rows a list's geometry is measured from: every [`ListItem`] child,
+/// with the text that decides how tall it is.
+pub(crate) type RowTexts<'w, 's> = Query<'w, 's, Option<&'static ListItemText>, With<ListItem>>;
+
+/// Where one row sits in the list's own content space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RowSpan {
+    pub(crate) entity: Entity,
+    pub(crate) top: u16,
+    pub(crate) height: u16,
 }
 
-fn row_entity(
-    children: &Children,
-    items: &Query<(), With<ListItem>>,
-    row: usize,
-) -> Option<Entity> {
-    list_rows(children, items).nth(row)
+impl RowSpan {
+    const fn contains(self, line: u16) -> bool {
+        line >= self.top && line < self.top.saturating_add(self.height)
+    }
+}
+
+// A row is at least one line tall, so an empty `ListItemText` cannot make
+// two rows share a top and swallow the clicks meant for one of them.
+pub(crate) fn row_height(text: Option<&ListItemText>) -> u16 {
+    text.map_or(1, |text| {
+        u16::try_from(text.0.height()).unwrap_or(u16::MAX).max(1)
+    })
+}
+
+pub(crate) fn row_spans<'a>(
+    children: &'a Children,
+    items: &'a RowTexts,
+) -> impl Iterator<Item = RowSpan> + 'a {
+    let mut top = 0;
+    children.iter().copied().filter_map(move |child| {
+        let height = row_height(items.get(child).ok()?);
+        let span = RowSpan {
+            entity: child,
+            top,
+            height,
+        };
+        top = top.saturating_add(height);
+        Some(span)
+    })
 }

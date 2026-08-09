@@ -18,7 +18,9 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
 use crate::UiLabel;
-use crate::listbox::{ActiveDescendant, ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem};
+use crate::listbox::{
+    ActiveDescendant, ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemText,
+};
 use crate::rows::ContentDirty;
 use crate::stylist::{
     StateQuery, Stylable, StylistCache, UiStyle, cursor_symbol, decorate, hashed_bits, observed,
@@ -32,6 +34,7 @@ use plurimus_ui::Checked;
 pub(crate) type ListRowsChanged = Or<(
     Changed<ListItem>,
     Changed<UiLabel>,
+    Changed<ListItemText>,
     Changed<UiStyle>,
     Changed<Checked>,
 )>;
