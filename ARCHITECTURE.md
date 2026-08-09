@@ -117,6 +117,15 @@ its look while keeping its behavior, and `UiStyle` patches over the style an
 entity would otherwise resolve to, on a widget or on one list or table row. A
 `UiLabel` is a ratatui `Line`, so a label carries per-span style of its own.
 
+The two widgets drawn from row children - the list box and the table - carry a
+second change signal beside that one. Their rows are child entities, and a
+child's change never marks its parent, so one generic pass in
+`WidgetSystems::Layout` forwards a row's edit, restyle, check, or uncheck to the
+container before any stylist runs, and a second computes the container's scroll
+extent from its rows. A stylist reads that signal rather than hashing every row
+to find out, which is what keeps a settled list of any length free on an idle
+frame.
+
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
 opt-in: `TableSelection` makes the table a tab stop and chooses row, column, or
@@ -165,7 +174,9 @@ Dev-only test support; a dev-dependency everywhere, never shipped. Input
 injection (`press_key`, `click`, and friends) writes messages as if a backend
 had translated them, and `composed_frame`/`composed_styled_frame` snapshot the
 composed `FrameBuffer` straight out of the sub-app - so a test drives a full app
-headlessly with no terminal and no presenter attached.
+headlessly with no terminal and no presenter attached. `widget_content` hands
+back the drawable an entity currently holds, which is how a test tells a redraw
+from a skipped one.
 
 ## External Crates
 

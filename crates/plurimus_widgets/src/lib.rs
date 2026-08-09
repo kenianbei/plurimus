@@ -124,8 +124,10 @@ pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
 /// [`after`](IntoScheduleConfigs::after) [`WidgetSystems::Style`].
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum WidgetSystems {
-    /// `PreUpdate`: listbox scroll sync, popup sizing, and popover and menu
-    /// row placement, between [`UiSystems::Areas`] and [`UiSystems::Hover`].
+    /// `PreUpdate`: scroll extent and row-change forwarding for the
+    /// containers drawn from row children, popup sizing, and popover and
+    /// menu row placement, between [`UiSystems::Areas`] and
+    /// [`UiSystems::Hover`].
     Layout,
     /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`].
     Style,
