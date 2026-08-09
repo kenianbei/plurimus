@@ -83,8 +83,8 @@ pub(crate) fn style_listboxes(
     items: RowItems,
 ) {
     for (state, active, children, marker, cursor, content, mut cache, mut widget) in &mut boxes {
-        // A `Copy` scalar, not the row content this once hashed: an idle
-        // frame reaches the gate below without touching a row.
+        // A `Copy` scalar, so an idle frame reaches the gate below without
+        // touching a row.
         let next = observed(state, &focus, hashed_bits(active.0));
         if !theme.is_changed() && !content.is_changed() && next == *cache {
             continue;
@@ -102,8 +102,6 @@ pub(crate) fn style_listboxes(
     }
 }
 
-// One pass over the children builds the rows and notes where the cursor
-// landed among them, as the table's `bands` does.
 fn list_widget(
     (children, items): (&Children, &RowItems),
     active: Option<Entity>,

@@ -26,12 +26,9 @@ use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
 
-// The default symbol beside a cursor row, shared by every widget that draws
-// one so the crate's cursor cannot differ between two of them.
+// Shared, so the crate's cursor cannot differ between two widgets.
 pub(crate) const CURSOR_SYMBOL: &str = "> ";
 
-// What a widget draws beside its cursor row, its own override or the
-// crate default.
 pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
     over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
 }

@@ -128,8 +128,8 @@ pub(crate) fn style_tables(
     for (state, children, columns, look, cursor, content, mut cache, mut widget) in &mut tables {
         let (stripe, checked, layout, symbol) = look;
         let (selection, active, column) = cursor;
-        // A `Copy` scalar pair, not the row content other aggregate stylists
-        // hash, and compared here so the cursor needs no system ordering.
+        // A `Copy` scalar pair, compared here so the cursor needs no
+        // system ordering against whatever moved it.
         let next = observed(
             state,
             &focus,
