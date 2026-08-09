@@ -36,7 +36,8 @@ use plurimus_core::ratatui_core::text::Line;
 
 use crate::listbox::ActiveDescendant;
 use crate::placeholder;
-use crate::stylist::{CURSOR_SYMBOL, ContentDirty, StylistCache};
+use crate::rows::ContentDirty;
+use crate::stylist::{CURSOR_SYMBOL, StylistCache};
 use plurimus_ui::Hovered;
 
 /// A table of [`TableRow`] children, drawn as one ratatui `Table`.

@@ -9,12 +9,12 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::{Line, Span};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, TerminalWidget, UiWidget};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::KeyCode;
-use plurimus_test::{composed_frame, composed_styled_frame, press_key};
+use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_content, write_key};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, UiLabel, UiStyle, UiTheme,
+    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListItem, UiLabel, UiStyle, UiTheme,
     WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
@@ -235,14 +235,6 @@ fn a_row_keeps_its_line_style_through_the_marker_column() {
     );
 }
 
-fn content(app: &App, container: Entity) -> Arc<dyn TerminalWidget> {
-    app.world()
-        .entity(container)
-        .get::<UiWidget>()
-        .expect("a styled list box")
-        .content()
-}
-
 // Whether the stylist rebuilt the widget in response to `change`, with the
 // list already carrying whatever `setup` left on it.
 fn rebuilds_after_setup(
@@ -253,11 +245,11 @@ fn rebuilds_after_setup(
     let (container, items) = spawn_listbox(&mut app);
     setup(&mut app, container, items);
     app.update();
-    let before = content(&app, container);
+    let before = widget_content(&app, container);
 
     change(&mut app, container, items);
     app.update();
-    !Arc::ptr_eq(&before, &content(&app, container))
+    !Arc::ptr_eq(&before, &widget_content(&app, container))
 }
 
 fn rebuilds_after(change: impl FnOnce(&mut App, Entity, [Entity; 3])) -> bool {
@@ -289,6 +281,19 @@ fn a_row_edit_reaches_the_stylist() {
             app.world_mut().entity_mut(items[0]).insert(Checked);
         }),
         "a row being checked"
+    );
+    // The child is already there and already labelled, so `Children` and
+    // `UiLabel` both stay quiet; only `ListItem` itself reports it.
+    assert!(
+        rebuilds_after(|app, container, _| {
+            let bystander = app
+                .world_mut()
+                .spawn((UiLabel(Line::from("delta")), ChildOf(container)))
+                .id();
+            app.update();
+            app.world_mut().entity_mut(bystander).insert(ListItem);
+        }),
+        "a plain child becoming a row"
     );
 }
 
@@ -403,6 +408,33 @@ fn an_idle_frame_rebuilds_nothing() {
         !rebuilds_after(|app, _, _| app.update()),
         "a settled list is left alone frame after frame"
     );
+}
+
+// The forwarder runs in `PreUpdate` and the stylist in `Update`, so a
+// selection made by a key has one shot at the same frame's repaint.
+#[test]
+fn a_key_driven_selection_paints_in_the_frame_it_happens() {
+    let mut app = app();
+    app.add_observer(listbox_self_update);
+    let (container, _) = spawn_listbox(&mut app);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ListBoxSelectionMarker);
+    app.update();
+
+    write_key(&mut app, KeyCode::Down);
+    app.update();
+    write_key(&mut app, KeyCode::Enter);
+    app.update();
+    let landed = composed_frame(&app);
+
+    app.update();
+    assert_eq!(
+        landed,
+        composed_frame(&app),
+        "the check mark is painted by the frame the key landed in, not one later"
+    );
+    assert!(landed.contains('▪'), "the row is checked at all: {landed}");
 }
 
 #[test]

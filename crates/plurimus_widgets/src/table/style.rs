@@ -3,14 +3,13 @@
 //! Two change signals meet here, and keeping them apart is what stops an idle
 //! frame doing any work. [`StylistCache`] answers "does it draw differently" -
 //! hover, focus, disabled, the table's own style override - as it does for
-//! every widget. [`TableContent`] answers "does it draw something else", which
-//! a query filter on the table cannot: rows are children, and a child's change
-//! never marks its parent.
+//! every widget, and [`ContentDirty`](crate::rows::ContentDirty) answers
+//! "does it draw something else".
 
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
+use bevy_ecs::prelude::{Changed, Has, Or, Query, Res};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
@@ -21,41 +20,33 @@ use super::{
     TableLayout, TableRow, TableSelection, TableStripe,
 };
 use crate::listbox::ActiveDescendant;
+use crate::rows::ContentDirty;
 use crate::stylist::{
-    CURSOR_SYMBOL, ContentDirty, StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed,
+    StateQuery, Stylable, StylistCache, UiStyle, cursor_symbol, hashed_bits, observed,
 };
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::Checked;
 
-// `With<TableRow>` is load-bearing: `Or` matches an archetype holding any
-// one of its terms, so without it every `Checked` or `UiStyle` entity in the
-// app is scanned.
-pub(crate) type TableRowsChanged = (
-    With<TableRow>,
-    Or<(
-        Changed<TableRow>,
-        Changed<UiStyle>,
-        Changed<Checked>,
-        Changed<TableHeader>,
-        Changed<TableFooter>,
-    )>,
-);
+pub(crate) type TableRowsChanged = Or<(
+    Changed<TableRow>,
+    Changed<UiStyle>,
+    Changed<Checked>,
+    Changed<TableHeader>,
+    Changed<TableFooter>,
+)>;
 
 // The cursor is absent by design: it reaches the stylist through
 // `StylistCache`, which needs no ordering against whatever moved it.
-pub(crate) type TableSelfChanged = (
-    With<Table>,
-    Or<(
-        Changed<Children>,
-        Changed<TableColumns>,
-        Changed<TableStripe>,
-        Changed<TableLayout>,
-        Changed<TableCheckedStyle>,
-        Changed<TableCursor>,
-        Changed<TableSelection>,
-    )>,
-);
+pub(crate) type TableSelfChanged = Or<(
+    Changed<Children>,
+    Changed<TableColumns>,
+    Changed<TableStripe>,
+    Changed<TableLayout>,
+    Changed<TableCheckedStyle>,
+    Changed<TableCursor>,
+    Changed<TableSelection>,
+)>;
 
 type TableRows<'w, 's> = Query<
     'w,
@@ -161,7 +152,7 @@ pub(crate) fn style_tables(
         let highlight = Highlight {
             selection: selection.copied(),
             style: next.style(&theme),
-            symbol: symbol.map_or_else(|| Line::from(CURSOR_SYMBOL), |cursor| cursor.0.clone()),
+            symbol: cursor_symbol(symbol.map(|cursor| &cursor.0)),
             column: column.and_then(|column| column.0),
         };
         *widget = table_widget(bands, chrome, highlight);

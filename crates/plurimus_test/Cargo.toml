@@ -11,6 +11,7 @@ rust-version.workspace = true
 
 [dependencies]
 bevy_app = { workspace = true }
+bevy_ecs = { workspace = true }
 plurimus_core = { workspace = true }
 plurimus_input = { workspace = true }
 

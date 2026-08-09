@@ -19,7 +19,8 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::text::Line;
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
-use crate::stylist::{ContentDirty, StylistCache};
+use crate::rows::ContentDirty;
+use crate::stylist::StylistCache;
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollIntoView, ScrollOffset};
 

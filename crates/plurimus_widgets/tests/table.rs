@@ -8,9 +8,8 @@ use bevy_ecs::prelude::ChildOf;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::Line;
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, TerminalWidget, UiWidget};
-use plurimus_test::composed_frame;
-use plurimus_test::composed_styled_frame;
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiWidget};
+use plurimus_test::{composed_frame, composed_styled_frame, widget_content};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
@@ -199,14 +198,6 @@ fn stylist_disabled_leaves_the_widget_to_the_app() {
     );
 }
 
-fn content(app: &App, table: Entity) -> Arc<dyn TerminalWidget> {
-    app.world()
-        .entity(table)
-        .get::<UiWidget>()
-        .expect("a styled table")
-        .content()
-}
-
 // Whether the stylist rebuilt the widget in response to `change`, with the
 // table already carrying whatever `setup` left on it.
 fn rebuilds_after_setup(
@@ -217,11 +208,11 @@ fn rebuilds_after_setup(
     let (table, rows) = spawn_table(&mut app);
     setup(&mut app, table, rows);
     app.update();
-    let before = content(&app, table);
+    let before = widget_content(&app, table);
 
     change(&mut app, table, rows);
     app.update();
-    !Arc::ptr_eq(&before, &content(&app, table))
+    !Arc::ptr_eq(&before, &widget_content(&app, table))
 }
 
 // Whether the stylist rebuilt the widget in response to `change`.
@@ -416,7 +407,7 @@ fn a_changed_selection_mode_reaches_the_stylist() {
         .entity_mut(table)
         .insert(TableSelection::Row);
     app.update();
-    let before = content(&app, table);
+    let before = widget_content(&app, table);
 
     app.world_mut()
         .entity_mut(table)
@@ -424,7 +415,7 @@ fn a_changed_selection_mode_reaches_the_stylist() {
     app.update();
 
     assert!(
-        !Arc::ptr_eq(&before, &content(&app, table)),
+        !Arc::ptr_eq(&before, &widget_content(&app, table)),
         "switching from row to cell selection repaints the highlight"
     );
 }

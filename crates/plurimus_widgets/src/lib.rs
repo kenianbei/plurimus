@@ -20,7 +20,7 @@ mod menu_layout;
 mod pane;
 mod popover;
 mod radio;
-mod row_scroll;
+mod rows;
 mod scrollbar;
 mod self_update;
 mod slider;
@@ -73,10 +73,9 @@ pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
 pub(crate) use pane::style_panes;
 pub(crate) use popover::place_popovers;
 pub(crate) use radio::style_radios;
-pub(crate) use row_scroll::sync_row_scroll;
+pub(crate) use rows::{mark_dirty_content, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
-pub(crate) use stylist::mark_dirty_content;
 pub(crate) use table::{TableRowsChanged, TableSelfChanged, style_tables, table_key, table_press};
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
@@ -163,17 +162,13 @@ fn add_layout_systems(app: &mut App) {
         PreUpdate,
         (
             install_editor_views.before(UiSystems::Areas),
-            (
-                sync_row_scroll::<ListBox, ListItem>,
-                size_menu_popups,
-                place_popovers,
-                place_menu_items,
-            )
+            (size_menu_popups, place_popovers, place_menu_items)
                 .chain()
                 .in_set(WidgetSystems::Layout),
             (
-                mark_dirty_content::<ListBox, ListRowsChanged, ListSelfChanged>,
-                mark_dirty_content::<Table, TableRowsChanged, TableSelfChanged>,
+                mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
+                mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
+                sync_row_scroll::<ListBox, ListItem>,
                 sync_row_scroll::<Table, TableRow>,
             )
                 .in_set(WidgetSystems::Layout),
