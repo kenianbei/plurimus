@@ -1,10 +1,12 @@
 //! `ListBox` keyboard navigation and selection flows, fully headless.
 
 use bevy_app::App;
+use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
+use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{press_key, repeat_key, send_mouse};
@@ -12,8 +14,8 @@ use plurimus_ui::{
     Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
 };
 use plurimus_widgets::{
-    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItem, WidgetsPlugin,
-    button, list_item, listbox, listbox_self_update,
+    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItem, ListItemText,
+    WidgetsPlugin, button, list_item, listbox, listbox_self_update,
 };
 
 #[derive(Resource, Default)]
@@ -353,5 +355,105 @@ fn keyboard_keeps_the_active_row_visible() {
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 0)
+    );
+}
+
+fn spawn_tall_listbox(app: &mut App) -> (Entity, [Entity; 3]) {
+    let world = app.world_mut();
+    let container = world
+        .spawn((
+            listbox(),
+            UiArea::Fixed(Rect::new(0, 0, 12, 4)),
+            ScrollArea::new(Size::new(1, 1)),
+        ))
+        .id();
+    let items = [
+        world.spawn((tall_item("one", 2), ChildOf(container))).id(),
+        world.spawn((tall_item("two", 3), ChildOf(container))).id(),
+        world.spawn((list_item("three"), ChildOf(container))).id(),
+    ];
+    world
+        .resource_mut::<InputFocus>()
+        .set(container, FocusCause::Pressed);
+    (container, items)
+}
+
+fn tall_item(label: &str, lines: usize) -> impl Bundle {
+    let text = Text::from(vec![Line::from(label.to_owned()); lines]);
+    (list_item(label.to_owned()), ListItemText(text))
+}
+
+fn extent(app: &App, container: Entity) -> u16 {
+    app.world()
+        .get::<ScrollArea>(container)
+        .expect("a scroll area")
+        .content_size
+        .height
+}
+
+#[test]
+fn the_scroll_extent_sums_row_heights() {
+    let mut app = app();
+    let (container, _) = spawn_tall_listbox(&mut app);
+    app.update();
+
+    assert_eq!(
+        extent(&app, container),
+        6,
+        "two plus three plus a single-line row"
+    );
+}
+
+#[test]
+fn editing_a_rows_text_resizes_the_extent() {
+    let mut app = app();
+    let (container, items) = spawn_tall_listbox(&mut app);
+    app.update();
+
+    app.world_mut()
+        .entity_mut(items[0])
+        .insert(ListItemText(Text::from(vec![Line::from("one"); 4])));
+    app.update();
+
+    assert_eq!(
+        extent(&app, container),
+        8,
+        "the row grew by two without the children changing"
+    );
+}
+
+#[test]
+fn a_click_anywhere_in_a_tall_row_selects_it() {
+    let mut app = app();
+    let (container, items) = spawn_tall_listbox(&mut app);
+    app.update();
+
+    for (line, expected) in [(0, items[0]), (1, items[0]), (2, items[1])] {
+        send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, line);
+        assert_eq!(
+            active(&app, container),
+            Some(expected),
+            "the click on line {line} lands in the row that spans it"
+        );
+    }
+}
+
+#[test]
+fn a_tall_row_is_revealed_whole() {
+    let mut app = app();
+    let (container, _) = spawn_tall_listbox(&mut app);
+    app.update();
+
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Down);
+    app.update();
+
+    // The cursor is on the three-line row spanning lines 2 to 4, and the
+    // view is 4 tall: its first line is already visible, so anything that
+    // reveals less than the whole row scrolls nowhere.
+    assert_eq!(
+        app.world().get::<ScrollOffset>(container).unwrap().0,
+        Position::new(0, 1),
+        "the whole row was revealed, not just its first line"
     );
 }

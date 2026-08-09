@@ -8,14 +8,14 @@ use bevy_ecs::prelude::ChildOf;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
-use plurimus_core::ratatui_core::text::{Line, Span};
+use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::KeyCode;
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_content, write_key};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListItem, UiLabel, UiStyle, UiTheme,
-    WidgetsPlugin, list_item, listbox, listbox_self_update,
+    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemText, UiLabel,
+    UiStyle, UiTheme, WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -449,4 +449,44 @@ fn listbox_renders_rows_and_highlight() {
     app.update();
 
     insta::assert_snapshot!(composed_frame(&app));
+}
+
+// The marker column is plurimus's own, drawn into the row's text, so a
+// multi-line row has to indent its continuation lines by hand. The cursor
+// gutter beside them is ratatui's and blanks itself.
+#[test]
+fn a_tall_rows_continuation_lines_keep_the_gutter_width() {
+    let mut app = app();
+    let world = app.world_mut();
+    let container = world
+        .spawn((
+            listbox(),
+            ListBoxSelectionMarker,
+            UiArea::Fixed(Rect::new(0, 0, 12, 4)),
+        ))
+        .id();
+    let tall = world
+        .spawn((
+            list_item("head"),
+            ListItemText(Text::from(vec![Line::from("head"), Line::from("tail")])),
+            Checked,
+            ChildOf(container),
+        ))
+        .id();
+    world.spawn((list_item("after"), ChildOf(container)));
+    world
+        .entity_mut(container)
+        .insert(ActiveDescendant(Some(tall)));
+    app.update();
+
+    let frame = composed_frame(&app);
+    let lines: Vec<&str> = frame.lines().collect();
+    // Every row's text starts at column 4: two cells of cursor gutter and
+    // two of marker, blanked rather than repeated below the first line.
+    assert_eq!(lines[0], "> ▪ head    ", "{frame}");
+    assert_eq!(
+        lines[1], "    tail    ",
+        "the detail line clears both gutters: {frame}"
+    );
+    assert_eq!(lines[2], "    after   ", "{frame}");
 }
