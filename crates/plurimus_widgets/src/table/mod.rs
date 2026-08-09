@@ -22,9 +22,8 @@ mod geometry;
 mod input;
 mod style;
 
-pub(crate) use geometry::sync_table_scroll;
 pub(crate) use input::{table_key, table_press};
-pub(crate) use style::{mark_changed_tables, style_tables};
+pub(crate) use style::{TableRowsChanged, TableSelfChanged, style_tables};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
@@ -37,16 +36,15 @@ use plurimus_core::ratatui_core::text::Line;
 
 use crate::listbox::ActiveDescendant;
 use crate::placeholder;
-use crate::stylist::StylistCache;
+use crate::rows::ContentDirty;
+use crate::stylist::{CURSOR_SYMBOL, StylistCache};
 use plurimus_ui::Hovered;
-
-pub(crate) const CURSOR_SYMBOL: &str = "> ";
 
 /// A table of [`TableRow`] children, drawn as one ratatui `Table`.
 ///
 /// Presentational on its own. Rows are one terminal row tall.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, TableContent)]
+#[require(Hovered, StylistCache, ContentDirty<Self>)]
 pub struct Table;
 
 /// A [`Table`]'s column widths, resolved by ratatui's layout.
@@ -108,11 +106,6 @@ impl Default for TableLayout {
 /// and under the row's own [`UiStyle`](crate::UiStyle).
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TableCheckedStyle(pub Style);
-
-// Rows are children, so a `Changed` filter on the table cannot see a row's
-// edit; `mark_changed_tables` forwards it here.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub(crate) struct TableContent;
 
 /// Makes a [`Table`] interactive, at the stated granularity.
 ///

@@ -10,25 +10,26 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Or, Query, With, Without};
+use bevy_ecs::prelude::{Children, Commands, Component, On, Query, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
-use plurimus_core::ratatui_core::layout::{Rect, Size};
+use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::text::Line;
 
 use super::{UiLabel, ValueChange, is_activate_key, placeholder};
+use crate::rows::ContentDirty;
 use crate::stylist::StylistCache;
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
-use plurimus_ui::{ScrollArea, ScrollIntoView, ScrollOffset};
+use plurimus_ui::{ScrollIntoView, ScrollOffset};
 
 /// A focusable list of [`ListItem`] children. Selection emits
 /// [`ValueChange<Entity>`] on the list box; attach
 /// [`listbox_self_update`](super::listbox_self_update) for uncontrolled
 /// behavior.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ActiveDescendant)]
+#[require(Hovered, StylistCache, ActiveDescendant, ContentDirty<Self>)]
 pub struct ListBox;
 
 /// Allows multiple [`Checked`](plurimus_ui::Checked) items in a [`ListBox`].
@@ -39,12 +40,18 @@ pub struct ListBoxMultiSelect;
 /// [`Checked`](plurimus_ui::Checked) rows apart from the row under the
 /// cursor. Costs two cells of width, so it is asked for rather than
 /// assumed.
+///
+/// Applied when the list is spawned; a marker removed from a live list
+/// does not repaint until something else about the list changes.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListBoxSelectionMarker;
 
 /// Replaces the symbol drawn beside a [`ListBox`]'s cursor row, which
 /// shifts row content right by its width. An empty line frees the gutter
 /// entirely, leaving the cursor shown by its highlight style alone.
+///
+/// Carries the same caveat as [`ListBoxSelectionMarker`]: removing it
+/// restores the default symbol only once something else repaints.
 #[derive(Component, Debug, Clone)]
 pub struct ListBoxCursor(pub Line<'static>);
 
@@ -199,32 +206,4 @@ fn row_entity(
     row: usize,
 ) -> Option<Entity> {
     list_rows(children, items).nth(row)
-}
-
-// Keeps a scrollable ListBox's content size at (content width, item
-// count) so the generic scroll machinery windows it correctly.
-pub(crate) fn sync_listbox_scroll(
-    mut boxes: Query<
-        (&ComputedWidgetArea, &Children, &mut ScrollArea),
-        (
-            With<ListBox>,
-            Or<(
-                Changed<Children>,
-                Changed<ComputedWidgetArea>,
-                Changed<ScrollArea>,
-            )>,
-        ),
-    >,
-    items: Query<(), With<ListItem>>,
-) {
-    for (area, children, mut scroll) in &mut boxes {
-        let rows = list_rows(children, &items).count();
-        let content = Size::new(
-            scroll.content_width(area.0.width),
-            u16::try_from(rows).unwrap_or(u16::MAX),
-        );
-        if scroll.content_size != content {
-            scroll.content_size = content;
-        }
-    }
 }

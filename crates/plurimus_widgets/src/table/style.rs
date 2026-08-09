@@ -3,30 +3,32 @@
 //! Two change signals meet here, and keeping them apart is what stops an idle
 //! frame doing any work. [`StylistCache`] answers "does it draw differently" -
 //! hover, focus, disabled, the table's own style override - as it does for
-//! every widget. [`TableContent`] answers "does it draw something else", which
-//! a query filter on the table cannot: rows are children, and a child's change
-//! never marks its parent.
+//! every widget, and [`ContentDirty`](crate::rows::ContentDirty) answers
+//! "does it draw something else".
 
-use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut, Ref};
+use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
+use bevy_ecs::hierarchy::Children;
+use bevy_ecs::prelude::{Changed, Has, Or, Query, Res};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::table::{Cell, HighlightSpacing, Row, Table as RatatuiTable, TableState};
 
 use super::{
-    ActiveColumn, CURSOR_SYMBOL, Table, TableCheckedStyle, TableColumns, TableContent, TableCursor,
-    TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
+    ActiveColumn, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter, TableHeader,
+    TableLayout, TableRow, TableSelection, TableStripe,
 };
 use crate::listbox::ActiveDescendant;
-use crate::stylist::{StateQuery, Stylable, StylistCache, UiStyle, hashed_bits, observed};
+use crate::rows::ContentDirty;
+use crate::stylist::{
+    StateQuery, Stylable, StylistCache, UiStyle, cursor_symbol, hashed_bits, observed,
+};
 use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::Checked;
 
-type RowChanged = Or<(
+pub(crate) type TableRowsChanged = Or<(
     Changed<TableRow>,
     Changed<UiStyle>,
     Changed<Checked>,
@@ -36,7 +38,7 @@ type RowChanged = Or<(
 
 // The cursor is absent by design: it reaches the stylist through
 // `StylistCache`, which needs no ordering against whatever moved it.
-type ContentChanged = Or<(
+pub(crate) type TableSelfChanged = Or<(
     Changed<Children>,
     Changed<TableColumns>,
     Changed<TableStripe>,
@@ -83,7 +85,7 @@ type Tables<'w, 's> = Query<
         &'static TableColumns,
         Look<'static>,
         Cursor<'static>,
-        Ref<'static, TableContent>,
+        Ref<'static, ContentDirty<Table>>,
         &'static mut StylistCache,
         &'static mut UiWidget,
     ),
@@ -117,28 +119,6 @@ struct Highlight {
     column: Option<usize>,
 }
 
-// A row's edit has to reach the table it belongs to. `With<TableRow>` is
-// load-bearing: `Or` matches an archetype holding any one of its terms, so
-// without it every `Checked` or `UiStyle` entity in the app is scanned.
-pub(crate) fn mark_changed_tables(
-    rows: Query<&ChildOf, (With<TableRow>, RowChanged)>,
-    changed: Query<Entity, (With<Table>, ContentChanged)>,
-    mut content: Query<&mut TableContent>,
-) {
-    for row in &rows {
-        touch(&mut content, row.parent());
-    }
-    for table in &changed {
-        touch(&mut content, table);
-    }
-}
-
-fn touch(content: &mut Query<&mut TableContent>, table: Entity) {
-    if let Ok(mut marker) = content.get_mut(table) {
-        marker.set_changed();
-    }
-}
-
 pub(crate) fn style_tables(
     theme: Res<UiTheme>,
     focus: Res<InputFocus>,
@@ -148,8 +128,8 @@ pub(crate) fn style_tables(
     for (state, children, columns, look, cursor, content, mut cache, mut widget) in &mut tables {
         let (stripe, checked, layout, symbol) = look;
         let (selection, active, column) = cursor;
-        // A `Copy` scalar pair, not the row content other aggregate stylists
-        // hash, and compared here so the cursor needs no system ordering.
+        // A `Copy` scalar pair, compared here so the cursor needs no
+        // system ordering against whatever moved it.
         let next = observed(
             state,
             &focus,
@@ -172,7 +152,7 @@ pub(crate) fn style_tables(
         let highlight = Highlight {
             selection: selection.copied(),
             style: next.style(&theme),
-            symbol: symbol.map_or_else(|| Line::from(CURSOR_SYMBOL), |cursor| cursor.0.clone()),
+            symbol: cursor_symbol(symbol.map(|cursor| &cursor.0)),
             column: column.and_then(|column| column.0),
         };
         *widget = table_widget(bands, chrome, highlight);

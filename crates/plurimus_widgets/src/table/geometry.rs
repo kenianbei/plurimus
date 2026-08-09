@@ -9,10 +9,10 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Changed, Has, Or, Query, With};
-use plurimus_core::ratatui_core::layout::{Constraint, Layout, Rect, Size};
+use bevy_ecs::prelude::{Has, Query};
+use plurimus_core::ratatui_core::layout::{Constraint, Layout, Rect};
 
-use super::{Table, TableColumns, TableCursor, TableFooter, TableHeader, TableLayout, TableRow};
+use super::{TableColumns, TableCursor, TableFooter, TableHeader, TableLayout, TableRow};
 use plurimus_ui::{ComputedWidgetArea, ScrollArea, ScrollOffset};
 
 pub(super) type Rows<'w, 's> =
@@ -157,35 +157,4 @@ pub(super) fn bands(children: &Children, rows: &Rows) -> (bool, bool) {
                 (seen_header || header, seen_footer || footer)
             },
         )
-}
-
-// Content is one line per row, header and footer included: a scroll area
-// windows the widget whole, so its bands scroll with the body.
-pub(crate) fn sync_table_scroll(
-    mut tables: Query<
-        (&ComputedWidgetArea, &Children, &mut ScrollArea),
-        (
-            With<Table>,
-            Or<(
-                Changed<Children>,
-                Changed<ComputedWidgetArea>,
-                Changed<ScrollArea>,
-            )>,
-        ),
-    >,
-    rows: Rows,
-) {
-    for (area, children, mut scroll) in &mut tables {
-        let lines = children
-            .iter()
-            .filter(|&&child| rows.contains(child))
-            .count();
-        let content = Size::new(
-            scroll.content_width(area.0.width),
-            u16::try_from(lines).unwrap_or(u16::MAX),
-        );
-        if scroll.content_size != content {
-            scroll.content_size = content;
-        }
-    }
 }

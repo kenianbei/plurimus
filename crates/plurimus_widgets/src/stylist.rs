@@ -26,6 +26,13 @@ use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
 
+// Shared, so the crate's cursor cannot differ between two widgets.
+pub(crate) const CURSOR_SYMBOL: &str = "> ";
+
+pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
+    over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
+}
+
 /// Exempts an entity from the stock stylists, leaving its [`UiWidget`] to
 /// the app. Behavior - selection, keys, scrolling, events - is untouched.
 #[derive(Component, Debug, Clone, Copy)]

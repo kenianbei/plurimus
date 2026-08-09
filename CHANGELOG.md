@@ -19,7 +19,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   list needs.
 - **`ListBoxSelectionMarker`** and **`ListBoxCursor`**, so a list box's marker
   column and cursor symbol are the app's to choose. An empty cursor symbol gives
-  bar-style selection with no gutter at all.
+  bar-style selection with no gutter at all. Both are read when the list is
+  styled, so removing one from a live list leaves the old gutter until something
+  else about the list changes - the caveat a table's band markers already carry.
 - **`Table`**, a widget for tabular text over ratatui's table engine. Rows are
   child entities carrying their own cells, so an app builds a table the way it
   builds anything else. `TableColumns` sets the widths, `TableHeader` and
@@ -62,6 +64,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keep whatever color they carry. Disabled list boxes still dim throughout.
 - **A list box no longer draws its selection marker column** unless it carries
   `ListBoxSelectionMarker`, making every list two cells narrower by default.
+- **A list box costs nothing to leave alone.** It used to collect every row and
+  hash all of their text and styles on each frame purely to decide it need not
+  redraw, so a long list was a steady per-frame cost that nothing could opt out
+  of. A row's edit now reaches its list when it happens, and an idle frame reads
+  two components and compares them. Lists of a few hundred rows are the ones
+  that notice.
 - **Many accessors and builder methods are now `const fn`**, so they can be
   called in `const` contexts: `PixelGrid::width`/`height`,
   `HalfblockGrid::subcell_area` and its braille counterpart,

@@ -2971,6 +2971,7 @@ name = "plurimus_test"
 version = "0.2.0"
 dependencies = [
  "bevy_app",
+ "bevy_ecs",
  "plurimus_core",
  "plurimus_input",
 ]
