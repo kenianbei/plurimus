@@ -8,6 +8,8 @@
 //! What makes it redraw is [`StylistCache`] for its own state and
 //! [`ContentDirty`](crate::rows::ContentDirty) for its rows'.
 
+use core::slice;
+
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
@@ -164,29 +166,27 @@ fn list_row(content: &RowContent, marker: bool) -> ListRow<'static> {
     } else {
         UNCHECKED_MARKER
     };
-    let drawn = match content.text {
-        // Continuation lines take a marker-width blank, so a row's text
-        // stays in one column no matter how many lines it has. Ratatui
-        // does the same for the cursor gutter, which is why only this one
-        // is drawn by hand.
-        Some(text) => Text::from(
-            text.0
-                .lines
-                .iter()
-                .enumerate()
-                .map(|(index, line)| {
-                    let gutter = if index == 0 { mark } else { UNCHECKED_MARKER };
-                    if marker {
-                        decorate(gutter, line, "")
-                    } else {
-                        line.clone()
-                    }
-                })
-                .collect::<Vec<_>>(),
-        ),
-        None if marker => Text::from(decorate(mark, content.label, "")),
-        None => Text::from(content.label.clone()),
-    };
+    let source = content.text.map_or(slice::from_ref(content.label), |text| {
+        text.0.lines.as_slice()
+    });
+    // Continuation lines take a marker-width blank, so a row's text stays
+    // in one column however many lines it has. Ratatui blanks the cursor
+    // gutter itself, which is why only this one is drawn by hand.
+    let mut drawn = Text::from(
+        source
+            .iter()
+            .enumerate()
+            .map(|(index, line)| match (marker, index) {
+                (false, _) => line.clone(),
+                (true, 0) => decorate(mark, line, ""),
+                (true, _) => decorate(UNCHECKED_MARKER, line, ""),
+            })
+            .collect::<Vec<_>>(),
+    );
+    if let Some(text) = content.text {
+        drawn.style = text.0.style;
+        drawn.alignment = text.0.alignment;
+    }
     let row = ListRow::new(drawn);
     // Applied over the whole row rather than the label's own cells, which
     // is what reaches the cursor gutter.

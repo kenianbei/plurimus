@@ -155,8 +155,8 @@ fn resize_cameras(
     }
 }
 
-// Only the status block follows the terminal; every other themed widget
-// keeps the fixed rect it was spawned with.
+// The status block spans both halves, so it follows the terminal here
+// rather than through the themed side's own stretch rules.
 fn anchor_status(
     cameras: Query<&ResolvedViewport, With<ThemedCamera>>,
     mut status: Query<&mut UiArea, With<StatusLine>>,

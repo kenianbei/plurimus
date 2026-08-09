@@ -104,7 +104,10 @@ pub(crate) fn mark_dirty_content<Container, Row, RowsChanged, SelfChanged>(
 /// scrolls with its body.
 ///
 /// Only a list box's rows can be taller than one line, through
-/// [`ListItemText`]; a table's rows read `None` and sum to their count.
+/// [`ListItemText`], so the height query and the [`ContentDirty`] term of
+/// the filter are both inert for a table: its rows read `None` and its
+/// extent can only move when a row is added or removed. Carrying them here
+/// is what keeps one sync for both containers.
 pub(crate) fn sync_row_scroll<Container: Component, Row: Component>(
     mut containers: Query<
         (&ComputedWidgetArea, &Children, &mut ScrollArea),

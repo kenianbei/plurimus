@@ -1,5 +1,10 @@
-//! The left half: stock widget bundles at fixed cell rects, drawn by the
-//! stock stylists from a custom [`UiTheme`].
+//! The left half: stock widget bundles placed by hand, drawn by the stock
+//! stylists from a custom [`UiTheme`].
+//!
+//! The rects below are the layout at the smallest terminal the demo draws
+//! for; [`Stretched`] widens what has width to spare and gives the log the
+//! rows left over, which is hand placement against a live viewport rather
+//! than the taffy layout the other half demonstrates.
 
 use bevy_app::{App, AppExit, Startup, Update};
 use bevy_ecs::change_detection::DetectChanges;
@@ -72,31 +77,50 @@ const LOG_SCROLLBAR: Rect = Rect::new(33, 23, 1, 4);
 const LOG_TAB_INDEX: i32 = 9;
 
 /// Two lines per entry, which is what a [`ListItemText`] row is for: the
-/// heading is the row's [`UiLabel`], the detail only the list can draw.
-const LOG_ENTRIES: [(&str, &str, &str); 8] = [
-    ("03-02", "boot", "cold start, 214 cells drawn"),
-    ("03-04", "resize", "80x24 to 100x32, one reflow"),
-    ("03-07", "theme", "swapped to the demo palette"),
-    ("03-09", "focus", "tab order rebuilt after a respawn"),
-    ("03-11", "input", "kitty protocol negotiated"),
-    ("03-14", "scroll", "log pane took its own scrollbar"),
-    ("03-16", "paste", "bracketed paste, 3 lines"),
-    ("03-19", "quit", "restored the terminal cleanly"),
+/// heading is also the row's [`UiLabel`], the detail only the list can draw.
+const LOG_ENTRIES: [(&str, &str); 8] = [
+    ("03-02: boot", "  cold start, 214 cells drawn"),
+    ("03-04: resize", "  80x24 to 100x32, one reflow"),
+    ("03-07: theme", "  swapped to the demo palette"),
+    ("03-09: focus", "  tab order rebuilt after a respawn"),
+    ("03-11: input", "  kitty protocol negotiated"),
+    ("03-14: scroll", "  log pane took its own scrollbar"),
+    ("03-16: paste", "  bracketed paste, 3 lines"),
+    ("03-19: quit", "  restored the terminal cleanly"),
 ];
 
-/// The widths and the log's height follow the terminal; every rect above
-/// is the layout at the smallest terminal the demo is drawn for.
+/// How one widget follows the terminal, carrying the rect it was spawned
+/// with so the rule and its anchor stay in one place.
 #[derive(Component, Clone, Copy)]
 enum Stretched {
+    /// Spans the viewport, keeping its rows.
     Pane(Rect),
+    /// Spans the viewport inside a pane's borders.
     Inset(Rect),
-    LogPane,
-    LogView,
-    LogScrollbar,
+    /// Spans the viewport and takes the rows left above the status block.
+    LogPane(Rect),
+    /// Fills the log pane, less its borders and the scrollbar's column.
+    LogView(Rect),
+    /// Rides the log pane's right border.
+    LogScrollbar(Rect),
+}
+
+impl Stretched {
+    const fn spawned(self) -> Rect {
+        match self {
+            Self::Pane(rect)
+            | Self::Inset(rect)
+            | Self::LogPane(rect)
+            | Self::LogView(rect)
+            | Self::LogScrollbar(rect) => rect,
+        }
+    }
 }
 
 const PANE_INSET: u16 = 2;
 const SCROLLBAR_INSET: u16 = 3;
+/// A pane's top and bottom border, which its contents sit between.
+const PANE_BORDERS: u16 = 2;
 const MIN_LOG_ROWS: u16 = 3;
 
 pub(crate) fn add_themed_side(app: &mut App) {
@@ -154,24 +178,19 @@ fn spawn_themed_side(mut commands: Commands, mut map: ResMut<DirectionalNavigati
         &mut commands,
         root,
         "controls",
-        (CONTROLS_PANE, Stretched::Pane(CONTROLS_PANE)),
+        Stretched::Pane(CONTROLS_PANE),
     );
     let (first, last) = spawn_controls(&mut commands, controls);
     let options = spawn_pane(
         &mut commands,
         root,
         "options",
-        (OPTIONS_PANE, Stretched::Pane(OPTIONS_PANE)),
+        Stretched::Pane(OPTIONS_PANE),
     );
     spawn_listbox(&mut commands, options);
-    let text = spawn_pane(
-        &mut commands,
-        root,
-        "text",
-        (TEXT_PANE, Stretched::Pane(TEXT_PANE)),
-    );
+    let text = spawn_pane(&mut commands, root, "text", Stretched::Pane(TEXT_PANE));
     spawn_text_widgets(&mut commands, text);
-    let log = spawn_pane(&mut commands, root, "log", (LOG_PANE, Stretched::LogPane));
+    let log = spawn_pane(&mut commands, root, "log", Stretched::LogPane(LOG_PANE));
     spawn_log(&mut commands, log);
     // A hand-made wrap-around edge, preserved across map rebuilds: the
     // auto map never loops. It stays inside the pane because the list and
@@ -184,10 +203,15 @@ fn spawn_pane(
     commands: &mut Commands,
     root: Entity,
     title: &'static str,
-    (area, stretched): (Rect, Stretched),
+    stretched: Stretched,
 ) -> Entity {
     commands
-        .spawn((pane(title), UiArea::Fixed(area), stretched, ChildOf(root)))
+        .spawn((
+            pane(title),
+            UiArea::Fixed(stretched.spawned()),
+            stretched,
+            ChildOf(root),
+        ))
         .id()
 }
 
@@ -302,30 +326,28 @@ fn spawn_log(commands: &mut Commands, parent: Entity) {
         .spawn((
             listbox(),
             ScrollArea {
-                content_size: Size::new(LOG_VIEW.width, LOG_VIEW.height),
+                // `sync_row_scroll` owns the extent from the first frame,
+                // summing the two-line rows.
+                content_size: Size::default(),
                 scrollbars: ScrollbarVisibility::Never,
             },
             UiArea::Fixed(LOG_VIEW),
-            Stretched::LogView,
+            Stretched::LogView(LOG_VIEW),
             ChildOf(parent),
         ))
         .insert(TabIndex(LOG_TAB_INDEX))
         .id();
-    for (date, title, detail) in LOG_ENTRIES {
-        let heading = format!("{date}: {title}");
+    for (heading, detail) in LOG_ENTRIES {
         commands.spawn((
-            list_item(heading.clone()),
-            ListItemText(Text::from(vec![
-                Line::from(heading),
-                Line::from(format!("  {detail}")),
-            ])),
+            list_item(heading),
+            ListItemText(Text::from(vec![Line::from(heading), Line::from(detail)])),
             ChildOf(view),
         ));
     }
     commands.spawn((
         scrollbar(view, ScrollbarOrientation::VerticalRight),
         UiArea::Fixed(LOG_SCROLLBAR),
-        Stretched::LogScrollbar,
+        Stretched::LogScrollbar(LOG_SCROLLBAR),
         ChildOf(parent),
     ));
 }
@@ -340,31 +362,40 @@ fn stretch_themed_widgets(
     let Ok(viewport) = cameras.single().map(|resolved| resolved.0) else {
         return;
     };
+    for (stretched, mut area) in &mut widgets {
+        area.set_if_neq(UiArea::Fixed(stretched_rect(*stretched, viewport)));
+    }
+}
+
+fn stretched_rect(stretched: Stretched, viewport: Rect) -> Rect {
+    let spawned = stretched.spawned();
     let log_rows = viewport
         .height
         .saturating_sub(STATUS_ROWS)
         .saturating_sub(LOG_PANE.y)
         .max(MIN_LOG_ROWS);
-    let inner = viewport.width.saturating_sub(PANE_INSET * 2);
-    for (stretched, mut area) in &mut widgets {
-        let rect = match *stretched {
-            Stretched::Pane(spawned) => Rect::new(0, spawned.y, viewport.width, spawned.height),
-            Stretched::Inset(spawned) => Rect::new(spawned.x, spawned.y, inner, spawned.height),
-            Stretched::LogPane => Rect::new(0, LOG_PANE.y, viewport.width, log_rows),
-            Stretched::LogView => Rect::new(
-                LOG_VIEW.x,
-                LOG_VIEW.y,
-                viewport.width.saturating_sub(PANE_INSET + SCROLLBAR_INSET),
-                log_rows.saturating_sub(2),
-            ),
-            Stretched::LogScrollbar => Rect::new(
-                viewport.width.saturating_sub(SCROLLBAR_INSET),
-                LOG_SCROLLBAR.y,
-                1,
-                log_rows.saturating_sub(2),
-            ),
-        };
-        area.set_if_neq(UiArea::Fixed(rect));
+    let log_body = log_rows.saturating_sub(PANE_BORDERS);
+    match stretched {
+        Stretched::Pane(_) => Rect::new(0, spawned.y, viewport.width, spawned.height),
+        Stretched::Inset(_) => Rect::new(
+            spawned.x,
+            spawned.y,
+            viewport.width.saturating_sub(PANE_INSET * 2),
+            spawned.height,
+        ),
+        Stretched::LogPane(_) => Rect::new(0, spawned.y, viewport.width, log_rows),
+        Stretched::LogView(_) => Rect::new(
+            spawned.x,
+            spawned.y,
+            viewport.width.saturating_sub(PANE_INSET + SCROLLBAR_INSET),
+            log_body,
+        ),
+        Stretched::LogScrollbar(_) => Rect::new(
+            viewport.width.saturating_sub(SCROLLBAR_INSET),
+            spawned.y,
+            1,
+            log_body,
+        ),
     }
 }
 
