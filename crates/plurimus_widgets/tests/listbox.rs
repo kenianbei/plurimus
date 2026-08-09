@@ -6,14 +6,14 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton, MouseKind};
-use plurimus_test::{press_key, send_mouse};
+use plurimus_input::{KeyCode, MouseButton, MouseKind};
+use plurimus_test::{press_key, repeat_key, send_mouse};
 use plurimus_ui::{
     Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
 };
 use plurimus_widgets::{
-    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, WidgetsPlugin, button,
-    list_item, listbox, listbox_self_update,
+    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItem, WidgetsPlugin,
+    button, list_item, listbox, listbox_self_update,
 };
 
 #[derive(Resource, Default)]
@@ -133,10 +133,12 @@ fn the_first_binding_for_a_key_is_the_one_that_wins() {
         ]));
 
     press_key(&mut app, KeyCode::End);
+    press_key(&mut app, KeyCode::End);
     assert_eq!(
         active(&app, container),
-        Some(items[0]),
-        "End moved one row, not to the last, so the earlier binding won"
+        Some(items[1]),
+        "End moved one row down rather than to the last, so the earlier \
+         binding won"
     );
 }
 
@@ -189,6 +191,25 @@ fn a_held_key_repeats_movement_but_not_selection() {
     );
 }
 
+// The cursor still names the row it was on after that row stops being one,
+// so selecting would report an entity the list no longer contains.
+#[test]
+fn selecting_a_list_with_no_rows_left_reports_nothing() {
+    let mut app = app();
+    let (_, items) = spawn_listbox(&mut app);
+    press_key(&mut app, KeyCode::Down);
+    for item in items {
+        app.world_mut().entity_mut(item).remove::<ListItem>();
+    }
+
+    press_key(&mut app, KeyCode::Enter);
+
+    assert!(
+        app.world().resource::<Selections>().0.is_empty(),
+        "no selection was reported for a row that is gone"
+    );
+}
+
 #[test]
 fn a_disabled_listbox_takes_no_keys() {
     let mut app = app();
@@ -205,15 +226,6 @@ fn a_disabled_listbox_takes_no_keys() {
         app.world().resource::<Selections>().0.is_empty(),
         "and nothing was selected"
     );
-}
-
-fn repeat_key(app: &mut App, code: KeyCode) {
-    app.world_mut().write_message(KeyMessage {
-        code,
-        modifiers: KeyModifiers::default(),
-        kind: KeyKind::Repeat,
-    });
-    app.update();
 }
 
 #[test]

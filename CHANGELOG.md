@@ -39,11 +39,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reimplementing movement beside the widget. `TableAction` names what a key
   does; the default map keeps the arrows, `Home`/`End`, `PageUp`/`PageDown`, and
   Enter and space.
+- **`ListBoxKeys`**, the same treatment for a list box: its movement bindings
+  are data an app replaces rather than a closed match it has to reimplement
+  beside the widget. `ListBoxAction` names what a key does, and the default map
+  keeps the arrows, `Home`/`End`, and Enter and space. Bindings are scanned in
+  order, so the first entry for a key wins and two keys can share an action.
+- **A list box pages** with `PageUp` and `PageDown`, moving the cursor by the
+  rows currently visible - keys that previously fell through a focused list.
 - **`TableHeaderClick`**, reporting the column whose header was clicked so an
   app can sort. The crate supplies the geometry; the ordering stays with the
   app, which is the only side that knows whether a column is text or numbers.
 - **`Key`** is re-exported from `plurimus_widgets`, so an app can name the key
-  type `TableKeys` holds without depending on `bevy_input` directly.
+  type `TableKeys` and `ListBoxKeys` hold without depending on `bevy_input`
+  directly.
 - **A `table` example**: a sortable, scrollable process list showing striping, a
   bolded header, a totals footer, remapped movement keys, and app-side sorting
   driven by header clicks.

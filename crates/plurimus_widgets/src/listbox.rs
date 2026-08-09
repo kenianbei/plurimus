@@ -30,7 +30,14 @@ use plurimus_ui::{ScrollIntoView, ScrollOffset};
 /// [`listbox_self_update`](super::listbox_self_update) for uncontrolled
 /// behavior.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ActiveDescendant, ContentDirty<Self>, ListBoxKeys)]
+#[require(
+    Hovered,
+    StylistCache,
+    ActiveDescendant,
+    ContentDirty<Self>,
+    ListBoxKeys,
+    ComputedWidgetArea
+)]
 pub struct ListBox;
 
 /// Allows multiple [`Checked`](plurimus_ui::Checked) items in a [`ListBox`].
@@ -126,7 +133,7 @@ pub(crate) fn listbox_key(
         (
             &Children,
             &ListBoxKeys,
-            Option<&ComputedWidgetArea>,
+            &ComputedWidgetArea,
             &mut ActiveDescendant,
         ),
         (With<ListBox>, Without<InteractionDisabled>),
@@ -142,33 +149,31 @@ pub(crate) fn listbox_key(
         return;
     };
     input.propagate(false);
-    let rows: Vec<Entity> = list_rows(children, &items).collect();
-    if rows.is_empty() {
-        return;
-    }
     if action == ListBoxAction::Select {
-        if !input.input.repeat {
+        if !input.input.repeat && list_rows(children, &items).next().is_some() {
             select_active(listbox, *active, &mut commands);
         }
         return;
     }
-    if let Some(index) = move_active(action, (&rows, area), &mut active) {
+    let rows: Vec<Entity> = list_rows(children, &items).collect();
+    if let Some(index) = move_active(action, &rows, *area, &mut active) {
         reveal_row(listbox, index, &mut commands);
     }
 }
 
-// A list box gets its area a frame after it is spawned, so paging falls
-// back to single-step movement rather than the keys going dead.
+// Focus dispatch is unordered against `UiSystems::Areas`, so the area is a
+// frame stale and zero on the first, which pages by a single row.
 fn move_active(
     action: ListBoxAction,
-    (rows, area): (&[Entity], Option<&ComputedWidgetArea>),
+    rows: &[Entity],
+    area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
 ) -> Option<usize> {
     let last = rows.len().checked_sub(1)?;
     let current = active
         .0
         .and_then(|item| rows.iter().position(|&row| row == item));
-    let page = usize::from(area.map_or(0, |area| area.0.height)).max(1);
+    let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(rows[index])));
     Some(index)

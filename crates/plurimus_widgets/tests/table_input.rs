@@ -8,8 +8,8 @@ use bevy_input::keyboard::Key;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, KeyKind, KeyMessage, KeyModifiers};
-use plurimus_test::{click, press_key};
+use plurimus_input::KeyCode;
+use plurimus_test::{click, press_key, repeat_key};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::ActiveDescendant;
 use plurimus_widgets::{
@@ -438,13 +438,4 @@ fn a_held_key_repeats_movement_but_not_selection() {
         Some(rows[1]),
         "but a repeated arrow still moves the cursor"
     );
-}
-
-fn repeat_key(app: &mut App, code: KeyCode) {
-    app.world_mut().write_message(KeyMessage {
-        code,
-        modifiers: KeyModifiers::default(),
-        kind: KeyKind::Repeat,
-    });
-    app.update();
 }
