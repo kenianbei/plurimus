@@ -2,7 +2,8 @@
 //!
 //! Rows are entities carrying [`ListItem`], not strings, so an app builds a
 //! list the same way it builds anything else and each row can hold its own
-//! components. The list box owns selection and keyboard movement; making it
+//! components. The list box owns selection and keyboard movement, its
+//! bindings data in [`ListBoxKeys`] rather than a closed match; making it
 //! scrollable is a separate decision, and adding a
 //! [`ScrollArea`](plurimus_ui::ScrollArea) is all it takes for the generic
 //! scroll machinery to window the rows.

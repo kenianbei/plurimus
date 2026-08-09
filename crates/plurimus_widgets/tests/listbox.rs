@@ -6,12 +6,14 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, MouseButton, MouseKind};
+use plurimus_input::{KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton, MouseKind};
 use plurimus_test::{press_key, send_mouse};
-use plurimus_ui::{Checked, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange};
+use plurimus_ui::{
+    Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
+};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxMultiSelect, WidgetsPlugin, button, list_item, listbox,
-    listbox_self_update,
+    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, WidgetsPlugin, button,
+    list_item, listbox, listbox_self_update,
 };
 
 #[derive(Resource, Default)]
@@ -92,6 +94,126 @@ fn keyboard_moves_active_descendant() {
     assert_eq!(active(&app, container), Some(items[2]));
     press_key(&mut app, KeyCode::Home);
     assert_eq!(active(&app, container), Some(items[0]));
+}
+
+#[test]
+fn the_bindings_are_the_apps_to_replace() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ListBoxKeys(vec![
+            (Key::Character("j".into()), ListBoxAction::Down),
+            (Key::Character("k".into()), ListBoxAction::Up),
+        ]));
+
+    press_key(&mut app, KeyCode::Char('j'));
+    press_key(&mut app, KeyCode::Char('j'));
+    assert_eq!(active(&app, container), Some(items[1]), "j walks down");
+    press_key(&mut app, KeyCode::Char('k'));
+    assert_eq!(active(&app, container), Some(items[0]), "k walks up");
+
+    press_key(&mut app, KeyCode::Down);
+    assert_eq!(
+        active(&app, container),
+        Some(items[0]),
+        "and the arrows no longer move a list that unbound them"
+    );
+}
+
+#[test]
+fn the_first_binding_for_a_key_is_the_one_that_wins() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ListBoxKeys(vec![
+            (Key::End, ListBoxAction::Down),
+            (Key::End, ListBoxAction::Last),
+        ]));
+
+    press_key(&mut app, KeyCode::End);
+    assert_eq!(
+        active(&app, container),
+        Some(items[0]),
+        "End moved one row, not to the last, so the earlier binding won"
+    );
+}
+
+#[test]
+fn a_page_key_moves_by_the_visible_height() {
+    let mut app = app();
+    let (container, items) = spawn_scrolling_listbox(&mut app);
+    app.update();
+
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::PageDown);
+    assert_eq!(
+        active(&app, container),
+        Some(items[3]),
+        "three rows are visible, so a page is three rows down"
+    );
+    press_key(&mut app, KeyCode::PageUp);
+    assert_eq!(active(&app, container), Some(items[0]), "and back again");
+
+    press_key(&mut app, KeyCode::PageUp);
+    assert_eq!(
+        active(&app, container),
+        Some(items[0]),
+        "paging past the first row stops at it"
+    );
+}
+
+// Autorepeat moves a cursor but must not re-select, which is the rule
+// `is_activate_key` applies to every other widget.
+#[test]
+fn a_held_key_repeats_movement_but_not_selection() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Enter);
+    let selections = app.world().resource::<Selections>().0.len();
+
+    repeat_key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        app.world().resource::<Selections>().0.len(),
+        selections,
+        "a repeated Enter selects nothing further"
+    );
+
+    repeat_key(&mut app, KeyCode::Down);
+    assert_eq!(
+        active(&app, container),
+        Some(items[1]),
+        "but a repeated arrow still moves the cursor"
+    );
+}
+
+#[test]
+fn a_disabled_listbox_takes_no_keys() {
+    let mut app = app();
+    let (container, _) = spawn_listbox(&mut app);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(InteractionDisabled);
+
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Enter);
+
+    assert_eq!(active(&app, container), None, "no cursor moved");
+    assert!(
+        app.world().resource::<Selections>().0.is_empty(),
+        "and nothing was selected"
+    );
+}
+
+fn repeat_key(app: &mut App, code: KeyCode) {
+    app.world_mut().write_message(KeyMessage {
+        code,
+        modifiers: KeyModifiers::default(),
+        kind: KeyKind::Repeat,
+    });
+    app.update();
 }
 
 #[test]
