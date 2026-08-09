@@ -20,6 +20,7 @@ mod menu_layout;
 mod pane;
 mod popover;
 mod radio;
+mod row_scroll;
 mod scrollbar;
 mod self_update;
 mod slider;
@@ -62,7 +63,7 @@ pub use theme::UiTheme;
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
-pub(crate) use listbox::{listbox_key, listbox_press, sync_listbox_scroll};
+pub(crate) use listbox::{listbox_key, listbox_press};
 pub(crate) use listbox_style::{ListRowsChanged, ListSelfChanged, style_listboxes};
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
@@ -72,12 +73,11 @@ pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
 pub(crate) use pane::style_panes;
 pub(crate) use popover::place_popovers;
 pub(crate) use radio::style_radios;
+pub(crate) use row_scroll::sync_row_scroll;
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use stylist::mark_dirty_content;
-pub(crate) use table::{
-    TableRowsChanged, TableSelfChanged, style_tables, sync_table_scroll, table_key, table_press,
-};
+pub(crate) use table::{TableRowsChanged, TableSelfChanged, style_tables, table_key, table_press};
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
     text_input_blur, text_input_key, text_input_paste,
@@ -164,7 +164,7 @@ fn add_layout_systems(app: &mut App) {
         (
             install_editor_views.before(UiSystems::Areas),
             (
-                sync_listbox_scroll,
+                sync_row_scroll::<ListBox, ListItem>,
                 size_menu_popups,
                 place_popovers,
                 place_menu_items,
@@ -174,7 +174,7 @@ fn add_layout_systems(app: &mut App) {
             (
                 mark_dirty_content::<ListBox, ListRowsChanged, ListSelfChanged>,
                 mark_dirty_content::<Table, TableRowsChanged, TableSelfChanged>,
-                sync_table_scroll,
+                sync_row_scroll::<Table, TableRow>,
             )
                 .in_set(WidgetSystems::Layout),
         ),

@@ -22,7 +22,6 @@ mod geometry;
 mod input;
 mod style;
 
-pub(crate) use geometry::sync_table_scroll;
 pub(crate) use input::{table_key, table_press};
 pub(crate) use style::{TableRowsChanged, TableSelfChanged, style_tables};
 
