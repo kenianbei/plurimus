@@ -39,7 +39,7 @@ pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
 pub use listbox::{
     ActiveDescendant, ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect,
-    ListBoxSelectionMarker, ListItem, list_item, listbox,
+    ListBoxSelectionMarker, ListItem, ListItemText, list_item, listbox,
 };
 pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
 pub use pane::{Pane, pane};
@@ -167,12 +167,19 @@ fn add_layout_systems(app: &mut App) {
             (size_menu_popups, place_popovers, place_menu_items)
                 .chain()
                 .in_set(WidgetSystems::Layout),
+            // The scroll extent reads the dirty mark, so a row's edit
+            // resizes the content in the frame it happens.
             (
-                mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
-                mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
-                sync_row_scroll::<ListBox, ListItem>,
-                sync_row_scroll::<Table, TableRow>,
+                (
+                    mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
+                    mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
+                ),
+                (
+                    sync_row_scroll::<ListBox, ListItem>,
+                    sync_row_scroll::<Table, TableRow>,
+                ),
             )
+                .chain()
                 .in_set(WidgetSystems::Layout),
         ),
     );

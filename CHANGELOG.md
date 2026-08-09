@@ -17,6 +17,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   to. On a widget it composes with hover and focus rather than replacing them;
   on a list row it styles the full row, which is what a striped or state-colored
   list needs.
+- **`ListItemText`**, which draws one list row as several terminal rows -
+  explicit line breaks only, since the list truncates rather than wraps. A row
+  carrying it is as tall as its text has lines, and the list box measures every
+  row by height rather than by count: the scroll extent, the row a click lands
+  in, and the reveal that keeps the cursor visible all follow the taller row.
+  Rows without it are unchanged, and every other labelled widget keeps drawing
+  the single-line `UiLabel`.
 - **`ListBoxSelectionMarker`** and **`ListBoxCursor`**, so a list box's marker
   column and cursor symbol are the app's to choose. An empty cursor symbol gives
   bar-style selection with no gutter at all. Both are read when the list is
@@ -89,6 +96,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The spawn-bundle constructors are `#[must_use]`** - `listbox()`,
   `menu_popup()`, `scrollbar()`, and `slider()` - so dropping the bundle instead
   of spawning it is now a warning rather than a silent no-op.
+- **The `widgets` example's log pane is a focusable multi-line list** rather
+  than a paragraph, each entry a heading over an indented detail line, and its
+  themed panes now stretch to the width of their half of the terminal with the
+  log taking the height left above the status line.
 
 ## [0.2.0] - 2026-08-05
 
