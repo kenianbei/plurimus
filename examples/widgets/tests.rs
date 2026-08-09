@@ -11,7 +11,7 @@ use plurimus_test::{click, composed_frame, press_chord, press_key, press_key_wit
 
 use super::*;
 
-const THEMED_FOCUSABLES: usize = 12;
+const THEMED_FOCUSABLES: usize = 13;
 
 const TEST_SIZE: TerminalSize = TerminalSize {
     cols: 100,
@@ -142,15 +142,16 @@ fn typing_edits_the_multi_line_editor() {
 fn the_wheel_scrolls_the_log_and_moves_its_scrollbar() {
     let mut app = headless_app();
     let before = composed_frame(&app);
-    assert!(before.contains("log entry 1"), "{before}");
+    assert!(before.contains("03-02: boot"), "{before}");
 
     for _ in 0..4 {
         send_mouse(&mut app, MouseKind::ScrollDown, 10, 24);
     }
 
+    // Four lines is two entries, because every entry is two rows tall.
     let after = composed_frame(&app);
-    assert!(!after.contains("log entry 1 "), "{after}");
-    assert!(after.contains("log entry 6"), "{after}");
+    assert!(!after.contains("03-02: boot"), "{after}");
+    assert!(after.contains("03-11: input"), "{after}");
 }
 
 #[test]
@@ -193,7 +194,8 @@ fn every_themed_widget_renders() {
         FIELD_TEXT,
         "a multi-line editor:",
         "log",
-        "log entry 1",
+        "03-02: boot",
+        "  cold start, 214 cells drawn",
     ];
     for fragment in expected {
         assert!(frame.contains(fragment), "{fragment} missing:\n{frame}");
