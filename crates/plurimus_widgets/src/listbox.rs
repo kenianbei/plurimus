@@ -8,7 +8,7 @@
 //! scroll machinery to window the rows.
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Children, Commands, Component, On, Query, With, Without};
 use bevy_input::ButtonState;
@@ -88,6 +88,10 @@ pub enum ListBoxAction {
     First,
     /// Move the cursor to the last row.
     Last,
+    /// Move the cursor up by the visible height.
+    PageUp,
+    /// Move the cursor down by the visible height.
+    PageDown,
     /// Select the row the cursor is on.
     Select,
 }
@@ -95,8 +99,8 @@ pub enum ListBoxAction {
 /// A [`ListBox`]'s key bindings, scanned in order so the first match wins.
 ///
 /// Replace it to remap: two keys may share an action by appearing twice.
-/// Defaults to the arrows, `Home` and `End`, and `Enter` and space to
-/// select.
+/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
+/// `Enter` and space to select.
 #[derive(Component, Debug, Clone)]
 pub struct ListBoxKeys(pub Vec<(Key, ListBoxAction)>);
 
@@ -107,6 +111,8 @@ impl Default for ListBoxKeys {
             (Key::ArrowDown, ListBoxAction::Down),
             (Key::Home, ListBoxAction::First),
             (Key::End, ListBoxAction::Last),
+            (Key::PageUp, ListBoxAction::PageUp),
+            (Key::PageDown, ListBoxAction::PageDown),
             (Key::Enter, ListBoxAction::Select),
             (Key::Character(" ".into()), ListBoxAction::Select),
         ])
@@ -116,14 +122,19 @@ impl Default for ListBoxKeys {
 pub(crate) fn listbox_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     mut boxes: Query<
-        (&Children, &ListBoxKeys, &mut ActiveDescendant),
+        (
+            &Children,
+            &ListBoxKeys,
+            Option<&ComputedWidgetArea>,
+            &mut ActiveDescendant,
+        ),
         (With<ListBox>, Without<InteractionDisabled>),
     >,
     items: Query<(), With<ListItem>>,
     mut commands: Commands,
 ) {
     let listbox = input.focused_entity;
-    let Ok((children, keys, mut active)) = boxes.get_mut(listbox) else {
+    let Ok((children, keys, area, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
     let Some(action) = bound_action(keys, &input.input) else {
@@ -140,12 +151,26 @@ pub(crate) fn listbox_key(
         }
         return;
     }
+    if let Some(index) = move_active(action, (&rows, area), &mut active) {
+        reveal_row(listbox, index, &mut commands);
+    }
+}
+
+// A list box gets its area a frame after it is spawned, so paging falls
+// back to single-step movement rather than the keys going dead.
+fn move_active(
+    action: ListBoxAction,
+    (rows, area): (&[Entity], Option<&ComputedWidgetArea>),
+    active: &mut Mut<ActiveDescendant>,
+) -> Option<usize> {
+    let last = rows.len().checked_sub(1)?;
     let current = active
         .0
         .and_then(|item| rows.iter().position(|&row| row == item));
-    let index = moved_index(action, current, rows.len() - 1);
+    let page = usize::from(area.map_or(0, |area| area.0.height)).max(1);
+    let index = moved_index(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(rows[index])));
-    reveal_row(listbox, index, &mut commands);
+    Some(index)
 }
 
 fn reveal_row(listbox: Entity, index: usize, commands: &mut Commands) {
@@ -166,10 +191,12 @@ fn bound_action(keys: &ListBoxKeys, input: &KeyboardInput) -> Option<ListBoxActi
         .map(|(_, action)| *action)
 }
 
-fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize) -> usize {
+fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
     match (action, current) {
         (ListBoxAction::Up, Some(index)) => index.saturating_sub(1),
         (ListBoxAction::Down, Some(index)) => (index + 1).min(last),
+        (ListBoxAction::PageUp, Some(index)) => index.saturating_sub(page),
+        (ListBoxAction::PageDown, Some(index)) => index.saturating_add(page).min(last),
         (ListBoxAction::Last, _) => last,
         _ => 0,
     }
