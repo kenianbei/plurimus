@@ -121,14 +121,18 @@ The two widgets drawn from row children - the list box and the table - carry a
 second change signal beside that one. Their rows are child entities, and a
 child's change never marks its parent, so one generic pass in
 `WidgetSystems::Layout` forwards a row's edit, restyle, check, or uncheck to the
-container before any stylist runs, and a second computes the container's scroll
-extent from its rows. A stylist reads that signal rather than hashing every row
-to find out, which is what keeps a settled list of any length free on an idle
-frame. Both also take their movement keys from a component of `(Key, Action)`
-bindings - `ListBoxKeys`, `TableKeys` - scanned in order so the first match
-wins, which is how an app remaps a list to vim keys without reimplementing
-movement beside the widget; the sliders, menus, and text widgets still match
-keys inline.
+container before any stylist runs, and a second sums its rows' heights into the
+scroll extent, reading that same signal so a row's edit resizes the content in
+the frame it happens. A stylist reads it too, rather than hashing every row to
+find out, which is what keeps a settled list of any length free on an idle
+frame. A row is one terminal row tall unless it carries `ListItemText`, which
+only a list box draws: that row is as tall as its text has lines, and the
+extent, the row a click lands in, and the reveal that keeps the cursor visible
+all measure by height rather than by count. Both containers also take their
+movement keys from a component of `(Key, Action)` bindings - `ListBoxKeys`,
+`TableKeys` - scanned in order so the first match wins, which is how an app
+remaps a list to vim keys without reimplementing movement beside the widget; the
+sliders, menus, and text widgets still match keys inline.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
