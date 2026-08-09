@@ -14,7 +14,7 @@ use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
-use plurimus_core::ratatui_core::text::Line;
+use plurimus_core::ratatui_core::text::{Line, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
 use crate::UiLabel;
@@ -50,8 +50,25 @@ pub(crate) type ListSelfChanged = Or<(
 const CHECKED_MARKER: &str = "▪ ";
 const UNCHECKED_MARKER: &str = "  ";
 
-type RowItems<'w, 's> =
-    Query<'w, 's, (&'static UiLabel, Has<Checked>, Option<&'static UiStyle>), With<ListItem>>;
+type RowItems<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static UiLabel,
+        Option<&'static ListItemText>,
+        Has<Checked>,
+        Option<&'static UiStyle>,
+    ),
+    With<ListItem>,
+>;
+
+/// What one row draws with, before the list's gutters go on.
+struct RowContent<'a> {
+    label: &'a Line<'static>,
+    text: Option<&'a ListItemText>,
+    checked: bool,
+    over: Option<&'a UiStyle>,
+}
 
 struct RowStyles {
     every: Style,
@@ -114,13 +131,21 @@ fn list_widget(
     let mut rows = Vec::new();
     let mut selected = None;
     for &child in children {
-        let Ok((label, checked, over)) = items.get(child) else {
+        let Ok((label, text, checked, over)) = items.get(child) else {
             continue;
         };
         if active == Some(child) {
             selected = Some(rows.len());
         }
-        rows.push(list_row((&label.0, checked, over), gutters.marker));
+        rows.push(list_row(
+            &RowContent {
+                label: &label.0,
+                text,
+                checked,
+                over,
+            },
+            gutters.marker,
+        ));
     }
     let mut highlight = ListState::default();
     highlight.select(selected);
@@ -133,24 +158,39 @@ fn list_widget(
     )
 }
 
-fn list_row(
-    (label, checked, over): (&Line<'static>, bool, Option<&UiStyle>),
-    marker: bool,
-) -> ListRow<'static> {
-    let line = if marker {
-        let mark = if checked {
-            CHECKED_MARKER
-        } else {
-            UNCHECKED_MARKER
-        };
-        decorate(mark, label, "")
+fn list_row(content: &RowContent, marker: bool) -> ListRow<'static> {
+    let mark = if content.checked {
+        CHECKED_MARKER
     } else {
-        label.clone()
+        UNCHECKED_MARKER
     };
-    let row = ListRow::new(line);
+    let drawn = match content.text {
+        // Continuation lines take a marker-width blank, so a row's text
+        // stays in one column no matter how many lines it has. Ratatui
+        // does the same for the cursor gutter, which is why only this one
+        // is drawn by hand.
+        Some(text) => Text::from(
+            text.0
+                .lines
+                .iter()
+                .enumerate()
+                .map(|(index, line)| {
+                    let gutter = if index == 0 { mark } else { UNCHECKED_MARKER };
+                    if marker {
+                        decorate(gutter, line, "")
+                    } else {
+                        line.clone()
+                    }
+                })
+                .collect::<Vec<_>>(),
+        ),
+        None if marker => Text::from(decorate(mark, content.label, "")),
+        None => Text::from(content.label.clone()),
+    };
+    let row = ListRow::new(drawn);
     // Applied over the whole row rather than the label's own cells, which
     // is what reaches the cursor gutter.
-    match over {
+    match content.over {
         Some(over) => row.style(over.0),
         None => row,
     }
