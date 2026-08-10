@@ -37,28 +37,36 @@ impl Default for UiTheme {
     }
 }
 
+/// The interaction flags a widget is in, resolved by
+/// [`UiTheme::resolve`] into one [`Style`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the four states of the documented precedence, not a config"
+)]
+pub struct InteractionState {
+    /// Cursor over the widget.
+    pub hovered: bool,
+    /// Pointer held on the widget.
+    pub pressed: bool,
+    /// The widget has `InteractionDisabled`.
+    pub disabled: bool,
+    /// The widget holds input focus.
+    pub focused: bool,
+}
+
 impl UiTheme {
-    #[expect(
-        clippy::fn_params_excessive_bools,
-        reason = "the four states of the documented precedence; a struct of them trips struct_excessive_bools instead"
-    )]
-    pub(crate) fn resolve(
-        &self,
-        hovered: bool,
-        pressed: bool,
-        disabled: bool,
-        focused: bool,
-    ) -> Style {
-        let base = if disabled {
+    pub(crate) fn resolve(&self, state: InteractionState) -> Style {
+        let base = if state.disabled {
             self.disabled
-        } else if pressed {
+        } else if state.pressed {
             self.pressed
-        } else if hovered {
+        } else if state.hovered {
             self.hovered
         } else {
             self.normal
         };
-        if focused {
+        if state.focused {
             base.patch(self.focused)
         } else {
             base

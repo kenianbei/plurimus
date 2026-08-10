@@ -22,7 +22,7 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span};
 
 use crate::UiLabel;
-use crate::theme::UiTheme;
+use crate::theme::{InteractionState, UiTheme};
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
 
@@ -67,7 +67,12 @@ pub(crate) struct StylistCache {
 
 impl StylistCache {
     pub(crate) fn style(&self, theme: &UiTheme) -> Style {
-        let base = theme.resolve(self.hovered, self.pressed, self.disabled, self.focused);
+        let base = theme.resolve(InteractionState {
+            hovered: self.hovered,
+            pressed: self.pressed,
+            disabled: self.disabled,
+            focused: self.focused,
+        });
         match self.over {
             Some(over) => base.patch(over),
             None => base,
