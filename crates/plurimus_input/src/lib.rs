@@ -1,9 +1,15 @@
-//! Input contract for plurimus: messages a terminal backend emits into the
-//! main world, and the state derived from them.
+//! Terminal contract for plurimus: the messages that cross between an app
+//! and whichever backend is driving the terminal.
+//!
+//! Mostly inbound - [`KeyMessage`], [`MouseMessage`], [`PasteMessage`] and
+//! [`FocusMessage`] are what a backend reports, and [`ButtonInput`] and
+//! [`CursorCell`] are the state derived from them. [`TerminalRequest`] runs
+//! the other way: what an app asks the terminal to do.
 
 pub mod bevy_compat;
 mod keyboard;
 mod mouse;
+mod request;
 mod state;
 mod synthesis;
 
@@ -11,6 +17,7 @@ pub use bevy_input::ButtonInput;
 pub use bevy_input::mouse::MouseButton;
 pub use keyboard::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
 pub use mouse::{CursorCell, MouseKind, MouseMessage};
+pub use request::{ClipboardTarget, TerminalRequest};
 pub use state::InputSystems;
 pub use synthesis::ReleaseTimeout;
 
@@ -108,6 +115,7 @@ impl Plugin for InputPlugin {
         app.add_message::<MouseMessage>();
         app.add_message::<PasteMessage>();
         app.add_message::<FocusMessage>();
+        app.add_message::<TerminalRequest>();
         app.configure_sets(
             PreUpdate,
             (InputSystems::Pump, InputSystems::Update).chain(),
