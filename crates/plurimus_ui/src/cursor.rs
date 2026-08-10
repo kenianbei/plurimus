@@ -6,8 +6,9 @@
 
 use bevy_ecs::prelude::{Component, Local, Query, Res, ResMut};
 use bevy_input_focus::InputFocus;
+use plurimus_core::TerminalCursor;
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_core::{TerminalCursor, TerminalCursorStyle};
+use plurimus_term::TerminalCursorStyle;
 
 use crate::interaction::ComputedWidgetArea;
 use crate::scroll::{ScrollOffset, screen_cell};
@@ -56,6 +57,7 @@ pub(crate) fn sync_terminal_cursor(
     focus: Res<InputFocus>,
     widgets: Query<(&WidgetCursor, &ComputedWidgetArea, Option<&ScrollOffset>)>,
     mut cursor: ResMut<TerminalCursor>,
+    mut style: ResMut<TerminalCursorStyle>,
     mut owned: Local<bool>,
 ) {
     let placed = focus
@@ -66,16 +68,15 @@ pub(crate) fn sync_terminal_cursor(
             Some((screen_cell(widget.cell, area.0, offset)?, widget.style))
         });
     match placed {
-        Some((cell, style)) => {
+        Some((cell, wanted)) => {
             *owned = true;
             // Guarded because an unguarded write marks the resource every
             // frame a caret sits still.
-            let next = TerminalCursor {
-                cell: Some(cell),
-                style,
-            };
-            if *cursor != next {
-                *cursor = next;
+            if cursor.cell != Some(cell) {
+                cursor.cell = Some(cell);
+            }
+            if *style != wanted {
+                *style = wanted;
             }
         }
         None if *owned => {

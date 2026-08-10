@@ -5,9 +5,8 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{
-    CorePlugin, TerminalCamera, TerminalCursor, TerminalCursorStyle, TerminalSize,
-};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalCursor, TerminalSize};
+use plurimus_term::TerminalCursorStyle;
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiPlugin, WidgetCursor};
 
 const AREA: Rect = Rect::new(4, 2, 6, 3);
@@ -139,7 +138,7 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
     app.update();
 
     assert_eq!(
-        app.world().resource::<TerminalCursor>().style,
+        *app.world().resource::<TerminalCursorStyle>(),
         TerminalCursorStyle::SteadyBar
     );
 }

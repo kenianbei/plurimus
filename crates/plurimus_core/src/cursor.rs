@@ -6,10 +6,9 @@
 //! composition to, and neither can see a styled cell.
 //!
 //! Position and visibility go through ratatui's [`Backend`], so the
-//! presenter applies them whatever the backend is. Shape does not - no
-//! `Backend` method sets it - so a backend crate that can honor
-//! [`TerminalCursorStyle`] does it beside the presenter, and one that
-//! cannot leaves the terminal's own cursor shape alone.
+//! presenter applies them whatever the backend is - which is why they are
+//! here. Shape does not: no `Backend` method sets one, so it is terminal
+//! contract and lives in `plurimus_term` for a backend to serve.
 //!
 //! [`Backend`]: ratatui_core::backend::Backend
 
@@ -35,41 +34,10 @@ use crate::extract::MainWorld;
 pub struct TerminalCursor {
     /// Screen cell the cursor occupies; `None` hides it.
     pub cell: Option<Position>,
-    /// Shape the cursor takes where a backend can set one.
-    pub style: TerminalCursorStyle,
-}
-
-/// Shape a terminal draws its cursor with.
-///
-/// Best-effort: a backend with no way to set the shape ignores this, and
-/// every terminal is free to. [`Default`](Self::Default) asks for whatever
-/// the user configured, which is the polite choice for anything that is not
-/// specifically a text caret.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum TerminalCursorStyle {
-    /// Whatever the terminal was already using.
-    #[default]
-    Default,
-    /// A blinking filled cell.
-    BlinkingBlock,
-    /// A steady filled cell.
-    SteadyBlock,
-    /// A blinking line under the cell.
-    BlinkingUnderline,
-    /// A steady line under the cell.
-    SteadyUnderline,
-    /// A blinking bar between cells.
-    BlinkingBar,
-    /// A steady bar between cells.
-    SteadyBar,
 }
 
 /// The cell the presenter last applied, so an unchanged cursor costs no
 /// escape sequence.
-///
-/// Only the cell, because only the cell is what the presenter writes - the
-/// shape is a backend's to serve, and pairing them here would reissue a
-/// move whenever a shape changed.
 ///
 /// Advances only after a successful flush, which is why this is a resource
 /// rather than change detection on [`TerminalCursor`]: a transient IO

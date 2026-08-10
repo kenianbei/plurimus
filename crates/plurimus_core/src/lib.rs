@@ -34,7 +34,7 @@ pub use camera::{
     camera_buffer_mut,
 };
 pub use compositor::FrameBuffer;
-pub use cursor::{TerminalCursor, TerminalCursorStyle};
+pub use cursor::TerminalCursor;
 pub use extract::MainWorld;
 pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;

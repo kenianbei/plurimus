@@ -19,8 +19,8 @@ use crossterm::clipboard::{ClipboardSelection, ClipboardType, CopyToClipboard};
 use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
 use crossterm::terminal::SetTitle;
-use plurimus_core::{MainWorld, TerminalContext, TerminalCursor, TerminalCursorStyle};
-use plurimus_term::{ClipboardTarget, TerminalRequest};
+use plurimus_core::{MainWorld, TerminalContext};
+use plurimus_term::{ClipboardTarget, TerminalCursorStyle, TerminalRequest};
 use ratatui_crossterm::CrosstermBackend;
 
 /// Longest base64 payload tmux forwards; past it the sequence is truncated
@@ -92,15 +92,16 @@ fn serve(writer: &mut impl Write, requests: &[TerminalRequest], clipboard: bool)
 /// Position and visibility are the presenter's; only the shape needs a
 /// crossterm-specific sequence, and a terminal is free to ignore it.
 pub(crate) fn write_cursor_style<W: Write + Send + Sync + 'static>(
+    main_world: Res<MainWorld>,
     mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
-    cursor: Res<TerminalCursor>,
     mut previous: ResMut<PreviousCursorStyle>,
 ) -> BevyResult {
-    if previous.0 == Some(cursor.style) {
+    let wanted = *main_world.resource::<TerminalCursorStyle>();
+    if previous.0 == Some(wanted) {
         return Ok(());
     }
-    previous.0 = Some(cursor.style);
-    let Some(style) = cursor_style(cursor.style) else {
+    previous.0 = Some(wanted);
+    let Some(style) = cursor_style(wanted) else {
         return Ok(());
     };
     let writer = &mut context.backend;
@@ -170,9 +171,10 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use bevy_app::App;
+    use plurimus_core::ratatui_core::layout::Position;
     use plurimus_core::{
-        CorePlugin, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt,
-        TerminalRenderSystems, TerminalSize,
+        CorePlugin, PresenterPlugin, TerminalCursor, TerminalRenderApp, TerminalRenderAppExt,
+        TerminalSize,
     };
 
     use super::*;
@@ -224,11 +226,10 @@ mod tests {
         app.add_plugins((CorePlugin, plurimus_term::TermPlugin));
         app.insert_resource(TerminalSize { cols: 10, rows: 2 });
         app.add_plugins(PresenterPlugin::new(CrosstermBackend::new(writer.clone())));
-        app.add_extract_systems(write_terminal_requests::<SharedWriter>);
-        app.add_terminal_systems(
-            TerminalRenderSystems::Present,
+        app.add_extract_systems((
+            write_terminal_requests::<SharedWriter>,
             write_cursor_style::<SharedWriter>,
-        );
+        ));
         app.sub_app_mut(TerminalRenderApp)
             .insert_resource(ClipboardEnabled(clipboard))
             .insert_resource(PreviousCursorStyle::default());
@@ -348,7 +349,7 @@ mod tests {
             writer.written()
         );
 
-        app.world_mut().resource_mut::<TerminalCursor>().style = TerminalCursorStyle::SteadyBar;
+        *app.world_mut().resource_mut::<TerminalCursorStyle>() = TerminalCursorStyle::SteadyBar;
         app.update();
 
         assert!(
@@ -361,7 +362,7 @@ mod tests {
     #[test]
     fn an_unchanged_shape_is_not_reissued() {
         let (mut app, writer) = app_serving_requests(false);
-        app.world_mut().resource_mut::<TerminalCursor>().style =
+        *app.world_mut().resource_mut::<TerminalCursorStyle>() =
             TerminalCursorStyle::BlinkingUnderline;
         app.update();
         let after_first = writer.written();
@@ -372,6 +373,30 @@ mod tests {
             writer.written(),
             after_first,
             "a settled shape costs nothing"
+        );
+    }
+
+    // Each crate caches exactly what it applies: core the cell, this crate
+    // the shape. Pairing them would reissue a move whenever a shape
+    // changed, and a shape whenever a caret moved.
+    #[test]
+    fn a_shape_change_moves_no_cursor() {
+        let (mut app, writer) = app_serving_requests(false);
+        app.world_mut().resource_mut::<TerminalCursor>().cell = Some(Position::new(3, 1));
+        app.update();
+        let after_placing = writer.written();
+
+        *app.world_mut().resource_mut::<TerminalCursorStyle>() = TerminalCursorStyle::SteadyBar;
+        app.update();
+
+        let added = writer.written()[after_placing.len()..].to_owned();
+        assert!(
+            added.contains(" q"),
+            "the shape reaches the terminal: {added:?}"
+        );
+        assert!(
+            !added.contains("\x1b[2;4H") && !added.contains("\x1b[?25h"),
+            "and asks for no move or show: {added:?}"
         );
     }
 }

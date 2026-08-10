@@ -21,9 +21,7 @@ use std::sync::Mutex;
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use plurimus_core::{
-    CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
-};
+use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt};
 use plurimus_term::InputSystems;
 
 /// Owns the terminal and presents composed frames via crossterm.
@@ -172,11 +170,10 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
                 .before(CameraSystems::SyncSize),
         );
         app.add_plugins(PresenterPlugin::new(backend));
-        app.add_extract_systems(request::write_terminal_requests::<W>);
-        app.add_terminal_systems(
-            TerminalRenderSystems::Present,
+        app.add_extract_systems((
+            request::write_terminal_requests::<W>,
             request::write_cursor_style::<W>,
-        );
+        ));
         app.sub_app_mut(TerminalRenderApp)
             .insert_resource(context::RestoreOnDrop)
             .insert_resource(request::ClipboardEnabled(self.clipboard))

@@ -6,19 +6,23 @@
 //! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
 //! [`InputCapabilities`] records which of it the terminal can actually
 //! manage. Outbound, [`TerminalRequest`] is what an app asks of the
-//! terminal.
+//! terminal and [`TerminalCursorStyle`] is the shape it asks the caret to
+//! take.
 //!
 //! What is here is what needs a terminal to mean anything. Rendering to a
 //! cell grid does not: `plurimus_core` drives any ratatui `Backend`,
 //! terminal or otherwise, and never depends on this crate.
 
 pub mod bevy_compat;
+mod cursor;
 mod keyboard;
 mod mouse;
 mod request;
 mod resize;
 mod state;
 mod synthesis;
+
+pub use cursor::TerminalCursorStyle;
 
 pub use bevy_input::ButtonInput;
 pub use bevy_input::mouse::MouseButton;
@@ -121,6 +125,7 @@ impl Plugin for TermPlugin {
             app.add_plugins(plurimus_core::CorePlugin);
         }
         app.init_resource::<CursorCell>();
+        app.init_resource::<TerminalCursorStyle>();
         app.init_resource::<InputCapabilities>();
         app.init_resource::<ReleaseTimeout>();
         app.init_resource::<ButtonInput<KeyCode>>();
