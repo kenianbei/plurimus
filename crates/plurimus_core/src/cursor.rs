@@ -13,6 +13,7 @@
 //!
 //! [`Backend`]: ratatui_core::backend::Backend
 
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{Res, ResMut, Resource};
 use ratatui_core::layout::Position;
 
@@ -24,24 +25,18 @@ use crate::extract::MainWorld;
 /// cursor wants. Visibility is read off the position rather than carried
 /// beside it, because a hidden cursor that still remembers a cell is a
 /// state no terminal has.
+///
+/// An app writes this directly for a cursor that belongs to no widget - a
+/// prompt on a status strip. With `plurimus_ui` installed it is also
+/// written on the app's behalf whenever the focused widget carries a
+/// `WidgetCursor`, and that wins for as long as it lasts: a widget caret
+/// and an app caret cannot both have the one terminal cursor.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TerminalCursor {
     /// Screen cell the cursor occupies; `None` hides it.
     pub cell: Option<Position>,
     /// Shape the cursor takes where a backend can set one.
     pub style: TerminalCursorStyle,
-}
-
-impl TerminalCursor {
-    /// Puts the cursor at `cell`, keeping the current style.
-    pub const fn show(&mut self, cell: Position) {
-        self.cell = Some(cell);
-    }
-
-    /// Hides the cursor, keeping the style for the next time it shows.
-    pub const fn hide(&mut self) {
-        self.cell = None;
-    }
 }
 
 /// Shape a terminal draws its cursor with.
@@ -69,18 +64,31 @@ pub enum TerminalCursorStyle {
     SteadyBar,
 }
 
-/// The cursor as the presenter last applied it, so an unchanged one costs
-/// no escape sequence.
+/// The cell the presenter last applied, so an unchanged cursor costs no
+/// escape sequence.
+///
+/// Only the cell, because only the cell is what the presenter writes - the
+/// shape is a backend's to serve, and pairing them here would reissue a
+/// move whenever a shape changed.
+///
+/// Advances only after a successful flush, which is why this is a resource
+/// rather than change detection on [`TerminalCursor`]: a transient IO
+/// failure is retried on the next frame instead of being swallowed with
+/// the change tick, the same contract the frame diff has.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PreviousCursor(pub(crate) Option<TerminalCursor>);
+pub(crate) enum PreviousCursor {
+    /// Nothing applied yet, so any cursor differs from it.
+    #[default]
+    Unknown,
+    /// The cell last applied; `None` is a cursor that was hidden.
+    Applied(Option<Position>),
+}
 
 pub(crate) fn extract_terminal_cursor(
     main_world: Res<MainWorld>,
     mut cursor: ResMut<TerminalCursor>,
 ) {
-    if let Some(source) = main_world.get_resource::<TerminalCursor>() {
-        *cursor = *source;
-    }
+    cursor.set_if_neq(*main_world.resource::<TerminalCursor>());
 }
 
 #[cfg(test)]
@@ -120,9 +128,7 @@ mod tests {
     #[test]
     fn setting_a_cell_shows_the_cursor_there() {
         let mut app = app();
-        app.world_mut()
-            .resource_mut::<TerminalCursor>()
-            .show(Position::new(5, 2));
+        app.world_mut().resource_mut::<TerminalCursor>().cell = Some(Position::new(5, 2));
 
         app.update();
 
@@ -133,12 +139,10 @@ mod tests {
     #[test]
     fn clearing_the_cell_hides_it_again() {
         let mut app = app();
-        app.world_mut()
-            .resource_mut::<TerminalCursor>()
-            .show(Position::new(1, 1));
+        app.world_mut().resource_mut::<TerminalCursor>().cell = Some(Position::new(1, 1));
         app.update();
 
-        app.world_mut().resource_mut::<TerminalCursor>().hide();
+        app.world_mut().resource_mut::<TerminalCursor>().cell = None;
         app.update();
 
         assert!(!backend(&app).cursor_visible());
@@ -150,14 +154,10 @@ mod tests {
     #[test]
     fn the_cursor_moves_on_a_frame_that_draws_nothing() {
         let mut app = app();
-        app.world_mut()
-            .resource_mut::<TerminalCursor>()
-            .show(Position::new(0, 0));
+        app.world_mut().resource_mut::<TerminalCursor>().cell = Some(Position::new(0, 0));
         app.update();
 
-        app.world_mut()
-            .resource_mut::<TerminalCursor>()
-            .show(Position::new(7, 1));
+        app.world_mut().resource_mut::<TerminalCursor>().cell = Some(Position::new(7, 1));
         app.update();
 
         assert_eq!(

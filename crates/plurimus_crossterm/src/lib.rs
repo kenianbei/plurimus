@@ -49,7 +49,7 @@ use plurimus_input::InputSystems;
 /// the first build.
 // The flags are only ever set through the named builders below, never
 // positionally, so the confusion the lint guards against cannot arise.
-#[allow(clippy::struct_excessive_bools, reason = "a builder, not a call")]
+#[expect(clippy::struct_excessive_bools, reason = "a builder, not a call")]
 pub struct CrosstermPlugin<W: Write + Send + Sync + 'static = Stdout> {
     mouse: bool,
     paste: bool,
@@ -119,6 +119,11 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
     /// clipboard a decision an app states rather than inherits. Needs an
     /// ANSI-capable terminal: crossterm has no Windows console fallback for
     /// the sequence, so copying is a no-op there.
+    ///
+    /// A copy larger than one OSC 52 sequence can carry is dropped with a
+    /// warning rather than truncated, because a clipboard holding most of a
+    /// selection is worse than one holding none of it. Terminals differ on
+    /// the ceiling; the one honored here is what tmux forwards.
     #[must_use]
     pub const fn clipboard(mut self, clipboard: bool) -> Self {
         self.clipboard = clipboard;
@@ -166,17 +171,13 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
                 .before(CameraSystems::SyncSize),
         );
         app.add_plugins(PresenterPlugin::new(backend));
-        app.add_extract_systems(request::extract_requests);
+        app.add_extract_systems(request::write_terminal_requests::<W>);
         app.add_terminal_systems(
             TerminalRenderSystems::Present,
-            (
-                request::write_requests::<W>,
-                request::write_cursor_style::<W>,
-            ),
+            request::write_cursor_style::<W>,
         );
         app.sub_app_mut(TerminalRenderApp)
             .insert_resource(context::RestoreOnDrop)
-            .insert_resource(request::PendingRequests::default())
             .insert_resource(request::ClipboardEnabled(self.clipboard))
             .insert_resource(request::PreviousCursorStyle::default());
     }

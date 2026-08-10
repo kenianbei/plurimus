@@ -1,23 +1,20 @@
 //! Serving [`TerminalRequest`]s through the terminal writer.
 //!
-//! Requests are drained from the main world during extraction and written in
-//! the present phase, which is the only place the backend - and so the
-//! writer - is reachable. The write flushes itself rather than leaning on
-//! the presenter's: the presenter skips both draw and flush when no cell
-//! differs, and a copy usually changes nothing on screen, so a shared flush
-//! would strand the escape until some later redraw.
+//! Written during extraction, which runs inside the sub-app world with the
+//! main world lent in - so one system reaches both the requests and the
+//! backend, and nothing has to be parked in between.
 //!
-//! Ordering against the presenter is immaterial, which is why none is
-//! stated. Both systems take the backend mutably, so they never overlap, and
-//! each writes a self-contained sequence and flushes it - the presenter's
-//! draw and flush are one system body, so nothing can land between them.
+//! The write flushes itself rather than leaning on the presenter's: the
+//! presenter skips both draw and flush when no cell differs, and a copy
+//! usually changes nothing on screen, so a shared flush would strand the
+//! escape until some later redraw.
 
 use std::io::{self, Write};
 
 use bevy_ecs::error::Result as BevyResult;
 use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Res, ResMut, Resource};
-use bevy_log::warn;
+use bevy_log::{warn, warn_once};
 use crossterm::clipboard::{ClipboardSelection, ClipboardType, CopyToClipboard};
 use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
@@ -31,35 +28,32 @@ use ratatui_crossterm::CrosstermBackend;
 /// most of what was copied is worse than one holding none of it.
 const OSC52_MAX_BASE64: usize = 74_994;
 
-/// Requests drained from the main world, awaiting the writer.
-#[derive(Resource, Debug, Default)]
-pub(crate) struct PendingRequests(Vec<TerminalRequest>);
-
 /// Whether [`CrosstermPlugin::clipboard`](crate::CrosstermPlugin::clipboard)
 /// allowed copying.
 #[derive(Resource, Debug, Clone, Copy)]
 pub(crate) struct ClipboardEnabled(pub(crate) bool);
 
-pub(crate) fn extract_requests(
+/// The cursor shape last asked of the terminal, so an unchanged one costs
+/// no escape sequence.
+///
+/// Kept per field rather than against the whole [`TerminalCursor`], which
+/// changes on every caret move: keying the shape off that would re-emit
+/// this escape on every keystroke.
+#[derive(Resource, Debug, Default, Clone, Copy)]
+pub(crate) struct PreviousCursorStyle(Option<TerminalCursorStyle>);
+
+pub(crate) fn write_terminal_requests<W: Write + Send + Sync + 'static>(
     mut main_world: ResMut<MainWorld>,
-    mut pending: ResMut<PendingRequests>,
-) {
-    let drained: Vec<TerminalRequest> = main_world
+    mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
+    clipboard: Res<ClipboardEnabled>,
+) -> BevyResult {
+    let requests: Vec<TerminalRequest> = main_world
         .resource_mut::<Messages<TerminalRequest>>()
         .drain()
         .collect();
-    pending.0.extend(drained);
-}
-
-pub(crate) fn write_requests<W: Write + Send + Sync + 'static>(
-    mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
-    mut pending: ResMut<PendingRequests>,
-    clipboard: Res<ClipboardEnabled>,
-) -> BevyResult {
-    if pending.0.is_empty() {
+    if requests.is_empty() {
         return Ok(());
     }
-    let requests = std::mem::take(&mut pending.0);
     // The backend is itself a `Write` forwarding to the terminal writer,
     // which is the stable way in; `writer_mut` is behind ratatui's unstable
     // `backend-writer` feature.
@@ -67,10 +61,31 @@ pub(crate) fn write_requests<W: Write + Send + Sync + 'static>(
     Ok(())
 }
 
-/// The cursor shape last asked of the terminal, so an unchanged one costs
-/// no escape sequence.
-#[derive(Resource, Debug, Default, Clone, Copy)]
-pub(crate) struct PreviousCursorStyle(Option<TerminalCursorStyle>);
+/// Queues every request and flushes once if any of them wrote.
+///
+/// A request the terminal cannot be asked for - copying with the capability
+/// switched off, an oversized payload, a variant this backend does not
+/// know - is dropped rather than failing the frame.
+fn serve(writer: &mut impl Write, requests: &[TerminalRequest], clipboard: bool) -> io::Result<()> {
+    let mut wrote = false;
+    for request in requests {
+        wrote |= match request {
+            TerminalRequest::CopyToClipboard {
+                content,
+                destination,
+            } => write_copy(writer, content, *destination, clipboard)?,
+            TerminalRequest::SetTitle(title) => {
+                queue!(writer, SetTitle(title))?;
+                true
+            }
+            _ => false,
+        };
+    }
+    if wrote {
+        writer.flush()?;
+    }
+    Ok(())
+}
 
 /// Sets the cursor shape, which no `Backend` method reaches.
 ///
@@ -107,41 +122,6 @@ const fn cursor_style(style: TerminalCursorStyle) -> Option<SetCursorStyle> {
     }
 }
 
-/// Queues every request and flushes once if any of them wrote.
-fn serve(writer: &mut impl Write, requests: &[TerminalRequest], clipboard: bool) -> io::Result<()> {
-    let mut wrote = false;
-    for request in requests {
-        wrote |= write_request(writer, request, clipboard)?;
-    }
-    if wrote {
-        writer.flush()?;
-    }
-    Ok(())
-}
-
-/// Queues one request, reporting whether anything reached the writer.
-///
-/// A request the terminal cannot be asked for - copying with the capability
-/// switched off, an oversized payload, a variant this backend does not
-/// know - is dropped rather than failing the frame.
-fn write_request(
-    writer: &mut impl Write,
-    request: &TerminalRequest,
-    clipboard: bool,
-) -> io::Result<bool> {
-    match request {
-        TerminalRequest::CopyToClipboard {
-            content,
-            destination,
-        } => write_copy(writer, content, *destination, clipboard),
-        TerminalRequest::SetTitle(title) => {
-            queue!(writer, SetTitle(title))?;
-            Ok(true)
-        }
-        _ => Ok(false),
-    }
-}
-
 fn write_copy(
     writer: &mut impl Write,
     content: &str,
@@ -149,6 +129,9 @@ fn write_copy(
     enabled: bool,
 ) -> io::Result<bool> {
     if !enabled {
+        warn_once!(
+            "a clipboard write was dropped; enable it with CrosstermPlugin::clipboard(true)"
+        );
         return Ok(false);
     }
     let encoded = base64_len(content.len());
@@ -241,14 +224,14 @@ mod tests {
         app.add_plugins((CorePlugin, plurimus_input::InputPlugin));
         app.insert_resource(TerminalSize { cols: 10, rows: 2 });
         app.add_plugins(PresenterPlugin::new(CrosstermBackend::new(writer.clone())));
-        app.add_extract_systems(extract_requests);
+        app.add_extract_systems(write_terminal_requests::<SharedWriter>);
         app.add_terminal_systems(
             TerminalRenderSystems::Present,
-            write_requests::<SharedWriter>,
+            write_cursor_style::<SharedWriter>,
         );
         app.sub_app_mut(TerminalRenderApp)
-            .insert_resource(PendingRequests::default())
-            .insert_resource(ClipboardEnabled(clipboard));
+            .insert_resource(ClipboardEnabled(clipboard))
+            .insert_resource(PreviousCursorStyle::default());
         (app, writer)
     }
 
@@ -352,5 +335,44 @@ mod tests {
         app.update();
 
         assert_eq!(writer.written(), after_first, "a second frame repeats it");
+    }
+
+    #[test]
+    fn a_shape_reaches_the_terminal_and_the_default_asks_for_nothing() {
+        let (mut app, writer) = app_serving_requests(false);
+        app.update();
+        // DECSCUSR is the only ` q`-terminated sequence here; the frame's
+        // own clear and cursor hide are not it.
+        assert!(
+            !writer.written().contains(" q"),
+            "the terminal's own shape is asked for by not asking: {:?}",
+            writer.written()
+        );
+
+        app.world_mut().resource_mut::<TerminalCursor>().style = TerminalCursorStyle::SteadyBar;
+        app.update();
+
+        assert!(
+            writer.written().contains("\x1b[6 q"),
+            "{:?}",
+            writer.written()
+        );
+    }
+
+    #[test]
+    fn an_unchanged_shape_is_not_reissued() {
+        let (mut app, writer) = app_serving_requests(false);
+        app.world_mut().resource_mut::<TerminalCursor>().style =
+            TerminalCursorStyle::BlinkingUnderline;
+        app.update();
+        let after_first = writer.written();
+
+        app.update();
+
+        assert_eq!(
+            writer.written(),
+            after_first,
+            "a settled shape costs nothing"
+        );
     }
 }

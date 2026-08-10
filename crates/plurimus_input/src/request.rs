@@ -15,7 +15,14 @@ use bevy_ecs::prelude::Message;
 /// and nothing here can be confirmed - OSC 52 has no acknowledgement - so a
 /// request is sent rather than done. Which variants a backend honors, and
 /// what it needs enabling first, is the backend crate's documentation:
-/// `plurimus_crossterm` gates copying behind `CrosstermPlugin::clipboard`.
+/// `plurimus_crossterm` gates copying behind `CrosstermPlugin::clipboard`
+/// and drops a copy too large for one escape sequence.
+///
+/// One-way, and stays that way: there is no variant that reads the
+/// clipboard back. The escape that would is widely disabled as a
+/// data-exfiltration risk, and a reply would have to be parsed out of the
+/// input stream, which no backend here does. Text arrives by
+/// [`PasteMessage`](crate::PasteMessage) when the user pastes it.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TerminalRequest {
@@ -48,6 +55,11 @@ impl TerminalRequest {
 /// dragged selection on [`Primary`](Self::Primary) and an explicit copy on
 /// [`Clipboard`](Self::Clipboard) - the X11 idiom, which one shared setting
 /// could not express.
+///
+/// Deliberately closed to the two selections terminals actually implement.
+/// OSC 52 also names cut buffers `0`-`7`, which are xterm trivia nothing
+/// else honors; a variant for them would be a breaking change worth making
+/// only if something asks.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ClipboardTarget {
     /// The clipboard a paste reads from.

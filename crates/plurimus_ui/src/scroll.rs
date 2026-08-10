@@ -11,12 +11,10 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
-    Commands, Component, EntityEvent, Local, MessageReader, Mut, On, Query, Res, ResMut, With,
-    Without,
+    Commands, Component, EntityEvent, MessageReader, Mut, On, Query, With, Without,
 };
-use bevy_input_focus::InputFocus;
+use plurimus_core::RasterDeferred;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{RasterDeferred, TerminalCursor};
 use plurimus_input::{MouseKind, MouseMessage};
 use tui_scrollview::ScrollbarVisibility;
 
@@ -264,54 +262,6 @@ pub fn content_cell(screen: Position, area: Rect, offset: Position) -> Option<Po
         x.saturating_add(offset.x),
         y.saturating_add(offset.y),
     ))
-}
-
-/// Where the terminal cursor sits inside this widget's content.
-///
-/// In content space, so a scrolled widget names the cell its caret occupies
-/// rather than inverting its own offset. The widget holding focus wins, and
-/// its cursor is hidden while the cell is scrolled out of view; a widget
-/// that never holds focus never shows one.
-///
-/// An app placing a cursor that belongs to no widget - a prompt on a status
-/// strip - sets [`TerminalCursor`](plurimus_core::TerminalCursor) directly
-/// instead, in screen space.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-#[require(ComputedWidgetArea)]
-pub struct WidgetCursor(pub Position);
-
-/// Resolves the focused widget's cursor onto the screen.
-///
-/// Owns the terminal cursor only while a focused widget claims one, so an
-/// app that sets [`TerminalCursor`](plurimus_core::TerminalCursor) itself
-/// keeps it - the clear happens when this system's own cursor goes away,
-/// not on every frame nothing is focused.
-pub(crate) fn sync_terminal_cursor(
-    focus: Res<InputFocus>,
-    widgets: Query<(&WidgetCursor, &ComputedWidgetArea, Option<&ScrollOffset>)>,
-    mut cursor: ResMut<TerminalCursor>,
-    mut owned: Local<bool>,
-) {
-    let placed = focus
-        .get()
-        .and_then(|entity| widgets.get(entity).ok())
-        .and_then(|(widget, area, offset)| {
-            let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
-            screen_cell(widget.0, area.0, offset)
-        });
-    match placed {
-        Some(cell) => {
-            *owned = true;
-            if cursor.cell != Some(cell) {
-                cursor.show(cell);
-            }
-        }
-        None if *owned => {
-            *owned = false;
-            cursor.hide();
-        }
-        None => {}
-    }
 }
 
 /// Where a content cell lands on screen, for a widget drawn at `area` and

@@ -119,18 +119,24 @@ fn apply_cursor<B: Backend>(
     cursor: TerminalCursor,
     previous: &mut PreviousCursor,
 ) -> Result<(), B::Error> {
-    if previous.0 == Some(cursor) {
+    if *previous == PreviousCursor::Applied(cursor.cell) {
         return Ok(());
     }
+    // Showing an already-shown cursor is its own escape and its own flush
+    // on the crossterm backend, so a caret moving one cell asks only to
+    // move.
+    let was_hidden = !matches!(*previous, PreviousCursor::Applied(Some(_)));
     match cursor.cell {
         Some(cell) => {
             backend.set_cursor_position(cell)?;
-            backend.show_cursor()?;
+            if was_hidden {
+                backend.show_cursor()?;
+            }
         }
         None => backend.hide_cursor()?,
     }
     backend.flush()?;
-    previous.0 = Some(cursor);
+    *previous = PreviousCursor::Applied(cursor.cell);
     Ok(())
 }
 

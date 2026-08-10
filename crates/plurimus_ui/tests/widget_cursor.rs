@@ -5,7 +5,9 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalCursor, TerminalSize};
+use plurimus_core::{
+    CorePlugin, TerminalCamera, TerminalCursor, TerminalCursorStyle, TerminalSize,
+};
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiPlugin, WidgetCursor};
 
 const AREA: Rect = Rect::new(4, 2, 6, 3);
@@ -20,7 +22,7 @@ fn app() -> App {
 
 fn spawn_editor(app: &mut App, caret: Position) -> Entity {
     app.world_mut()
-        .spawn((WidgetCursor(caret), UiArea::Fixed(AREA)))
+        .spawn((WidgetCursor::new(caret), UiArea::Fixed(AREA)))
         .id()
 }
 
@@ -111,10 +113,33 @@ fn a_cursor_no_widget_claims_survives() {
     let mut app = app();
     app.update();
 
-    app.world_mut()
-        .resource_mut::<TerminalCursor>()
-        .show(Position::new(0, 7));
+    app.world_mut().resource_mut::<TerminalCursor>().cell = Some(Position::new(0, 7));
     app.update();
 
     assert_eq!(cursor(&app), Some(Position::new(0, 7)));
+}
+
+// The shape travels with the cell, so focus moving off a bar-caret widget
+// does not leave the terminal wearing its shape.
+#[test]
+fn the_shape_follows_the_widget_that_owns_the_caret() {
+    let mut app = app();
+    let editor = app
+        .world_mut()
+        .spawn((
+            WidgetCursor {
+                cell: Position::new(0, 0),
+                style: TerminalCursorStyle::SteadyBar,
+            },
+            UiArea::Fixed(AREA),
+        ))
+        .id();
+    focus(&mut app, editor);
+
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<TerminalCursor>().style,
+        TerminalCursorStyle::SteadyBar
+    );
 }

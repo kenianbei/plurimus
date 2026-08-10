@@ -6,6 +6,11 @@
 //! cursor leave the field. The cursor is a reverse-video span over the
 //! cluster it sits on rather than the terminal's own cursor, so the field
 //! looks the same whether or not the terminal is drawing a caret.
+//!
+//! That is now a choice rather than the only option: `WidgetCursor` places
+//! the terminal's own caret, which is what a screen reader follows. Moving
+//! to it would change how every existing field looks, so it wants deciding
+//! on its own rather than riding along with the seam that made it possible.
 
 use plurimus_core::ratatui_core::buffer::{Buffer, CellWidth};
 use plurimus_core::ratatui_core::layout::Rect;
