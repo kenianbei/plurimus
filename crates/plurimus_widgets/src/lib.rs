@@ -25,7 +25,6 @@ mod rows;
 mod scrollbar;
 mod self_update;
 mod slider;
-mod stylist;
 mod table;
 mod text;
 
@@ -81,7 +80,6 @@ pub(crate) use text::{
 };
 
 use bevy_app::{App, Plugin, PreUpdate, Update};
-use bevy_ecs::prelude::Component;
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use bevy_input::keyboard::KeyCode;
@@ -89,7 +87,6 @@ use bevy_input_focus::InputFocusSystems;
 use ratatui_widgets::paragraph::Paragraph;
 
 use plurimus_core::UiWidget;
-use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::{UiPlugin, UiSystems};
 
 // Modifiers arrive as polled state rather than per-event flags, so
@@ -97,14 +94,6 @@ use plurimus_ui::{UiPlugin, UiSystems};
 pub(crate) const CTRL_KEYS: [KeyCode; 2] = [KeyCode::ControlLeft, KeyCode::ControlRight];
 pub(crate) const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
 pub(crate) const SHIFT_KEYS: [KeyCode; 2] = [KeyCode::ShiftLeft, KeyCode::ShiftRight];
-
-/// A widget's text label, rendered by the stock stylists.
-///
-/// A [`Line`] rather than a `String`, so a label can carry per-span style -
-/// columns in a list row, a dimmed shortcut beside a menu item. Converts
-/// from `String` and `&str`, so a plain label stays a plain label.
-#[derive(Component, Debug, Clone)]
-pub struct UiLabel(pub Line<'static>);
 
 // The stock stylists replace this on the first frame.
 pub(crate) fn placeholder() -> UiWidget {

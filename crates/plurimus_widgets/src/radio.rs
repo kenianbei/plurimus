@@ -14,10 +14,11 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
-use crate::{UiLabel, placeholder};
+use crate::placeholder;
 use plurimus_core::UiWidget;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
+use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
 /// One option inside a [`RadioGroup`].
 #[derive(Component, Debug, Clone, Copy)]
@@ -46,7 +47,7 @@ pub(crate) fn style_radios(
     mut radios: LabeledQuery<RadioButton>,
 ) {
     restyle(&theme, &focus, &mut radios, |state, label, style| {
-        let mark = if state.checked { "(•) " } else { "( ) " };
+        let mark = if state.checked() { "(•) " } else { "( ) " };
         UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
     });
 }

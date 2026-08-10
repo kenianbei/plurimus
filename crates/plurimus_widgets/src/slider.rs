@@ -25,23 +25,17 @@ use plurimus_core::ratatui_core::widgets::Widget;
 
 use super::ValueChange;
 use crate::placeholder;
-use crate::stylist::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 use plurimus_core::UiWidget;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress, PointerRelease,
     UiTheme,
 };
+use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A horizontal slider. Emits [`ValueChange<f32>`]; attach
 /// [`super::slider_self_update`] for uncontrolled behavior.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(
-    SliderValue,
-    SliderRange,
-    SliderStep,
-    Hovered,
-    crate::stylist::StylistCache
-)]
+#[require(SliderValue, SliderRange, SliderStep, Hovered, StylistCache)]
 pub struct Slider;
 
 /// The slider's current value.

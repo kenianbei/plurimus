@@ -19,9 +19,10 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::text::{Line, Text};
 
-use super::{UiLabel, ValueChange, placeholder};
+use super::{ValueChange, placeholder};
 use crate::rows::ContentDirty;
-use crate::stylist::StylistCache;
+use plurimus_ui::StylistCache;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollIntoView, ScrollOffset};
 

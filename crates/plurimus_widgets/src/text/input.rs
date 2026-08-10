@@ -20,10 +20,10 @@ use plurimus_input::PasteMessage;
 use super::field::TextField;
 use super::state::TextInput;
 use super::word::{word_end_forward, word_start_backward, word_start_forward};
-use crate::stylist::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 use crate::{ALT_KEYS, CTRL_KEYS, ValueChange, placeholder};
 use plurimus_core::UiWidget;
 use plurimus_ui::{Hovered, InteractionDisabled, UiTheme};
+use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A single-line editable text field. Edits mutate [`TextInput`] directly
 /// and emit [`ValueChange<String>`]: `is_final: false` per edit, `true`

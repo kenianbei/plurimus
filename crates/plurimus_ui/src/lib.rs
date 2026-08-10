@@ -23,6 +23,7 @@ mod modal;
 mod nav;
 mod scroll;
 mod scrolled;
+mod stylist;
 mod theme;
 
 pub use tui_scrollview;
@@ -41,6 +42,10 @@ pub use scroll::{
     max_offset,
 };
 pub use scrolled::LiveWidget;
+pub use stylist::{
+    LabeledQuery, ObservedState, StateQuery, Stylable, StylistCache, UiLabel, decorate,
+    hashed_bits, observed, restyle,
+};
 pub use theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 
 use bevy_app::{App, Plugin, PreUpdate};

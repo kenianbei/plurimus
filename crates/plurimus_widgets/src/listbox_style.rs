@@ -19,16 +19,15 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
-use crate::UiLabel;
 use crate::listbox::{
     ActiveDescendant, ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemText,
 };
 use crate::rows::ContentDirty;
-use crate::stylist::{
-    StateQuery, Stylable, StylistCache, cursor_symbol, decorate, hashed_bits, observed,
-};
+use crate::rows::cursor_symbol;
 use plurimus_core::UiWidget;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{Checked, UiStyle, UiTheme};
+use plurimus_ui::{StateQuery, Stylable, StylistCache, decorate, hashed_bits, observed};
 
 // `ListItem` catches a child that becomes a row without its label
 // changing; the rest is what a row draws with.

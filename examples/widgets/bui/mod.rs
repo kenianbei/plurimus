@@ -17,10 +17,10 @@ use bevy_ui::{
 use plurimus::bui::{ComputedNodeRect, Text};
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{ResolvedViewport, UiArea, UiCamera};
-use plurimus::ui::ValueChange;
+use plurimus::ui::{UiLabel, ValueChange};
 use plurimus::widgets::{
     Activate, Button, Checkbox, EditableText, RadioButton, RadioGroup, Slider, SliderRange,
-    SliderStep, SliderValue, UiLabel, checkbox_self_update, editable_text, radio_self_update,
+    SliderStep, SliderValue, checkbox_self_update, editable_text, radio_self_update,
     slider_self_update,
 };
 

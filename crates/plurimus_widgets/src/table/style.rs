@@ -21,9 +21,10 @@ use super::{
 };
 use crate::listbox::ActiveDescendant;
 use crate::rows::ContentDirty;
-use crate::stylist::{StateQuery, Stylable, StylistCache, cursor_symbol, hashed_bits, observed};
+use crate::rows::cursor_symbol;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, UiStyle, UiTheme};
+use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 pub(crate) type TableRowsChanged = Or<(
     Changed<TableRow>,

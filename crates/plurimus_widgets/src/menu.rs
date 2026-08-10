@@ -28,12 +28,13 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::{Popover, PopoverAlign, PopoverSide};
-use crate::stylist::{LabeledQuery, Stylable, StylistCache, decorate, restyle};
-use crate::{Activate, Button, UiLabel, is_activate_key, placeholder};
+use crate::{Activate, Button, is_activate_key, placeholder};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
+use plurimus_ui::UiLabel;
 use plurimus_ui::{
     Click, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
 };
+use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
 
 /// Items render above the popup frame.
 const ITEM_ORDER: UiOrder = UiOrder(UiOrder::OVERLAY.0 + 1);
@@ -260,7 +261,7 @@ pub(crate) fn style_menu_popups(
     for (over, mut cache, mut widget) in &mut popups {
         // A popup frame has no hover or press to resolve, so its state is
         // the override alone.
-        let next = StylistCache::styled(over);
+        let next = StylistCache::new(InteractionState::default(), over);
         if !theme.is_changed() && next == *cache {
             continue;
         }

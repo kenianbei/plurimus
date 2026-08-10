@@ -18,6 +18,7 @@ use bevy_ecs::prelude::{Changed, Component, Or, Query, RemovedComponents, With};
 use bevy_ecs::query::QueryFilter;
 use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
+use plurimus_core::ratatui_core::text::Line;
 
 use crate::listbox::{ListItemText, row_height};
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle};
@@ -133,4 +134,11 @@ pub(crate) fn sync_row_scroll<Container: Component, Row: Component>(
             scroll.content_size = content;
         }
     }
+}
+
+/// Shared, so the crate's cursor cannot differ between two containers.
+pub(crate) const CURSOR_SYMBOL: &str = "> ";
+
+pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
+    over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
 }
