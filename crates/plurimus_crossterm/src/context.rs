@@ -20,7 +20,7 @@ use crossterm::event::{
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
 use plurimus_core::{ColorDepth, TerminalSize};
-use plurimus_input::InputCapabilities;
+use plurimus_term::InputCapabilities;
 use ratatui_crossterm::CrosstermBackend;
 
 // Restore runs from panic hooks with no app state; only the kitty pop needs

@@ -32,7 +32,7 @@ use plurimus::core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus::core::ratatui_core::text::Line;
 use plurimus::core::{CorePlugin, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::input::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 use plurimus::ui::{ScrollArea, UiStyle, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{

@@ -47,7 +47,7 @@ flowchart TB
 
 The facade crate. Feature-gated re-exports of the member crates and nothing
 else: `plurimus_core` is unconditional, and each feature enables one member
-crate and its module (`crossterm` implies `input`; `widgets` and `bevy-ui` imply
+crate and its module (`crossterm` implies `term`; `widgets` and `bevy-ui` imply
 `ui`). The default feature set is `crossterm` - core, input, and a live
 terminal. The facade crate also hosts the runnable examples.
 
@@ -72,7 +72,7 @@ because a caret crossing a cell changes no cell's content and the diff skips a
 frame where nothing differs. Position and visibility go through `Backend`; the
 shape is a backend's to serve. Re-exports `ratatui_core`.
 
-### plurimus_input
+### plurimus_term
 
 The input contract. Defines the message types a terminal backend emits into the
 main world - `KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`,

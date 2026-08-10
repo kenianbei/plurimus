@@ -1,6 +1,6 @@
 use bevy_input_focus::InputFocus;
 use plurimus::core::TerminalSize;
-use plurimus::input::MouseKind;
+use plurimus::term::MouseKind;
 use plurimus::widgets::ActiveDescendant;
 use plurimus_test::{click, composed_frame, press_key, send_mouse};
 

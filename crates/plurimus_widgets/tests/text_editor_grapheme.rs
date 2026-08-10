@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, ModifierKey};
+use plurimus_term::{KeyCode, ModifierKey};
 use plurimus_test::{press_chord, press_key};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextEditor, WidgetsPlugin, text_editor};

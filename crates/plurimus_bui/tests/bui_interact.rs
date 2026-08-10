@@ -8,7 +8,7 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use bevy_ui::{FlexDirection, Node, Val};
 use plurimus_bui::BuiPlugin;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, MouseButton, MouseKind};
+use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{press_key, send_mouse};
 use plurimus_widgets::{Activate, Button, WidgetsPlugin};
 

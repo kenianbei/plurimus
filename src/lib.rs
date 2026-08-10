@@ -3,8 +3,8 @@
 pub use plurimus_core as core;
 #[cfg(feature = "crossterm")]
 pub use plurimus_crossterm as crossterm;
-#[cfg(feature = "input")]
-pub use plurimus_input as input;
+#[cfg(feature = "term")]
+pub use plurimus_term as term;
 
 #[cfg(feature = "bevy-ui")]
 pub use plurimus_bui as bui;

@@ -1,6 +1,6 @@
 [package]
-name = "plurimus_input"
-description = "Input contract for plurimus: terminal input messages, polled state, and bevy_input interop."
+name = "plurimus_term"
+description = "Terminal contract for plurimus: the messages crossing between an app and its terminal, in both directions."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

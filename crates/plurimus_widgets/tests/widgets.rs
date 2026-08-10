@@ -7,7 +7,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, MouseButton, MouseKind};
+use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{write_key, write_mouse};
 use plurimus_ui::{Checked, Hovered, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;

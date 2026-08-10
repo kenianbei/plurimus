@@ -29,8 +29,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how the crates fit together.
 ## Features
 
 Each feature enables one crate, and the tiers stack. The default set -
-`plurimus_core`, `plurimus_input`, `plurimus_crossterm` - renders a live
-terminal app and reads its input. Anything not enabled is not compiled.
+`plurimus_core`, `plurimus_term`, `plurimus_crossterm` - renders a live terminal
+app and reads its input. Anything not enabled is not compiled.
 
 ### Core (`plurimus_core`)
 
@@ -47,12 +47,17 @@ The presenter is generic over ratatui's `Backend`, so core renders without a
 terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_color`, and
 `ratatui-core`.
 
-### Input (`plurimus_input`)
+### Terminal (`plurimus_term`)
 
-Terminal input in two shapes from the same events. Discrete messages -
-`KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`,
-`FocusMessage` - for text entry and keymaps; polled `ButtonInput<KeyCode>` and
-`ButtonInput<MouseButton>` for game loops.
+Everything that needs a terminal to mean anything, in both directions.
+
+Inbound arrives in two shapes from the same events. Discrete messages -
+`KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`, `FocusMessage`,
+`TerminalResized` - for text entry and keymaps; polled `ButtonInput<KeyCode>`
+and `ButtonInput<MouseButton>` for game loops.
+
+Outbound is `TerminalRequest`: copy to a clipboard selection, set the window
+title. Best-effort, because nothing a terminal is asked can be confirmed.
 
 `InputCapabilities` records what the terminal reports. Terminals implementing
 the kitty keyboard protocol give real press, repeat, and release; elsewhere
@@ -151,16 +156,16 @@ them with plurimus's. `ratatui_core` is re-exported as
 `plurimus::core::ratatui_core`; the stock widget set is your own dependency
 unless the `widgets` feature is on, which re-exports it.
 
-| feature     | crate                | gives you                            |
-| ----------- | -------------------- | ------------------------------------ |
-| _(none)_    | `plurimus_core`      | rendering, always on                 |
-| `input`     | `plurimus_input`     | keys, mouse, paste, focus            |
-| `crossterm` | `plurimus_crossterm` | a live terminal (implies `input`)    |
-| `ui`        | `plurimus_ui`        | interaction, focus (implies `input`) |
-| `widgets`   | `plurimus_widgets`   | stock controls (implies `ui`)        |
-| `bevy-ui`   | `plurimus_bui`       | flexbox layout (implies `ui`)        |
-| `2d`        | `plurimus_2d`        | world-space sprites                  |
-| `3d`        | `plurimus_3d`        | GPU camera readback                  |
+| feature     | crate                | gives you                           |
+| ----------- | -------------------- | ----------------------------------- |
+| _(none)_    | `plurimus_core`      | rendering, always on                |
+| `term`      | `plurimus_term`      | the terminal contract, both ways    |
+| `crossterm` | `plurimus_crossterm` | a live terminal (implies `term`)    |
+| `ui`        | `plurimus_ui`        | interaction, focus (implies `term`) |
+| `widgets`   | `plurimus_widgets`   | stock controls (implies `ui`)       |
+| `bevy-ui`   | `plurimus_bui`       | flexbox layout (implies `ui`)       |
+| `2d`        | `plurimus_2d`        | world-space sprites                 |
+| `3d`        | `plurimus_3d`        | GPU camera readback                 |
 
 `default = ["crossterm"]`. `default-features = false` gives core alone,
 rendering into your own `Backend`.
@@ -210,7 +215,7 @@ Both APIs come from the same events, so systems can mix them:
 
 ```rust,no_run
 use bevy_ecs::prelude::{MessageReader, Res};
-use plurimus::input::{ButtonInput, KeyCode, KeyKind, KeyMessage};
+use plurimus::term::{ButtonInput, KeyCode, KeyKind, KeyMessage};
 
 // Discrete: one action per press.
 fn handle_commands(mut keys: MessageReader<KeyMessage>) {

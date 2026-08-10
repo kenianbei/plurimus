@@ -15,7 +15,7 @@ use bevy_ecs::prelude::{
 };
 use plurimus_core::RasterDeferred;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_input::{MouseKind, MouseMessage};
+use plurimus_term::{MouseKind, MouseMessage};
 use tui_scrollview::ScrollbarVisibility;
 
 use crate::interaction::{

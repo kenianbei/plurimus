@@ -15,7 +15,7 @@ rust-version = "1.95"
 
 [workspace.dependencies]
 plurimus_core = { path = "crates/plurimus_core", version = "0.4.0" }
-plurimus_input = { path = "crates/plurimus_input", version = "0.4.0" }
+plurimus_term = { path = "crates/plurimus_term", version = "0.4.0" }
 plurimus_crossterm = { path = "crates/plurimus_crossterm", version = "0.4.0" }
 plurimus_test = { path = "crates/plurimus_test" }
 plurimus_ui = { path = "crates/plurimus_ui", version = "0.4.0" }
@@ -118,9 +118,9 @@ exclude = ["examples/**/*.png"]
 
 [features]
 default = ["crossterm"]
-input = ["dep:plurimus_input"]
-crossterm = ["input", "dep:plurimus_crossterm"]
-ui = ["input", "dep:plurimus_ui"]
+term = ["dep:plurimus_term"]
+crossterm = ["term", "dep:plurimus_crossterm"]
+ui = ["term", "dep:plurimus_ui"]
 widgets = ["ui", "dep:plurimus_widgets"]
 bevy-ui = ["ui", "dep:plurimus_bui"]
 2d = ["dep:plurimus_2d"]
@@ -128,7 +128,7 @@ bevy-ui = ["ui", "dep:plurimus_bui"]
 
 [dependencies]
 plurimus_core = { workspace = true }
-plurimus_input = { workspace = true, optional = true }
+plurimus_term = { workspace = true, optional = true }
 plurimus_crossterm = { workspace = true, optional = true }
 plurimus_ui = { workspace = true, optional = true }
 plurimus_widgets = { workspace = true, optional = true }

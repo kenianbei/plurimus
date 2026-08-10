@@ -22,7 +22,7 @@ use plurimus_core::{
     DefaultCamera, ResolvedViewport, UiArea, UiCamera, UiHidden, UiOrder, UiWidget, resolve_area,
     resolve_camera,
 };
-use plurimus_input::{CursorCell, MouseButton, MouseKind, MouseMessage};
+use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 
 use crate::modal::ModalGuard;
 

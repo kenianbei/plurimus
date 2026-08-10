@@ -3,7 +3,7 @@
 use bevy_app::AppExit;
 use bevy_ecs::prelude::{Commands, Entity, MessageReader, MessageWriter, Query, ResMut, With};
 use bevy_ecs::system::SystemParam;
-use plurimus::input::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 
 use crate::actor::{Actor, Dir};
 use crate::game::{LevelPending, Phase, Player, Round, STARTING_LIVES, Spawned};

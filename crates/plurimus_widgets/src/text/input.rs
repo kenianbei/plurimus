@@ -15,14 +15,14 @@ use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
-use plurimus_input::PasteMessage;
+use plurimus_term::PasteMessage;
 
 use super::field::TextField;
 use super::state::TextInput;
 use super::word::{word_end_forward, word_start_backward, word_start_forward};
 use crate::{ValueChange, placeholder};
 use plurimus_core::UiWidget;
-use plurimus_input::bevy_compat::held_modifiers;
+use plurimus_term::bevy_compat::held_modifiers;
 use plurimus_ui::{Hovered, InteractionDisabled, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 

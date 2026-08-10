@@ -30,7 +30,7 @@ use bevy_ui::{
 use plurimus_core::{
     CameraSystems, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
-use plurimus_input::InputSystems;
+use plurimus_term::InputSystems;
 use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
 
 // Below all unordered widgets: the rasterizer draws every node under every

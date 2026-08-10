@@ -8,7 +8,7 @@ use bevy_input::keyboard::Key;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Constraint, Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::KeyCode;
+use plurimus_term::KeyCode;
 use plurimus_test::{click, press_key, repeat_key};
 use plurimus_ui::{Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, ValueChange};
 use plurimus_widgets::ActiveDescendant;

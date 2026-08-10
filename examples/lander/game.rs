@@ -5,8 +5,8 @@ use bevy_ecs::prelude::{
 use bevy_math::Vec2;
 use bevy_time::Time;
 use bevy_transform::components::Transform;
-use plurimus::input::{KeyCode, KeyKind, KeyMessage};
 use plurimus::render3d::{EdgeOverlay, EdgeSource, LuminanceRamp, RAMP_SHADING, Strategy3d};
+use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 
 const GRAVITY: f32 = 3.0;
 const IMPULSE_UP: f32 = 1.4;

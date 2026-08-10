@@ -4,7 +4,7 @@
 use bevy_math::IVec2;
 use bevy_time::TimeUpdateStrategy;
 use plurimus::core::TerminalSize;
-use plurimus::input::KeyCode;
+use plurimus::term::KeyCode;
 use plurimus_test::{composed_frame, composed_styled_frame, write_key};
 
 use crate::actor::{Actor, Dir, advance};

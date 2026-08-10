@@ -20,7 +20,7 @@ use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
 use crossterm::terminal::SetTitle;
 use plurimus_core::{MainWorld, TerminalContext, TerminalCursor, TerminalCursorStyle};
-use plurimus_input::{ClipboardTarget, TerminalRequest};
+use plurimus_term::{ClipboardTarget, TerminalRequest};
 use ratatui_crossterm::CrosstermBackend;
 
 /// Longest base64 payload tmux forwards; past it the sequence is truncated
@@ -221,7 +221,7 @@ mod tests {
     fn app_serving_requests(clipboard: bool) -> (App, SharedWriter) {
         let writer = SharedWriter::default();
         let mut app = App::new();
-        app.add_plugins((CorePlugin, plurimus_input::InputPlugin));
+        app.add_plugins((CorePlugin, plurimus_term::TermPlugin));
         app.insert_resource(TerminalSize { cols: 10, rows: 2 });
         app.add_plugins(PresenterPlugin::new(CrosstermBackend::new(writer.clone())));
         app.add_extract_systems(write_terminal_requests::<SharedWriter>);

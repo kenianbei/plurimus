@@ -6,7 +6,7 @@ use bevy_ecs::prelude::{On, ResMut, Resource};
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{
+use plurimus_term::{
     InputCapabilities, KeyCode, KeyModifiers, ModifierKey, MouseKind, PasteMessage,
 };
 use plurimus_test::{composed_frame, press_key, press_key_with, send_mouse};

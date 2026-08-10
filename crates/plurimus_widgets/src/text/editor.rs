@@ -20,12 +20,12 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_input::PasteMessage;
+use plurimus_term::PasteMessage;
 use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
 use plurimus_core::UiWidget;
-use plurimus_input::bevy_compat::held_modifiers;
+use plurimus_term::bevy_compat::held_modifiers;
 use plurimus_ui::{Hovered, InteractionDisabled};
 use plurimus_ui::{WheelReceptive, WheelScroll};
 

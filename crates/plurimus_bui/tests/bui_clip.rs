@@ -8,7 +8,7 @@ use bevy_ui::{FlexDirection, Node, Overflow, ScrollPosition, Val};
 use plurimus_bui::BuiPlugin;
 use plurimus_bui::Text;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{MouseButton, MouseKind};
+use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{composed_frame, send_mouse};
 use plurimus_ui::{Hovered, Pressed};
 

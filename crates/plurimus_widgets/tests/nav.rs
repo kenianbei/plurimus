@@ -10,7 +10,7 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use bevy_math::CompassOctant;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::KeyCode;
+use plurimus_term::KeyCode;
 use plurimus_test::press_key;
 use plurimus_ui::{InteractionDisabled, NavigationConfig, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;

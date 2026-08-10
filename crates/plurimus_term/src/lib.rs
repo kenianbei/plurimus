@@ -1,10 +1,17 @@
-//! Terminal contract for plurimus: the messages that cross between an app
-//! and whichever backend is driving the terminal.
+//! Terminal contract for plurimus: the messages crossing between an app and
+//! whichever backend drives its terminal, in both directions.
 //!
-//! Mostly inbound - [`KeyMessage`], [`MouseMessage`], [`PasteMessage`] and
-//! [`FocusMessage`] are what a backend reports, and [`ButtonInput`] and
-//! [`CursorCell`] are the state derived from them. [`TerminalRequest`] runs
-//! the other way: what an app asks the terminal to do.
+//! Inbound, a backend reports [`KeyMessage`], [`MouseMessage`],
+//! [`PasteMessage`], [`FocusMessage`] and [`TerminalResized`], and
+//! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
+//! [`InputCapabilities`] records which of it the terminal can actually
+//! manage. Outbound, [`TerminalRequest`] is what an app asks of the
+//! terminal and [`TerminalCursorStyle`] is the shape it asks the caret to
+//! take.
+//!
+//! What is here is what needs a terminal to mean anything. Rendering to a
+//! cell grid does not: `plurimus_core` drives any ratatui `Backend`,
+//! terminal or otherwise, and never depends on this crate.
 
 pub mod bevy_compat;
 mod keyboard;
@@ -99,9 +106,9 @@ impl Default for InputCapabilities {
 
 /// Registers the input messages, polled state, and the `PreUpdate` phases
 /// backends and consumers order against.
-pub struct InputPlugin;
+pub struct TermPlugin;
 
-impl Plugin for InputPlugin {
+impl Plugin for TermPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<bevy_time::TimePlugin>() {
             app.add_plugins(bevy_time::TimePlugin);

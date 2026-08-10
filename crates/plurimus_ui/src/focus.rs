@@ -17,7 +17,7 @@ use bevy_input_focus::{
     InputDispatchPlugin, InputFocus, InputFocusPlugin, InputFocusSystems, dispatch_focused_input,
 };
 use bevy_window::{PrimaryWindow, Window};
-use plurimus_input::{InputSystems, PasteMessage, bevy_compat};
+use plurimus_term::{InputSystems, PasteMessage, bevy_compat};
 
 use crate::UiSystems;
 

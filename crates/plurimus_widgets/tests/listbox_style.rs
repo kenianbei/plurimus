@@ -10,7 +10,7 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::KeyCode;
+use plurimus_term::KeyCode;
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_content, write_key};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiLabel, UiStyle, UiTheme};
 use plurimus_widgets::{

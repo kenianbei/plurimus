@@ -9,8 +9,8 @@ use bevy_time::{Time, Timer, TimerMode};
 use bevy_transform::components::Transform;
 use plurimus::core::TerminalCamera;
 use plurimus::core::ratatui_core::style::{Color, Style};
-use plurimus::input::{KeyCode, KeyKind, KeyMessage};
 use plurimus::render2d::{Glyph, Pixel, Projection2d};
+use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 use plurimus::ui::UiWidget;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 
