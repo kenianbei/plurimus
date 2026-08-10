@@ -110,19 +110,17 @@ impl Default for InputCapabilities {
     }
 }
 
-/// Registers the input messages, polled state, and the `PreUpdate` phases
-/// backends and consumers order against.
+/// Registers the terminal messages, polled input state, and the
+/// `PreUpdate` phases backends and consumers order against.
+///
+/// Requires [`plurimus_core::CorePlugin`] to be added first: applying a
+/// resize writes core's `TerminalSize`.
 pub struct TermPlugin;
 
 impl Plugin for TermPlugin {
     fn build(&self, app: &mut App) {
         if !app.is_plugin_added::<bevy_time::TimePlugin>() {
             app.add_plugins(bevy_time::TimePlugin);
-        }
-        // A resize writes core's `TerminalSize`, so the pipeline has to be
-        // there for the terminal contract to have anything to report to.
-        if !app.is_plugin_added::<plurimus_core::CorePlugin>() {
-            app.add_plugins(plurimus_core::CorePlugin);
         }
         app.init_resource::<CursorCell>();
         app.init_resource::<TerminalCursorStyle>();

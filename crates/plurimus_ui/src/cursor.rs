@@ -4,6 +4,7 @@
 //! this maps it onto the screen, so a scrolled widget does not invert an
 //! offset the crate already owns.
 
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{Component, Local, Query, Res, ResMut};
 use bevy_input_focus::InputFocus;
 use plurimus_core::TerminalCursor;
@@ -50,15 +51,16 @@ impl WidgetCursor {
 /// Resolves the focused widget's cursor onto the screen.
 ///
 /// Owns the terminal cursor only while a focused widget claims one, so an
-/// app that sets [`TerminalCursor`] itself keeps it - the clear happens
+/// app that sets [`TerminalCursor`] itself keeps it - the release happens
 /// when this system's own cursor goes away, not on every frame nothing is
-/// focused.
+/// focused. The shape the app had is remembered and given back, so a
+/// widget's caret does not outlive the focus that placed it.
 pub(crate) fn sync_terminal_cursor(
     focus: Res<InputFocus>,
     widgets: Query<(&WidgetCursor, &ComputedWidgetArea, Option<&ScrollOffset>)>,
     mut cursor: ResMut<TerminalCursor>,
     mut style: ResMut<TerminalCursorStyle>,
-    mut owned: Local<bool>,
+    mut displaced: Local<Option<TerminalCursorStyle>>,
 ) {
     let placed = focus
         .get()
@@ -69,20 +71,19 @@ pub(crate) fn sync_terminal_cursor(
         });
     match placed {
         Some((cell, wanted)) => {
-            *owned = true;
-            // Guarded because an unguarded write marks the resource every
-            // frame a caret sits still.
-            if cursor.cell != Some(cell) {
-                cursor.cell = Some(cell);
+            // Remembered once, so releasing hands the app's own shape back
+            // instead of leaving the terminal wearing a widget's caret.
+            if displaced.is_none() {
+                *displaced = Some(*style);
             }
-            if *style != wanted {
-                *style = wanted;
+            cursor.set_if_neq(TerminalCursor { cell: Some(cell) });
+            style.set_if_neq(wanted);
+        }
+        None => {
+            if let Some(restored) = displaced.take() {
+                cursor.set_if_neq(TerminalCursor { cell: None });
+                style.set_if_neq(restored);
             }
         }
-        None if *owned => {
-            *owned = false;
-            cursor.cell = None;
-        }
-        None => {}
     }
 }

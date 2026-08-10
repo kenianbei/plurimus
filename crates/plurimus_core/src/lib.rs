@@ -1,5 +1,11 @@
 //! The render pipeline every plurimus tier builds on: it turns a Bevy world
-//! into terminal cells.
+//! into cells and hands them to a ratatui `Backend`.
+//!
+//! The pipeline and nothing else. Everything here means something against
+//! any backend - a test harness, a GPU surface, a file - so nothing that
+//! needs a real terminal belongs in this crate, and it depends on no
+//! plurimus crate that does. The terminal contract itself, in both
+//! directions, is `plurimus_term`.
 //!
 //! [`CorePlugin`] installs a dedicated render sub-app. Each frame the
 //! [`ExtractSchedule`] copies terminal-relevant data out of the main world,

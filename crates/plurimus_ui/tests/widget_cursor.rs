@@ -142,3 +142,39 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
         TerminalCursorStyle::SteadyBar
     );
 }
+
+// A widget's caret must not outlive the focus that placed it: the shape
+// the app had before is remembered and handed back.
+#[test]
+fn losing_focus_gives_the_apps_own_shape_back() {
+    let mut app = app();
+    app.update();
+    *app.world_mut().resource_mut::<TerminalCursorStyle>() = TerminalCursorStyle::SteadyUnderline;
+    let editor = app
+        .world_mut()
+        .spawn((
+            WidgetCursor {
+                cell: Position::new(0, 0),
+                style: TerminalCursorStyle::SteadyBar,
+            },
+            UiArea::Fixed(AREA),
+        ))
+        .id();
+    focus(&mut app, editor);
+    app.update();
+    assert_eq!(
+        *app.world().resource::<TerminalCursorStyle>(),
+        TerminalCursorStyle::SteadyBar,
+        "the widget takes the shape while focused"
+    );
+
+    app.world_mut().resource_mut::<InputFocus>().clear();
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<TerminalCursorStyle>(),
+        TerminalCursorStyle::SteadyUnderline,
+        "and gives back what the app had"
+    );
+    assert_eq!(cursor(&app), None);
+}

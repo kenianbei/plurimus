@@ -16,7 +16,7 @@ use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, Mo
 pub enum InputSystems {
     /// Backends drain their event source into messages.
     Pump,
-    /// Core derives state (button state, cursor, synthesis) from messages.
+    /// State is derived (button state, cursor, synthesis) from messages.
     Update,
 }
 
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn press_and_release_drive_button_state() {
         let mut app = App::new();
-        app.add_plugins(TermPlugin);
+        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
 
         app.world_mut().write_message(key(KeyKind::Press));
         app.update();
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn mouse_state_and_cursor_track_messages() {
         let mut app = App::new();
-        app.add_plugins(TermPlugin);
+        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
 
         app.world_mut().write_message(MouseMessage {
             kind: MouseKind::Down(MouseButton::Left),

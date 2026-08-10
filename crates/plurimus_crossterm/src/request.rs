@@ -36,11 +36,10 @@ pub(crate) struct ClipboardEnabled(pub(crate) bool);
 /// The cursor shape last asked of the terminal, so an unchanged one costs
 /// no escape sequence.
 ///
-/// Kept per field rather than against the whole [`TerminalCursor`], which
-/// changes on every caret move: keying the shape off that would re-emit
-/// this escape on every keystroke.
+/// No "unknown" state to track: the default shape is the one that asks for
+/// nothing, so a first frame matching it correctly writes nothing.
 #[derive(Resource, Debug, Default, Clone, Copy)]
-pub(crate) struct PreviousCursorStyle(Option<TerminalCursorStyle>);
+pub(crate) struct PreviousCursorStyle(TerminalCursorStyle);
 
 pub(crate) fn write_terminal_requests<W: Write + Send + Sync + 'static>(
     mut main_world: ResMut<MainWorld>,
@@ -97,10 +96,10 @@ pub(crate) fn write_cursor_style<W: Write + Send + Sync + 'static>(
     mut previous: ResMut<PreviousCursorStyle>,
 ) -> BevyResult {
     let wanted = *main_world.resource::<TerminalCursorStyle>();
-    if previous.0 == Some(wanted) {
+    if previous.0 == wanted {
         return Ok(());
     }
-    previous.0 = Some(wanted);
+    previous.0 = wanted;
     let Some(style) = cursor_style(wanted) else {
         return Ok(());
     };
