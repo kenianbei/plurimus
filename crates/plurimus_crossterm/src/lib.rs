@@ -167,11 +167,18 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
         );
         app.add_plugins(PresenterPlugin::new(backend));
         app.add_extract_systems(request::extract_requests);
-        app.add_terminal_systems(TerminalRenderSystems::Present, request::write_requests::<W>);
+        app.add_terminal_systems(
+            TerminalRenderSystems::Present,
+            (
+                request::write_requests::<W>,
+                request::write_cursor_style::<W>,
+            ),
+        );
         app.sub_app_mut(TerminalRenderApp)
             .insert_resource(context::RestoreOnDrop)
             .insert_resource(request::PendingRequests::default())
-            .insert_resource(request::ClipboardEnabled(self.clipboard));
+            .insert_resource(request::ClipboardEnabled(self.clipboard))
+            .insert_resource(request::PreviousCursorStyle::default());
     }
 }
 

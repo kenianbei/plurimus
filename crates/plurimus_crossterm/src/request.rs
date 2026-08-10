@@ -19,9 +19,10 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::{Res, ResMut, Resource};
 use bevy_log::warn;
 use crossterm::clipboard::{ClipboardSelection, ClipboardType, CopyToClipboard};
+use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
 use crossterm::terminal::SetTitle;
-use plurimus_core::{MainWorld, TerminalContext};
+use plurimus_core::{MainWorld, TerminalContext, TerminalCursor, TerminalCursorStyle};
 use plurimus_input::{ClipboardTarget, TerminalRequest};
 use ratatui_crossterm::CrosstermBackend;
 
@@ -64,6 +65,46 @@ pub(crate) fn write_requests<W: Write + Send + Sync + 'static>(
     // `backend-writer` feature.
     serve(&mut context.backend, &requests, clipboard.0)?;
     Ok(())
+}
+
+/// The cursor shape last asked of the terminal, so an unchanged one costs
+/// no escape sequence.
+#[derive(Resource, Debug, Default, Clone, Copy)]
+pub(crate) struct PreviousCursorStyle(Option<TerminalCursorStyle>);
+
+/// Sets the cursor shape, which no `Backend` method reaches.
+///
+/// Position and visibility are the presenter's; only the shape needs a
+/// crossterm-specific sequence, and a terminal is free to ignore it.
+pub(crate) fn write_cursor_style<W: Write + Send + Sync + 'static>(
+    mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
+    cursor: Res<TerminalCursor>,
+    mut previous: ResMut<PreviousCursorStyle>,
+) -> BevyResult {
+    if previous.0 == Some(cursor.style) {
+        return Ok(());
+    }
+    previous.0 = Some(cursor.style);
+    let Some(style) = cursor_style(cursor.style) else {
+        return Ok(());
+    };
+    let writer = &mut context.backend;
+    queue!(writer, style)?;
+    writer.flush()?;
+    Ok(())
+}
+
+/// `None` for the terminal's own shape, which is asked for by not asking.
+const fn cursor_style(style: TerminalCursorStyle) -> Option<SetCursorStyle> {
+    match style {
+        TerminalCursorStyle::Default => None,
+        TerminalCursorStyle::BlinkingBlock => Some(SetCursorStyle::BlinkingBlock),
+        TerminalCursorStyle::SteadyBlock => Some(SetCursorStyle::SteadyBlock),
+        TerminalCursorStyle::BlinkingUnderline => Some(SetCursorStyle::BlinkingUnderScore),
+        TerminalCursorStyle::SteadyUnderline => Some(SetCursorStyle::SteadyUnderScore),
+        TerminalCursorStyle::BlinkingBar => Some(SetCursorStyle::BlinkingBar),
+        TerminalCursorStyle::SteadyBar => Some(SetCursorStyle::SteadyBar),
+    }
 }
 
 /// Queues every request and flushes once if any of them wrote.

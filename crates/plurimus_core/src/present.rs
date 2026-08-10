@@ -18,6 +18,7 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 
 use crate::compositor::FrameBuffer;
+use crate::cursor::{PreviousCursor, TerminalCursor};
 use crate::sub_app::{TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems};
 
 /// Owns the backend that the presenter draws through.
@@ -79,6 +80,7 @@ where
         let sub_app = app.sub_app_mut(TerminalRenderApp);
         sub_app.insert_resource(TerminalContext { backend });
         sub_app.init_resource::<PreviousFrame>();
+        sub_app.init_resource::<PreviousCursor>();
         app.add_terminal_systems(TerminalRenderSystems::Present, present::<B>);
     }
 }
@@ -87,6 +89,8 @@ fn present<B>(
     mut terminal_context: ResMut<TerminalContext<B>>,
     frame: Res<FrameBuffer>,
     mut previous: ResMut<PreviousFrame>,
+    cursor: Res<TerminalCursor>,
+    mut previous_cursor: ResMut<PreviousCursor>,
 ) -> BevyResult
 where
     B: Backend + Send + Sync + 'static,
@@ -94,10 +98,40 @@ where
 {
     // A transient failure skips the frame and leaves PreviousFrame stale,
     // so the next successful present re-diffs the missed cells.
-    match present_frame(&mut terminal_context.backend, &mut previous.0, &frame.0) {
-        Err(error) if !is_transient_io(&error) => Err(error.into()),
-        _ => Ok(()),
+    let drawn = present_frame(&mut terminal_context.backend, &mut previous.0, &frame.0);
+    // Deliberately not inside `present_frame`: it returns early without
+    // drawing or flushing when no cell differs, and a cursor crossing a
+    // cell changes no cell's content.
+    let moved = apply_cursor(&mut terminal_context.backend, *cursor, &mut previous_cursor);
+    for outcome in [drawn.map(|_| ()), moved] {
+        match outcome {
+            Err(error) if !is_transient_io(&error) => return Err(error.into()),
+            _ => {}
+        }
     }
+    Ok(())
+}
+
+/// Moves, shows, or hides the terminal cursor when it differs from what was
+/// last applied, flushing so the move lands on an otherwise idle frame.
+fn apply_cursor<B: Backend>(
+    backend: &mut B,
+    cursor: TerminalCursor,
+    previous: &mut PreviousCursor,
+) -> Result<(), B::Error> {
+    if previous.0 == Some(cursor) {
+        return Ok(());
+    }
+    match cursor.cell {
+        Some(cell) => {
+            backend.set_cursor_position(cell)?;
+            backend.show_cursor()?;
+        }
+        None => backend.hide_cursor()?,
+    }
+    backend.flush()?;
+    previous.0 = Some(cursor);
+    Ok(())
 }
 
 fn is_transient_io(error: &(dyn core::error::Error + 'static)) -> bool {
