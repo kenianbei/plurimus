@@ -2835,7 +2835,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -2870,7 +2870,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_2d"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2886,7 +2886,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_3d"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -2914,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_bui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_camera",
@@ -2936,7 +2936,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_color",
@@ -2946,7 +2946,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_crossterm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2960,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_term"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2971,7 +2971,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_test"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2981,7 +2981,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_ui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2999,7 +2999,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_widgets"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",

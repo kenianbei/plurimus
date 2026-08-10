@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Norman Kerr"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -14,15 +14,15 @@ categories = ["command-line-interface", "game-development", "gui"]
 rust-version = "1.95"
 
 [workspace.dependencies]
-plurimus_core = { path = "crates/plurimus_core", version = "0.4.0" }
-plurimus_term = { path = "crates/plurimus_term", version = "0.4.0" }
-plurimus_crossterm = { path = "crates/plurimus_crossterm", version = "0.4.0" }
+plurimus_core = { path = "crates/plurimus_core", version = "0.5.0" }
+plurimus_term = { path = "crates/plurimus_term", version = "0.5.0" }
+plurimus_crossterm = { path = "crates/plurimus_crossterm", version = "0.5.0" }
 plurimus_test = { path = "crates/plurimus_test" }
-plurimus_ui = { path = "crates/plurimus_ui", version = "0.4.0" }
-plurimus_widgets = { path = "crates/plurimus_widgets", version = "0.4.0" }
-plurimus_bui = { path = "crates/plurimus_bui", version = "0.4.0" }
-plurimus_2d = { path = "crates/plurimus_2d", version = "0.4.0" }
-plurimus_3d = { path = "crates/plurimus_3d", version = "0.4.0" }
+plurimus_ui = { path = "crates/plurimus_ui", version = "0.5.0" }
+plurimus_widgets = { path = "crates/plurimus_widgets", version = "0.5.0" }
+plurimus_bui = { path = "crates/plurimus_bui", version = "0.5.0" }
+plurimus_2d = { path = "crates/plurimus_2d", version = "0.5.0" }
+plurimus_3d = { path = "crates/plurimus_3d", version = "0.5.0" }
 bevy_app = "0.19"
 bevy_ecs = "0.19"
 bevy_input = { version = "0.19", features = ["keyboard", "mouse"] }
