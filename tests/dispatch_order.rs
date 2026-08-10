@@ -1,7 +1,7 @@
-//! Focus dispatch reads state three other plugins write: polled key state
-//! from `bevy_input`, and widget areas from `plurimus_ui`. These prove the
-//! scheduling edges that make it readable, since nothing in an observer's
-//! own code says when it runs.
+//! Focus dispatch reads state written elsewhere in the same frame: polled
+//! key state from `bevy_input`, and widget areas from `plurimus_ui`.
+//! Nothing in an observer's own code says when it runs, so the ordering
+//! that makes both readable is only ever true by assertion.
 
 #![cfg(feature = "widgets")]
 
@@ -47,14 +47,11 @@ fn active(app: &App, container: Entity) -> Option<Entity> {
 #[derive(Resource, Default)]
 struct ShiftAtPaste(Option<bool>);
 
-// An invariant, not a regression guard: removing the set-level edge does
-// not make this fail, because the executor happens to drain `ButtonInput`
-// first anyway. It is kept because that order is an accident of the
-// schedule rather than a promise, and this is what would catch it
-// changing - on another executor, or on a bevy that stops ordering the
-// dispatches it registers itself.
+// An invariant rather than a regression guard: dropping the set-level edge
+// does not fail this, because the executor drains `ButtonInput` first
+// regardless - an accident of the schedule, not a promise.
 //
-// The legacy tier is what forces the key and the paste into one frame:
+// The legacy tier is what forces key and paste into one frame:
 // `forward_keyboard` synthesizes the modifier press from the message's own
 // bitfield, so it cannot arrive a frame early.
 #[test]

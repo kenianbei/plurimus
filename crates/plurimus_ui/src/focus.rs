@@ -34,11 +34,8 @@ pub(crate) fn install(app: &mut App) {
         app.add_plugins((InputFocusPlugin, InputDispatchPlugin, TabNavigationPlugin));
     }
     crate::nav::install(app);
-    // Dispatch's whole position in the frame, stated here rather than left
-    // to whoever happens to be installed: an observer reads polled key
-    // state and this frame's areas, and the routers see what it did. The
-    // edges are on the set, so app-added dispatches inherit them; upstream
-    // orders only the three systems it registers itself.
+    // On the set rather than the systems, so a dispatch an app adds
+    // inherits the edges; upstream orders only the three it registers.
     app.configure_sets(
         PreUpdate,
         (

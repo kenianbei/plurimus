@@ -150,9 +150,8 @@ impl Plugin for WidgetsPlugin {
     }
 }
 
-// Placement reads areas and feeds hover, so it runs between the two; the
-// row-change forwarding also has to see what a key handler did, and those
-// run in focus dispatch.
+// Placement reads areas and feeds hover; the row-change forwarding also
+// has to see what a key handler did, which happens in focus dispatch.
 fn add_layout_systems(app: &mut App) {
     app.configure_sets(
         PreUpdate,
