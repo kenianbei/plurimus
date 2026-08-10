@@ -4,7 +4,7 @@
 //! what happened. The gap between those is what this file closes - mouse
 //! positions become cell coordinates, terminal quirks are normalized into one
 //! shape consumers can reason about, and a resize becomes a
-//! [`TerminalResized`](plurimus_core::TerminalResized) rather than an event
+//! [`TerminalResized`](plurimus_term::TerminalResized) rather than an event
 //! anyone polls for.
 
 use std::time::Duration;
@@ -12,11 +12,11 @@ use std::time::Duration;
 use bevy_ecs::prelude::MessageWriter;
 use bevy_ecs::system::SystemParam;
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
-use plurimus_core::TerminalResized;
+
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_input::{
+use plurimus_term::{
     FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind,
-    MouseMessage, PasteMessage,
+    MouseMessage, PasteMessage, TerminalResized,
 };
 
 #[derive(SystemParam)]
@@ -179,7 +179,7 @@ mod tests {
         MouseEvent, MouseEventKind,
     };
     use plurimus_core::ratatui_core::layout::Position;
-    use plurimus_input::{KeyCode, KeyKind, MouseKind};
+    use plurimus_term::{KeyCode, KeyKind, MouseKind};
 
     use super::{convert_key, convert_mouse};
 
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn converts_modifier_keys_with_sides() {
         use crossterm::event::ModifierKeyCode;
-        use plurimus_input::ModifierKey;
+        use plurimus_term::ModifierKey;
 
         let mut key = KeyEvent::new(
             CtKeyCode::Modifier(ModifierKeyCode::RightShift),
@@ -272,7 +272,7 @@ mod tests {
         let message = convert_mouse(down);
         assert_eq!(
             message.kind,
-            MouseKind::Down(plurimus_input::MouseButton::Left)
+            MouseKind::Down(plurimus_term::MouseButton::Left)
         );
         assert_eq!(message.position, Position::new(7, 3));
 

@@ -17,7 +17,7 @@ bevy_ecs = { workspace = true }
 bevy_log = { workspace = true }
 crossterm = { workspace = true }
 plurimus_core = { workspace = true }
-plurimus_input = { workspace = true }
+plurimus_term = { workspace = true }
 ratatui-core = { workspace = true }
 ratatui-crossterm = { workspace = true }
 

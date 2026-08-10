@@ -1,54 +1,30 @@
-//! The terminal's cell dimensions, and the path a size change takes.
+//! The render target's cell dimensions.
 //!
 //! [`TerminalSize`] is what every camera and buffer resolves against, and it
-//! lives in both worlds: core applies incoming [`TerminalResized`] messages to
-//! the main-world copy early in the frame, and extraction mirrors the result
-//! into the render world. Backends report the change; nothing outside core
-//! writes the size directly.
+//! lives in both worlds: the main-world copy is what an app sets, and
+//! extraction mirrors it into the render world. Named for the common case,
+//! but it is target configuration rather than terminal contract - a headless
+//! app renders at a size with no terminal in sight, which is why it is here
+//! and the message reporting a real terminal's resize is not.
 
-use bevy_ecs::message::Message;
-use bevy_ecs::prelude::{DetectChangesMut, MessageReader, Res, ResMut, Resource};
+use bevy_ecs::prelude::{DetectChangesMut, Res, ResMut, Resource};
 use ratatui_core::layout::Rect;
 
 use crate::extract::MainWorld;
 
 /// Terminal dimensions in cells.
 ///
-/// Read-only outside core: backends report size changes as
-/// [`TerminalResized`] messages, and core applies them in
-/// [`CameraSystems::SyncSize`](crate::CameraSystems::SyncSize). The default
-/// only stands in until a backend reports the real size.
+/// An app renders at whatever size it sets. Where a real terminal is
+/// driving, `plurimus_term` owns the resize message and writes this in
+/// [`CameraSystems::SyncSize`](crate::CameraSystems::SyncSize), so an app on
+/// a terminal should treat it as read-only. The default stands in until
+/// something reports otherwise.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalSize {
     /// Number of columns.
     pub cols: u16,
     /// Number of rows.
     pub rows: u16,
-}
-
-/// A terminal size change reported by a backend.
-///
-/// Backends write this from their event pump, ordered before
-/// [`CameraSystems::SyncSize`](crate::CameraSystems::SyncSize) so the size
-/// applies in the same frame.
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TerminalResized {
-    /// Number of columns.
-    pub cols: u16,
-    /// Number of rows.
-    pub rows: u16,
-}
-
-pub(crate) fn apply_terminal_resize(
-    mut resizes: MessageReader<TerminalResized>,
-    mut size: ResMut<TerminalSize>,
-) {
-    if let Some(resized) = resizes.read().last() {
-        size.set_if_neq(TerminalSize {
-            cols: resized.cols,
-            rows: resized.rows,
-        });
-    }
 }
 
 impl TerminalSize {

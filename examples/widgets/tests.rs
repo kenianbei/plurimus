@@ -4,7 +4,7 @@ use bevy_ecs::prelude::{Has, Without};
 use bevy_input_focus::{FocusCause, InputFocus};
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::core::TerminalSize;
-use plurimus::input::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
+use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
 use plurimus::ui::{ComputedWidgetArea, FocusWithin, UiLabel};
 use plurimus::widgets::{Checkbox, MenuButton, Pane, SliderValue, TextInput};
 use plurimus_test::{click, composed_frame, press_chord, press_key, press_key_with, send_mouse};

@@ -62,8 +62,8 @@ mod tests {
     use bevy_transform::components::Transform;
     use plurimus::core::ratatui_core::style::Color;
     use plurimus::core::{Background, TerminalCamera, TerminalSize, Viewport};
-    use plurimus::input::KeyCode;
     use plurimus::render3d::{EdgeOverlay, RAMP_ASCII, RAMP_SHADING, Strategy3d};
+    use plurimus::term::KeyCode;
     use plurimus::ui::ComputedWidgetArea;
     use plurimus::widgets::Button;
     use plurimus_test::{click, composed_styled_frame, write_key};

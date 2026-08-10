@@ -19,7 +19,7 @@ bevy_input_focus = { workspace = true }
 bevy_math = { workspace = true }
 bevy_window = { workspace = true }
 plurimus_core = { workspace = true }
-plurimus_input = { workspace = true }
+plurimus_term = { workspace = true }
 tui-scrollview = { workspace = true }
 
 [dev-dependencies]

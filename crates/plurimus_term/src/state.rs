@@ -16,7 +16,7 @@ use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, Mo
 pub enum InputSystems {
     /// Backends drain their event source into messages.
     Pump,
-    /// Core derives state (button state, cursor, synthesis) from messages.
+    /// State is derived (button state, cursor, synthesis) from messages.
     Update,
 }
 
@@ -60,8 +60,8 @@ mod tests {
     use plurimus_core::ratatui_core::layout::Position;
 
     use crate::{
-        CursorCell, InputPlugin, KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton,
-        MouseKind, MouseMessage,
+        CursorCell, KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton, MouseKind,
+        MouseMessage, TermPlugin,
     };
 
     fn key(kind: KeyKind) -> KeyMessage {
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn press_and_release_drive_button_state() {
         let mut app = App::new();
-        app.add_plugins(InputPlugin);
+        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
 
         app.world_mut().write_message(key(KeyKind::Press));
         app.update();
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn mouse_state_and_cursor_track_messages() {
         let mut app = App::new();
-        app.add_plugins(InputPlugin);
+        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
 
         app.world_mut().write_message(MouseMessage {
             kind: MouseKind::Down(MouseButton::Left),

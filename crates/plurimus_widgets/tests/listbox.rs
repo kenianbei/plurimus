@@ -8,7 +8,7 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, MouseButton, MouseKind};
+use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{press_key, repeat_key, send_mouse};
 use plurimus_ui::{
     Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,

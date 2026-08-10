@@ -7,7 +7,7 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Modifier;
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
-use plurimus_input::KeyCode;
+use plurimus_term::KeyCode;
 use plurimus_test::press_key;
 use plurimus_ui::UiArea;
 use plurimus_widgets::{WidgetsPlugin, editable_text};

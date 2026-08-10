@@ -33,7 +33,7 @@ mod tests {
     use bevy_time::TimeUpdateStrategy;
     use bevy_transform::components::Transform;
     use plurimus::core::TerminalSize;
-    use plurimus::input::KeyCode;
+    use plurimus::term::KeyCode;
     use plurimus_test::write_key;
 
     use super::game::{Ball, CELL_HEIGHT, Paddle, Score, add_game};

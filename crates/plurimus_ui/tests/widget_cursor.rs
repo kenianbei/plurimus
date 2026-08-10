@@ -5,9 +5,8 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{
-    CorePlugin, TerminalCamera, TerminalCursor, TerminalCursorStyle, TerminalSize,
-};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalCursor, TerminalSize};
+use plurimus_term::TerminalCursorStyle;
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiPlugin, WidgetCursor};
 
 const AREA: Rect = Rect::new(4, 2, 6, 3);
@@ -139,7 +138,42 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
     app.update();
 
     assert_eq!(
-        app.world().resource::<TerminalCursor>().style,
+        *app.world().resource::<TerminalCursorStyle>(),
         TerminalCursorStyle::SteadyBar
     );
+}
+
+// A widget's caret must not outlive the focus that placed it.
+#[test]
+fn losing_focus_gives_the_apps_own_shape_back() {
+    let mut app = app();
+    app.update();
+    *app.world_mut().resource_mut::<TerminalCursorStyle>() = TerminalCursorStyle::SteadyUnderline;
+    let editor = app
+        .world_mut()
+        .spawn((
+            WidgetCursor {
+                cell: Position::new(0, 0),
+                style: TerminalCursorStyle::SteadyBar,
+            },
+            UiArea::Fixed(AREA),
+        ))
+        .id();
+    focus(&mut app, editor);
+    app.update();
+    assert_eq!(
+        *app.world().resource::<TerminalCursorStyle>(),
+        TerminalCursorStyle::SteadyBar,
+        "the widget takes the shape while focused"
+    );
+
+    app.world_mut().resource_mut::<InputFocus>().clear();
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<TerminalCursorStyle>(),
+        TerminalCursorStyle::SteadyUnderline,
+        "and gives back what the app had"
+    );
+    assert_eq!(cursor(&app), None);
 }

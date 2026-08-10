@@ -2835,7 +2835,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -2861,7 +2861,7 @@ dependencies = [
  "plurimus_bui",
  "plurimus_core",
  "plurimus_crossterm",
- "plurimus_input",
+ "plurimus_term",
  "plurimus_test",
  "plurimus_ui",
  "plurimus_widgets",
@@ -2870,7 +2870,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_2d"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2886,7 +2886,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_3d"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -2914,7 +2914,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_bui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_camera",
@@ -2926,7 +2926,7 @@ dependencies = [
  "bevy_ui",
  "insta",
  "plurimus_core",
- "plurimus_input",
+ "plurimus_term",
  "plurimus_test",
  "plurimus_ui",
  "plurimus_widgets",
@@ -2936,7 +2936,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_color",
@@ -2946,21 +2946,21 @@ dependencies = [
 
 [[package]]
 name = "plurimus_crossterm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_log",
  "crossterm",
  "plurimus_core",
- "plurimus_input",
+ "plurimus_term",
  "ratatui-core",
  "ratatui-crossterm",
 ]
 
 [[package]]
-name = "plurimus_input"
-version = "0.4.0"
+name = "plurimus_term"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2971,17 +2971,17 @@ dependencies = [
 
 [[package]]
 name = "plurimus_test"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
  "plurimus_core",
- "plurimus_input",
+ "plurimus_term",
 ]
 
 [[package]]
 name = "plurimus_ui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -2991,7 +2991,7 @@ dependencies = [
  "bevy_window",
  "insta",
  "plurimus_core",
- "plurimus_input",
+ "plurimus_term",
  "plurimus_test",
  "ratatui-widgets",
  "tui-scrollview",
@@ -2999,7 +2999,7 @@ dependencies = [
 
 [[package]]
 name = "plurimus_widgets"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -3008,7 +3008,7 @@ dependencies = [
  "bevy_math",
  "insta",
  "plurimus_core",
- "plurimus_input",
+ "plurimus_term",
  "plurimus_test",
  "plurimus_ui",
  "ratatui-textarea",

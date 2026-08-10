@@ -1,5 +1,11 @@
 //! The render pipeline every plurimus tier builds on: it turns a Bevy world
-//! into terminal cells.
+//! into cells and hands them to a ratatui `Backend`.
+//!
+//! The pipeline and nothing else. Everything here means something against
+//! any backend - a test harness, a GPU surface, a file - so nothing that
+//! needs a real terminal belongs in this crate, and it depends on no
+//! plurimus crate that does. The terminal contract itself, in both
+//! directions, is `plurimus_term`.
 //!
 //! [`CorePlugin`] installs a dedicated render sub-app. Each frame the
 //! [`ExtractSchedule`] copies terminal-relevant data out of the main world,
@@ -34,11 +40,11 @@ pub use camera::{
     camera_buffer_mut,
 };
 pub use compositor::FrameBuffer;
-pub use cursor::{TerminalCursor, TerminalCursorStyle};
+pub use cursor::TerminalCursor;
 pub use extract::MainWorld;
 pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;
-pub use size::{TerminalResized, TerminalSize};
+pub use size::TerminalSize;
 pub use sub_app::{
     CompositeSystems, ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp,
     TerminalRenderAppExt, TerminalRenderSystems,
@@ -60,15 +66,13 @@ impl Plugin for CorePlugin {
         app.init_resource::<DefaultCamera>();
         app.init_resource::<raster::ColorDepth>();
         app.init_resource::<TerminalCursor>();
-        app.add_message::<TerminalResized>();
         app.configure_sets(
             PreUpdate,
             (CameraSystems::SyncSize, CameraSystems::ResolveViewports).chain(),
         );
         app.add_systems(
             PreUpdate,
-            (size::apply_terminal_resize, camera::update_default_camera)
-                .in_set(CameraSystems::SyncSize),
+            camera::update_default_camera.in_set(CameraSystems::SyncSize),
         );
         app.add_systems(
             PreUpdate,

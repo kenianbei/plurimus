@@ -4,7 +4,7 @@ use bevy_app::App;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{MouseButton, MouseKind};
+use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::send_mouse;
 use plurimus_ui::{
     InteractionDisabled, ScrollArea, ScrollIntoView, ScrollOffset, UiArea, UiOrder, UiWidget,

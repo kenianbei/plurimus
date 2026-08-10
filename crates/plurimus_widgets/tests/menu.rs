@@ -6,7 +6,7 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{KeyCode, MouseButton, MouseKind};
+use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{click, composed_frame, press_key, send_mouse};
 use plurimus_ui::{Hovered, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;

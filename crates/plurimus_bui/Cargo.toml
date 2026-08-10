@@ -21,7 +21,7 @@ bevy_math = { workspace = true }
 bevy_text = { workspace = true }
 bevy_ui = { workspace = true }
 plurimus_core = { workspace = true }
-plurimus_input = { workspace = true }
+plurimus_term = { workspace = true }
 plurimus_ui = { workspace = true }
 unicode-segmentation = { workspace = true }
 unicode-width = { workspace = true }

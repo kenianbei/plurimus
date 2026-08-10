@@ -13,7 +13,7 @@ use bevy_ecs::prelude::{
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::input::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 
 use widgets::{TILES, TileSpec};
 

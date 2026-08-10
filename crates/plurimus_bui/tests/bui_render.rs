@@ -9,7 +9,7 @@ use bevy_ui::{
 use plurimus_bui::BuiPlugin;
 use plurimus_bui::{Text, TextStyle};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
-use plurimus_input::MouseKind;
+use plurimus_term::MouseKind;
 use plurimus_test::{composed_styled_frame, send_mouse};
 
 fn app(cols: u16, rows: u16) -> App {

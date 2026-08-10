@@ -17,7 +17,7 @@ bevy_ecs = { workspace = true }
 bevy_input = { workspace = true }
 bevy_input_focus = { workspace = true }
 plurimus_core = { workspace = true }
-plurimus_input = { workspace = true }
+plurimus_term = { workspace = true }
 plurimus_ui = { workspace = true }
 ratatui-textarea = { workspace = true }
 ratatui-widgets = { workspace = true }

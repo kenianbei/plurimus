@@ -7,7 +7,7 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{MouseButton, MouseKind};
+use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{composed_styled_frame, write_mouse};
 use plurimus_ui::{InteractionDisabled, StylistDisabled, UiArea, UiStyle};
 use plurimus_widgets::{

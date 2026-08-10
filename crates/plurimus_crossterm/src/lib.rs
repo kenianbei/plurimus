@@ -21,10 +21,8 @@ use std::sync::Mutex;
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use plurimus_core::{
-    CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
-};
-use plurimus_input::InputSystems;
+use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt};
+use plurimus_term::InputSystems;
 
 /// Owns the terminal and presents composed frames via crossterm.
 ///
@@ -97,14 +95,14 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
         }
     }
 
-    /// Sets mouse capture ([`plurimus_input::MouseMessage`]); on by default.
+    /// Sets mouse capture ([`plurimus_term::MouseMessage`]); on by default.
     #[must_use]
     pub const fn mouse(mut self, mouse: bool) -> Self {
         self.mouse = mouse;
         self
     }
 
-    /// Sets bracketed paste ([`plurimus_input::PasteMessage`]); on by
+    /// Sets bracketed paste ([`plurimus_term::PasteMessage`]); on by
     /// default.
     #[must_use]
     pub const fn paste(mut self, paste: bool) -> Self {
@@ -112,7 +110,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
         self
     }
 
-    /// Allows [`TerminalRequest::CopyToClipboard`](plurimus_input::TerminalRequest)
+    /// Allows [`TerminalRequest::CopyToClipboard`](plurimus_term::TerminalRequest)
     /// to write the user's clipboard through OSC 52; **off by default**.
     ///
     /// Unlike mouse capture and bracketed paste this needs no terminal mode
@@ -157,8 +155,8 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
             context::init(self.take_writer(), self.mouse, self.paste)
                 .expect("failed to initialize the terminal (the writer must reach a tty)");
         context::install_panic_hook();
-        if !app.is_plugin_added::<plurimus_input::InputPlugin>() {
-            app.add_plugins(plurimus_input::InputPlugin);
+        if !app.is_plugin_added::<plurimus_term::TermPlugin>() {
+            app.add_plugins(plurimus_term::TermPlugin);
         }
         app.insert_resource(size);
         app.insert_resource(capabilities);
@@ -172,11 +170,10 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
                 .before(CameraSystems::SyncSize),
         );
         app.add_plugins(PresenterPlugin::new(backend));
-        app.add_extract_systems(request::write_terminal_requests::<W>);
-        app.add_terminal_systems(
-            TerminalRenderSystems::Present,
+        app.add_extract_systems((
+            request::write_terminal_requests::<W>,
             request::write_cursor_style::<W>,
-        );
+        ));
         app.sub_app_mut(TerminalRenderApp)
             .insert_resource(context::RestoreOnDrop)
             .insert_resource(request::ClipboardEnabled(self.clipboard))

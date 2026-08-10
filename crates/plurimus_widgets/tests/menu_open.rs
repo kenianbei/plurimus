@@ -7,7 +7,7 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::{MouseButton, MouseKind};
+use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{click, composed_frame, send_mouse, write_mouse};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{Activate, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};

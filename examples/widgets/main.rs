@@ -30,7 +30,7 @@ use plurimus::core::{
     Viewport,
 };
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::input::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 use plurimus::ui::InteractionDisabled;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{

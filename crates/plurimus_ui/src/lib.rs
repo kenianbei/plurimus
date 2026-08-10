@@ -54,7 +54,7 @@ use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use plurimus_core::{CameraSystems, TerminalRenderApp, TerminalRenderAppExt};
-use plurimus_input::InputSystems;
+use plurimus_term::InputSystems;
 
 /// Ordered phases of ui maintenance in `PreUpdate`, after
 /// [`InputSystems::Update`] and [`CameraSystems::ResolveViewports`].
@@ -85,8 +85,8 @@ pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        if !app.is_plugin_added::<plurimus_input::InputPlugin>() {
-            app.add_plugins(plurimus_input::InputPlugin);
+        if !app.is_plugin_added::<plurimus_term::TermPlugin>() {
+            app.add_plugins(plurimus_term::TermPlugin);
         }
         focus::install(app);
         app.init_resource::<UiTheme>();

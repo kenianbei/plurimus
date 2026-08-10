@@ -5,7 +5,7 @@
 
 use bevy_app::App;
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_input::{
+use plurimus_term::{
     KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind, MouseMessage,
 };
 
@@ -59,7 +59,7 @@ pub fn press_key_with(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
 /// Presses `modifier`, then `code` carrying it, ticking after each.
 ///
 /// Setting the modifier bits alone is not enough on the kitty tier
-/// ([`plurimus_input::InputCapabilities::modifier_keys`]), which reports
+/// ([`plurimus_term::InputCapabilities::modifier_keys`]), which reports
 /// real modifier key events: without the leading press,
 /// `ButtonInput<KeyCode>` never sees the modifier as held.
 pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {

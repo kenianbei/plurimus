@@ -13,9 +13,7 @@ use bevy_input::keyboard::KeyCode as BevyKeyCode;
 use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus::core::ratatui_core::layout::{Constraint, Rect};
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus::input::{
-    InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, PasteMessage,
-};
+use plurimus::term::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, PasteMessage};
 use plurimus::ui::UiArea;
 use plurimus::widgets::{
     ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,

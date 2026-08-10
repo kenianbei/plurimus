@@ -9,7 +9,7 @@ use plurimus_bui::BuiPlugin;
 use plurimus_bui::Text;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_input::MouseKind;
+use plurimus_term::MouseKind;
 use plurimus_test::send_mouse;
 use plurimus_ui::{InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, UiWidget};
 use plurimus_widgets::WidgetsPlugin;
