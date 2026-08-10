@@ -51,9 +51,8 @@ impl Placed<'_> {
             .map_or(self.area.0.width, |scroll| scroll.content_size.width)
     }
 
-    // Screen cell to the table's own drawing, past whatever is scrolled
-    // off - on both axes, since a scrolled table's columns are laid out
-    // against its content width rather than the area it shows through.
+    // Both axes: a scrolled table's columns are laid out against its
+    // content width, not the area they show through.
     pub(super) fn content_cell(&self, at: Position) -> Option<Position> {
         let offset = self.offset.map_or(Position::ORIGIN, |offset| offset.0);
         content_cell(at, self.area.0, offset)

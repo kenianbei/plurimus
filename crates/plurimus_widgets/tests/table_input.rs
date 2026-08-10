@@ -441,8 +441,7 @@ fn a_held_key_repeats_movement_but_not_selection() {
 }
 
 // A scrolled table lays its columns out against its content width, so a
-// click has to reach content space on both axes. Mapping only y resolved a
-// horizontally scrolled click to whichever column sat at that screen cell.
+// click has to reach content space on both axes rather than on y alone.
 #[test]
 fn a_horizontally_scrolled_header_click_reports_the_column_under_the_content() {
     let (mut app, table, _) = app(TableSelection::Row);
