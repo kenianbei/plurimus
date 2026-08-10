@@ -172,8 +172,6 @@ pub(crate) fn listbox_key(
     }
 }
 
-// Focus dispatch is unordered against `UiSystems::Areas`, so the area is a
-// frame stale and zero on the first, which pages by a single row.
 fn move_active(
     action: ListBoxAction,
     rows: &[RowSpan],

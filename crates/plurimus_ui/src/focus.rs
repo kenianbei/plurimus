@@ -19,6 +19,8 @@ use bevy_input_focus::{
 use bevy_window::{PrimaryWindow, Window};
 use plurimus_input::{InputSystems, PasteMessage, bevy_compat};
 
+use crate::UiSystems;
+
 /// Present on every ancestor of the focused entity, for focus-within
 /// styling such as pane border highlights.
 #[derive(Component, Debug, Clone, Copy)]
@@ -32,9 +34,17 @@ pub(crate) fn install(app: &mut App) {
         app.add_plugins((InputFocusPlugin, InputDispatchPlugin, TabNavigationPlugin));
     }
     crate::nav::install(app);
+    // A focused-input observer reads both polled key state and widget
+    // geometry, so dispatch has to follow whoever writes them: modifiers
+    // land in `ButtonInput` in `bevy_input::InputSystems`, and areas are
+    // computed in `UiSystems::Areas`.
     app.configure_sets(
         PreUpdate,
-        InputSystems::Update.before(bevy_input::InputSystems),
+        (
+            InputSystems::Update.before(bevy_input::InputSystems),
+            InputFocusSystems::Dispatch.after(bevy_input::InputSystems),
+            UiSystems::Areas.before(InputFocusSystems::Dispatch),
+        ),
     );
     app.add_systems(
         PreUpdate,
@@ -42,9 +52,7 @@ pub(crate) fn install(app: &mut App) {
     );
     app.add_systems(
         PreUpdate,
-        dispatch_focused_input::<PasteMessage>
-            .in_set(InputFocusSystems::Dispatch)
-            .after(bevy_input::InputSystems),
+        dispatch_focused_input::<PasteMessage>.in_set(InputFocusSystems::Dispatch),
     );
     app.add_systems(
         PreUpdate,
