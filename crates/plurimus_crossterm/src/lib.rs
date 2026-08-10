@@ -9,6 +9,7 @@
 
 mod context;
 mod events;
+mod request;
 
 pub use context::{install_panic_hook, restore};
 pub use ratatui_crossterm;
@@ -20,7 +21,9 @@ use std::sync::Mutex;
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderApp};
+use plurimus_core::{
+    CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
+};
 use plurimus_input::InputSystems;
 
 /// Owns the terminal and presents composed frames via crossterm.
@@ -44,9 +47,14 @@ use plurimus_input::InputSystems;
 ///
 /// Building the same plugin value twice panics: the writer is consumed by
 /// the first build.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "set through named builders, never positionally"
+)]
 pub struct CrosstermPlugin<W: Write + Send + Sync + 'static = Stdout> {
     mouse: bool,
     paste: bool,
+    clipboard: bool,
     detect_color_depth: bool,
     writer: Mutex<Option<W>>,
 }
@@ -83,6 +91,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
         Self {
             mouse: true,
             paste: true,
+            clipboard: false,
             detect_color_depth: true,
             writer: Mutex::new(Some(writer)),
         }
@@ -100,6 +109,25 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
     #[must_use]
     pub const fn paste(mut self, paste: bool) -> Self {
         self.paste = paste;
+        self
+    }
+
+    /// Allows [`TerminalRequest::CopyToClipboard`](plurimus_input::TerminalRequest)
+    /// to write the user's clipboard through OSC 52; **off by default**.
+    ///
+    /// Unlike mouse capture and bracketed paste this needs no terminal mode
+    /// enabled up front, so the flag exists to make writing someone's
+    /// clipboard a decision an app states rather than inherits. Needs an
+    /// ANSI-capable terminal: crossterm has no Windows console fallback for
+    /// the sequence, so copying is a no-op there.
+    ///
+    /// A copy larger than one OSC 52 sequence can carry is dropped with a
+    /// warning rather than truncated, because a clipboard holding most of a
+    /// selection is worse than one holding none of it. Terminals differ on
+    /// the ceiling; the one honored here is what tmux forwards.
+    #[must_use]
+    pub const fn clipboard(mut self, clipboard: bool) -> Self {
+        self.clipboard = clipboard;
         self
     }
 
@@ -144,8 +172,15 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
                 .before(CameraSystems::SyncSize),
         );
         app.add_plugins(PresenterPlugin::new(backend));
+        app.add_extract_systems(request::write_terminal_requests::<W>);
+        app.add_terminal_systems(
+            TerminalRenderSystems::Present,
+            request::write_cursor_style::<W>,
+        );
         app.sub_app_mut(TerminalRenderApp)
-            .insert_resource(context::RestoreOnDrop);
+            .insert_resource(context::RestoreOnDrop)
+            .insert_resource(request::ClipboardEnabled(self.clipboard))
+            .insert_resource(request::PreviousCursorStyle::default());
     }
 }
 

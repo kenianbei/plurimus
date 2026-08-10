@@ -18,6 +18,7 @@
 
 mod camera;
 mod compositor;
+mod cursor;
 mod extract;
 mod present;
 pub mod raster;
@@ -33,6 +34,7 @@ pub use camera::{
     camera_buffer_mut,
 };
 pub use compositor::FrameBuffer;
+pub use cursor::{TerminalCursor, TerminalCursorStyle};
 pub use extract::MainWorld;
 pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;
@@ -57,6 +59,7 @@ impl Plugin for CorePlugin {
         app.init_resource::<TerminalSize>();
         app.init_resource::<DefaultCamera>();
         app.init_resource::<raster::ColorDepth>();
+        app.init_resource::<TerminalCursor>();
         app.add_message::<TerminalResized>();
         app.configure_sets(
             PreUpdate,
@@ -72,7 +75,14 @@ impl Plugin for CorePlugin {
             viewport::resolve_camera_viewports.in_set(CameraSystems::ResolveViewports),
         );
         sub_app::install(app);
-        app.add_extract_systems(widget::raster::extract_widgets);
+        // In the sub-app rather than with the presenter: the extract system
+        // below writes it whether or not anything presents.
+        app.sub_app_mut(TerminalRenderApp)
+            .init_resource::<TerminalCursor>();
+        app.add_extract_systems((
+            widget::raster::extract_widgets,
+            cursor::extract_terminal_cursor,
+        ));
         app.add_terminal_systems(
             TerminalRenderSystems::Rasterize,
             widget::raster::rasterize_widgets

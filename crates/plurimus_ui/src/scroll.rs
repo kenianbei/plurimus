@@ -264,6 +264,23 @@ pub fn content_cell(screen: Position, area: Rect, offset: Position) -> Option<Po
     ))
 }
 
+/// Where a content cell lands on screen, for a widget drawn at `area` and
+/// scrolled by `offset`.
+///
+/// The inverse of [`content_cell`], and unlike it this refuses rather than
+/// clamps: a content cell scrolled out of the area is not on screen at all,
+/// and answering with the nearest edge would put a caret where its
+/// character is not. `None` for an empty area too.
+#[must_use]
+pub fn screen_cell(content: Position, area: Rect, offset: Position) -> Option<Position> {
+    if area.is_empty() {
+        return None;
+    }
+    let x = content.x.checked_sub(offset.x)?;
+    let y = content.y.checked_sub(offset.y)?;
+    (x < area.width && y < area.height).then(|| Position::new(area.x + x, area.y + y))
+}
+
 /// The largest valid [`ScrollOffset`] for `content` windowed by `area`.
 #[must_use]
 pub const fn max_offset(content: Size, area: Rect) -> Position {
@@ -283,7 +300,7 @@ fn reveal_axis(offset: u16, start: u16, length: u16, window: u16) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::content_cell;
+    use super::{content_cell, screen_cell};
     use plurimus_core::ratatui_core::layout::{Position, Rect};
 
     const AREA: Rect = Rect::new(4, 2, 10, 5);
@@ -322,6 +339,42 @@ mod tests {
     }
 
     #[test]
+    fn a_content_cell_maps_back_to_the_screen_cell_it_came_from() {
+        for screen in [
+            Position::new(4, 2),
+            Position::new(9, 5),
+            Position::new(6, 3),
+        ] {
+            let offset = Position::new(7, 20);
+            let content = content_cell(screen, AREA, offset).expect("inside the area");
+            assert_eq!(screen_cell(content, AREA, offset), Some(screen));
+        }
+    }
+
+    // A caret whose character is scrolled off has no screen cell; answering
+    // with the nearest edge would draw it beside the wrong character.
+    #[test]
+    fn a_content_cell_outside_the_window_is_on_no_screen_cell() {
+        let offset = Position::new(3, 4);
+        assert_eq!(screen_cell(Position::new(2, 5), AREA, offset), None, "left");
+        assert_eq!(
+            screen_cell(Position::new(5, 3), AREA, offset),
+            None,
+            "above"
+        );
+        assert_eq!(
+            screen_cell(Position::new(13, 5), AREA, offset),
+            None,
+            "past the right edge"
+        );
+        assert_eq!(
+            screen_cell(Position::new(5, 9), AREA, offset),
+            None,
+            "past the bottom edge"
+        );
+    }
+
+    #[test]
     fn an_empty_area_addresses_no_cell() {
         assert_eq!(
             content_cell(Position::new(4, 2), Rect::ZERO, UNSCROLLED),
@@ -331,6 +384,10 @@ mod tests {
             content_cell(Position::new(4, 2), Rect::new(4, 2, 0, 5), UNSCROLLED),
             None,
             "zero width alone is enough"
+        );
+        assert_eq!(
+            screen_cell(Position::new(0, 0), Rect::ZERO, UNSCROLLED),
+            None
         );
     }
 }

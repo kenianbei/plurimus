@@ -17,6 +17,7 @@
 //! its look from the app's theme rather than owning one, so widgets from
 //! different crates restyle together.
 
+mod cursor;
 mod focus;
 mod interaction;
 mod modal;
@@ -28,6 +29,7 @@ mod theme;
 
 pub use tui_scrollview;
 
+pub use cursor::WidgetCursor;
 pub use focus::FocusWithin;
 pub use interaction::ValueChange;
 pub use interaction::{
@@ -39,7 +41,7 @@ pub use nav::NavigationConfig;
 pub use plurimus_core::{TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
 pub use scroll::{
     ScrollArea, ScrollIntoView, ScrollOffset, WheelAxes, WheelReceptive, WheelScroll, apply_offset,
-    content_cell, max_offset,
+    content_cell, max_offset, screen_cell,
 };
 pub use scrolled::LiveWidget;
 pub use stylist::{
@@ -115,6 +117,10 @@ impl Plugin for UiPlugin {
                     .in_set(UiSystems::Route),
             ),
         );
+        // In PostUpdate so it sees a caret moved anywhere this frame -
+        // a key handler in focus dispatch, a stylist in Update - and still
+        // before the sub-app extracts it.
+        app.add_systems(bevy_app::PostUpdate, cursor::sync_terminal_cursor);
         app.add_observer(scroll::scroll_into_view);
         app.add_observer(scroll::scroll_area_wheel);
         app.add_extract_systems(scrolled::extract_scrolled_widgets);
