@@ -147,6 +147,7 @@ bevy_core_pipeline = { workspace = true }
 bevy_ecs = { workspace = true }
 bevy_gltf = { workspace = true }
 bevy_image = { workspace = true, features = ["jpeg", "png"] }
+bevy_input = { workspace = true }
 bevy_input_focus = { workspace = true }
 bevy_light = { workspace = true }
 bevy_math = { workspace = true }

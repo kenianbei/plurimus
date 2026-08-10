@@ -2844,6 +2844,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_gltf",
  "bevy_image",
+ "bevy_input",
  "bevy_input_focus",
  "bevy_light",
  "bevy_math",

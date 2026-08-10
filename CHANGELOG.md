@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Focus dispatch has a stated position in the frame.** `plurimus_ui` now
+  orders it after `bevy_input`'s update and between `UiSystems::Areas` and
+  `UiSystems::Hover`, and `UiSystems` documents the guarantee: a `FocusedInput`
+  observer reads this frame's `ComputedWidgetArea` and a settled `ButtonInput`.
+  Previously that order held only when `WidgetsPlugin` happened to be installed,
+  so a widget library built on `plurimus_ui` alone had to rediscover and
+  re-assert it. Work that must see what such an observer did now belongs after
+  `InputFocusSystems::Dispatch` rather than after `UiSystems::Areas`.
+
+### Fixed
+
+- **A list box and a table page by the height they are actually drawn at.** Both
+  read their visible height inside a focused-input observer, which ran before
+  the areas were computed, so on the first frame the height was zero and
+  `PageDown` moved a single row; after a resize it moved by the previous size.
+  The clamp that hid this is what made it a wrong page rather than a stuck
+  cursor, which is why it survived unnoticed.
+
 ## [0.3.0] - 2026-08-10
 
 ### Added

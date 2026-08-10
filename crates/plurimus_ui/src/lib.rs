@@ -52,6 +52,14 @@ use plurimus_input::InputSystems;
 /// Ordered phases of ui maintenance in `PreUpdate`, after
 /// [`InputSystems::Update`] and [`CameraSystems::ResolveViewports`].
 /// Widget libraries interleave their systems against these.
+///
+/// Focus dispatch sits between [`Areas`](Self::Areas) and
+/// [`Hover`](Self::Hover), and after `bevy_input`'s own update, so a
+/// `FocusedInput` observer reads this frame's [`ComputedWidgetArea`] and
+/// a settled `ButtonInput`. Anything that has to see what such an
+/// observer did - forwarding a keyed edit, restyling from it - belongs
+/// after `bevy_input_focus::InputFocusSystems::Dispatch` rather than
+/// after [`Areas`](Self::Areas) alone.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum UiSystems {
     /// Widget screen areas are attached and computed.

@@ -85,6 +85,7 @@ use bevy_ecs::prelude::Component;
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use bevy_input::keyboard::KeyCode;
+use bevy_input_focus::InputFocusSystems;
 use ratatui_widgets::paragraph::Paragraph;
 
 use plurimus_core::UiWidget;
@@ -124,8 +125,8 @@ pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
 pub enum WidgetSystems {
     /// `PreUpdate`: scroll extent and row-change forwarding for the
     /// containers drawn from row children, popup sizing, and popover and
-    /// menu row placement, between [`UiSystems::Areas`] and
-    /// [`UiSystems::Hover`].
+    /// menu row placement. Runs after [`UiSystems::Areas`] and focus
+    /// dispatch, before [`UiSystems::Hover`].
     Layout,
     /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`].
     Style,
@@ -149,12 +150,14 @@ impl Plugin for WidgetsPlugin {
     }
 }
 
-// Placement reads areas and feeds hover, so it runs between the two.
+// Placement reads areas and feeds hover; the row-change forwarding also
+// has to see what a key handler did, which happens in focus dispatch.
 fn add_layout_systems(app: &mut App) {
     app.configure_sets(
         PreUpdate,
         WidgetSystems::Layout
             .after(UiSystems::Areas)
+            .after(InputFocusSystems::Dispatch)
             .before(UiSystems::Hover),
     );
     app.add_systems(
