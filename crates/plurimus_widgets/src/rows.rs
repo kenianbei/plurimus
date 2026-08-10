@@ -1,10 +1,10 @@
 //! Generic machinery for a container drawn from row children.
 //!
 //! Two widgets are built this way - the list box and the table - and both
-//! need the same two things a container cannot work out for itself: how tall
-//! its content is, and whether a row changed. Rows are children, and a
-//! child's change never marks its parent, so no query filter on the
-//! container can see one.
+//! need the same things a container cannot work out for itself: how tall its
+//! content is, whether a row changed, and what to draw beside the row under
+//! the cursor. Rows are children, and a child's change never marks its
+//! parent, so no query filter on the container can see one.
 //!
 //! Both systems run in [`WidgetSystems::Layout`](crate::WidgetSystems),
 //! before the stylists read what they leave behind.
@@ -18,6 +18,7 @@ use bevy_ecs::prelude::{Changed, Component, Or, Query, RemovedComponents, With};
 use bevy_ecs::query::QueryFilter;
 use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
+use plurimus_core::ratatui_core::text::Line;
 
 use crate::listbox::{ListItemText, row_height};
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle};
@@ -133,4 +134,13 @@ pub(crate) fn sync_row_scroll<Container: Component, Row: Component>(
             scroll.content_size = content;
         }
     }
+}
+
+/// Shared, so the crate's cursor cannot differ between two containers.
+pub(crate) const CURSOR_SYMBOL: &str = "> ";
+
+/// The cursor a container draws, `over` replacing the default when a
+/// widget carries one of its own.
+pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
+    over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
 }

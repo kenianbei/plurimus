@@ -13,10 +13,11 @@ use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
-use crate::{UiLabel, placeholder};
+use crate::placeholder;
 use plurimus_core::UiWidget;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
+use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
 /// A push button. Emits [`Activate`](crate::Activate) on click or
 /// Enter/Space.

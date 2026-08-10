@@ -17,12 +17,12 @@ use ratatui_widgets::scrollbar::{
 };
 
 use super::placeholder;
-use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
 use plurimus_core::UiWidget;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, ScrollArea,
     ScrollOffset, StylistDisabled, UiTheme, apply_offset, max_offset,
 };
+use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 
 /// A scrollbar for a target [`ScrollArea`] entity. The stock stylist
 /// derives track and thumb from the target; press/drag on the track
@@ -155,10 +155,9 @@ pub(crate) fn style_scrollbars(
             (offset.0.x, scroll.content_size.width, area.0.width)
         };
         let next = observed(state, &focus, hashed_bits((position, content, viewport)));
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         *widget = UiWidget::stateful(
             ScrollbarWidget::new(bar.orientation.clone()).style(next.style(&theme)),
             ScrollbarState::new(usize::from(content))

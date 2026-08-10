@@ -6,11 +6,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, Resource};
 use bevy_input::keyboard::Key;
 use bevy_input_focus::{FocusCause, InputFocus};
-use plurimus_core::ratatui_core::layout::{Constraint, Rect};
+use plurimus_core::ratatui_core::layout::{Constraint, Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::KeyCode;
 use plurimus_test::{click, press_key, repeat_key};
-use plurimus_ui::{Checked, InteractionDisabled, UiArea, ValueChange};
+use plurimus_ui::{Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, ValueChange};
 use plurimus_widgets::ActiveDescendant;
 use plurimus_widgets::{
     ActiveColumn, TableAction, TableCursor, TableHeaderClick, TableKeys, TableMultiSelect,
@@ -437,5 +437,25 @@ fn a_held_key_repeats_movement_but_not_selection() {
         cursor(&app, table),
         Some(rows[1]),
         "but a repeated arrow still moves the cursor"
+    );
+}
+
+// A scrolled table lays its columns out against its content width, so a
+// click has to reach content space on both axes rather than on y alone.
+#[test]
+fn a_horizontally_scrolled_header_click_reports_the_column_under_the_content() {
+    let (mut app, table, _) = app(TableSelection::Row);
+    app.world_mut().entity_mut(table).insert((
+        ScrollArea::new(Size::new(40, 6)),
+        ScrollOffset(Position::new(6, 0)),
+    ));
+    app.update();
+
+    click(&mut app, 2, 0);
+
+    assert_eq!(
+        app.world().resource::<HeaderClicks>().0.last(),
+        Some(&1),
+        "six columns scrolled off puts the second column under screen x=2"
     );
 }

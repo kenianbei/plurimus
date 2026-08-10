@@ -21,9 +21,10 @@ use super::{
 };
 use crate::listbox::ActiveDescendant;
 use crate::rows::ContentDirty;
-use crate::stylist::{StateQuery, Stylable, StylistCache, cursor_symbol, hashed_bits, observed};
+use crate::rows::cursor_symbol;
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, UiStyle, UiTheme};
+use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 pub(crate) type TableRowsChanged = Or<(
     Changed<TableRow>,
@@ -132,10 +133,9 @@ pub(crate) fn style_tables(
             &focus,
             hashed_bits((active.map(|active| active.0), column.map(|column| column.0))),
         );
-        if !theme.is_changed() && !content.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
         }
-        *cache = next;
         let styles = RowStyles {
             stripe: stripe.map(|stripe| stripe.0),
             checked: checked.map(|checked| checked.0),

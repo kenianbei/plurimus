@@ -16,14 +16,15 @@ use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
-use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::text::{Line, Text};
 
-use super::{UiLabel, ValueChange, placeholder};
+use super::{ValueChange, placeholder};
 use crate::rows::ContentDirty;
-use crate::stylist::StylistCache;
+use plurimus_ui::StylistCache;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
-use plurimus_ui::{ScrollIntoView, ScrollOffset};
+use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
 /// A focusable list of [`ListItem`] children. Selection emits
 /// [`ValueChange<Entity>`] on the list box; attach
@@ -247,13 +248,11 @@ pub(crate) fn listbox_press(
     let Ok((area, offset, children, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let scrolled = offset.map_or(0, |offset| offset.0.y);
-    let line = event
-        .position
-        .y
-        .saturating_sub(area.0.y)
-        .saturating_add(scrolled);
-    let Some(span) = row_spans(children, &items).find(|span| span.contains(line)) else {
+    let scrolled = offset.map_or(Position::ORIGIN, |offset| offset.0);
+    let Some(cell) = content_cell(event.position, area.0, scrolled) else {
+        return;
+    };
+    let Some(span) = row_spans(children, &items).find(|span| span.contains(cell.y)) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(span.entity)));

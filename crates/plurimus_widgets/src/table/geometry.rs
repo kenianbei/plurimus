@@ -10,10 +10,10 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Has, Query};
-use plurimus_core::ratatui_core::layout::{Constraint, Layout, Rect};
+use plurimus_core::ratatui_core::layout::{Constraint, Layout, Position, Rect};
 
 use super::{TableColumns, TableCursor, TableFooter, TableHeader, TableLayout, TableRow};
-use plurimus_ui::{ComputedWidgetArea, ScrollArea, ScrollOffset};
+use plurimus_ui::{ComputedWidgetArea, ScrollArea, ScrollOffset, content_cell};
 
 pub(super) type Rows<'w, 's> =
     Query<'w, 's, (&'static TableRow, Has<TableHeader>, Has<TableFooter>)>;
@@ -51,10 +51,11 @@ impl Placed<'_> {
             .map_or(self.area.0.width, |scroll| scroll.content_size.width)
     }
 
-    // Screen row to the table's own drawing, past whatever is scrolled off.
-    pub(super) fn line(&self, y: u16) -> u16 {
-        y.saturating_sub(self.area.0.y)
-            .saturating_add(self.offset.map_or(0, |offset| offset.0.y))
+    // Both axes: a scrolled table's columns are laid out against its
+    // content width, not the area they show through.
+    pub(super) fn content_cell(&self, at: Position) -> Option<Position> {
+        let offset = self.offset.map_or(Position::ORIGIN, |offset| offset.0);
+        content_cell(at, self.area.0, offset)
     }
 
     // Only an unscrolled table needs bounding; see `clicked_row`.

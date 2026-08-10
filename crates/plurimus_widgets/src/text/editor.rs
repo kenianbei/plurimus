@@ -24,8 +24,8 @@ use plurimus_input::PasteMessage;
 use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
-use crate::{ALT_KEYS, CTRL_KEYS, SHIFT_KEYS};
 use plurimus_core::UiWidget;
+use plurimus_input::bevy_compat::held_modifiers;
 use plurimus_ui::{Hovered, InteractionDisabled};
 use plurimus_ui::{WheelReceptive, WheelScroll};
 
@@ -154,11 +154,12 @@ fn editor_input(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Input> {
         Key::PageDown => EditorKey::PageDown,
         _ => return None,
     };
+    let held = held_modifiers(held_keys);
     Some(Input {
         key,
-        ctrl: held_keys.any_pressed(CTRL_KEYS),
-        alt: held_keys.any_pressed(ALT_KEYS),
-        shift: held_keys.any_pressed(SHIFT_KEYS),
+        ctrl: held.ctrl,
+        alt: held.alt,
+        shift: held.shift,
     })
 }
 

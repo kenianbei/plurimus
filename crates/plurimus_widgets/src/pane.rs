@@ -12,10 +12,11 @@ use bevy_ecs::prelude::{Component, Has, Query, Res};
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
-use super::{UiLabel, placeholder};
-use crate::stylist::{Stylable, StylistCache};
+use super::placeholder;
 use plurimus_core::UiWidget;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{FocusWithin, UiStyle, UiTheme};
+use plurimus_ui::{InteractionState, Stylable, StylistCache};
 
 /// A bordered region titled by its [`UiLabel`]. Not focusable itself:
 /// "focused" means [`FocusWithin`] - focus sits on a descendant.
@@ -43,11 +44,16 @@ pub(crate) fn style_panes(
     >,
 ) {
     for (focused, label, over, mut cache, mut widget) in &mut panes {
-        let next = StylistCache::focus_only(focused, over);
-        if !theme.is_changed() && next == *cache {
+        let next = StylistCache::new(
+            InteractionState {
+                focused,
+                ..InteractionState::default()
+            },
+            over,
+        );
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         let style = next.style(&theme);
         *widget = UiWidget::new(
             Block::bordered()

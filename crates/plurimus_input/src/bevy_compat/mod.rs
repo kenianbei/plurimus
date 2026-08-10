@@ -1,5 +1,10 @@
-//! Forwards the plurimus input contract into `bevy_input`'s native keyboard
-//! vocabulary, for consumers of the bevy input-focus stack.
+//! Translation between the plurimus input contract and `bevy_input`'s
+//! native keyboard vocabulary, for consumers of the bevy input-focus stack.
+//!
+//! Mostly outward: [`forward_keyboard`] turns [`KeyMessage`]s into bevy
+//! `KeyboardInput`. [`held_modifiers`] goes the other way, reading the
+//! polled state that forwarding produced back into [`KeyModifiers`],
+//! because bevy's own key events carry no modifiers.
 //!
 //! The physical `KeyCode` mapping is best-effort: terminals report logical
 //! keys, so positions are inferred from a US layout. App logic should keep
@@ -7,8 +12,8 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Local, MessageReader, MessageWriter, Res};
-use bevy_input::ButtonState;
-use bevy_input::keyboard::KeyboardInput;
+use bevy_input::keyboard::{KeyCode as BevyKeyCode, KeyboardInput};
+use bevy_input::{ButtonInput, ButtonState};
 
 use super::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
 
@@ -35,25 +40,47 @@ pub fn forward_keyboard(
     mut keys: MessageReader<KeyMessage>,
     capabilities: Res<InputCapabilities>,
     mut output: MessageWriter<KeyboardInput>,
-    mut held_modifiers: Local<KeyModifiers>,
+    mut previous_modifiers: Local<KeyModifiers>,
 ) {
     for message in keys.read() {
         if !capabilities.modifier_keys {
-            sync_modifiers(&mut held_modifiers, message.modifiers, &mut output);
+            sync_modifiers(&mut previous_modifiers, message.modifiers, &mut output);
         }
         output.write(convert(message));
     }
 }
 
-/// One key per [`KeyModifiers`] flag; a flag with no entry here never has
-/// its transitions synthesized.
-const SYNTHESIZED_MODIFIERS: [ModifierKey; 6] = [
-    ModifierKey::ShiftLeft,
-    ModifierKey::ControlLeft,
-    ModifierKey::AltLeft,
-    ModifierKey::SuperLeft,
-    ModifierKey::HyperLeft,
-    ModifierKey::MetaLeft,
+/// The modifiers `keys` currently holds, for a consumer that reads bevy's
+/// polled key state rather than a [`KeyMessage`]'s own bitfield.
+///
+/// A `FocusedInput` observer is the case this exists for: bevy's
+/// `KeyboardInput` carries no modifier state, so a chord has to come from
+/// here. Sides collapse - either control key sets `ctrl`.
+///
+/// This is frame state, not event state. It answers "what is held now",
+/// which is the same thing only while no modifier is released in the frame
+/// the key it modified arrives.
+#[must_use]
+pub fn held_modifiers(keys: &ButtonInput<BevyKeyCode>) -> KeyModifiers {
+    let mut held = KeyModifiers::default();
+    for (left, right) in MODIFIER_PAIRS {
+        *held.slot(left) = keys.any_pressed([modifier_physical(left), modifier_physical(right)]);
+    }
+    held
+}
+
+/// Both sides of every [`KeyModifiers`] flag, one pair per flag.
+///
+/// Reading and synthesizing both work from this, so neither can come to
+/// disagree about which keys drive which flag, and a flag with no pair here
+/// would be one nothing can ever set.
+const MODIFIER_PAIRS: [(ModifierKey, ModifierKey); 6] = [
+    (ModifierKey::ShiftLeft, ModifierKey::ShiftRight),
+    (ModifierKey::ControlLeft, ModifierKey::ControlRight),
+    (ModifierKey::AltLeft, ModifierKey::AltRight),
+    (ModifierKey::SuperLeft, ModifierKey::SuperRight),
+    (ModifierKey::HyperLeft, ModifierKey::HyperRight),
+    (ModifierKey::MetaLeft, ModifierKey::MetaRight),
 ];
 
 fn sync_modifiers(
@@ -61,7 +88,7 @@ fn sync_modifiers(
     current: KeyModifiers,
     output: &mut MessageWriter<KeyboardInput>,
 ) {
-    for modifier in SYNTHESIZED_MODIFIERS {
+    for (modifier, _) in MODIFIER_PAIRS {
         let is_held = current.holds(modifier);
         if previous.holds(modifier) == is_held {
             continue;
@@ -107,11 +134,19 @@ mod tests {
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::World;
     use bevy_ecs::system::SystemId;
-    use bevy_input::ButtonState;
     use bevy_input::keyboard::{Key, KeyCode as BevyKeyCode, KeyboardInput};
+    use bevy_input::{ButtonInput, ButtonState};
 
-    use super::{SYNTHESIZED_MODIFIERS, convert, forward_keyboard};
+    use super::{MODIFIER_PAIRS, convert, forward_keyboard, held_modifiers, modifier_physical};
     use crate::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
+
+    fn holding(pressed: &[BevyKeyCode]) -> KeyModifiers {
+        let mut keys = ButtonInput::default();
+        for &key in pressed {
+            keys.press(key);
+        }
+        held_modifiers(&keys)
+    }
 
     fn forwarding_world(modifier_keys: bool) -> (World, SystemId) {
         let mut world = World::new();
@@ -144,12 +179,12 @@ mod tests {
     }
 
     #[test]
-    fn synthesized_list_covers_every_modifier_flag() {
+    fn the_pair_table_covers_every_modifier_flag() {
         let covered =
-            SYNTHESIZED_MODIFIERS
+            MODIFIER_PAIRS
                 .into_iter()
-                .fold(KeyModifiers::default(), |mut covered, key| {
-                    *covered.slot(key) = true;
+                .fold(KeyModifiers::default(), |mut covered, (left, _)| {
+                    *covered.slot(left) = true;
                     covered
                 });
 
@@ -163,8 +198,8 @@ mod tests {
                 hyper: true,
                 meta: true,
             },
-            "a modifier flag has no key in SYNTHESIZED_MODIFIERS, so its \
-             transitions never reach bevy_input on the legacy tier"
+            "a modifier flag has no pair in MODIFIER_PAIRS, so nothing reads \
+             or synthesizes it"
         );
     }
 
@@ -253,5 +288,16 @@ mod tests {
         });
         assert_eq!(repeat.state, ButtonState::Pressed);
         assert!(repeat.repeat);
+    }
+
+    #[test]
+    fn either_side_of_every_pair_sets_the_flag_it_shares() {
+        assert_eq!(holding(&[]), KeyModifiers::default(), "nothing held");
+        for (left, right) in MODIFIER_PAIRS {
+            let mut expected = KeyModifiers::default();
+            *expected.slot(left) = true;
+            assert_eq!(holding(&[modifier_physical(left)]), expected, "{left:?}");
+            assert_eq!(holding(&[modifier_physical(right)]), expected, "{right:?}");
+        }
     }
 }

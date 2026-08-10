@@ -20,10 +20,11 @@ use plurimus_input::PasteMessage;
 use super::field::TextField;
 use super::state::TextInput;
 use super::word::{word_end_forward, word_start_backward, word_start_forward};
-use crate::stylist::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
-use crate::{ALT_KEYS, CTRL_KEYS, ValueChange, placeholder};
+use crate::{ValueChange, placeholder};
 use plurimus_core::UiWidget;
+use plurimus_input::bevy_compat::held_modifiers;
 use plurimus_ui::{Hovered, InteractionDisabled, UiTheme};
+use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A single-line editable text field. Edits mutate [`TextInput`] directly
 /// and emit [`ValueChange<String>`]: `is_final: false` per edit, `true`
@@ -84,14 +85,13 @@ fn apply_key(key: &Key, text: &mut TextInput, field: Entity, commands: &mut Comm
 // Word bindings mirror TextEditor's, whose engine binds ctrl+arrows to
 // word motion and alt+Backspace/Delete to word deletion.
 fn word_edit(key: &Key, held_keys: &ButtonInput<KeyCode>, text: &mut TextInput) -> bool {
-    let ctrl = held_keys.any_pressed(CTRL_KEYS);
-    let alt = held_keys.any_pressed(ALT_KEYS);
+    let held = held_modifiers(held_keys);
     let cursor = text.cursor();
     match key {
-        Key::ArrowLeft if ctrl => text.move_to(word_start_backward(text.value(), cursor)),
-        Key::ArrowRight if ctrl => text.move_to(word_start_forward(text.value(), cursor)),
-        Key::Backspace if alt => text.delete_to(word_start_backward(text.value(), cursor)),
-        Key::Delete if alt => text.delete_to(word_end_forward(text.value(), cursor)),
+        Key::ArrowLeft if held.ctrl => text.move_to(word_start_backward(text.value(), cursor)),
+        Key::ArrowRight if held.ctrl => text.move_to(word_start_forward(text.value(), cursor)),
+        Key::Backspace if held.alt => text.delete_to(word_start_backward(text.value(), cursor)),
+        Key::Delete if held.alt => text.delete_to(word_end_forward(text.value(), cursor)),
         _ => return false,
     }
     true
@@ -159,10 +159,9 @@ pub(crate) fn style_text_inputs(
 ) {
     for (state, text, mut cache, mut widget) in &mut fields {
         let next = observed(state, &focus, hashed_bits(text));
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         *widget = UiWidget::new(TextField {
             value: text.value().to_owned(),
             cursor: text.cursor(),

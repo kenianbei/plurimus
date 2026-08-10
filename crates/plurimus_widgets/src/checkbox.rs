@@ -13,10 +13,11 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
-use crate::{UiLabel, placeholder};
+use crate::placeholder;
 use plurimus_core::UiWidget;
+use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
+use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
 /// A toggle. Emits [`ValueChange<bool>`](plurimus_ui::ValueChange); attach
 /// [`checkbox_self_update`](crate::checkbox_self_update) for uncontrolled
@@ -36,7 +37,7 @@ pub(crate) fn style_checkboxes(
     mut boxes: LabeledQuery<Checkbox>,
 ) {
     restyle(&theme, &focus, &mut boxes, |state, label, style| {
-        let mark = if state.checked { "[x] " } else { "[ ] " };
+        let mark = if state.checked() { "[x] " } else { "[ ] " };
         UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
     });
 }

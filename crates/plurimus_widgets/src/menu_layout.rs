@@ -12,11 +12,11 @@ use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Commands, Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 
-use crate::UiLabel;
 use crate::menu::{MenuAccess, MenuItem, MenuPopup};
 use crate::popover::Popover;
 use plurimus_core::{UiArea, UiCamera};
 use plurimus_ui::ComputedWidgetArea;
+use plurimus_ui::UiLabel;
 
 const POPUP_FRAME: u16 = 1;
 const ITEM_PADDING: u16 = 1;

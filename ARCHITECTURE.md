@@ -103,14 +103,22 @@ what `plurimus_widgets` does with `WidgetSystems::Layout`. It also builds the
 directional navigation map, and provides scrolling (`ScrollArea`,
 `ScrollOffset`, `ScrollIntoView`) with cached extraction of scrolled content,
 plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
-menus and popovers are built from. It also owns the theming contract, so a
-widget library reaches it without depending on another widget library:
-`UiPlugin` initializes the `UiTheme` resource, `UiTheme::resolve` turns an
-`InteractionState` into the one `Style` its documented precedence gives -
-disabled over pressed over hovered over normal, focused patched over the
-winner - and `UiStyle` and `StylistDisabled` are the two escapes from it.
-Nothing in the crate reads the theme itself; resolving it is the widget
-library's job. Re-exports `tui_scrollview`.
+menus and popovers are built from. `content_cell` is where a pointer cell
+becomes a content cell for any of it, clamping into the area so a captured drag
+past an edge keeps addressing the nearest one.
+
+It also owns the styling contract entire, so a widget library reaches it without
+depending on another widget library. `UiPlugin` initializes the `UiTheme`
+resource, `UiTheme::resolve` turns an `InteractionState` into the one `Style`
+its documented precedence gives - disabled over pressed over hovered over
+normal, focused patched over the winner - and `UiStyle` and `StylistDisabled`
+are the two escapes from it. Beside that vocabulary sits the engine that
+consumes it: `StylistCache` records what a widget last drew and
+`StylistCache::redraws` is the compare-and-swap every stylist gates on, so a
+theme swap or a dirtied container repaints and an idle frame costs a comparison.
+`observed` reads an entity's state through `StateQuery`, `restyle` runs the
+whole loop for the label-driven case, and a `UiLabel` is a ratatui `Line`, so a
+label carries per-span style of its own. Re-exports `tui_scrollview`.
 
 ### plurimus_widgets
 
@@ -124,13 +132,13 @@ table to mirror. Most widgets are stateless controllers emitting entity events
 `*_self_update` observers for uncontrolled behavior. A stylist rebuilds a
 widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the state it last drew
 differs from the current one, not every frame, and they run in the
-`WidgetSystems::Style` set an app orders its own against; the stylist engine
-that caches that state is the crate's own and stays private, while the theming
-vocabulary the app speaks - `UiTheme`, `UiStyle`, `StylistDisabled` - belongs to
-`plurimus_ui`. `StylistDisabled` exempts an entity so an app takes its look
-while keeping its behavior, and `UiStyle` patches over the style an entity would
-otherwise resolve to, on a widget or on one list or table row. A `UiLabel` is a
-ratatui `Line`, so a label carries per-span style of its own.
+`WidgetSystems::Style` set an app orders its own against. Only the stylists
+themselves are the crate's: the cache they gate on, the state they read, the
+label they draw, and the theme vocabulary the app speaks all belong to
+`plurimus_ui`, which is what lets a widget family outside this workspace be
+written against the same engine. `StylistDisabled` exempts an entity so an app
+takes its look while keeping its behavior, and `UiStyle` patches over the style
+an entity would otherwise resolve to, on a widget or on one list or table row.
 
 The two widgets drawn from row children - the list box and the table - carry a
 second change signal beside that one. Their rows are child entities, and a
