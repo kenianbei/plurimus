@@ -183,7 +183,8 @@ fn move_active(
         .0
         .and_then(|item| rows.iter().position(|row| row.entity == item));
     // A page is a count of items rather than of lines, so a page of
-    // multi-line rows travels further than one screen - never less.
+    // multi-line rows travels further than one screen - never less. The
+    // floor is for a hidden list, which keeps focus but has no area.
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));

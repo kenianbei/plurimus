@@ -97,6 +97,8 @@ fn move_row(
         .0
         .and_then(|row| body.iter().position(|&candidate| candidate == row));
     let (header, footer) = bands(children, rows);
+    // The floor covers an area its bands leave nothing of, and a hidden
+    // table, which keeps focus but has no area.
     let page = usize::from(body_height(area, (header, footer))).max(1);
     let index = moved_row(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(body[index])));

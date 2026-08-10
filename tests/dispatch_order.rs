@@ -9,17 +9,19 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, Res, ResMut, Resource};
 use bevy_input::ButtonInput;
-use bevy_input::keyboard::{KeyCode as BevyKeyCode, KeyboardInput};
+use bevy_input::keyboard::KeyCode as BevyKeyCode;
 use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus::core::ratatui_core::layout::{Constraint, Rect};
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus::input::{InputCapabilities, KeyCode, KeyModifiers};
+use plurimus::input::{
+    InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, PasteMessage,
+};
 use plurimus::ui::UiArea;
 use plurimus::widgets::{
     ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,
     table_footer, table_header, table_row,
 };
-use plurimus_test::{press_key, press_key_with};
+use plurimus_test::press_key;
 
 const AREA: Rect = Rect::new(0, 0, 20, 6);
 
@@ -41,49 +43,54 @@ fn active(app: &App, container: Entity) -> Option<Entity> {
     app.world().get::<ActiveDescendant>(container).unwrap().0
 }
 
-/// Whether the shift key was held by the time the dispatch observer ran.
+/// Whether shift was held by the time the paste dispatch observer ran.
 #[derive(Resource, Default)]
-struct ShiftAtDispatch(Option<bool>);
+struct ShiftAtPaste(Option<bool>);
 
-// A contract test rather than a regression test: `InputDispatchPlugin`
-// orders its own keyboard dispatch after `bevy_input::InputSystems`, so
-// this holds even without the set-level edge here, and it is a bevy
-// upgrade removing that guarantee this would catch.
+// An invariant, not a regression guard: removing the set-level edge does
+// not make this fail, because the executor happens to drain `ButtonInput`
+// first anyway. It is kept because that order is an accident of the
+// schedule rather than a promise, and this is what would catch it
+// changing - on another executor, or on a bevy that stops ordering the
+// dispatches it registers itself.
 //
-// The legacy tier is what makes it a single frame: `forward_keyboard`
-// synthesizes the modifier press from the message's own bitfield, so the
-// press and the key it modifies cannot land in different ones.
+// The legacy tier is what forces the key and the paste into one frame:
+// `forward_keyboard` synthesizes the modifier press from the message's own
+// bitfield, so it cannot arrive a frame early.
 #[test]
-fn a_modifier_is_already_held_when_the_key_it_modifies_dispatches() {
+fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
     let mut app = app();
     app.insert_resource(InputCapabilities::default().with_modifier_keys(false));
-    app.init_resource::<ShiftAtDispatch>();
+    app.init_resource::<ShiftAtPaste>();
 
     let target = app
         .world_mut()
         .spawn((button("ok"), UiArea::Fixed(AREA)))
         .id();
     app.world_mut().entity_mut(target).observe(
-        |_: On<FocusedInput<KeyboardInput>>,
+        |_: On<FocusedInput<PasteMessage>>,
          keys: Res<ButtonInput<BevyKeyCode>>,
-         mut seen: ResMut<ShiftAtDispatch>| {
+         mut seen: ResMut<ShiftAtPaste>| {
             seen.0 = Some(keys.pressed(BevyKeyCode::ShiftLeft));
         },
     );
     focus(&mut app, target);
     app.update();
 
-    press_key_with(
-        &mut app,
-        KeyCode::Char('a'),
-        KeyModifiers::default().with_shift(true),
-    );
+    let world = app.world_mut();
+    world.write_message(KeyMessage {
+        code: KeyCode::Char('a'),
+        modifiers: KeyModifiers::default().with_shift(true),
+        kind: KeyKind::Press,
+    });
+    world.write_message(PasteMessage("x".into()));
+    app.update();
 
     assert_eq!(
-        app.world().resource::<ShiftAtDispatch>().0,
+        app.world().resource::<ShiftAtPaste>().0,
         Some(true),
-        "the observer ran before bevy_input drained the synthesized press, \
-         so a chord reads as a bare key"
+        "the paste dispatch ran before bevy_input drained the synthesized \
+         press, so an observer reading held keys sees none"
     );
 }
 
