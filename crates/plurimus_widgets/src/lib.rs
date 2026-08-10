@@ -82,18 +82,11 @@ pub(crate) use text::{
 use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
-use bevy_input::keyboard::KeyCode;
 use bevy_input_focus::InputFocusSystems;
 use ratatui_widgets::paragraph::Paragraph;
 
 use plurimus_core::UiWidget;
 use plurimus_ui::{UiPlugin, UiSystems};
-
-// Modifiers arrive as polled state rather than per-event flags, so
-// several keys landing in one frame share the latest modifiers.
-pub(crate) const CTRL_KEYS: [KeyCode; 2] = [KeyCode::ControlLeft, KeyCode::ControlRight];
-pub(crate) const ALT_KEYS: [KeyCode; 2] = [KeyCode::AltLeft, KeyCode::AltRight];
-pub(crate) const SHIFT_KEYS: [KeyCode; 2] = [KeyCode::ShiftLeft, KeyCode::ShiftRight];
 
 // The stock stylists replace this on the first frame.
 pub(crate) fn placeholder() -> UiWidget {

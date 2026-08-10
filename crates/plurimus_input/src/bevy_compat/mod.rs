@@ -7,8 +7,8 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Local, MessageReader, MessageWriter, Res};
-use bevy_input::ButtonState;
-use bevy_input::keyboard::KeyboardInput;
+use bevy_input::keyboard::{KeyCode as BevyKeyCode, KeyboardInput};
+use bevy_input::{ButtonInput, ButtonState};
 
 use super::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
 
@@ -42,6 +42,31 @@ pub fn forward_keyboard(
             sync_modifiers(&mut held_modifiers, message.modifiers, &mut output);
         }
         output.write(convert(message));
+    }
+}
+
+/// The modifiers `keys` currently holds, for a consumer that reads bevy's
+/// polled key state rather than a [`KeyMessage`]'s own bitfield.
+///
+/// A `FocusedInput` observer is the case this exists for: bevy's
+/// `KeyboardInput` carries no modifier state, so a chord has to come from
+/// here. Sides collapse - either control key sets `ctrl`.
+///
+/// This is frame state, not event state. It answers "what is held now",
+/// which is the same thing only while no modifier is released in the frame
+/// the key it modified arrives.
+#[must_use]
+pub fn held_modifiers(keys: &ButtonInput<BevyKeyCode>) -> KeyModifiers {
+    let held = |pair: [BevyKeyCode; 2]| keys.any_pressed(pair);
+    KeyModifiers {
+        ctrl: held([BevyKeyCode::ControlLeft, BevyKeyCode::ControlRight]),
+        alt: held([BevyKeyCode::AltLeft, BevyKeyCode::AltRight]),
+        shift: held([BevyKeyCode::ShiftLeft, BevyKeyCode::ShiftRight]),
+        super_key: held([BevyKeyCode::SuperLeft, BevyKeyCode::SuperRight]),
+        // Bevy has one keycode for each of these, which is what
+        // `modifier_physical` maps both sides onto.
+        hyper: keys.pressed(BevyKeyCode::Hyper),
+        meta: keys.pressed(BevyKeyCode::Meta),
     }
 }
 
@@ -110,8 +135,18 @@ mod tests {
     use bevy_input::ButtonState;
     use bevy_input::keyboard::{Key, KeyCode as BevyKeyCode, KeyboardInput};
 
-    use super::{SYNTHESIZED_MODIFIERS, convert, forward_keyboard};
+    use bevy_input::ButtonInput;
+
+    use super::{SYNTHESIZED_MODIFIERS, convert, forward_keyboard, held_modifiers};
     use crate::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
+
+    fn holding(pressed: &[BevyKeyCode]) -> KeyModifiers {
+        let mut keys = ButtonInput::default();
+        for &key in pressed {
+            keys.press(key);
+        }
+        held_modifiers(&keys)
+    }
 
     fn forwarding_world(modifier_keys: bool) -> (World, SystemId) {
         let mut world = World::new();
@@ -253,5 +288,62 @@ mod tests {
         });
         assert_eq!(repeat.state, ButtonState::Pressed);
         assert!(repeat.repeat);
+    }
+
+    #[test]
+    fn nothing_held_is_no_modifiers() {
+        assert_eq!(holding(&[]), KeyModifiers::default());
+    }
+
+    #[test]
+    fn every_flag_has_a_key_that_sets_it() {
+        assert_eq!(
+            holding(&[
+                BevyKeyCode::ControlLeft,
+                BevyKeyCode::AltLeft,
+                BevyKeyCode::ShiftLeft,
+                BevyKeyCode::SuperLeft,
+                BevyKeyCode::Hyper,
+                BevyKeyCode::Meta,
+            ]),
+            KeyModifiers {
+                ctrl: true,
+                alt: true,
+                shift: true,
+                super_key: true,
+                hyper: true,
+                meta: true,
+            },
+            "a flag with no key here is one a consumer can never read"
+        );
+    }
+
+    #[test]
+    fn either_side_sets_the_flag_it_shares() {
+        for (left, right, flag) in [
+            (
+                BevyKeyCode::ControlLeft,
+                BevyKeyCode::ControlRight,
+                KeyModifiers::default().with_ctrl(true),
+            ),
+            (
+                BevyKeyCode::AltLeft,
+                BevyKeyCode::AltRight,
+                KeyModifiers::default().with_alt(true),
+            ),
+            (
+                BevyKeyCode::ShiftLeft,
+                BevyKeyCode::ShiftRight,
+                KeyModifiers::default().with_shift(true),
+            ),
+            (
+                BevyKeyCode::SuperLeft,
+                BevyKeyCode::SuperRight,
+                KeyModifiers::default().with_super_key(true),
+            ),
+        ] {
+            assert_eq!(holding(&[left]), flag, "{left:?} alone");
+            assert_eq!(holding(&[right]), flag, "{right:?} alone");
+        }
     }
 }
