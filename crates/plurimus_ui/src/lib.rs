@@ -39,7 +39,7 @@ pub use nav::NavigationConfig;
 pub use plurimus_core::{TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
 pub use scroll::{
     ScrollArea, ScrollIntoView, ScrollOffset, WheelAxes, WheelReceptive, WheelScroll, apply_offset,
-    max_offset,
+    content_cell, max_offset,
 };
 pub use scrolled::LiveWidget;
 pub use stylist::{

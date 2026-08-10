@@ -243,6 +243,27 @@ pub fn apply_offset(
     }
 }
 
+/// Where a screen cell lands in the content of a widget drawn at `area`
+/// and scrolled by `offset`.
+///
+/// Clamps into the area rather than refusing, because a drag is captured
+/// to the widget it began on: the cursor may be well outside by now, and
+/// the nearest cell is what keeps it selecting. A press is hit-tested
+/// inside the area before it is routed, so for one the clamp never binds.
+/// `None` only for an empty area, which addresses no cell at all.
+#[must_use]
+pub fn content_cell(screen: Position, area: Rect, offset: Position) -> Option<Position> {
+    if area.is_empty() {
+        return None;
+    }
+    let x = screen.x.clamp(area.x, area.right() - 1) - area.x;
+    let y = screen.y.clamp(area.y, area.bottom() - 1) - area.y;
+    Some(Position::new(
+        x.saturating_add(offset.x),
+        y.saturating_add(offset.y),
+    ))
+}
+
 /// The largest valid [`ScrollOffset`] for `content` windowed by `area`.
 #[must_use]
 pub const fn max_offset(content: Size, area: Rect) -> Position {
@@ -257,5 +278,59 @@ fn reveal_axis(offset: u16, start: u16, length: u16, window: u16) -> u16 {
         start
     } else {
         offset.max(start.saturating_add(length).saturating_sub(window))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::content_cell;
+    use plurimus_core::ratatui_core::layout::{Position, Rect};
+
+    const AREA: Rect = Rect::new(4, 2, 10, 5);
+    const UNSCROLLED: Position = Position::new(0, 0);
+
+    #[test]
+    fn a_cell_inside_the_area_is_its_offset_from_the_origin() {
+        assert_eq!(
+            content_cell(Position::new(6, 3), AREA, UNSCROLLED),
+            Some(Position::new(2, 1))
+        );
+    }
+
+    #[test]
+    fn the_scroll_offset_is_added_to_what_the_area_resolves() {
+        assert_eq!(
+            content_cell(Position::new(6, 3), AREA, Position::new(7, 20)),
+            Some(Position::new(9, 21))
+        );
+    }
+
+    // A captured drag reports cells outside the widget it began on; the
+    // nearest one is what keeps it selecting rather than collapsing.
+    #[test]
+    fn a_cell_outside_the_area_clamps_to_the_nearest_edge() {
+        assert_eq!(
+            content_cell(Position::new(0, 0), AREA, UNSCROLLED),
+            Some(Position::new(0, 0)),
+            "above and left of the area"
+        );
+        assert_eq!(
+            content_cell(Position::new(99, 99), AREA, UNSCROLLED),
+            Some(Position::new(9, 4)),
+            "the last cell, not one past it"
+        );
+    }
+
+    #[test]
+    fn an_empty_area_addresses_no_cell() {
+        assert_eq!(
+            content_cell(Position::new(4, 2), Rect::ZERO, UNSCROLLED),
+            None
+        );
+        assert_eq!(
+            content_cell(Position::new(4, 2), Rect::new(4, 2, 0, 5), UNSCROLLED),
+            None,
+            "zero width alone is enough"
+        );
     }
 }

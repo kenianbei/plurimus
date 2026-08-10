@@ -130,11 +130,11 @@ pub(crate) fn table_press(
     };
     let widths = resolved_widths(columns, children, &rows, placed.width());
     let gutter = cursor_gutter(*selection, active.0, cursor);
-    let hit = clicked_column(
-        event.position.x.saturating_sub(area.0.x),
-        &placed.columns(widths, gutter),
-    );
-    let line = placed.line(event.position.y);
+    let Some(cell) = placed.content_cell(event.position) else {
+        return;
+    };
+    let hit = clicked_column(cell.x, &placed.columns(widths, gutter));
+    let line = cell.y;
     let (header, footer) = bands(children, &rows);
 
     if header && line == 0 {
