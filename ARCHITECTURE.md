@@ -94,8 +94,13 @@ default, or the controlling terminal directly via `CrosstermPlugin::tty()`.
 Interaction over anything with an area. `UiPlugin` computes
 `ComputedWidgetArea`s, resolves hover from the cursor with z-order hit testing,
 and routes pointer press/drag/release, clicks, and wheel input in three ordered
-phases (`Areas`, `Hover`, `Route`). It installs focus via `bevy_input_focus`,
-builds the directional navigation map, and provides scrolling (`ScrollArea`,
+phases (`Areas`, `Hover`, `Route`). It installs focus via `bevy_input_focus` and
+pins the dispatch into that sequence - after `bevy_input`'s own update and
+between `Areas` and `Hover` - so a focused-input observer reads this frame's
+areas and settled key state rather than whatever the schedule happened to
+resolve; work that must see what one did is ordered after the dispatch, which is
+what `plurimus_widgets` does with `WidgetSystems::Layout`. It also builds the
+directional navigation map, and provides scrolling (`ScrollArea`,
 `ScrollOffset`, `ScrollIntoView`) with cached extraction of scrolled content,
 plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
 menus and popovers are built from. It also owns the theming contract, so a
