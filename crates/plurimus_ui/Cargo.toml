@@ -1,6 +1,6 @@
 [package]
 name = "plurimus_ui"
-description = "UI pipeline for plurimus: interaction, focus, navigation, and scrolling over widget entities."
+description = "UI pipeline for plurimus: interaction, focus, navigation, scrolling, and theming over widget entities."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

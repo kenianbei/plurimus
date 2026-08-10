@@ -20,8 +20,7 @@ use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
 
 use crate::listbox::{ListItemText, row_height};
-use crate::stylist::UiStyle;
-use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea};
+use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle};
 
 /// Marks a container whose content changed: a row added, edited, restyled,
 /// or checked.

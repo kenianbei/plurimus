@@ -22,13 +22,13 @@ use plurimus::core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus::core::ratatui_core::text::{Line, Text};
 use plurimus::core::{ResolvedViewport, UiArea, UiWidget};
 use plurimus::ui::tui_scrollview::ScrollbarVisibility;
-use plurimus::ui::{Checked, ScrollArea, ValueChange};
+use plurimus::ui::{Checked, ScrollArea, UiTheme, ValueChange};
 use plurimus::widgets::ratatui_textarea::TextArea;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
 use plurimus::widgets::{
     Activate, ListBoxSelectionMarker, ListItemText, RadioGroup, SliderStep, SliderValue,
-    TextEditor, TextInput, UiLabel, UiTheme, button, checkbox, checkbox_self_update, editable_text,
+    TextEditor, TextInput, UiLabel, button, checkbox, checkbox_self_update, editable_text,
     list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup, pane, radio,
     radio_self_update, scrollbar, slider, slider_self_update, text_editor,
 };

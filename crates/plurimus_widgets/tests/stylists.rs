@@ -9,10 +9,10 @@ use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::{MouseButton, MouseKind};
 use plurimus_test::{composed_styled_frame, write_mouse};
-use plurimus_ui::{InteractionDisabled, UiArea};
+use plurimus_ui::{InteractionDisabled, StylistDisabled, UiArea, UiStyle};
 use plurimus_widgets::{
-    RadioGroup, StylistDisabled, UiStyle, WidgetsPlugin, button, checkbox, checkbox_self_update,
-    radio, radio_self_update, slider,
+    RadioGroup, WidgetsPlugin, button, checkbox, checkbox_self_update, radio, radio_self_update,
+    slider,
 };
 
 fn app(cols: u16, rows: u16) -> App {

@@ -26,10 +26,10 @@ use plurimus_core::ratatui_core::widgets::Widget;
 use super::ValueChange;
 use crate::placeholder;
 use crate::stylist::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
-use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress, PointerRelease,
+    UiTheme,
 };
 
 /// A horizontal slider. Emits [`ValueChange<f32>`]; attach

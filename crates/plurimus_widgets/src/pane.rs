@@ -13,10 +13,9 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
 use super::{UiLabel, placeholder};
-use crate::stylist::{Stylable, StylistCache, UiStyle};
-use crate::theme::UiTheme;
+use crate::stylist::{Stylable, StylistCache};
 use plurimus_core::UiWidget;
-use plurimus_ui::FocusWithin;
+use plurimus_ui::{FocusWithin, UiStyle, UiTheme};
 
 /// A bordered region titled by its [`UiLabel`]. Not focusable itself:
 /// "focused" means [`FocusWithin`] - focus sits on a descendant.

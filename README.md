@@ -78,6 +78,10 @@ navigation map for arrow-key movement, scrolling through `ScrollArea` and
 `ScrollIntoView`, and the modal-overlay primitives menus and popovers are built
 from.
 
+It also owns the theming contract a widget library resolves against: the
+`UiTheme` resource, `UiStyle` to patch one entity's style, and `StylistDisabled`
+to take one entity's look over entirely.
+
 Nothing here is specific to stock widgets - an entity of your own with an area
 is hoverable, clickable, and focusable.
 
@@ -85,7 +89,8 @@ is hoverable, clickable, and focusable.
 
 Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
 menus, popovers, single-line text input, and a multi-line text editor. Theming
-runs through a `UiTheme` resource and per-widget stylists.
+runs through per-widget stylists resolving the `UiTheme` that `plurimus_ui`
+owns.
 
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app

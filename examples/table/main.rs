@@ -33,12 +33,12 @@ use plurimus::core::ratatui_core::text::Line;
 use plurimus::core::{CorePlugin, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::input::{KeyCode, KeyKind, KeyMessage};
-use plurimus::ui::{ScrollArea, ValueChange};
+use plurimus::ui::{ScrollArea, UiStyle, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
     Key, TableAction, TableCheckedStyle, TableHeaderClick, TableKeys, TablePosition, TableRow,
-    TableSelection, TableStripe, UiStyle, WidgetsPlugin, pane, table, table_footer, table_header,
-    table_row, table_self_update,
+    TableSelection, TableStripe, WidgetsPlugin, pane, table, table_footer, table_header, table_row,
+    table_self_update,
 };
 
 const COLUMNS: [&str; 4] = ["process", "pid", "cpu%", "mem"];

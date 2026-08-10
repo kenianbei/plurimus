@@ -1,6 +1,6 @@
 [package]
 name = "plurimus_widgets"
-description = "Widget library for plurimus: standard widgets, theming, menus, and popovers on the ui pipeline."
+description = "Widget library for plurimus: standard widgets, menus, and popovers on the ui pipeline."
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

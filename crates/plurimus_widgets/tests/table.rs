@@ -10,12 +10,12 @@ use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiWidget};
 use plurimus_test::{composed_frame, composed_styled_frame, widget_content};
-use plurimus_ui::{Checked, InteractionDisabled, UiArea};
+use plurimus_ui::{Checked, InteractionDisabled, StylistDisabled, UiArea, UiStyle, UiTheme};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
-    ActiveColumn, ActiveDescendant, StylistDisabled, Table, TableCheckedStyle, TableColumns,
-    TableCursor, TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe,
-    UiStyle, UiTheme, WidgetsPlugin, table, table_footer, table_header, table_row,
+    ActiveColumn, ActiveDescendant, Table, TableCheckedStyle, TableColumns, TableCursor,
+    TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe, WidgetsPlugin,
+    table, table_footer, table_header, table_row,
 };
 
 const TINT: Color = Color::Indexed(236);

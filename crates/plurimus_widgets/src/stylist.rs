@@ -22,9 +22,11 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span};
 
 use crate::UiLabel;
-use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
-use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
+use plurimus_ui::{
+    Checked, Hovered, InteractionDisabled, InteractionState, Pressed, StylistDisabled, UiStyle,
+    UiTheme,
+};
 
 // Shared, so the crate's cursor cannot differ between two widgets.
 pub(crate) const CURSOR_SYMBOL: &str = "> ";
@@ -33,41 +35,19 @@ pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
     over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
 }
 
-/// Exempts an entity from the stock stylists, leaving its [`UiWidget`] to
-/// the app. Behavior - selection, keys, scrolling, events - is untouched.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct StylistDisabled;
-
-/// Patched over the style an entity would otherwise resolve to.
-///
-/// Patched rather than substituted, so an override setting only `bg` keeps
-/// the theme's foreground and modifiers, and a widget carrying one still
-/// shows hover and focus. On a [`ListItem`](crate::ListItem) child it
-/// styles that row, covering the full row width where a label's own line
-/// style stops at the cursor gutter.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct UiStyle(pub Style);
-
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "the interaction flags a stylist last drew; this is the change-detection key, not a config"
-)]
 pub(crate) struct StylistCache {
     rendered: bool,
-    hovered: bool,
-    pressed: bool,
-    disabled: bool,
+    state: InteractionState,
     pub(crate) checked: bool,
-    focused: bool,
     over: Option<Style>,
     value_bits: u64,
 }
 
 impl StylistCache {
     pub(crate) fn style(&self, theme: &UiTheme) -> Style {
-        let base = theme.resolve(self.hovered, self.pressed, self.disabled, self.focused);
+        let base = theme.resolve(self.state);
         match self.over {
             Some(over) => base.patch(over),
             None => base,
@@ -88,9 +68,10 @@ impl StylistCache {
     // row. Disabled survives: a disabled container is disabled throughout.
     pub(crate) fn resting_style(&self, theme: &UiTheme) -> Style {
         Self {
-            hovered: false,
-            pressed: false,
-            focused: false,
+            state: InteractionState {
+                disabled: self.state.disabled,
+                ..InteractionState::default()
+            },
             ..*self
         }
         .style(theme)
@@ -98,7 +79,10 @@ impl StylistCache {
 
     pub(crate) fn focus_only(focused: bool, over: Option<&UiStyle>) -> Self {
         Self {
-            focused,
+            state: InteractionState {
+                focused,
+                ..InteractionState::default()
+            },
             ..Self::styled(over)
         }
     }
@@ -163,11 +147,13 @@ pub(crate) fn observed(
     value_bits: u64,
 ) -> StylistCache {
     StylistCache {
-        hovered: hovered.0,
-        pressed,
-        disabled,
+        state: InteractionState {
+            hovered: hovered.0,
+            pressed,
+            disabled,
+            focused: focus.get() == Some(entity),
+        },
         checked,
-        focused: focus.get() == Some(entity),
         value_bits,
         ..StylistCache::styled(over)
     }

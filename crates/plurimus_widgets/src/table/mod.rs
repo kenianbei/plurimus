@@ -77,8 +77,8 @@ pub struct TableFooter;
 ///
 /// Counted in child order rather than from the scroll offset, so stripes do
 /// not crawl as a table scrolls. A row's own
-/// [`UiStyle`](crate::UiStyle) patches on top, keeping the banding beneath
-/// a color the app chose.
+/// [`UiStyle`](plurimus_ui::UiStyle) patches on top, keeping the banding
+/// beneath a color the app chose.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TableStripe(pub Style);
 
@@ -103,7 +103,7 @@ impl Default for TableLayout {
 
 /// Styles a [`Checked`](plurimus_ui::Checked) body row, which is where a
 /// [`TableMultiSelect`] table's selection shows. Patched over the striping
-/// and under the row's own [`UiStyle`](crate::UiStyle).
+/// and under the row's own [`UiStyle`](plurimus_ui::UiStyle).
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TableCheckedStyle(pub Style);
 
