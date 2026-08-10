@@ -6,6 +6,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The stylist engine is `plurimus_ui`'s**, so a widget library built on the ui
+  pipeline alone gets the machinery the stock widgets use instead of writing it
+  again. `StylistCache` records what a widget last drew and
+  `StylistCache::redraws` is the compare-and-swap a stylist gates on - it stores
+  the next state and answers whether to rebuild, taking the dirty term that
+  makes a theme swap repaint, which was previously hand-written at every stylist
+  and silently wrong if omitted. `observed` reads an entity's state through
+  `StateQuery`, `restyle` runs the loop for label-driven widgets, `Stylable` is
+  the filter that honors `StylistDisabled`, and `decorate` and `hashed_bits` are
+  the two helpers they need.
+- **`content_cell`** turns a pointer cell into a content cell for a widget with
+  a scroll offset. It clamps into the area rather than refusing, so a drag
+  captured to a widget goes on addressing its nearest cell after the cursor
+  leaves it, and is `None` only for an area with no cells at all.
+- **`bevy_compat::held_modifiers`** reads bevy's polled key state back into
+  `KeyModifiers`, for the focused-input observers that need a chord and cannot
+  get one from bevy's own key events. It fills every flag, both sides of each.
+
 ### Changed
 
 - **Focus dispatch has a stated position in the frame.** `plurimus_ui` now
@@ -16,9 +36,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   so a widget library built on `plurimus_ui` alone had to rediscover and
   re-assert it. Work that must see what such an observer did now belongs after
   `InputFocusSystems::Dispatch` rather than after `UiSystems::Areas`.
+- **`UiLabel` moved to `plurimus_ui`**, with the rest of the drawing vocabulary.
+  **Breaking**: `plurimus_widgets::UiLabel` no longer exists - import it from
+  `plurimus_ui`, or from `plurimus::ui` on the facade, where `plurimus::widgets`
+  used to serve it. Nothing about how a label is written or drawn changed.
 
 ### Fixed
 
+- **A horizontally scrolled table resolves a click to the column under it.** Its
+  columns are laid out against the content width, but only the vertical axis was
+  mapped into content space, so every scrolled-off column shifted the answer by
+  one. Unscrolled tables were never affected.
 - **A list box and a table page by the height they are actually drawn at.** Both
   read their visible height inside a focused-input observer, which ran before
   the areas were computed, so on the first frame the height was zero and
