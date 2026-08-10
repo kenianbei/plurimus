@@ -13,8 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use bevy_ecs::prelude::Resource;
 use crossterm::cursor::{Hide, Show};
 use crossterm::event::{
-    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
@@ -101,6 +102,9 @@ fn queue_input_modes<W: Write>(
     if paste {
         queue!(writer, EnableBracketedPaste)?;
     }
+    // Unconditional: mode 1004 reports nothing about the user and costs
+    // nothing, and `FocusMessage` is public API that never fires without it.
+    queue!(writer, EnableFocusChange)?;
     Ok(())
 }
 
@@ -137,6 +141,7 @@ pub fn restore() {
         writer,
         DisableMouseCapture,
         DisableBracketedPaste,
+        DisableFocusChange,
         LeaveAlternateScreen,
         Show
     );
@@ -195,5 +200,32 @@ mod tests {
     fn missing_or_dumb_term_floors_at_ansi16() {
         assert_eq!(color_depth_from_env(None, None), ColorDepth::Ansi16);
         assert_eq!(color_depth_from_env(None, Some("dumb")), ColorDepth::Ansi16);
+    }
+
+    fn queued(kitty: bool, mouse: bool, paste: bool) -> String {
+        let mut writer = Vec::new();
+        queue_input_modes(&mut writer, kitty, mouse, paste).expect("queue into a Vec");
+        String::from_utf8(writer).expect("escape sequences are utf-8")
+    }
+
+    // Mode 1004 is the only thing that makes a terminal report focus, and
+    // nothing else emits it: mouse capture sends 1000/1002/1003/1015/1006.
+    #[test]
+    fn focus_reporting_is_enabled_whatever_else_is_asked_for() {
+        assert!(
+            queued(false, false, false).contains("\x1b[?1004h"),
+            "PasteMessage's sibling FocusMessage never fires without it"
+        );
+        assert!(queued(true, true, true).contains("\x1b[?1004h"));
+    }
+
+    #[test]
+    fn the_optional_modes_stay_optional() {
+        let none = queued(false, false, false);
+        assert!(!none.contains("?1000h"), "mouse capture is off: {none:?}");
+        assert!(!none.contains("?2004h"), "bracketed paste is off: {none:?}");
+
+        let all = queued(false, true, true);
+        assert!(all.contains("?1000h") && all.contains("?2004h"));
     }
 }
