@@ -1,16 +1,33 @@
 //! The theming contract between an app and a widget library.
 //!
 //! One [`UiTheme`] resource styles every widget that honors it, so restyling
-//! an app is a resource swap rather than a per-widget edit. States are
-//! resolved in a fixed precedence - disabled, then pressed, then hovered,
-//! then normal - and `focused` patches on top of whichever won, which is why
-//! a focused disabled widget still reads as disabled.
+//! an app is a resource swap rather than a per-widget edit, and widgets from
+//! different crates restyle together. [`UiTheme::resolve`] is the whole of
+//! what a widget library has to call.
 //!
 //! [`UiStyle`] and [`StylistDisabled`] are the two escapes from it: patch one
 //! entity's style, or take one entity's look over entirely.
 
 use bevy_ecs::prelude::{Component, Resource};
 use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
+
+/// The interaction flags a widget is in, resolved by [`UiTheme::resolve`]
+/// into one [`Style`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the four states of the documented precedence, not a config"
+)]
+pub struct InteractionState {
+    /// Cursor over the widget.
+    pub hovered: bool,
+    /// Pointer held on the widget.
+    pub pressed: bool,
+    /// The widget has [`InteractionDisabled`](crate::InteractionDisabled).
+    pub disabled: bool,
+    /// The widget holds input focus.
+    pub focused: bool,
+}
 
 /// Per-state styles for widgets. Replace the resource to restyle;
 /// `focused` is patched on top of the state style.
@@ -40,24 +57,6 @@ impl Default for UiTheme {
     }
 }
 
-/// The interaction flags a widget is in, resolved by [`UiTheme::resolve`]
-/// into one [`Style`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "the four states of the documented precedence, not a config"
-)]
-pub struct InteractionState {
-    /// Cursor over the widget.
-    pub hovered: bool,
-    /// Pointer held on the widget.
-    pub pressed: bool,
-    /// The widget has [`InteractionDisabled`](crate::InteractionDisabled).
-    pub disabled: bool,
-    /// The widget holds input focus.
-    pub focused: bool,
-}
-
 impl UiTheme {
     /// The style for one interaction state: `disabled` wins over `pressed`
     /// over `hovered` over `normal`, and `focused` patches over whichever
@@ -81,9 +80,12 @@ impl UiTheme {
     }
 }
 
-/// Exempts an entity from the stock stylists, leaving its
-/// [`UiWidget`](crate::UiWidget) to the app. Behavior - selection, keys,
-/// scrolling, events - is untouched.
+/// Exempts an entity from the stylist that would otherwise own it, leaving
+/// its [`UiWidget`](crate::UiWidget) to the app.
+///
+/// The contract a stylist honors: do not rebuild the widget of an entity
+/// carrying this. Behavior - selection, keys, scrolling, events - is not a
+/// stylist's to touch and is unaffected either way.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct StylistDisabled;
 
@@ -91,8 +93,8 @@ pub struct StylistDisabled;
 ///
 /// Patched rather than substituted, so an override setting only `bg` keeps
 /// the theme's foreground and modifiers, and a widget carrying one still
-/// shows hover and focus. On the row child of a container drawn from rows it
-/// styles that row, covering the full row width where a label's own line
-/// style stops at the cursor gutter.
+/// shows hover and focus. A widget library decides what an entity's style
+/// covers; where it draws rows from child entities, one on a row is that
+/// row's.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct UiStyle(pub Style);

@@ -37,29 +37,17 @@ pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
 
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "the interaction flags a stylist last drew; this is the change-detection key, not a config"
-)]
 pub(crate) struct StylistCache {
     rendered: bool,
-    hovered: bool,
-    pressed: bool,
-    disabled: bool,
+    state: InteractionState,
     pub(crate) checked: bool,
-    focused: bool,
     over: Option<Style>,
     value_bits: u64,
 }
 
 impl StylistCache {
     pub(crate) fn style(&self, theme: &UiTheme) -> Style {
-        let base = theme.resolve(InteractionState {
-            hovered: self.hovered,
-            pressed: self.pressed,
-            disabled: self.disabled,
-            focused: self.focused,
-        });
+        let base = theme.resolve(self.state);
         match self.over {
             Some(over) => base.patch(over),
             None => base,
@@ -80,9 +68,10 @@ impl StylistCache {
     // row. Disabled survives: a disabled container is disabled throughout.
     pub(crate) fn resting_style(&self, theme: &UiTheme) -> Style {
         Self {
-            hovered: false,
-            pressed: false,
-            focused: false,
+            state: InteractionState {
+                disabled: self.state.disabled,
+                ..InteractionState::default()
+            },
             ..*self
         }
         .style(theme)
@@ -90,7 +79,10 @@ impl StylistCache {
 
     pub(crate) fn focus_only(focused: bool, over: Option<&UiStyle>) -> Self {
         Self {
-            focused,
+            state: InteractionState {
+                focused,
+                ..InteractionState::default()
+            },
             ..Self::styled(over)
         }
     }
@@ -155,11 +147,13 @@ pub(crate) fn observed(
     value_bits: u64,
 ) -> StylistCache {
     StylistCache {
-        hovered: hovered.0,
-        pressed,
-        disabled,
+        state: InteractionState {
+            hovered: hovered.0,
+            pressed,
+            disabled,
+            focused: focus.get() == Some(entity),
+        },
         checked,
-        focused: focus.get() == Some(entity),
         value_bits,
         ..StylistCache::styled(over)
     }

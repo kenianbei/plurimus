@@ -31,8 +31,9 @@ use crate::popover::{Popover, PopoverAlign, PopoverSide};
 use crate::stylist::{LabeledQuery, Stylable, StylistCache, decorate, restyle};
 use crate::{Activate, Button, UiLabel, is_activate_key, placeholder};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
-use plurimus_ui::{Click, Hovered, InteractionDisabled, UiStyle, UiTheme};
-use plurimus_ui::{ModalDismiss, ModalOpen, ModalityToggle};
+use plurimus_ui::{
+    Click, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
+};
 
 /// Items render above the popup frame.
 const ITEM_ORDER: UiOrder = UiOrder(UiOrder::OVERLAY.0 + 1);

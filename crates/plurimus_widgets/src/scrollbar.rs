@@ -20,10 +20,9 @@ use super::placeholder;
 use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
 use plurimus_core::UiWidget;
 use plurimus_ui::{
-    ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, StylistDisabled,
-    UiTheme,
+    ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, ScrollArea,
+    ScrollOffset, StylistDisabled, UiTheme, apply_offset, max_offset,
 };
-use plurimus_ui::{ScrollArea, ScrollOffset, apply_offset, max_offset};
 
 /// A scrollbar for a target [`ScrollArea`] entity. The stock stylist
 /// derives track and thumb from the target; press/drag on the track
