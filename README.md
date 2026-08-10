@@ -78,9 +78,13 @@ navigation map for arrow-key movement, scrolling through `ScrollArea` and
 `ScrollIntoView`, and the modal-overlay primitives menus and popovers are built
 from.
 
-It also owns the theming contract a widget library resolves against: the
-`UiTheme` resource, `UiStyle` to patch one entity's style, and `StylistDisabled`
-to take one entity's look over entirely.
+It also owns the styling contract a widget library builds on, rather than
+inventing its own: the `UiTheme` resource, `UiStyle` to patch one entity's
+style, and `StylistDisabled` to take one entity's look over entirely - plus the
+engine that consumes them. `StylistCache` records what a widget last drew and
+`StylistCache::redraws` is the comparison that keeps an idle frame free, so a
+widget library outside this workspace gets the same machinery the stock widgets
+use. A `UiLabel` is the text a stylist draws, a ratatui `Line`.
 
 Nothing here is specific to stock widgets - an entity of your own with an area
 is hoverable, clickable, and focusable.
@@ -88,9 +92,9 @@ is hoverable, clickable, and focusable.
 ### Widgets (`plurimus_widgets`)
 
 Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
-menus, popovers, single-line text input, and a multi-line text editor. Theming
-runs through per-widget stylists resolving the `UiTheme` that `plurimus_ui`
-owns.
+menus, popovers, single-line text input, and a multi-line text editor. What is
+this crate's own is the stylists themselves - one per widget, resolving the
+`UiTheme` and driving the cache that `plurimus_ui` owns.
 
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
@@ -135,7 +139,7 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.3"
+plurimus = "0.4"
 bevy_app = "0.19"
 bevy_ecs = "0.19"
 ratatui-widgets = "0.3"
@@ -310,7 +314,7 @@ seconds while GPU pipelines compile.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.3      | 0.19 | 0.1          |
+| 0.4      | 0.19 | 0.1          |
 
 - **Rust 1.95** or newer, edition 2024.
 - **Bevy 0.19** for any bevy crates added alongside.
