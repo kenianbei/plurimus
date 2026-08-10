@@ -57,6 +57,11 @@ jobs:
       - name: Each feature alone
         run: cargo hack check --each-feature --no-dev-deps -p plurimus
 
+      # The lean tier, checked rather than asserted: an example whose
+      # required-features claim is wrong fails here and nowhere else.
+      - name: Core alone builds its examples
+        run: cargo check -p plurimus --no-default-features --examples
+
   msrv:
     runs-on: ubuntu-latest
 

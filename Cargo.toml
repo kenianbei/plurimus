@@ -161,6 +161,13 @@ bevy_world_serialization = { workspace = true }
 
 [[example]]
 name = "basic"
+required-features = ["crossterm"]
+test = true
+
+# The lean tier, proven by building: core alone, no terminal contract.
+[[example]]
+name = "headless"
+required-features = []
 test = true
 
 [[example]]
