@@ -4,7 +4,7 @@
 //! what happened. The gap between those is what this file closes - mouse
 //! positions become cell coordinates, terminal quirks are normalized into one
 //! shape consumers can reason about, and a resize becomes a
-//! [`TerminalResized`](plurimus_core::TerminalResized) rather than an event
+//! [`TerminalResized`](plurimus_term::TerminalResized) rather than an event
 //! anyone polls for.
 
 use std::time::Duration;
@@ -12,11 +12,11 @@ use std::time::Duration;
 use bevy_ecs::prelude::MessageWriter;
 use bevy_ecs::system::SystemParam;
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
-use plurimus_core::TerminalResized;
+
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{
     FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind,
-    MouseMessage, PasteMessage,
+    MouseMessage, PasteMessage, TerminalResized,
 };
 
 #[derive(SystemParam)]

@@ -61,9 +61,11 @@ pub struct ResolvedViewport(pub Rect);
 /// [`CameraSystems::ResolveViewports`].
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum CameraSystems {
-    /// Applies [`TerminalResized`](crate::TerminalResized) messages to
-    /// [`TerminalSize`](crate::TerminalSize); backends order their event
-    /// pump before this set.
+    /// Where [`TerminalSize`](crate::TerminalSize) settles for the frame.
+    /// Core writes nothing here itself; a crate reporting size changes -
+    /// `plurimus_term` from a real terminal, or an app resizing its own
+    /// target - applies them in this set, and backends order their event
+    /// pump before it.
     SyncSize,
     /// Resolves every camera's [`ResolvedViewport`].
     ResolveViewports,

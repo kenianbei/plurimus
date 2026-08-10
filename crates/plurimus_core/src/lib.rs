@@ -38,7 +38,7 @@ pub use cursor::{TerminalCursor, TerminalCursorStyle};
 pub use extract::MainWorld;
 pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;
-pub use size::{TerminalResized, TerminalSize};
+pub use size::TerminalSize;
 pub use sub_app::{
     CompositeSystems, ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp,
     TerminalRenderAppExt, TerminalRenderSystems,
@@ -60,15 +60,13 @@ impl Plugin for CorePlugin {
         app.init_resource::<DefaultCamera>();
         app.init_resource::<raster::ColorDepth>();
         app.init_resource::<TerminalCursor>();
-        app.add_message::<TerminalResized>();
         app.configure_sets(
             PreUpdate,
             (CameraSystems::SyncSize, CameraSystems::ResolveViewports).chain(),
         );
         app.add_systems(
             PreUpdate,
-            (size::apply_terminal_resize, camera::update_default_camera)
-                .in_set(CameraSystems::SyncSize),
+            camera::update_default_camera.in_set(CameraSystems::SyncSize),
         );
         app.add_systems(
             PreUpdate,

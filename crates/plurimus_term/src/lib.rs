@@ -6,8 +6,7 @@
 //! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
 //! [`InputCapabilities`] records which of it the terminal can actually
 //! manage. Outbound, [`TerminalRequest`] is what an app asks of the
-//! terminal and [`TerminalCursorStyle`] is the shape it asks the caret to
-//! take.
+//! terminal.
 //!
 //! What is here is what needs a terminal to mean anything. Rendering to a
 //! cell grid does not: `plurimus_core` drives any ratatui `Backend`,
@@ -17,6 +16,7 @@ pub mod bevy_compat;
 mod keyboard;
 mod mouse;
 mod request;
+mod resize;
 mod state;
 mod synthesis;
 
@@ -25,6 +25,7 @@ pub use bevy_input::mouse::MouseButton;
 pub use keyboard::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
 pub use mouse::{CursorCell, MouseKind, MouseMessage};
 pub use request::{ClipboardTarget, TerminalRequest};
+pub use resize::TerminalResized;
 pub use state::InputSystems;
 pub use synthesis::ReleaseTimeout;
 
@@ -34,6 +35,7 @@ pub(crate) use synthesis::synthesize_releases;
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{IntoScheduleConfigs, Resource};
+use plurimus_core::CameraSystems;
 
 /// Text pasted into the terminal (bracketed paste).
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
@@ -113,6 +115,11 @@ impl Plugin for TermPlugin {
         if !app.is_plugin_added::<bevy_time::TimePlugin>() {
             app.add_plugins(bevy_time::TimePlugin);
         }
+        // A resize writes core's `TerminalSize`, so the pipeline has to be
+        // there for the terminal contract to have anything to report to.
+        if !app.is_plugin_added::<plurimus_core::CorePlugin>() {
+            app.add_plugins(plurimus_core::CorePlugin);
+        }
         app.init_resource::<CursorCell>();
         app.init_resource::<InputCapabilities>();
         app.init_resource::<ReleaseTimeout>();
@@ -123,6 +130,7 @@ impl Plugin for TermPlugin {
         app.add_message::<PasteMessage>();
         app.add_message::<FocusMessage>();
         app.add_message::<TerminalRequest>();
+        app.add_message::<TerminalResized>();
         app.configure_sets(
             PreUpdate,
             (InputSystems::Pump, InputSystems::Update).chain(),
@@ -132,6 +140,12 @@ impl Plugin for TermPlugin {
             (synthesize_releases, update_button_input, track_cursor_cell)
                 .chain()
                 .in_set(InputSystems::Update),
+        );
+        // Into core's own set, so a resize reported this frame reaches the
+        // cameras that resolve against it in the same frame.
+        app.add_systems(
+            PreUpdate,
+            resize::apply_terminal_resize.in_set(CameraSystems::SyncSize),
         );
     }
 }
