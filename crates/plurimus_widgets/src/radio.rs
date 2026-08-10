@@ -15,10 +15,9 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
-use crate::theme::UiTheme;
 use crate::{UiLabel, placeholder};
 use plurimus_core::UiWidget;
-use plurimus_ui::Hovered;
+use plurimus_ui::{Hovered, UiTheme};
 
 /// One option inside a [`RadioGroup`].
 #[derive(Component, Debug, Clone, Copy)]

@@ -12,10 +12,10 @@ use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_input::KeyCode;
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_content, write_key};
-use plurimus_ui::{Checked, InteractionDisabled, UiArea};
+use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiStyle, UiTheme};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemText, UiLabel,
-    UiStyle, UiTheme, WidgetsPlugin, list_item, listbox, listbox_self_update,
+    WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
 const TINT: Color = Color::Indexed(236);

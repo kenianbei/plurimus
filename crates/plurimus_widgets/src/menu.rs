@@ -28,11 +28,10 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::{Popover, PopoverAlign, PopoverSide};
-use crate::stylist::{LabeledQuery, Stylable, StylistCache, UiStyle, decorate, restyle};
-use crate::theme::UiTheme;
+use crate::stylist::{LabeledQuery, Stylable, StylistCache, decorate, restyle};
 use crate::{Activate, Button, UiLabel, is_activate_key, placeholder};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
-use plurimus_ui::{Click, Hovered, InteractionDisabled};
+use plurimus_ui::{Click, Hovered, InteractionDisabled, UiStyle, UiTheme};
 use plurimus_ui::{ModalDismiss, ModalOpen, ModalityToggle};
 
 /// Items render above the popup frame.

@@ -14,10 +14,9 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::stylist::{LabeledQuery, StylistCache, decorate, restyle};
-use crate::theme::UiTheme;
 use crate::{UiLabel, placeholder};
 use plurimus_core::UiWidget;
-use plurimus_ui::Hovered;
+use plurimus_ui::{Hovered, UiTheme};
 
 /// A toggle. Emits [`ValueChange<bool>`](plurimus_ui::ValueChange); attach
 /// [`checkbox_self_update`](crate::checkbox_self_update) for uncontrolled

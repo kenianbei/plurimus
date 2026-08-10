@@ -6,9 +6,10 @@
 //!
 //! A widget is therefore three separable things: components describing what
 //! it is, systems turning input into events, and a stylist that rebuilds its
-//! [`UiWidget`] from [`UiTheme`] each frame. An app that wants different
-//! looks replaces the stylist and keeps the behaviour; one that wants
-//! different behaviour handles the events itself and keeps the look.
+//! [`UiWidget`] from [`UiTheme`](plurimus_ui::UiTheme) each frame. An app
+//! that wants different looks replaces the stylist and keeps the behaviour;
+//! one that wants different behaviour handles the events itself and keeps
+//! the look.
 
 mod activate;
 mod button;
@@ -27,7 +28,6 @@ mod slider;
 mod stylist;
 mod table;
 mod text;
-mod theme;
 
 pub use bevy_input::keyboard::Key;
 pub use plurimus_ui::ValueChange;
@@ -51,14 +51,12 @@ pub use self_update::{
     table_self_update,
 };
 pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
-pub use stylist::{StylistDisabled, UiStyle};
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
     TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect, TablePosition,
     TableRow, TableSelection, TableStripe, table, table_footer, table_header, table_row,
 };
 pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
-pub use theme::UiTheme;
 
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
@@ -145,7 +143,6 @@ impl Plugin for WidgetsPlugin {
         if !app.is_plugin_added::<UiPlugin>() {
             app.add_plugins(UiPlugin);
         }
-        app.init_resource::<UiTheme>();
         add_layout_systems(app);
         add_stylists(app);
         add_observers(app);

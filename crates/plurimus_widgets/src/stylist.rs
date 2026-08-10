@@ -22,9 +22,11 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span};
 
 use crate::UiLabel;
-use crate::theme::{InteractionState, UiTheme};
 use plurimus_core::UiWidget;
-use plurimus_ui::{Checked, Hovered, InteractionDisabled, Pressed};
+use plurimus_ui::{
+    Checked, Hovered, InteractionDisabled, InteractionState, Pressed, StylistDisabled, UiStyle,
+    UiTheme,
+};
 
 // Shared, so the crate's cursor cannot differ between two widgets.
 pub(crate) const CURSOR_SYMBOL: &str = "> ";
@@ -32,21 +34,6 @@ pub(crate) const CURSOR_SYMBOL: &str = "> ";
 pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
     over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
 }
-
-/// Exempts an entity from the stock stylists, leaving its [`UiWidget`] to
-/// the app. Behavior - selection, keys, scrolling, events - is untouched.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct StylistDisabled;
-
-/// Patched over the style an entity would otherwise resolve to.
-///
-/// Patched rather than substituted, so an override setting only `bg` keeps
-/// the theme's foreground and modifiers, and a widget carrying one still
-/// shows hover and focus. On a [`ListItem`](crate::ListItem) child it
-/// styles that row, covering the full row width where a label's own line
-/// style stops at the cursor gutter.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct UiStyle(pub Style);
 
 /// Last state a stylist rendered, to skip redundant widget rebuilds.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]

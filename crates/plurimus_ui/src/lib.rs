@@ -1,5 +1,5 @@
-//! UI pipeline for plurimus: interaction, focus, navigation, and
-//! scrolling over widget entities.
+//! UI pipeline for plurimus: interaction, focus, navigation, scrolling,
+//! and theming over widget entities.
 //!
 //! Widgets render with ratatui semantics into their target camera's buffer;
 //! see [`UiWidget`] for the overlay contract. Widget libraries
@@ -12,6 +12,10 @@
 //! a `bevy_ui` node, or an app's own component - and the [`UiSystems`] phases
 //! run in a fixed order each frame so areas exist before hover resolves and
 //! hover exists before input routes.
+//!
+//! [`UiTheme`] is the other half of that contract: a widget library resolves
+//! its look from the app's theme rather than owning one, so widgets from
+//! different crates restyle together.
 
 mod focus;
 mod interaction;
@@ -19,6 +23,7 @@ mod modal;
 mod nav;
 mod scroll;
 mod scrolled;
+mod theme;
 
 pub use tui_scrollview;
 
@@ -36,6 +41,7 @@ pub use scroll::{
     max_offset,
 };
 pub use scrolled::LiveWidget;
+pub use theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
@@ -68,6 +74,7 @@ impl Plugin for UiPlugin {
             app.add_plugins(plurimus_input::InputPlugin);
         }
         focus::install(app);
+        app.init_resource::<UiTheme>();
         app.configure_sets(
             PreUpdate,
             (UiSystems::Areas, UiSystems::Hover, UiSystems::Route)

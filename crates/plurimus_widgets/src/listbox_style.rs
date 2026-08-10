@@ -25,11 +25,10 @@ use crate::listbox::{
 };
 use crate::rows::ContentDirty;
 use crate::stylist::{
-    StateQuery, Stylable, StylistCache, UiStyle, cursor_symbol, decorate, hashed_bits, observed,
+    StateQuery, Stylable, StylistCache, cursor_symbol, decorate, hashed_bits, observed,
 };
-use crate::theme::UiTheme;
 use plurimus_core::UiWidget;
-use plurimus_ui::Checked;
+use plurimus_ui::{Checked, UiStyle, UiTheme};
 
 // `ListItem` catches a child that becomes a row without its label
 // changing; the rest is what a row draws with.

@@ -17,10 +17,12 @@ use ratatui_widgets::scrollbar::{
 };
 
 use super::placeholder;
-use crate::stylist::{StateQuery, StylistCache, StylistDisabled, hashed_bits, observed};
-use crate::theme::UiTheme;
+use crate::stylist::{StateQuery, StylistCache, hashed_bits, observed};
 use plurimus_core::UiWidget;
-use plurimus_ui::{ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease};
+use plurimus_ui::{
+    ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, StylistDisabled,
+    UiTheme,
+};
 use plurimus_ui::{ScrollArea, ScrollOffset, apply_offset, max_offset};
 
 /// A scrollbar for a target [`ScrollArea`] entity. The stock stylist
