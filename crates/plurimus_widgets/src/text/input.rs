@@ -159,10 +159,9 @@ pub(crate) fn style_text_inputs(
 ) {
     for (state, text, mut cache, mut widget) in &mut fields {
         let next = observed(state, &focus, hashed_bits(text));
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         *widget = UiWidget::new(TextField {
             value: text.value().to_owned(),
             cursor: text.cursor(),

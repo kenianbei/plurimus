@@ -106,10 +106,9 @@ pub(crate) fn style_listboxes(
         // A `Copy` scalar, so an idle frame reaches the gate below without
         // touching a row.
         let next = observed(state, &focus, hashed_bits(active.0));
-        if !theme.is_changed() && !content.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
         }
-        *cache = next;
         let styles = RowStyles {
             every: next.resting_style(&theme),
             cursor: next.style(&theme),

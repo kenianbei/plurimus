@@ -51,10 +51,9 @@ pub(crate) fn style_panes(
             },
             over,
         );
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         let style = next.style(&theme);
         *widget = UiWidget::new(
             Block::bordered()

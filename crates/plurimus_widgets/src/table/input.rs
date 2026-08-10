@@ -128,11 +128,11 @@ pub(crate) fn table_press(
         scroll,
         offset,
     };
-    let widths = resolved_widths(columns, children, &rows, placed.width());
-    let gutter = cursor_gutter(*selection, active.0, cursor);
     let Some(cell) = placed.content_cell(event.position) else {
         return;
     };
+    let widths = resolved_widths(columns, children, &rows, placed.width());
+    let gutter = cursor_gutter(*selection, active.0, cursor);
     let hit = clicked_column(cell.x, &placed.columns(widths, gutter));
     let line = cell.y;
     let (header, footer) = bands(children, &rows);

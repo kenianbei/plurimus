@@ -211,10 +211,9 @@ pub(crate) fn style_sliders(
 ) {
     for (state, value, range, mut cache, mut widget) in &mut sliders {
         let next = observed(state, &focus, hashed_bits(value.0.to_bits()));
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         let style = next.style(&theme);
         let span = (range.end() - range.start()).max(f32::EPSILON);
         let ratio = ((value.0 - range.start()) / span).clamp(0.0, 1.0);

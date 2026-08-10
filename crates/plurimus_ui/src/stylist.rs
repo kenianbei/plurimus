@@ -27,8 +27,9 @@ use crate::theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 /// A widget's text label, rendered by a widget library's stylists.
 ///
 /// A [`Line`] rather than a `String`, so a label can carry per-span style -
-/// columns in a list row, a dimmed shortcut beside a menu item. Converts
-/// from `String` and `&str`, so a plain label stays a plain label.
+/// columns in a list row, a dimmed shortcut beside a menu item. Wraps
+/// anything that converts into a `Line`, so a plain label stays plain:
+/// `UiLabel("save".into())`.
 #[derive(Component, Debug, Clone)]
 pub struct UiLabel(pub Line<'static>);
 
@@ -36,7 +37,9 @@ pub struct UiLabel(pub Line<'static>);
 /// changed one without rebuilding the widget to find out.
 ///
 /// [`Default`] is the never-drawn value and equals nothing any constructor
-/// produces, which is what makes a widget paint on its first frame.
+/// produces, which is what makes a widget paint on its first frame. A
+/// widget library puts it on its widgets, usually through `#[require]`; a
+/// stylist finds nothing to compare against without it.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq)]
 pub struct StylistCache {
     rendered: bool,
@@ -53,12 +56,15 @@ impl StylistCache {
     /// Records the widget as drawn, so it compares unequal to
     /// [`Default`] - see the type's own documentation.
     #[must_use]
-    pub fn new(state: InteractionState, over: Option<&UiStyle>) -> Self {
+    pub const fn new(state: InteractionState, over: Option<&UiStyle>) -> Self {
         Self {
             rendered: true,
             state,
             checked: false,
-            over: over.map(|style| style.0),
+            over: match over {
+                Some(style) => Some(style.0),
+                None => None,
+            },
             value_bits: 0,
         }
     }
@@ -67,6 +73,33 @@ impl StylistCache {
     #[must_use]
     pub const fn checked(&self) -> bool {
         self.checked
+    }
+
+    /// The interaction state the widget was last drawn in, for a stylist
+    /// whose drawing turns on more than the style it resolves - a caret
+    /// shown only while focused, say.
+    #[must_use]
+    pub const fn state(&self) -> InteractionState {
+        self.state
+    }
+
+    /// Stores `next` and reports whether the widget has to be rebuilt.
+    ///
+    /// True when the drawn state moved, and whenever `dirty` is set -
+    /// which is how a theme swap repaints widgets whose own state has not
+    /// changed, and how a container catches an edit to a child row that
+    /// never marked the container itself.
+    ///
+    /// Forgetting either is the failure this exists to prevent: a stylist
+    /// that compares only the cache stops repainting on a theme change,
+    /// and nothing about the widget says so.
+    #[must_use]
+    pub fn redraws(&mut self, next: Self, dirty: bool) -> bool {
+        if !dirty && next == *self {
+            return false;
+        }
+        *self = next;
+        true
     }
 
     /// The style this state resolves to, with any [`UiStyle`] patched over
@@ -98,7 +131,7 @@ impl StylistCache {
 }
 
 /// The interaction state a stylist reads off one widget entity, as a query
-/// term. It yields [`ObservedState`], which [`observed`] takes.
+/// term. What it yields for one entity is what [`observed`] takes.
 pub type StateQuery<'a> = (
     Entity,
     &'a Hovered,
@@ -107,10 +140,6 @@ pub type StateQuery<'a> = (
     Has<Checked>,
     Option<&'a UiStyle>,
 );
-
-/// One entity's worth of [`StateQuery`]: pressed, disabled, and checked
-/// arrive as the booleans [`Has`] resolves to.
-pub type ObservedState<'a> = (Entity, &'a Hovered, bool, bool, bool, Option<&'a UiStyle>);
 
 /// Filters the widgets marked `M` that have not been exempted, so a
 /// stylist cannot forget to honor [`StylistDisabled`].
@@ -138,7 +167,14 @@ pub type LabeledQuery<'w, 's, 'a, M> = Query<
 /// Pass `0` for a widget with none.
 #[must_use]
 pub fn observed(
-    (entity, hovered, pressed, disabled, checked, over): ObservedState,
+    (entity, hovered, pressed, disabled, checked, over): (
+        Entity,
+        &Hovered,
+        bool,
+        bool,
+        bool,
+        Option<&UiStyle>,
+    ),
     focus: &InputFocus,
     value_bits: u64,
 ) -> StylistCache {
@@ -163,6 +199,12 @@ pub fn observed(
 /// `render` is handed the state, the label, and the resolved style, and
 /// returns the widget to draw. It runs only for entities that need it, or
 /// for all of them when the theme itself changed.
+///
+/// For widgets whose look turns on interaction state and the label alone:
+/// the comparison passes no `value_bits`, so a widget that also draws a
+/// value - a slider's position, a cursor row - would skip the frame that
+/// value moved. Those call [`observed`] and [`StylistCache::redraws`]
+/// themselves, hashing what they carry through [`hashed_bits`].
 pub fn restyle<M: Component>(
     theme: &Res<UiTheme>,
     focus: &InputFocus,
@@ -171,10 +213,9 @@ pub fn restyle<M: Component>(
 ) {
     for (state, label, mut cache, mut widget) in widgets.iter_mut() {
         let next = observed(state, focus, 0);
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         *widget = render(&next, &label.0, next.style(theme));
     }
 }

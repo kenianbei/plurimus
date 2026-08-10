@@ -155,10 +155,9 @@ pub(crate) fn style_scrollbars(
             (offset.0.x, scroll.content_size.width, area.0.width)
         };
         let next = observed(state, &focus, hashed_bits((position, content, viewport)));
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         *widget = UiWidget::stateful(
             ScrollbarWidget::new(bar.orientation.clone()).style(next.style(&theme)),
             ScrollbarState::new(usize::from(content))

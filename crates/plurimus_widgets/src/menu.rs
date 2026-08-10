@@ -262,10 +262,9 @@ pub(crate) fn style_menu_popups(
         // A popup frame has no hover or press to resolve, so its state is
         // the override alone.
         let next = StylistCache::new(InteractionState::default(), over);
-        if !theme.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        *cache = next;
         *widget = UiWidget::new(PopupFrame {
             style: next.style(&theme),
         });

@@ -43,8 +43,8 @@ pub use scroll::{
 };
 pub use scrolled::LiveWidget;
 pub use stylist::{
-    LabeledQuery, ObservedState, StateQuery, Stylable, StylistCache, UiLabel, decorate,
-    hashed_bits, observed, restyle,
+    LabeledQuery, StateQuery, Stylable, StylistCache, UiLabel, decorate, hashed_bits, observed,
+    restyle,
 };
 pub use theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 

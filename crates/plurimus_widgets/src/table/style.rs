@@ -133,10 +133,9 @@ pub(crate) fn style_tables(
             &focus,
             hashed_bits((active.map(|active| active.0), column.map(|column| column.0))),
         );
-        if !theme.is_changed() && !content.is_changed() && next == *cache {
+        if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
         }
-        *cache = next;
         let styles = RowStyles {
             stripe: stripe.map(|stripe| stripe.0),
             checked: checked.map(|checked| checked.0),
