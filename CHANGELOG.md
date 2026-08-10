@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **An app can ask the terminal for things, not only be told about them.**
+  `TerminalRequest` is the outbound half of the contract `plurimus_input`
+  already had one direction of: `CopyToClipboard` writes a selection through OSC
+  52, `SetTitle` sets the window title. Copying is opt-in through
+  `CrosstermPlugin::clipboard`, off by default, and a copy too large for one
+  escape sequence is dropped with a warning rather than truncated - a clipboard
+  holding most of a selection is worse than one holding none. There is
+  deliberately no clipboard _read_: the escape is widely disabled and no backend
+  here parses a reply, so text still arrives by `PasteMessage`.
+- **The terminal's own cursor.** `TerminalCursor` names the screen cell it sits
+  in and the shape it takes; `None` hides it. A widget instead attaches
+  `WidgetCursor`, in its own content space, and the focused one wins - its caret
+  is mapped through the widget's area and scroll offset, and hidden when
+  scrolled out of view. This is what a screen reader follows and what an input
+  method anchors composition to, neither of which can see a reverse-video cell.
+  The stock text widgets keep drawing their own caret for now, since switching
+  would change how every existing field looks.
+- **`screen_cell`**, the inverse of `content_cell`. It refuses rather than
+  clamps: a caret whose character is scrolled off has no honest screen cell, and
+  the nearest edge would put it beside a different character.
+
+### Fixed
+
+- **Terminal focus changes are reported.** `FocusMessage` was declared,
+  registered, and translated from the backend's events, but nothing ever asked
+  the terminal to send them - mouse capture enables its own modes and not that
+  one - so on a spec-following terminal the message never fired at all. Apps
+  watching for focus now receive it.
+
 ## [0.4.0] - 2026-08-10
 
 ### Added

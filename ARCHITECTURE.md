@@ -66,7 +66,11 @@ grids, blits, color averaging, `ColorDepth` downsampling), and the widget
 primitive: a `UiWidget` placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and
 drawn in one z-sorted pass with no other crate involved. `PresenterPlugin<B>`
 diffs the composed frame and writes changed cells through any ratatui-core
-`Backend`. Re-exports `ratatui_core`.
+`Backend`, and applies `TerminalCursor` - the terminal's own caret, which a
+screen reader follows and an input method anchors to - outside that diff,
+because a caret crossing a cell changes no cell's content and the diff skips a
+frame where nothing differs. Position and visibility go through `Backend`; the
+shape is a backend's to serve. Re-exports `ratatui_core`.
 
 ### plurimus_input
 
@@ -83,11 +87,16 @@ into `bevy_input` event types for crates built on them, such as the focus stack.
 
 The real terminal. `CrosstermPlugin` takes over the terminal on build - raw
 mode, alternate screen, mouse capture, bracketed paste, the kitty keyboard
-protocol when the terminal supports it - and restores it on exit or panic. It
-detects color support from the environment, pumps crossterm events into input
-messages and `TerminalResized`, and hands a `CrosstermBackend` (via
-ratatui-crossterm) to core's presenter. The writer is generic: stdout by
-default, or the controlling terminal directly via `CrosstermPlugin::tty()`.
+protocol when the terminal supports it, focus reporting - and restores all of it
+on exit or panic, the cursor shape included. It detects color support from the
+environment, pumps crossterm events into input messages and `TerminalResized`,
+and hands a `CrosstermBackend` (via ratatui-crossterm) to core's presenter.
+Going the other way it serves `TerminalRequest` during extraction - which runs
+inside the sub-app world with the main world lent in, so one system reaches both
+the messages and the writer - and sets the cursor shape, which no `Backend`
+method reaches. Both flush themselves, since the presenter skips its flush on a
+frame where no cell differs. The writer is generic: stdout by default, or the
+controlling terminal directly via `CrosstermPlugin::tty()`.
 
 ### plurimus_ui
 
@@ -105,7 +114,9 @@ directional navigation map, and provides scrolling (`ScrollArea`,
 plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
 menus and popovers are built from. `content_cell` is where a pointer cell
 becomes a content cell for any of it, clamping into the area so a captured drag
-past an edge keeps addressing the nearest one.
+past an edge keeps addressing the nearest one; `screen_cell` is the way back,
+refusing rather than clamping, and it is what places the focused widget's
+`WidgetCursor` on the terminal.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
