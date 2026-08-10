@@ -306,9 +306,8 @@ mod tests {
         }
     }
 
-    // The presenter skips draw and flush entirely when no cell differs, and
-    // a copy changes nothing on screen - so a request that rode its flush
-    // would sit in the writer until some later redraw, or forever.
+    // A copy changes nothing on screen, so a request that rode the
+    // presenter's flush would sit in the writer until some later redraw.
     #[test]
     fn a_request_reaches_the_terminal_on_a_frame_that_draws_nothing() {
         let (mut app, writer) = app_serving_requests(true);

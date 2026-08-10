@@ -47,9 +47,10 @@ use plurimus_input::InputSystems;
 ///
 /// Building the same plugin value twice panics: the writer is consumed by
 /// the first build.
-// The flags are only ever set through the named builders below, never
-// positionally, so the confusion the lint guards against cannot arise.
-#[expect(clippy::struct_excessive_bools, reason = "a builder, not a call")]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "set through named builders, never positionally"
+)]
 pub struct CrosstermPlugin<W: Write + Send + Sync + 'static = Stdout> {
     mouse: bool,
     paste: bool,

@@ -148,9 +148,8 @@ mod tests {
         assert!(!backend(&app).cursor_visible());
     }
 
-    // The presenter skips draw and flush entirely when no cell differs, and
-    // a caret crossing a cell changes no cell's content - so a cursor
-    // applied inside that early return would never move on an idle screen.
+    // A caret crossing a cell changes no cell's content, so a cursor
+    // applied inside the frame diff would never move on an idle screen.
     #[test]
     fn the_cursor_moves_on_a_frame_that_draws_nothing() {
         let mut app = app();
