@@ -143,8 +143,7 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
     );
 }
 
-// A widget's caret must not outlive the focus that placed it: the shape
-// the app had before is remembered and handed back.
+// A widget's caret must not outlive the focus that placed it.
 #[test]
 fn losing_focus_gives_the_apps_own_shape_back() {
     let mut app = app();

@@ -56,8 +56,7 @@ fn a_hand_written_widget_reaches_the_backend() {
 }
 
 // Each camera owns its viewport, so the second one's widget lands in the
-// bottom strip and nowhere else - which asserting on the frame's size
-// alone would not have caught.
+// bottom strip and nowhere else.
 #[test]
 fn each_camera_draws_only_inside_its_own_viewport() {
     let mut app = demo();
