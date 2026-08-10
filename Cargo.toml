@@ -164,7 +164,8 @@ name = "basic"
 required-features = ["crossterm"]
 test = true
 
-# The lean tier, proven by building: core alone, no terminal contract.
+# The lean tier. The empty feature list is documentation, not a gate - CI's
+# `--no-default-features --examples` check is what enforces it.
 [[example]]
 name = "headless"
 required-features = []

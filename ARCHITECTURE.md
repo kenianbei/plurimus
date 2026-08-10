@@ -48,40 +48,51 @@ flowchart TB
 The facade crate. Feature-gated re-exports of the member crates and nothing
 else: `plurimus_core` is unconditional, and each feature enables one member
 crate and its module (`crossterm` implies `term`; `widgets` and `bevy-ui` imply
-`ui`). The default feature set is `crossterm` - core, input, and a live
-terminal. The facade crate also hosts the runnable examples.
+`ui`). The default feature set is `crossterm` - core, term, and a live terminal.
+The facade crate also hosts the runnable examples.
 
 ### plurimus_core
 
-The render pipeline. `CorePlugin` installs the terminal render sub-app: an
-extract schedule copies data out of the main world, then the `TerminalRender`
-schedule runs its three phases - `Rasterize` (pipelines write cells into
-`CameraBuffer`s, world-space passes beneath the ui pass), `Composite` (camera
-buffers merge into the `FrameBuffer` in camera order, apps post-process the
-composed frame in `CompositeSystems::PostProcess` while colors are still what
-the widgets chose, then colors downsample to the terminal's `ColorDepth`), and
-`Present`. Core owns `TerminalCamera` and viewport resolution against
-`TerminalSize`, the subcell raster primitives in `raster` (halfblock and braille
-grids, blits, color averaging, `ColorDepth` downsampling), and the widget
-primitive: a `UiWidget` placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and
-drawn in one z-sorted pass with no other crate involved. `PresenterPlugin<B>`
-diffs the composed frame and writes changed cells through any ratatui-core
-`Backend`, and applies `TerminalCursor` - the terminal's own caret, which a
-screen reader follows and an input method anchors to - outside that diff,
-because a caret crossing a cell changes no cell's content and the diff skips a
-frame where nothing differs. Position and visibility go through `Backend`; the
-shape is a backend's to serve. Re-exports `ratatui_core`.
+The render pipeline, and nothing else. Everything here means something against
+any ratatui `Backend` - a test harness, a GPU surface, a file - so nothing
+needing a real terminal lives here and no crate that does is depended on; the
+`headless` example holds that line by building with the terminal tiers off.
+`CorePlugin` installs the terminal render sub-app: an extract schedule copies
+data out of the main world, then the `TerminalRender` schedule runs its three
+phases - `Rasterize` (pipelines write cells into `CameraBuffer`s, world-space
+passes beneath the ui pass), `Composite` (camera buffers merge into the
+`FrameBuffer` in camera order, apps post-process the composed frame in
+`CompositeSystems::PostProcess` while colors are still what the widgets chose,
+then colors downsample to the terminal's `ColorDepth`), and `Present`. Core owns
+`TerminalCamera` and viewport resolution against `TerminalSize`, the subcell
+raster primitives in `raster` (halfblock and braille grids, blits, color
+averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
+placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
+pass with no other crate involved. `PresenterPlugin<B>` diffs the composed frame
+and writes changed cells through any ratatui-core `Backend`, and applies
+`TerminalCursor` - the terminal's own caret, which a screen reader follows and
+an input method anchors to - outside that diff, because a caret crossing a cell
+changes no cell's content and the diff skips a frame where nothing differs.
+Position and visibility go through `Backend`; the shape is a backend's to serve.
+Re-exports `ratatui_core`.
 
 ### plurimus_term
 
-The input contract. Defines the message types a terminal backend emits into the
+The terminal contract, both directions: everything that needs a real terminal to
+mean anything. Inbound it defines the message types a backend emits into the
 main world - `KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`,
-`FocusMessage` - and the state derived from them: polled `ButtonInput<KeyCode>`
-and `ButtonInput<MouseButton>`, plus `CursorCell`. `InputCapabilities` records
-what the active backend can report (real key releases, modifier key events - the
-kitty keyboard protocol tier); where a capability is absent, release synthesis
-fills the gap on a `ReleaseTimeout`. The `bevy_compat` module forwards messages
-into `bevy_input` event types for crates built on them, such as the focus stack.
+`FocusMessage`, `TerminalResized` - and the state derived from them: polled
+`ButtonInput<KeyCode>` and `ButtonInput<MouseButton>`, plus `CursorCell`.
+Outbound it defines `TerminalRequest`, the one-shot side effects an app asks of
+whichever backend is installed - copy to a clipboard selection, set the window
+title - and `TerminalCursorStyle`, the shape it asks the caret to take, which no
+ratatui `Backend` method can express. `TermPlugin` requires `CorePlugin` first,
+since applying a resize writes core's `TerminalSize`. `InputCapabilities`
+records what the active backend can report (real key releases, modifier key
+events - the kitty keyboard protocol tier); where a capability is absent,
+release synthesis fills the gap on a `ReleaseTimeout`. The `bevy_compat` module
+forwards messages into `bevy_input` event types for crates built on them, such
+as the focus stack.
 
 ### plurimus_crossterm
 

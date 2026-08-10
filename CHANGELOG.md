@@ -9,9 +9,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **An app can ask the terminal for things, not only be told about them.**
-  `TerminalRequest` is the outbound half of the contract `plurimus_input`
-  already had one direction of: `CopyToClipboard` writes a selection through OSC
-  52, `SetTitle` sets the window title. Copying is opt-in through
+  `TerminalRequest` is the outbound half of the contract `plurimus_term` already
+  had one direction of: `CopyToClipboard` writes a selection through OSC 52,
+  `SetTitle` sets the window title. Copying is opt-in through
   `CrosstermPlugin::clipboard`, off by default, and a copy too large for one
   escape sequence is dropped with a warning rather than truncated - a clipboard
   holding most of a selection is worse than one holding none. There is
@@ -25,9 +25,32 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   method anchors composition to, neither of which can see a reverse-video cell.
   The stock text widgets keep drawing their own caret for now, since switching
   would change how every existing field looks.
+- **A `headless` example**, the lean tier proven by building: core alone driving
+  two cameras, a hand-written `TerminalWidget` over the halfblock subcell grid,
+  compositing and downsampling into a `TestBackend`. CI builds the examples with
+  default features off, so a terminal dependency leaking into core's example
+  surface now fails the build.
 - **`screen_cell`**, the inverse of `content_cell`. It refuses rather than
   clamps: a caret whose character is scrolled off has no honest screen cell, and
   the nearest edge would put it beside a different character.
+
+### Changed
+
+- **`plurimus_input` is now `plurimus_term`**, because it carries the terminal
+  contract in both directions and had been describing itself as "mostly inbound"
+  to stay honest. The boundary against `plurimus_core` moved with the name,
+  sorted by one question - does this mean anything against a `Backend` with no
+  terminal attached? `TerminalResized` and `TerminalCursorStyle` failed it and
+  moved to `plurimus_term`; `TerminalSize`, `ColorDepth` and the cursor's cell
+  passed it and stayed, as target configuration rather than terminal contract.
+  `plurimus_core` now declares no message types at all. **Breaking**: import
+  from `plurimus_term`, or `plurimus::term` on the facade where
+  `plurimus::input` used to serve; the facade's `input` feature is now `term`;
+  `InputPlugin` is `TermPlugin` and requires `CorePlugin` first;
+  `plurimus_core::{TerminalResized, TerminalCursorStyle}` moved, and
+  `TerminalCursor::style` is gone. `InputSystems`, `InputCapabilities` and
+  `bevy_compat` keep their names: each describes input specifically, which is
+  still what it does.
 
 ### Fixed
 

@@ -40,8 +40,9 @@ The render sub-app, cameras, compositing, and the presenter. Always compiled.
 (`Full`, a `Fixed` cell rect, a `Docked` edge strip, or `Fill` for what
 remains), and a background. Entities carrying a `UiWidget` - any ratatui widget,
 including stateful ones - are placed by `UiArea`, ordered by `UiOrder`, and
-drawn every frame. The `TerminalSize` resource tracks the terminal, so a resize
-is a value change layout systems react to.
+drawn every frame. The `TerminalSize` resource is the target's cell dimensions,
+so a resize is a value change layout systems react to - written by
+`plurimus_term` when a real terminal reports one, and by the app otherwise.
 
 The presenter is generic over ratatui's `Backend`, so core renders without a
 terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_color`, and
@@ -284,6 +285,7 @@ Input is injected the same way the backend delivers it - write a `KeyMessage` or
 
 ```sh
 cargo run --example basic
+cargo run --example headless --no-default-features
 cargo run --example widgets --features widgets,bevy-ui
 cargo run --example pong --features widgets,2d
 cargo run --example ratman --features widgets,2d
@@ -293,6 +295,12 @@ cargo run --example lander --features widgets,3d
 **basic** renders every stock ratatui widget as an entity in a grid on default
 features, with no `ui` or `widgets` crate, and re-lays the tiles on resize. `q`
 or ctrl-c quits.
+
+**headless** is the lean tier: `plurimus_core` alone, driving two cameras, a
+hand-written `TerminalWidget` over the halfblock subcell grid, compositing and
+downsampling into a `TestBackend` that holds the cells in memory. It prints one
+frame and exits, and the `--no-default-features` invocation is the point - there
+is no terminal contract in the example's own graph at all.
 
 **widgets** runs the control library twice side by side: themed widgets at fixed
 cell rects on the left, the same widget logic under `bevy_ui` flex layout on the
