@@ -10,13 +10,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`WidgetSystems`**, the set the stock widget systems run in, so an app can
   order its own systems against widget layout or styling instead of guessing.
-- **`StylistDisabled`**, which exempts one entity from the stock stylists. The
-  widget keeps its behavior - selection, keys, scrolling, events - while the app
-  owns what it draws.
-- **`UiStyle`**, a style patched over the one an entity would otherwise resolve
-  to. On a widget it composes with hover and focus rather than replacing them;
-  on a list row it styles the full row, which is what a striped or state-colored
-  list needs.
+- **`StylistDisabled`** in `plurimus_ui`, which exempts one entity from a widget
+  library's stylists. The widget keeps its behavior - selection, keys,
+  scrolling, events - while the app owns what it draws.
+- **`UiStyle`** in `plurimus_ui`, a style patched over the one an entity would
+  otherwise resolve to. On a widget it composes with hover and focus rather than
+  replacing them; on a list row it styles the full row, which is what a striped
+  or state-colored list needs.
 - **`ListItemText`**, which draws one list row as several terminal rows -
   explicit line breaks only, since the list truncates rather than wraps. A row
   carrying it is as tall as its text has lines, and the list box measures every
@@ -69,6 +69,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The theming contract moved from `plurimus_widgets` to `plurimus_ui`**, so a
+  widget library that builds on the ui pipeline alone can honor the app's theme
+  without depending on the stock widgets. `UiTheme`, `UiStyle`, and
+  `StylistDisabled` are now `plurimus_ui` items and `UiPlugin` initializes the
+  theme resource; `plurimus_widgets` no longer exports any of the three.
+  **Breaking**: `plurimus_widgets::UiTheme` and its two siblings no longer
+  exist - import them from `plurimus_ui`, or from `plurimus::ui` on the facade,
+  where `plurimus::widgets` used to serve them. Nothing about how a widget looks
+  or behaves changed.
+- **`UiTheme::resolve` is public**, so a widget outside the stock library
+  resolves the same style for the same state instead of reimplementing the
+  precedence. It takes the new `InteractionState` - `hovered`, `pressed`,
+  `disabled`, `focused` - and applies the documented order: disabled over
+  pressed over hovered over normal, with focused patched over the winner.
 - **`UiLabel` carries a ratatui `Line`** rather than a `String`, so a label can
   hold per-span style - independently colored columns in a list row, a dimmed
   shortcut beside a menu item. Every widget constructor now takes

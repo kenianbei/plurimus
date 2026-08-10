@@ -6,10 +6,10 @@
 //!
 //! A widget is therefore three separable things: components describing what
 //! it is, systems turning input into events, and a stylist that rebuilds its
-//! [`UiWidget`] from [`UiTheme`](plurimus_ui::UiTheme) each frame. An app
-//! that wants different looks replaces the stylist and keeps the behaviour;
-//! one that wants different behaviour handles the events itself and keeps
-//! the look.
+//! [`UiWidget`] from [`UiTheme`](plurimus_ui::UiTheme) when the state it last
+//! drew changes. An app that wants different looks replaces the stylist and
+//! keeps the behaviour; one that wants different behaviour handles the events
+//! itself and keeps the look.
 
 mod activate;
 mod button;
