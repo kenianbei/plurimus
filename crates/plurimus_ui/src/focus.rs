@@ -34,10 +34,10 @@ pub(crate) fn install(app: &mut App) {
         app.add_plugins((InputFocusPlugin, InputDispatchPlugin, TabNavigationPlugin));
     }
     crate::nav::install(app);
-    // A focused-input observer reads both polled key state and widget
-    // geometry, so dispatch has to follow whoever writes them: modifiers
-    // land in `ButtonInput` in `bevy_input::InputSystems`, and areas are
-    // computed in `UiSystems::Areas`.
+    // A focused-input observer reads polled key state and widget geometry,
+    // so dispatch follows whoever writes them. The key-state edge is on the
+    // set rather than on a system, which is what carries it to the
+    // dispatches added below and by apps; upstream orders only its own.
     app.configure_sets(
         PreUpdate,
         (
