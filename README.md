@@ -145,7 +145,7 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.4"
+plurimus = "0.5"
 bevy_app = "0.19"
 bevy_ecs = "0.19"
 ratatui-widgets = "0.3"
@@ -327,7 +327,7 @@ seconds while GPU pipelines compile.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.4      | 0.19 | 0.1          |
+| 0.5      | 0.19 | 0.1          |
 
 - **Rust 1.95** or newer, edition 2024.
 - **Bevy 0.19** for any bevy crates added alongside.
