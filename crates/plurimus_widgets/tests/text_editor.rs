@@ -7,9 +7,11 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{
-    InputCapabilities, KeyCode, KeyModifiers, ModifierKey, MouseKind, PasteMessage,
+    InputCapabilities, KeyCode, KeyModifiers, LastCopied, ModifierKey, MouseKind, PasteMessage,
 };
-use plurimus_test::{composed_frame, press_chord, press_key, press_key_with, send_mouse};
+use plurimus_test::{
+    clipboard_writes, composed_frame, press_chord, press_key, press_key_with, send_mouse,
+};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextChanged, TextEditor, WidgetsPlugin, text_editor};
 
@@ -43,6 +45,18 @@ fn spawn_editor(app: &mut App, text: &str) -> Entity {
 // terminal without the kitty tier sends.
 fn ctrl_key(app: &mut App, code: KeyCode) {
     press_key_with(app, code, KeyModifiers::default().with_ctrl(true));
+}
+
+// The kitty-tier spelling of the same chord, modifier key and all.
+fn ctrl_chord(app: &mut App, character: char) {
+    press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
+}
+
+fn select_from_home(app: &mut App, count: usize) {
+    press_key(app, KeyCode::Home);
+    for _ in 0..count {
+        press_chord(app, ModifierKey::ShiftLeft, KeyCode::Right);
+    }
 }
 
 fn editor_typed_ab(app: &mut App) -> Entity {
@@ -160,6 +174,131 @@ fn a_chord_leaves_its_modifier_released() {
         lines_of(&app, editor),
         ["acd"],
         "the bare Right should drop the selection, not extend it"
+    );
+}
+
+#[test]
+fn a_copy_offers_the_selection_to_the_terminal() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+
+    ctrl_chord(&mut app, 'c');
+
+    assert_eq!(clipboard_writes(&mut app), ["ab"]);
+    assert_eq!(lines_of(&app, editor), ["abcd"], "a copy removes nothing");
+}
+
+#[test]
+fn a_cut_offers_the_selection_and_removes_it() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+
+    ctrl_chord(&mut app, 'x');
+
+    assert_eq!(clipboard_writes(&mut app), ["ab"]);
+    assert_eq!(lines_of(&app, editor), ["cd"]);
+    assert_eq!(
+        app.world().resource::<Changes>().0,
+        1,
+        "a cut edits, so it announces once"
+    );
+}
+
+// An empty write would take away whatever the user last copied, which is
+// worse than doing nothing at all.
+#[test]
+fn a_copy_with_no_selection_offers_nothing() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    press_key(&mut app, KeyCode::Home);
+
+    ctrl_chord(&mut app, 'c');
+    ctrl_chord(&mut app, 'x');
+
+    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(lines_of(&app, editor), ["abcd"], "and cuts nothing");
+}
+
+#[test]
+fn a_copy_fills_the_shared_buffer() {
+    let mut app = app();
+    spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 3);
+
+    ctrl_chord(&mut app, 'c');
+
+    assert_eq!(
+        app.world().resource::<LastCopied>().0.as_deref(),
+        Some("abc"),
+        "the echo is what another widget's paste key reads"
+    );
+}
+
+// Seeding what a paste key inserts is documented app-facing use, and it
+// lands on the very next frame because the paste reads the resource at the
+// press rather than from anything mirrored beforehand.
+#[test]
+fn a_seeded_buffer_pastes_on_the_next_frame() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "");
+    ctrl_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+
+    app.world_mut().resource_mut::<LastCopied>().0 = Some("seeded".to_owned());
+    ctrl_key(&mut app, KeyCode::Char('v'));
+
+    assert_eq!(lines_of(&app, editor), ["seeded"]);
+}
+
+#[test]
+fn a_copy_in_one_editor_pastes_into_another() {
+    let mut app = app();
+    let source = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+    ctrl_chord(&mut app, 'c');
+
+    let target = spawn_editor(&mut app, "");
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(target, FocusCause::Pressed);
+    ctrl_chord(&mut app, 'v');
+
+    assert_eq!(lines_of(&app, target), ["ab"]);
+    assert_eq!(lines_of(&app, source), ["abcd"], "the source is untouched");
+}
+
+#[test]
+fn ctrl_v_pastes_rather_than_paging() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+    ctrl_chord(&mut app, 'c');
+    press_key(&mut app, KeyCode::End);
+
+    ctrl_chord(&mut app, 'v');
+
+    assert_eq!(lines_of(&app, editor), ["abcdab"]);
+}
+
+// The app clipboard and the engine's kill ring stay separate: ctrl+y takes
+// what ctrl+k killed, not the older copy. Any design that fed the shared
+// buffer into the engine's own yank would paste "ab" here.
+#[test]
+fn a_kill_still_yanks_what_it_killed() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+    ctrl_chord(&mut app, 'c');
+
+    press_key(&mut app, KeyCode::Home);
+    ctrl_chord(&mut app, 'k');
+    ctrl_chord(&mut app, 'y');
+
+    assert_eq!(
+        lines_of(&app, editor),
+        ["abcd"],
+        "the killed line comes back, not the older copy"
     );
 }
 

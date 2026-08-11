@@ -86,13 +86,18 @@ main world - `KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`,
 Outbound it defines `TerminalRequest`, the one-shot side effects an app asks of
 whichever backend is installed - copy to a clipboard selection, set the window
 title - and `TerminalCursorStyle`, the shape it asks the caret to take, which no
-ratatui `Backend` method can express. `TermPlugin` requires `CorePlugin` first,
-since applying a resize writes core's `TerminalSize`. `InputCapabilities`
-records what the active backend can report (real key releases, modifier key
-events - the kitty keyboard protocol tier); where a capability is absent,
-release synthesis fills the gap on a `ReleaseTimeout`. The `bevy_compat` module
-forwards messages into `bevy_input` event types for crates built on them, such
-as the focus stack.
+ratatui `Backend` method can express. That stream is one-way, so `LastCopied` is
+the state derived from it: a stock system in `RequestSystems::Echo` records the
+last copy bound for the ordinary clipboard, giving a paste key one answer across
+every widget that asks. It echoes what was requested rather than what the
+terminal holds, and runs in `Last` because a backend consumes requests by
+draining them during extraction, after every main-world schedule. `TermPlugin`
+requires `CorePlugin` first, since applying a resize writes core's
+`TerminalSize`. `InputCapabilities` records what the active backend can report
+(real key releases, modifier key events - the kitty keyboard protocol tier);
+where a capability is absent, release synthesis fills the gap on a
+`ReleaseTimeout`. The `bevy_compat` module forwards messages into `bevy_input`
+event types for crates built on them, such as the focus stack.
 
 ### plurimus_crossterm
 
@@ -149,8 +154,12 @@ its component vocabulary and event contract over terminal-native engines.
 Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
 menus, popovers, a single-line `EditableText`, and a multi-line `TextEditor`
 built on ratatui-textarea; `Table` is past the parity list, upstream having no
-table to mirror. Most widgets are stateless controllers emitting entity events
-(`Activate`, `ValueChange`); apps apply them, or attach the stock
+table to mirror. The editor is the one widget that talks to the clipboard, being
+the one with a selection to copy: ctrl+c and ctrl+x offer the text to the
+terminal as well as to the engine, and ctrl+v inserts `plurimus_term`'s
+`LastCopied`, read at the press so the engine's own kill ring stays whatever
+ctrl+k last put there. Most widgets are stateless controllers emitting entity
+events (`Activate`, `ValueChange`); apps apply them, or attach the stock
 `*_self_update` observers for uncontrolled behavior. A stylist rebuilds a
 widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the state it last drew
 differs from the current one, not every frame, and they run in the
@@ -223,11 +232,12 @@ and asset loading such as `bevy_gltf`.
 
 Dev-only test support; a dev-dependency everywhere, never shipped. Input
 injection (`press_key`, `click`, and friends) writes messages as if a backend
-had translated them, and `composed_frame`/`composed_styled_frame` snapshot the
-composed `FrameBuffer` straight out of the sub-app - so a test drives a full app
-headlessly with no terminal and no presenter attached. `widget_content` hands
-back the drawable an entity currently holds, which is how a test tells a redraw
-from a skipped one.
+had translated them, `clipboard_writes` takes back the copies an app asked for
+the way a backend would, and `composed_frame`/`composed_styled_frame` snapshot
+the composed `FrameBuffer` straight out of the sub-app - so a test drives a full
+app headlessly with no terminal and no presenter attached. `widget_content`
+hands back the drawable an entity currently holds, which is how a test tells a
+redraw from a skipped one.
 
 ## External Crates
 

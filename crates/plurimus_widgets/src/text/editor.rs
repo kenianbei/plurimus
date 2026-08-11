@@ -12,7 +12,10 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Added, Commands, Component, EntityEvent, On, Query, Res, Without};
+use bevy_ecs::prelude::{
+    Added, Commands, Component, EntityEvent, MessageWriter, On, Query, Res, Without,
+};
+use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::FocusedInput;
@@ -20,7 +23,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::PasteMessage;
+use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
 use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
@@ -38,8 +41,21 @@ use plurimus_ui::LiveWidget;
 ///
 /// Keys are dispatched through ratatui-textarea's default keymap, so its
 /// emacs-flavored modifier bindings apply: ctrl+u undo, ctrl+r redo,
-/// ctrl+x/c/y cut/copy/paste, shift+arrow selection. Tab is withheld for
-/// focus navigation.
+/// ctrl+y paste, shift+arrow selection. Tab is withheld for focus
+/// navigation.
+///
+/// ctrl+c, ctrl+x and ctrl+v are taken over rather than forwarded. Copy and
+/// cut act as the engine would and also ask the terminal for the text
+/// through [`TerminalRequest`], so a copy leaves the app; neither sends
+/// anything when there is no selection. Whether it reaches a system
+/// clipboard is the backend's business - `plurimus_crossterm` writes none
+/// until asked - but it always reaches [`LastCopied`], and ctrl+v inserts
+/// from there, so a copy in one editor is a paste in another.
+///
+/// ctrl+v therefore means the app's clipboard and ctrl+y the engine's own
+/// kill ring, which ctrl+k and ctrl+w fill. They are deliberately separate:
+/// a copy anywhere in the app would otherwise displace a kill the user has
+/// not yet put back.
 ///
 /// Movement and deletion step whole grapheme clusters, but the engine
 /// records one history entry per scalar, so undoing a deleted multi-scalar
@@ -86,10 +102,19 @@ pub(crate) fn install_editor_views(
     }
 }
 
+/// The clipboard both ways: what an editor offers the terminal, and what
+/// it pastes from.
+#[derive(SystemParam)]
+pub(crate) struct Clipboard<'w> {
+    requests: MessageWriter<'w, TerminalRequest>,
+    copied: Res<'w, LastCopied>,
+}
+
 pub(crate) fn text_editor_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held_keys: Res<ButtonInput<KeyCode>>,
     editors: Query<&TextEditor, Without<InteractionDisabled>>,
+    mut clipboard: Clipboard,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;
@@ -99,7 +124,15 @@ pub(crate) fn text_editor_key(
     if input.input.state != ButtonState::Pressed {
         return;
     }
-    let Some(edit) = editor_input(&input.input.logical_key, &held_keys) else {
+    let held = held_modifiers(&held_keys);
+    if let Some(action) = clipboard_action(&input.input.logical_key, held) {
+        input.propagate(false);
+        if apply_clipboard(&mut editor.lock(), action, &mut clipboard) {
+            commands.trigger(TextChanged { entity });
+        }
+        return;
+    }
+    let Some(edit) = editor_input(&input.input.logical_key, held) else {
         return;
     };
     input.propagate(false);
@@ -110,6 +143,77 @@ pub(crate) fn text_editor_key(
     }
     if edited {
         commands.trigger(TextChanged { entity });
+    }
+}
+
+/// What a clipboard chord asks for, taken over from textarea's keymap so
+/// the text also reaches the terminal.
+#[derive(Debug, Clone, Copy)]
+enum ClipboardAction {
+    Copy,
+    Cut,
+    Paste,
+}
+
+/// The modifier test mirrors textarea's own, which requires ctrl without
+/// alt; matching it loosely would claim chords the engine would have
+/// handled differently.
+fn clipboard_action(key: &Key, held: KeyModifiers) -> Option<ClipboardAction> {
+    let Key::Character(chars) = key else {
+        return None;
+    };
+    if !held.ctrl || held.alt {
+        return None;
+    }
+    match chars.as_str() {
+        "c" => Some(ClipboardAction::Copy),
+        "x" => Some(ClipboardAction::Cut),
+        // The engine spends ctrl+v on page-down, which the PageDown key
+        // already reaches; the paste every user expects is worth more.
+        "v" => Some(ClipboardAction::Paste),
+        _ => None,
+    }
+}
+
+/// Applies the chord and reports whether the text changed.
+fn apply_clipboard(
+    area: &mut TextArea<'static>,
+    action: ClipboardAction,
+    clipboard: &mut Clipboard,
+) -> bool {
+    match action {
+        // `copy` cancels the selection and reports nothing, so whether
+        // there was one has to be asked before the call rather than after.
+        ClipboardAction::Copy => {
+            if area.is_selecting() {
+                area.copy();
+                offer_yank(area, &mut clipboard.requests);
+            }
+            false
+        }
+        ClipboardAction::Cut => {
+            let cut = area.cut();
+            if cut {
+                offer_yank(area, &mut clipboard.requests);
+            }
+            cut
+        }
+        // `insert_str` is `paste` with the text supplied rather than taken
+        // from the engine's yank, which is what keeps a kill intact.
+        ClipboardAction::Paste => clipboard
+            .copied
+            .0
+            .as_deref()
+            .is_some_and(|text| area.insert_str(text)),
+    }
+}
+
+/// Sends what the engine just yanked to the terminal, unless it is empty -
+/// an empty copy would take away whatever the user last put there.
+fn offer_yank(area: &TextArea<'static>, requests: &mut MessageWriter<TerminalRequest>) {
+    let yanked = area.yank_text();
+    if !yanked.is_empty() {
+        requests.write(TerminalRequest::copy(yanked));
     }
 }
 
@@ -137,7 +241,7 @@ fn cluster_steps(area: &TextArea<'static>, edit: &Input) -> usize {
     steps.max(1)
 }
 
-fn editor_input(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Input> {
+fn editor_input(key: &Key, held: KeyModifiers) -> Option<Input> {
     let key = match key {
         Key::Character(chars) => EditorKey::Char(chars.chars().next()?),
         Key::Space => EditorKey::Char(' '),
@@ -154,7 +258,6 @@ fn editor_input(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Input> {
         Key::PageDown => EditorKey::PageDown,
         _ => return None,
     };
-    let held = held_modifiers(held_keys);
     Some(Input {
         key,
         ctrl: held.ctrl,

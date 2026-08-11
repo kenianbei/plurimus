@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A paste key can be correct.** `LastCopied` records what an app last asked
+  the clipboard for, filled by a stock system from the `TerminalRequest` stream
+  in the new `RequestSystems::Echo` set. Plurimus still never reads the system
+  clipboard back - the escape that would is widely disabled - so this is an echo
+  of what was asked, not a reading of what the terminal holds: a backend may
+  drop a copy, `plurimus_crossterm` writes none until
+  `CrosstermPlugin::clipboard` is set, and another program may replace the
+  selection a moment later. What it settles is that every widget in an app that
+  asks gets the same answer, which none of them could arrange while the request
+  stream stayed one-way. Apps may also write it, to seed what a paste key
+  inserts.
+
+### Changed
+
+- **A `TextEditor` copy now leaves the app.** ctrl+c and ctrl+x still copy and
+  cut as ratatui-textarea would, but also offer the text to the terminal through
+  `TerminalRequest`, where before both moved it into a buffer private to the one
+  widget. Neither sends anything when there is no selection, an empty write
+  being worse than none. **ctrl+v now pastes** what the app last copied, so a
+  copy in one editor is a paste in another; it previously paged down, which the
+  `PageDown` key already does. ctrl+y is unchanged and still takes the engine's
+  own kill ring, which ctrl+k and ctrl+w fill - the two are deliberately
+  separate, so a copy elsewhere in the app cannot displace a kill the user has
+  not yet put back.
+
 ## [0.5.0] - 2026-08-10
 
 ### Added
