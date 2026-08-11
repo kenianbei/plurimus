@@ -198,10 +198,8 @@ fn apply_clipboard(
             }
             cut
         }
-        // Read at the press rather than mirrored into the engine's yank
-        // buffer beforehand: `insert_str` is `paste` with the text supplied
-        // instead of taken from that buffer, so going through it would
-        // overwrite a kill the user has not replaced.
+        // `insert_str` is `paste` with the text supplied rather than taken
+        // from the engine's yank, which is what keeps a kill intact.
         ClipboardAction::Paste => clipboard
             .copied
             .0

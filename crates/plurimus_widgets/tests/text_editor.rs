@@ -52,7 +52,6 @@ fn ctrl_chord(app: &mut App, character: char) {
     press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
 }
 
-// Selects `count` characters from the start of the text.
 fn select_from_home(app: &mut App, count: usize) {
     press_key(app, KeyCode::Home);
     for _ in 0..count {

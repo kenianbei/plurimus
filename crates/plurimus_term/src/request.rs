@@ -103,8 +103,8 @@ pub(crate) fn echo_clipboard_writes(
             _ => None,
         })
         .last();
-    // Assigned rather than compared: the change flag is the signal a widget
-    // resyncs on, so copying the same text twice has to tick it twice.
+    // Assigned rather than compared, so an app watching this for change
+    // sees a repeated copy as the second event the user thinks it is.
     if let Some(content) = latest {
         copied.0 = Some(content.clone());
     }
@@ -220,9 +220,9 @@ mod tests {
         assert_eq!(copied(&app), Some("second"));
     }
 
-    // The change flag is what a widget resyncs its own buffer on, so an
-    // identical second copy has to tick it again - otherwise an editor that
-    // overwrote its buffer in between never hears about it.
+    // An app gating on change detection - a "copied" indicator, say - has
+    // to see the second copy of identical text, which the user made as
+    // deliberately as the first.
     #[test]
     fn copying_the_same_text_twice_reports_twice() {
         let mut app = app();
