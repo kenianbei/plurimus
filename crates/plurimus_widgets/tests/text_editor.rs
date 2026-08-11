@@ -144,9 +144,8 @@ fn live_view_renders_edits_without_rebuild() {
     insta::assert_snapshot!("editor_live_view", composed_frame(&app));
 }
 
-// A modifier outliving its chord is invisible until the next bare key,
-// which reads held state rather than the message's own bits: a shift still
-// down turns this Right into a second selection step.
+// A bare key reads held modifier state, not the message's own bits, so a
+// shift outliving its chord turns this Right into a second selection step.
 #[test]
 fn a_chord_leaves_its_modifier_released() {
     let mut app = app();
