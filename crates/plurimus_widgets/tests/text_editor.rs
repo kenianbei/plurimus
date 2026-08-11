@@ -7,9 +7,11 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{
-    InputCapabilities, KeyCode, KeyModifiers, ModifierKey, MouseKind, PasteMessage,
+    InputCapabilities, KeyCode, KeyModifiers, LastCopied, ModifierKey, MouseKind, PasteMessage,
 };
-use plurimus_test::{composed_frame, press_chord, press_key, press_key_with, send_mouse};
+use plurimus_test::{
+    clipboard_writes, composed_frame, press_chord, press_key, press_key_with, send_mouse,
+};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextChanged, TextEditor, WidgetsPlugin, text_editor};
 
@@ -160,6 +162,73 @@ fn a_chord_leaves_its_modifier_released() {
         lines_of(&app, editor),
         ["acd"],
         "the bare Right should drop the selection, not extend it"
+    );
+}
+
+// Selects `count` characters from the start of the text.
+fn select_from_home(app: &mut App, count: usize) {
+    press_key(app, KeyCode::Home);
+    for _ in 0..count {
+        press_chord(app, ModifierKey::ShiftLeft, KeyCode::Right);
+    }
+}
+
+#[test]
+fn a_copy_offers_the_selection_to_the_terminal() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+
+    assert_eq!(clipboard_writes(&mut app), ["ab"]);
+    assert_eq!(lines_of(&app, editor), ["abcd"], "a copy removes nothing");
+}
+
+#[test]
+fn a_cut_offers_the_selection_and_removes_it() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    let quiet = app.world().resource::<Changes>().0;
+    select_from_home(&mut app, 2);
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('x'));
+
+    assert_eq!(clipboard_writes(&mut app), ["ab"]);
+    assert_eq!(lines_of(&app, editor), ["cd"]);
+    assert!(
+        app.world().resource::<Changes>().0 > quiet,
+        "a cut edits, so it announces"
+    );
+}
+
+// An empty write would take away whatever the user last copied, which is
+// worse than doing nothing at all.
+#[test]
+fn a_copy_with_no_selection_offers_nothing() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    press_key(&mut app, KeyCode::Home);
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('x'));
+
+    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(lines_of(&app, editor), ["abcd"], "and cuts nothing");
+}
+
+#[test]
+fn a_copy_fills_the_shared_buffer() {
+    let mut app = app();
+    spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 3);
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+
+    assert_eq!(
+        app.world().resource::<LastCopied>().0.as_deref(),
+        Some("abc"),
+        "the echo is what another widget's paste key reads"
     );
 }
 

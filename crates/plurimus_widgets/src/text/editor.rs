@@ -12,7 +12,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Added, Commands, Component, EntityEvent, On, Query, Res, Without};
+use bevy_ecs::prelude::{
+    Added, Commands, Component, EntityEvent, MessageWriter, On, Query, Res, Without,
+};
 use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::FocusedInput;
@@ -20,7 +22,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::PasteMessage;
+use plurimus_term::{PasteMessage, TerminalRequest};
 use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
@@ -38,8 +40,17 @@ use plurimus_ui::LiveWidget;
 ///
 /// Keys are dispatched through ratatui-textarea's default keymap, so its
 /// emacs-flavored modifier bindings apply: ctrl+u undo, ctrl+r redo,
-/// ctrl+x/c/y cut/copy/paste, shift+arrow selection. Tab is withheld for
-/// focus navigation.
+/// ctrl+y paste, shift+arrow selection. Tab is withheld for focus
+/// navigation.
+///
+/// ctrl+c and ctrl+x are taken over rather than forwarded: they copy and
+/// cut as the engine would, and also ask the terminal for the text through
+/// [`TerminalRequest`], so a copy leaves the app. Neither sends anything
+/// when there is no selection. Whether that reaches a system clipboard is
+/// the backend's business - `plurimus_crossterm` writes none until asked -
+/// but it always reaches
+/// [`LastCopied`](plurimus_term::LastCopied), which is what a paste key
+/// reads.
 ///
 /// Movement and deletion step whole grapheme clusters, but the engine
 /// records one history entry per scalar, so undoing a deleted multi-scalar
@@ -90,6 +101,7 @@ pub(crate) fn text_editor_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held_keys: Res<ButtonInput<KeyCode>>,
     editors: Query<&TextEditor, Without<InteractionDisabled>>,
+    mut requests: MessageWriter<TerminalRequest>,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;
@@ -97,6 +109,13 @@ pub(crate) fn text_editor_key(
         return;
     };
     if input.input.state != ButtonState::Pressed {
+        return;
+    }
+    if let Some(action) = clipboard_action(&input.input.logical_key, &held_keys) {
+        input.propagate(false);
+        if apply_clipboard(&mut editor.lock(), action, &mut requests) {
+            commands.trigger(TextChanged { entity });
+        }
         return;
     }
     let Some(edit) = editor_input(&input.input.logical_key, &held_keys) else {
@@ -110,6 +129,67 @@ pub(crate) fn text_editor_key(
     }
     if edited {
         commands.trigger(TextChanged { entity });
+    }
+}
+
+/// What a clipboard chord asks for, taken over from textarea's keymap so
+/// the text also reaches the terminal.
+#[derive(Debug, Clone, Copy)]
+enum ClipboardAction {
+    Copy,
+    Cut,
+}
+
+/// The modifier test mirrors textarea's own, which requires ctrl without
+/// alt; matching it loosely would claim chords the engine would have
+/// handled differently.
+fn clipboard_action(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<ClipboardAction> {
+    let held = held_modifiers(held_keys);
+    if !held.ctrl || held.alt {
+        return None;
+    }
+    let Key::Character(chars) = key else {
+        return None;
+    };
+    match chars.as_str() {
+        "c" => Some(ClipboardAction::Copy),
+        "x" => Some(ClipboardAction::Cut),
+        _ => None,
+    }
+}
+
+/// Applies the chord and reports whether the text changed.
+fn apply_clipboard(
+    area: &mut TextArea<'static>,
+    action: ClipboardAction,
+    requests: &mut MessageWriter<TerminalRequest>,
+) -> bool {
+    match action {
+        // `copy` cancels the selection and reports nothing, so whether
+        // there was one has to be asked before the call rather than after.
+        ClipboardAction::Copy => {
+            if area.is_selecting() {
+                area.copy();
+                offer_yank(area, requests);
+            }
+            false
+        }
+        ClipboardAction::Cut => {
+            let cut = area.cut();
+            if cut {
+                offer_yank(area, requests);
+            }
+            cut
+        }
+    }
+}
+
+/// Sends what the engine just yanked to the terminal, unless it is empty -
+/// an empty copy would take away whatever the user last put there.
+fn offer_yank(area: &TextArea<'static>, requests: &mut MessageWriter<TerminalRequest>) {
+    let yanked = area.yank_text();
+    if !yanked.is_empty() {
+        requests.write(TerminalRequest::copy(yanked));
     }
 }
 
