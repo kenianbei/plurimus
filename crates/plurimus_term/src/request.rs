@@ -56,9 +56,12 @@ impl TerminalRequest {
 /// here confirms the clipboard agrees: a backend may drop a copy it cannot
 /// serve, `plurimus_crossterm` writes none at all until
 /// `CrosstermPlugin::clipboard` is set, and another program may replace the
-/// selection a moment later. What this does promise is that every widget in
-/// one app pastes the same text, which is the thing no widget could arrange
-/// for itself while [`TerminalRequest`] stays one-way.
+/// selection a moment later. What it does promise is one answer to "what
+/// was last copied" for every widget that asks, which is the thing none of
+/// them could arrange for itself while [`TerminalRequest`] stays one-way.
+/// Whether a widget asks is its own business: in this workspace
+/// `plurimus_widgets`' multi-line editor does, and the single-line field,
+/// having no selection to copy in the first place, does not.
 ///
 /// Only [`ClipboardTarget::Clipboard`] lands here.
 /// [`Primary`](ClipboardTarget::Primary) is the X11 middle-click selection,
@@ -90,16 +93,19 @@ pub(crate) fn echo_clipboard_writes(
     mut requests: MessageReader<TerminalRequest>,
     mut copied: ResMut<LastCopied>,
 ) {
-    let last = requests.read().filter_map(|request| match request {
-        TerminalRequest::CopyToClipboard {
-            content,
-            destination: ClipboardTarget::Clipboard,
-        } => Some(content),
-        _ => None,
-    });
+    let latest = requests
+        .read()
+        .filter_map(|request| match request {
+            TerminalRequest::CopyToClipboard {
+                content,
+                destination: ClipboardTarget::Clipboard,
+            } => Some(content),
+            _ => None,
+        })
+        .last();
     // Assigned rather than compared: the change flag is the signal a widget
     // resyncs on, so copying the same text twice has to tick it twice.
-    if let Some(content) = last.last() {
+    if let Some(content) = latest {
         copied.0 = Some(content.clone());
     }
 }

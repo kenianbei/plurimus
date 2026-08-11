@@ -23,6 +23,6 @@ pub use input::{EditableText, editable_text};
 pub use state::TextInput;
 
 pub(crate) use editor::{
-    install_editor_views, sync_editor_yank, text_editor_key, text_editor_paste, text_editor_wheel,
+    install_editor_views, text_editor_key, text_editor_paste, text_editor_wheel,
 };
 pub(crate) use input::{style_text_inputs, text_input_blur, text_input_key, text_input_paste};

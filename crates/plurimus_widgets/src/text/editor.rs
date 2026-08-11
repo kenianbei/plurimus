@@ -11,11 +11,11 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
     Added, Commands, Component, EntityEvent, MessageWriter, On, Query, Res, Without,
 };
+use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::FocusedInput;
@@ -23,7 +23,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::{LastCopied, PasteMessage, TerminalRequest};
+use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
 use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
@@ -49,9 +49,13 @@ use plurimus_ui::LiveWidget;
 /// through [`TerminalRequest`], so a copy leaves the app; neither sends
 /// anything when there is no selection. Whether it reaches a system
 /// clipboard is the backend's business - `plurimus_crossterm` writes none
-/// until asked - but it always reaches [`LastCopied`], which every editor
-/// pastes from, so a copy in one is a paste in another. ctrl+v pastes,
-/// taking a binding the engine spends on page-down.
+/// until asked - but it always reaches [`LastCopied`], and ctrl+v inserts
+/// from there, so a copy in one editor is a paste in another.
+///
+/// ctrl+v therefore means the app's clipboard and ctrl+y the engine's own
+/// kill ring, which ctrl+k and ctrl+w fill. They are deliberately separate:
+/// a copy anywhere in the app would otherwise displace a kill the user has
+/// not yet put back.
 ///
 /// Movement and deletion step whole grapheme clusters, but the engine
 /// records one history entry per scalar, so undoing a deleted multi-scalar
@@ -98,11 +102,19 @@ pub(crate) fn install_editor_views(
     }
 }
 
+/// The clipboard both ways: what an editor offers the terminal, and what
+/// it pastes from.
+#[derive(SystemParam)]
+pub(crate) struct Clipboard<'w> {
+    requests: MessageWriter<'w, TerminalRequest>,
+    copied: Res<'w, LastCopied>,
+}
+
 pub(crate) fn text_editor_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held_keys: Res<ButtonInput<KeyCode>>,
     editors: Query<&TextEditor, Without<InteractionDisabled>>,
-    mut requests: MessageWriter<TerminalRequest>,
+    mut clipboard: Clipboard,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;
@@ -112,14 +124,15 @@ pub(crate) fn text_editor_key(
     if input.input.state != ButtonState::Pressed {
         return;
     }
-    if let Some(action) = clipboard_action(&input.input.logical_key, &held_keys) {
+    let held = held_modifiers(&held_keys);
+    if let Some(action) = clipboard_action(&input.input.logical_key, held) {
         input.propagate(false);
-        if apply_clipboard(&mut editor.lock(), action, &mut requests) {
+        if apply_clipboard(&mut editor.lock(), action, &mut clipboard) {
             commands.trigger(TextChanged { entity });
         }
         return;
     }
-    let Some(edit) = editor_input(&input.input.logical_key, &held_keys) else {
+    let Some(edit) = editor_input(&input.input.logical_key, held) else {
         return;
     };
     input.propagate(false);
@@ -145,14 +158,13 @@ enum ClipboardAction {
 /// The modifier test mirrors textarea's own, which requires ctrl without
 /// alt; matching it loosely would claim chords the engine would have
 /// handled differently.
-fn clipboard_action(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<ClipboardAction> {
-    let held = held_modifiers(held_keys);
-    if !held.ctrl || held.alt {
-        return None;
-    }
+fn clipboard_action(key: &Key, held: KeyModifiers) -> Option<ClipboardAction> {
     let Key::Character(chars) = key else {
         return None;
     };
+    if !held.ctrl || held.alt {
+        return None;
+    }
     match chars.as_str() {
         "c" => Some(ClipboardAction::Copy),
         "x" => Some(ClipboardAction::Cut),
@@ -167,7 +179,7 @@ fn clipboard_action(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Clipb
 fn apply_clipboard(
     area: &mut TextArea<'static>,
     action: ClipboardAction,
-    requests: &mut MessageWriter<TerminalRequest>,
+    clipboard: &mut Clipboard,
 ) -> bool {
     match action {
         // `copy` cancels the selection and reports nothing, so whether
@@ -175,51 +187,26 @@ fn apply_clipboard(
         ClipboardAction::Copy => {
             if area.is_selecting() {
                 area.copy();
-                offer_yank(area, requests);
+                offer_yank(area, &mut clipboard.requests);
             }
             false
         }
         ClipboardAction::Cut => {
             let cut = area.cut();
             if cut {
-                offer_yank(area, requests);
+                offer_yank(area, &mut clipboard.requests);
             }
             cut
         }
-        ClipboardAction::Paste => area.paste(),
-    }
-}
-
-/// Pushes the app's clipboard echo into every editor's own yank buffer, so
-/// a paste inserts what was last copied anywhere rather than what this
-/// widget last cut.
-///
-/// Only when [`LastCopied`] changes, which is what leaves a local kill
-/// alone: ctrl+k overwrites the buffer here and nothing overwrites it back
-/// until something is genuinely copied. Every editor is synced then, rather
-/// than only the focused one, since focus moves without the resource
-/// changing. An editor spawned after the copy is seeded on arrival instead,
-/// or it would be the one widget in the app that cannot paste what the
-/// others can.
-///
-/// Locking through the [`Arc`] needs no mutable access, so this cannot mark
-/// an editor changed or provoke a redraw.
-pub(crate) fn sync_editor_yank(
-    copied: Res<LastCopied>,
-    editors: Query<&TextEditor>,
-    arrived: Query<&TextEditor, Added<TextEditor>>,
-) {
-    let Some(text) = copied.0.as_deref() else {
-        return;
-    };
-    if copied.is_changed() {
-        for editor in &editors {
-            editor.lock().set_yank_text(text);
-        }
-    } else {
-        for editor in &arrived {
-            editor.lock().set_yank_text(text);
-        }
+        // Read at the press rather than mirrored into the engine's yank
+        // buffer beforehand: `insert_str` is `paste` with the text supplied
+        // instead of taken from that buffer, so going through it would
+        // overwrite a kill the user has not replaced.
+        ClipboardAction::Paste => clipboard
+            .copied
+            .0
+            .as_deref()
+            .is_some_and(|text| area.insert_str(text)),
     }
 }
 
@@ -256,7 +243,7 @@ fn cluster_steps(area: &TextArea<'static>, edit: &Input) -> usize {
     steps.max(1)
 }
 
-fn editor_input(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Input> {
+fn editor_input(key: &Key, held: KeyModifiers) -> Option<Input> {
     let key = match key {
         Key::Character(chars) => EditorKey::Char(chars.chars().next()?),
         Key::Space => EditorKey::Char(' '),
@@ -273,7 +260,6 @@ fn editor_input(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Input> {
         Key::PageDown => EditorKey::PageDown,
         _ => return None,
     };
-    let held = held_modifiers(held_keys);
     Some(Input {
         key,
         ctrl: held.ctrl,
