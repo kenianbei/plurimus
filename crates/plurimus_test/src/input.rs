@@ -11,15 +11,20 @@ use plurimus_term::{
 
 /// Queues a key press with no modifiers.
 pub fn write_key(app: &mut App, code: KeyCode) {
-    write_key_with(app, code, KeyModifiers::default());
+    write_key_kind(app, code, KeyModifiers::default(), KeyKind::Press);
 }
 
-fn write_key_with(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
+fn write_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
     app.world_mut().write_message(KeyMessage {
         code,
         modifiers,
-        kind: KeyKind::Press,
+        kind,
     });
+}
+
+fn press_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
+    write_key_kind(app, code, modifiers, kind);
+    app.update();
 }
 
 /// Queues a mouse message at `(x, y)` with no modifiers.
@@ -42,30 +47,38 @@ pub fn press_key(app: &mut App, code: KeyCode) {
 /// A held key, as a terminal reports it on the kitty tier: widgets repeat
 /// movement on one but must not re-activate.
 pub fn repeat_key(app: &mut App, code: KeyCode) {
-    app.world_mut().write_message(KeyMessage {
-        code,
-        modifiers: KeyModifiers::default(),
-        kind: KeyKind::Repeat,
-    });
-    app.update();
+    press_key_kind(app, code, KeyModifiers::default(), KeyKind::Repeat);
 }
 
 /// Queues a key press carrying `modifiers`, then ticks the app.
 pub fn press_key_with(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
-    write_key_with(app, code, modifiers);
-    app.update();
+    press_key_kind(app, code, modifiers, KeyKind::Press);
 }
 
-/// Presses `modifier`, then `code` carrying it, ticking after each.
+/// A whole chord: presses `modifier`, presses and releases `code` carrying
+/// it, then releases `modifier`, ticking after each.
 ///
-/// Setting the modifier bits alone is not enough on the kitty tier
-/// ([`plurimus_term::InputCapabilities::modifier_keys`]), which reports
-/// real modifier key events: without the leading press,
-/// `ButtonInput<KeyCode>` never sees the modifier as held.
+/// Both halves matter on the kitty tier
+/// ([`plurimus_term::InputCapabilities::modifier_keys`]), which is what a
+/// test app's default capabilities claim. Without the leading press,
+/// `ButtonInput<KeyCode>` never sees the modifier held; without the
+/// releases nothing ever ends the hold, since those same capabilities turn
+/// release synthesis off, and the modifier would reach every later injected
+/// key. The trailing release carries no bits, because a terminal reports the
+/// state left after an event and the legacy tier derives its own modifier
+/// release by diffing successive bitfields.
 pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {
     let modifiers = KeyModifiers::from(modifier);
-    press_key_with(app, KeyCode::Modifier(modifier), modifiers);
-    press_key_with(app, code, modifiers);
+    let modifier_code = KeyCode::Modifier(modifier);
+    press_key_kind(app, modifier_code, modifiers, KeyKind::Press);
+    press_key_kind(app, code, modifiers, KeyKind::Press);
+    press_key_kind(app, code, modifiers, KeyKind::Release);
+    press_key_kind(
+        app,
+        modifier_code,
+        KeyModifiers::default(),
+        KeyKind::Release,
+    );
 }
 
 /// Queues a mouse message at `(x, y)`, then ticks the app.
