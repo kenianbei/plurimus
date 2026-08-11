@@ -11,6 +11,7 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::bundle::Bundle;
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
     Added, Commands, Component, EntityEvent, MessageWriter, On, Query, Res, Without,
@@ -22,7 +23,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::{PasteMessage, TerminalRequest};
+use plurimus_term::{LastCopied, PasteMessage, TerminalRequest};
 use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
@@ -43,14 +44,14 @@ use plurimus_ui::LiveWidget;
 /// ctrl+y paste, shift+arrow selection. Tab is withheld for focus
 /// navigation.
 ///
-/// ctrl+c and ctrl+x are taken over rather than forwarded: they copy and
-/// cut as the engine would, and also ask the terminal for the text through
-/// [`TerminalRequest`], so a copy leaves the app. Neither sends anything
-/// when there is no selection. Whether that reaches a system clipboard is
-/// the backend's business - `plurimus_crossterm` writes none until asked -
-/// but it always reaches
-/// [`LastCopied`](plurimus_term::LastCopied), which is what a paste key
-/// reads.
+/// ctrl+c, ctrl+x and ctrl+v are taken over rather than forwarded. Copy and
+/// cut act as the engine would and also ask the terminal for the text
+/// through [`TerminalRequest`], so a copy leaves the app; neither sends
+/// anything when there is no selection. Whether it reaches a system
+/// clipboard is the backend's business - `plurimus_crossterm` writes none
+/// until asked - but it always reaches [`LastCopied`], which every editor
+/// pastes from, so a copy in one is a paste in another. ctrl+v pastes,
+/// taking a binding the engine spends on page-down.
 ///
 /// Movement and deletion step whole grapheme clusters, but the engine
 /// records one history entry per scalar, so undoing a deleted multi-scalar
@@ -138,6 +139,7 @@ pub(crate) fn text_editor_key(
 enum ClipboardAction {
     Copy,
     Cut,
+    Paste,
 }
 
 /// The modifier test mirrors textarea's own, which requires ctrl without
@@ -154,6 +156,9 @@ fn clipboard_action(key: &Key, held_keys: &ButtonInput<KeyCode>) -> Option<Clipb
     match chars.as_str() {
         "c" => Some(ClipboardAction::Copy),
         "x" => Some(ClipboardAction::Cut),
+        // The engine spends ctrl+v on page-down, which the PageDown key
+        // already reaches; the paste every user expects is worth more.
+        "v" => Some(ClipboardAction::Paste),
         _ => None,
     }
 }
@@ -180,6 +185,40 @@ fn apply_clipboard(
                 offer_yank(area, requests);
             }
             cut
+        }
+        ClipboardAction::Paste => area.paste(),
+    }
+}
+
+/// Pushes the app's clipboard echo into every editor's own yank buffer, so
+/// a paste inserts what was last copied anywhere rather than what this
+/// widget last cut.
+///
+/// Only when [`LastCopied`] changes, which is what leaves a local kill
+/// alone: ctrl+k overwrites the buffer here and nothing overwrites it back
+/// until something is genuinely copied. Every editor is synced then, rather
+/// than only the focused one, since focus moves without the resource
+/// changing. An editor spawned after the copy is seeded on arrival instead,
+/// or it would be the one widget in the app that cannot paste what the
+/// others can.
+///
+/// Locking through the [`Arc`] needs no mutable access, so this cannot mark
+/// an editor changed or provoke a redraw.
+pub(crate) fn sync_editor_yank(
+    copied: Res<LastCopied>,
+    editors: Query<&TextEditor>,
+    arrived: Query<&TextEditor, Added<TextEditor>>,
+) {
+    let Some(text) = copied.0.as_deref() else {
+        return;
+    };
+    if copied.is_changed() {
+        for editor in &editors {
+            editor.lock().set_yank_text(text);
+        }
+    } else {
+        for editor in &arrived {
+            editor.lock().set_yank_text(text);
         }
     }
 }

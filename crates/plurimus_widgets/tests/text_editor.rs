@@ -233,6 +233,57 @@ fn a_copy_fills_the_shared_buffer() {
 }
 
 #[test]
+fn a_copy_in_one_editor_pastes_into_another() {
+    let mut app = app();
+    let source = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+
+    let target = spawn_editor(&mut app, "");
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(target, FocusCause::Pressed);
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('v'));
+
+    assert_eq!(lines_of(&app, target), ["ab"]);
+    assert_eq!(lines_of(&app, source), ["abcd"], "the source is untouched");
+}
+
+#[test]
+fn ctrl_v_pastes_rather_than_paging() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+    press_key(&mut app, KeyCode::End);
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('v'));
+
+    assert_eq!(lines_of(&app, editor), ["abcdab"]);
+}
+
+// The shared buffer must not displace a kill the user has not replaced.
+// A design that read the echo at paste time instead of syncing on change
+// would paste "ab" here.
+#[test]
+fn a_kill_still_yanks_what_it_killed() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    select_from_home(&mut app, 2);
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+
+    press_key(&mut app, KeyCode::Home);
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('k'));
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('y'));
+
+    assert_eq!(
+        lines_of(&app, editor),
+        ["abcd"],
+        "the killed line comes back, not the older copy"
+    );
+}
+
+#[test]
 fn wheel_scrolls_the_viewport() {
     let mut app = app();
     spawn_editor(&mut app, "l1\nl2\nl3\nl4\nl5\nl6");

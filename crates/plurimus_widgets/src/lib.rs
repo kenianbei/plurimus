@@ -75,8 +75,8 @@ pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, s
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use table::{TableRowsChanged, TableSelfChanged, style_tables, table_key, table_press};
 pub(crate) use text::{
-    install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
-    text_input_blur, text_input_key, text_input_paste,
+    install_editor_views, style_text_inputs, sync_editor_yank, text_editor_key, text_editor_paste,
+    text_editor_wheel, text_input_blur, text_input_key, text_input_paste,
 };
 
 use bevy_app::{App, Plugin, PreUpdate, Update};
@@ -146,6 +146,10 @@ fn add_layout_systems(app: &mut App) {
         PreUpdate,
         (
             install_editor_views.before(UiSystems::Areas),
+            // Before dispatch, not in Layout beside its neighbours: a
+            // paste is handled during dispatch, and syncing after it would
+            // insert what the app copied one frame too late.
+            sync_editor_yank.before(InputFocusSystems::Dispatch),
             (size_menu_popups, place_popovers, place_menu_items)
                 .chain()
                 .in_set(WidgetSystems::Layout),
