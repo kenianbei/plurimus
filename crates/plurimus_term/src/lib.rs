@@ -28,15 +28,16 @@ pub use bevy_input::ButtonInput;
 pub use bevy_input::mouse::MouseButton;
 pub use keyboard::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
 pub use mouse::{CursorCell, MouseKind, MouseMessage};
-pub use request::{ClipboardTarget, TerminalRequest};
+pub use request::{ClipboardTarget, LastCopied, RequestSystems, TerminalRequest};
 pub use resize::TerminalResized;
 pub use state::InputSystems;
 pub use synthesis::ReleaseTimeout;
 
+pub(crate) use request::echo_clipboard_writes;
 pub(crate) use state::{track_cursor_cell, update_button_input};
 pub(crate) use synthesis::synthesize_releases;
 
-use bevy_app::{App, Plugin, PreUpdate};
+use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{IntoScheduleConfigs, Resource};
 use plurimus_core::CameraSystems;
@@ -128,6 +129,7 @@ impl Plugin for TermPlugin {
         app.init_resource::<ReleaseTimeout>();
         app.init_resource::<ButtonInput<KeyCode>>();
         app.init_resource::<ButtonInput<MouseButton>>();
+        app.init_resource::<LastCopied>();
         app.add_message::<KeyMessage>();
         app.add_message::<MouseMessage>();
         app.add_message::<PasteMessage>();
@@ -150,5 +152,6 @@ impl Plugin for TermPlugin {
             PreUpdate,
             resize::apply_terminal_resize.in_set(CameraSystems::SyncSize),
         );
+        app.add_systems(Last, echo_clipboard_writes.in_set(RequestSystems::Echo));
     }
 }
