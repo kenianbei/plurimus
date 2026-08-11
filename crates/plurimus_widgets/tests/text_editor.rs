@@ -9,7 +9,7 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{
     InputCapabilities, KeyCode, KeyModifiers, ModifierKey, MouseKind, PasteMessage,
 };
-use plurimus_test::{composed_frame, press_key, press_key_with, send_mouse};
+use plurimus_test::{composed_frame, press_chord, press_key, press_key_with, send_mouse};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextChanged, TextEditor, WidgetsPlugin, text_editor};
 
@@ -142,6 +142,25 @@ fn live_view_renders_edits_without_rebuild() {
     app.update();
 
     insta::assert_snapshot!("editor_live_view", composed_frame(&app));
+}
+
+// A bare key reads held modifier state, not the message's own bits, so a
+// shift outliving its chord turns this Right into a second selection step.
+#[test]
+fn a_chord_leaves_its_modifier_released() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "abcd");
+    press_key(&mut app, KeyCode::Home);
+
+    press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Right);
+    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, KeyCode::Backspace);
+
+    assert_eq!(
+        lines_of(&app, editor),
+        ["acd"],
+        "the bare Right should drop the selection, not extend it"
+    );
 }
 
 #[test]
