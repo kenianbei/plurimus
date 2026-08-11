@@ -58,27 +58,20 @@ pub fn press_key_with(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
 /// A whole chord: presses `modifier`, presses and releases `code` carrying
 /// it, then releases `modifier`, ticking after each.
 ///
-/// Both halves matter on the kitty tier
-/// ([`plurimus_term::InputCapabilities::modifier_keys`]), which is what a
-/// test app's default capabilities claim. Without the leading press,
-/// `ButtonInput<KeyCode>` never sees the modifier held; without the
-/// releases nothing ever ends the hold, since those same capabilities turn
-/// release synthesis off, and the modifier would reach every later injected
-/// key. The trailing release carries no bits, because a terminal reports the
-/// state left after an event and the legacy tier derives its own modifier
-/// release by diffing successive bitfields.
+/// A test app's capabilities claim the kitty tier, where `ButtonInput`
+/// follows real modifier key events rather than the bits a message carries,
+/// and where nothing expires a hold - so bits alone never mark the modifier
+/// held, and a chord that skips its releases reaches every later key. The
+/// last release carries none, reporting the state the event leaves behind,
+/// which is also what the legacy tier diffs to derive its own.
 pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {
-    let modifiers = KeyModifiers::from(modifier);
     let modifier_code = KeyCode::Modifier(modifier);
-    press_key_kind(app, modifier_code, modifiers, KeyKind::Press);
-    press_key_kind(app, code, modifiers, KeyKind::Press);
-    press_key_kind(app, code, modifiers, KeyKind::Release);
-    press_key_kind(
-        app,
-        modifier_code,
-        KeyModifiers::default(),
-        KeyKind::Release,
-    );
+    let held = KeyModifiers::from(modifier);
+    let none = KeyModifiers::default();
+    press_key_kind(app, modifier_code, held, KeyKind::Press);
+    press_key_kind(app, code, held, KeyKind::Press);
+    press_key_kind(app, code, held, KeyKind::Release);
+    press_key_kind(app, modifier_code, none, KeyKind::Release);
 }
 
 /// Queues a mouse message at `(x, y)`, then ticks the app.
