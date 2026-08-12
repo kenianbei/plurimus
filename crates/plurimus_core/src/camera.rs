@@ -89,6 +89,7 @@ impl Default for TerminalCamera {
 
 /// Render-world copy of an active [`TerminalCamera`].
 #[derive(Component, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct ExtractedCamera {
     /// Compositing order, from [`TerminalCamera::order`].
     pub order: isize,
@@ -96,6 +97,18 @@ pub struct ExtractedCamera {
     pub viewport: Rect,
     /// Compositing mode, from [`TerminalCamera::background`].
     pub background: Background,
+}
+
+impl ExtractedCamera {
+    /// A render-world camera over `viewport`.
+    #[must_use]
+    pub const fn new(order: isize, viewport: Rect, background: Background) -> Self {
+        Self {
+            order,
+            viewport,
+            background,
+        }
+    }
 }
 
 /// Screen-coordinate cell buffer that pipelines rasterize into.

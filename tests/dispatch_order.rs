@@ -73,11 +73,11 @@ fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
     app.update();
 
     let world = app.world_mut();
-    world.write_message(KeyMessage {
-        code: KeyCode::Char('a'),
-        modifiers: KeyModifiers::default().with_shift(true),
-        kind: KeyKind::Press,
-    });
+    world.write_message(KeyMessage::new(
+        KeyCode::Char('a'),
+        KeyModifiers::default().with_shift(true),
+        KeyKind::Press,
+    ));
     world.write_message(PasteMessage("x".into()));
     app.update();
 

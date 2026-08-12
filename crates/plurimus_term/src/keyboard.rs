@@ -4,6 +4,7 @@ use bevy_ecs::message::Message;
 
 /// A key event forwarded from the terminal backend.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct KeyMessage {
     /// The key.
     pub code: KeyCode,
@@ -11,6 +12,18 @@ pub struct KeyMessage {
     pub modifiers: KeyModifiers,
     /// Press, repeat, or release.
     pub kind: KeyKind,
+}
+
+impl KeyMessage {
+    /// A key event as a backend reports it.
+    #[must_use]
+    pub const fn new(code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) -> Self {
+        Self {
+            code,
+            modifiers,
+            kind,
+        }
+    }
 }
 
 /// The kind of a key event.

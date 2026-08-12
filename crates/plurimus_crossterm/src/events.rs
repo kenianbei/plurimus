@@ -51,13 +51,13 @@ fn forward_event(terminal_event: Event, sinks: &mut EventSinks) {
             sinks.paste.write(PasteMessage(text));
         }
         Event::FocusGained => {
-            sinks.focus.write(FocusMessage { gained: true });
+            sinks.focus.write(FocusMessage::new(true));
         }
         Event::FocusLost => {
-            sinks.focus.write(FocusMessage { gained: false });
+            sinks.focus.write(FocusMessage::new(false));
         }
         Event::Resize(cols, rows) => {
-            sinks.resize.write(TerminalResized { cols, rows });
+            sinks.resize.write(TerminalResized::new(cols, rows));
         }
     }
 }
@@ -68,15 +68,15 @@ fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
     // Tab so consumers need only one key to reason about.
     let is_back_tab = key.code == event::KeyCode::BackTab;
     let modifiers = convert_modifiers(key.modifiers);
-    Some(KeyMessage {
-        code: convert_code(key.code)?,
-        modifiers: if is_back_tab {
+    Some(KeyMessage::new(
+        convert_code(key.code)?,
+        if is_back_tab {
             modifiers.with_shift(true)
         } else {
             modifiers
         },
-        kind: convert_kind(key.kind),
-    })
+        convert_kind(key.kind),
+    ))
 }
 
 const fn convert_kind(kind: KeyEventKind) -> KeyKind {
@@ -144,11 +144,11 @@ fn convert_modifiers(modifiers: event::KeyModifiers) -> KeyModifiers {
 }
 
 fn convert_mouse(mouse: MouseEvent) -> MouseMessage {
-    MouseMessage {
-        kind: convert_mouse_kind(mouse.kind),
-        position: Position::new(mouse.column, mouse.row),
-        modifiers: convert_modifiers(mouse.modifiers),
-    }
+    MouseMessage::new(
+        convert_mouse_kind(mouse.kind),
+        Position::new(mouse.column, mouse.row),
+        convert_modifiers(mouse.modifiers),
+    )
 }
 
 const fn convert_mouse_kind(kind: MouseEventKind) -> MouseKind {

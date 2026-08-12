@@ -9,6 +9,7 @@ use crate::KeyModifiers;
 
 /// A mouse event in cell coordinates.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MouseMessage {
     /// What happened.
     pub kind: MouseKind,
@@ -16,6 +17,18 @@ pub struct MouseMessage {
     pub position: Position,
     /// Modifier state at event time.
     pub modifiers: KeyModifiers,
+}
+
+impl MouseMessage {
+    /// A mouse event as a backend reports it.
+    #[must_use]
+    pub const fn new(kind: MouseKind, position: Position, modifiers: KeyModifiers) -> Self {
+        Self {
+            kind,
+            position,
+            modifiers,
+        }
+    }
 }
 
 /// The kind of a mouse event.

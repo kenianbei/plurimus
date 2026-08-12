@@ -139,16 +139,15 @@ pub(crate) fn extract_scrolled_widgets(
     ), Without<UiHidden>>();
     for (source, widget, area, order, camera, scroll, offset, live) in widgets.iter(&main_world) {
         let view = cache.view_for(&widget.content(), *scroll, !live);
-        commands.spawn(ExtractedWidget {
-            widget: Arc::new(ScrolledWindow {
-                view,
-                offset: offset.0,
-            }),
-            area: *area,
-            order: order.map_or(0, |order| order.0),
-            source,
-            target: camera.map(|camera| camera.0),
+        let window = Arc::new(ScrolledWindow {
+            view,
+            offset: offset.0,
         });
+        commands.spawn(
+            ExtractedWidget::new(window, *area, source)
+                .with_order(order.map_or(0, |order| order.0))
+                .with_target(camera.map(|camera| camera.0)),
+        );
     }
     cache.sweep();
 }

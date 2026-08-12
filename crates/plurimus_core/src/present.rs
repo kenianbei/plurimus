@@ -23,9 +23,18 @@ use crate::sub_app::{TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSyst
 
 /// Owns the backend that the presenter draws through.
 #[derive(Resource)]
+#[non_exhaustive]
 pub struct TerminalContext<B: Backend + Send + Sync + 'static> {
     /// The backend wired to the terminal.
     pub backend: B,
+}
+
+impl<B: Backend + Send + Sync + 'static> TerminalContext<B> {
+    /// Owns `backend` for the presenter to draw through.
+    #[must_use]
+    pub const fn new(backend: B) -> Self {
+        Self { backend }
+    }
 }
 
 #[derive(Resource)]

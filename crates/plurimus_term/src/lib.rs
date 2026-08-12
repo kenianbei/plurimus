@@ -48,9 +48,18 @@ pub struct PasteMessage(pub String);
 
 /// Terminal focus change.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FocusMessage {
     /// Whether the terminal gained focus.
     pub gained: bool,
+}
+
+impl FocusMessage {
+    /// A focus change, `gained` for focus arriving.
+    #[must_use]
+    pub const fn new(gained: bool) -> Self {
+        Self { gained }
+    }
 }
 
 /// What the active terminal backend can report.
