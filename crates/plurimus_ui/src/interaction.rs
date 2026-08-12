@@ -49,6 +49,7 @@ pub struct ComputedWidgetArea(pub Rect);
 
 /// Pointer click completed on a widget: pressed and released on it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct Click {
     /// The clicked widget.
     pub entity: Entity,
@@ -57,6 +58,7 @@ pub struct Click {
 /// Pointer pressed on a widget. Sent to the topmost hovered widget only,
 /// so a press on an overlay never also reaches widgets beneath it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PointerPress {
     /// The pressed widget.
     pub entity: Entity,
@@ -67,6 +69,7 @@ pub struct PointerPress {
 /// Pointer moved while a widget is [`Pressed`]. Captured to that widget:
 /// it arrives regardless of where the cursor has since moved.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PointerDrag {
     /// The widget the gesture started on.
     pub entity: Entity,
@@ -78,6 +81,7 @@ pub struct PointerDrag {
 /// like [`PointerDrag`]; [`Click`] is the separate activation event, sent
 /// only when the release lands back on the widget.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PointerRelease {
     /// The widget the gesture started on.
     pub entity: Entity,

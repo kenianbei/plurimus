@@ -126,10 +126,7 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
     let editor = app
         .world_mut()
         .spawn((
-            WidgetCursor {
-                cell: Position::new(0, 0),
-                style: TerminalCursorStyle::SteadyBar,
-            },
+            WidgetCursor::new(Position::new(0, 0)).with_style(TerminalCursorStyle::SteadyBar),
             UiArea::Fixed(AREA),
         ))
         .id();
@@ -152,10 +149,7 @@ fn losing_focus_gives_the_apps_own_shape_back() {
     let editor = app
         .world_mut()
         .spawn((
-            WidgetCursor {
-                cell: Position::new(0, 0),
-                style: TerminalCursorStyle::SteadyBar,
-            },
+            WidgetCursor::new(Position::new(0, 0)).with_style(TerminalCursorStyle::SteadyBar),
             UiArea::Fixed(AREA),
         ))
         .id();

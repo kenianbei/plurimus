@@ -30,11 +30,7 @@ pub fn spawn_wall(commands: &mut Commands, maze: &Maze, tile: IVec2) {
     let bitmap: Vec<String> = rows.into_iter().map(|row| row.iter().collect()).collect();
     commands.spawn((
         Spawned,
-        PixelBlock {
-            rows: bitmap,
-            palette: vec![(WALL_PIXEL, WALL_COLOR)],
-            mirrored: false,
-        },
+        PixelBlock::from_rows(bitmap, vec![(WALL_PIXEL, WALL_COLOR)]),
         Transform::from_translation(tile_center(tile).extend(0.0)),
     ));
 }

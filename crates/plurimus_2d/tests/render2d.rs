@@ -92,10 +92,7 @@ fn two_cameras_view_the_world_at_different_scales() {
             order: 1,
             ..TerminalCamera::default()
         },
-        Projection2d {
-            scale: 2.0,
-            ..Projection2d::default()
-        },
+        Projection2d::default().with_scale(2.0),
     ));
     app.world_mut().spawn(glyph_at("@", 2.0, 2.0, 0.0));
     app.world_mut().spawn(glyph_at("#", -2.0, -2.0, 0.0));

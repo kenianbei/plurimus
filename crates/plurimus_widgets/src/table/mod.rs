@@ -86,11 +86,28 @@ pub struct TableStripe(pub Style);
 /// A [`Table`]'s column spacing and extra-space distribution. Defaults to
 /// ratatui's: one cell between columns, spare width left at the end.
 #[derive(Component, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct TableLayout {
     /// Cells between one column and the next.
     pub column_spacing: u16,
     /// Where width the columns did not claim ends up.
     pub flex: Flex,
+}
+
+impl TableLayout {
+    /// Sets the blank columns drawn between cells.
+    #[must_use]
+    pub const fn with_column_spacing(mut self, column_spacing: u16) -> Self {
+        self.column_spacing = column_spacing;
+        self
+    }
+
+    /// Sets how spare width is distributed across columns.
+    #[must_use]
+    pub const fn with_flex(mut self, flex: Flex) -> Self {
+        self.flex = flex;
+        self
+    }
 }
 
 impl Default for TableLayout {
@@ -172,6 +189,7 @@ pub struct TableCursor(pub Line<'static>);
 /// the pointer. Sorting is the app's: reorder the row entities and the
 /// table redraws.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct TableHeaderClick {
     /// The table that was clicked.
     pub entity: Entity,

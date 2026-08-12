@@ -96,6 +96,7 @@ pub struct WheelReceptive;
 /// cannot measure - a `TextEditor` scrolling its own
 /// viewport - should keep.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct WheelAxes {
     /// Consumes horizontal ticks.
     pub horizontal: bool,
@@ -104,6 +105,15 @@ pub struct WheelAxes {
 }
 
 impl WheelAxes {
+    /// The axes a widget can consume, both `false` claiming nothing.
+    #[must_use]
+    pub const fn new(horizontal: bool, vertical: bool) -> Self {
+        Self {
+            horizontal,
+            vertical,
+        }
+    }
+
     const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
         (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
     }
@@ -128,6 +138,7 @@ impl Default for WheelAxes {
 /// a consumer clamps against its own extent, so a step past the end is a
 /// jump to it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct ScrollBy {
     /// The widget receiving the scroll.
     pub entity: Entity,

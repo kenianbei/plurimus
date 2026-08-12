@@ -31,9 +31,24 @@ use crate::extract::MainWorld;
 /// `WidgetCursor`, and that wins for as long as it lasts: a widget caret
 /// and an app caret cannot both have the one terminal cursor.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TerminalCursor {
     /// Screen cell the cursor occupies; `None` hides it.
     pub cell: Option<Position>,
+}
+
+impl TerminalCursor {
+    /// A cursor shown at `cell`.
+    #[must_use]
+    pub const fn at(cell: Position) -> Self {
+        Self { cell: Some(cell) }
+    }
+
+    /// A hidden cursor, which is also [`Default`].
+    #[must_use]
+    pub const fn hidden() -> Self {
+        Self { cell: None }
+    }
 }
 
 /// The cell the presenter last applied, so an unchanged cursor costs no

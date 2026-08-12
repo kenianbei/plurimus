@@ -14,6 +14,7 @@ const DIRECTION_BUCKET_DEGREES: f32 = 45.0;
 
 /// Directional characters for [`EdgeOverlay`], one per gradient bucket.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EdgeCharacters {
     /// Horizontal edges.
     pub horizontal: char,
@@ -68,6 +69,7 @@ impl EdgeSource {
 /// renders an edges-only wireframe. Cells at or below the threshold are
 /// untouched, so the base render shows through.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct EdgeOverlay {
     /// Which frame data the gradients are measured over.
     pub source: EdgeSource,
@@ -85,6 +87,43 @@ pub struct EdgeOverlay {
     pub characters: EdgeCharacters,
     /// Foreground for edge cells; `None` keeps each cell's own color.
     pub color: Option<Color>,
+}
+
+impl EdgeOverlay {
+    /// Sets which frame data the gradients are measured over.
+    #[must_use]
+    pub const fn with_source(mut self, source: EdgeSource) -> Self {
+        self.source = source;
+        self
+    }
+
+    /// Sets the luminance gradient magnitude that draws an edge.
+    #[must_use]
+    pub const fn with_threshold(mut self, threshold: f32) -> Self {
+        self.threshold = threshold;
+        self
+    }
+
+    /// Sets the depth gradient magnitude that draws an edge.
+    #[must_use]
+    pub const fn with_depth_threshold(mut self, depth_threshold: f32) -> Self {
+        self.depth_threshold = depth_threshold;
+        self
+    }
+
+    /// Sets the characters drawn per edge direction.
+    #[must_use]
+    pub const fn with_characters(mut self, characters: EdgeCharacters) -> Self {
+        self.characters = characters;
+        self
+    }
+
+    /// Sets the foreground for edge cells; `None` keeps each cell's own.
+    #[must_use]
+    pub const fn with_color(mut self, color: Option<Color>) -> Self {
+        self.color = color;
+        self
+    }
 }
 
 impl Default for EdgeOverlay {

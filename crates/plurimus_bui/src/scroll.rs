@@ -66,8 +66,8 @@ pub(crate) fn bui_node_scrolled(
 }
 
 fn overflow_axes(overflow: Overflow) -> WheelAxes {
-    WheelAxes {
-        horizontal: overflow.x == OverflowAxis::Scroll,
-        vertical: overflow.y == OverflowAxis::Scroll,
-    }
+    WheelAxes::new(
+        overflow.x == OverflowAxis::Scroll,
+        overflow.y == OverflowAxis::Scroll,
+    )
 }

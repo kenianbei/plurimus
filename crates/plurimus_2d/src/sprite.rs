@@ -93,6 +93,7 @@ pub struct Pixel {
 /// against which it interleaves.
 #[derive(Component, Debug, Clone, Default)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct PixelBlock {
     /// Rows of palette-indexed pixels, top to bottom.
     pub rows: Vec<String>,
@@ -109,6 +110,17 @@ impl PixelBlock {
     pub fn new(text: impl Into<String>, palette: impl Into<Vec<(char, Color)>>) -> Self {
         Self {
             rows: text.into().split('\n').map(String::from).collect(),
+            palette: palette.into(),
+            mirrored: false,
+        }
+    }
+
+    /// A block from rows already split, for a bitmap built a row at a
+    /// time rather than written as a literal.
+    #[must_use]
+    pub fn from_rows(rows: impl Into<Vec<String>>, palette: impl Into<Vec<(char, Color)>>) -> Self {
+        Self {
+            rows: rows.into(),
             palette: palette.into(),
             mirrored: false,
         }

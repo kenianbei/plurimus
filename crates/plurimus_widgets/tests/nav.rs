@@ -122,7 +122,7 @@ fn disabled_widget_is_not_a_navigation_target() {
 #[test]
 fn auto_build_opt_out_leaves_the_map_untouched() {
     let mut app = app();
-    app.insert_resource(NavigationConfig { auto_build: false });
+    app.insert_resource(NavigationConfig::default().with_auto_build(false));
     let left = spawn_focusable(&mut app, Rect::new(2, 1, 6, 1), TabIndex(0));
     let right = spawn_focusable(&mut app, Rect::new(12, 1, 6, 1), TabIndex(0));
     app.update();

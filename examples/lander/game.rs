@@ -176,10 +176,9 @@ fn cycle_edges(
     for (camera, _, overlay) in cameras.iter() {
         match next_edge_source(overlay.map(|overlay| overlay.source)) {
             Some(source) => {
-                commands.entity(camera).insert(EdgeOverlay {
-                    source,
-                    ..EdgeOverlay::default()
-                });
+                commands
+                    .entity(camera)
+                    .insert(EdgeOverlay::default().with_source(source));
             }
             None => {
                 commands.entity(camera).remove::<EdgeOverlay>();
