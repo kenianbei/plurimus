@@ -75,8 +75,8 @@ pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, s
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use table::{TableRowsChanged, TableSelfChanged, style_tables, table_key, table_press};
 pub(crate) use text::{
-    install_editor_views, style_text_inputs, text_editor_key, text_editor_paste, text_editor_wheel,
-    text_input_blur, text_input_key, text_input_paste,
+    install_editor_views, style_text_inputs, text_editor_key, text_editor_paste,
+    text_editor_scrolled, text_input_blur, text_input_key, text_input_paste,
 };
 
 use bevy_app::{App, Plugin, PreUpdate, Update};
@@ -206,7 +206,7 @@ fn add_observers(app: &mut App) {
     app.add_observer(text_input_blur);
     app.add_observer(text_editor_key);
     app.add_observer(text_editor_paste);
-    app.add_observer(text_editor_wheel);
+    app.add_observer(text_editor_scrolled);
     app.add_observer(menu_button_activate);
     app.add_observer(menu_item_click);
     app.add_observer(menu_key);

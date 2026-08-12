@@ -5,7 +5,6 @@ use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Commands, On, Query, With, Without};
-use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
@@ -20,7 +19,7 @@ use super::{
 };
 use crate::listbox::ActiveDescendant;
 use plurimus_ui::{
-    ComputedWidgetArea, InteractionDisabled, PointerPress, ScrollIntoView, ValueChange,
+    ComputedWidgetArea, InteractionDisabled, PointerPress, ScrollIntoView, ValueChange, first_bound,
 };
 
 type Navigable<'a> = (
@@ -56,7 +55,7 @@ pub(crate) fn table_key(
     else {
         return;
     };
-    let Some(action) = bound_action(keys, &input.input) else {
+    let Some(action) = first_bound(&keys.0, &input.input) else {
         return;
     };
     input.propagate(false);
@@ -174,16 +173,6 @@ fn position(
         row: selection.tracks_row().then_some(active.0).flatten(),
         column: selection.tracks_column().then_some(column.0).flatten(),
     }
-}
-
-fn bound_action(keys: &TableKeys, input: &KeyboardInput) -> Option<TableAction> {
-    if input.state != ButtonState::Pressed {
-        return None;
-    }
-    keys.0
-        .iter()
-        .find(|(key, _)| *key == input.logical_key)
-        .map(|(_, action)| *action)
 }
 
 fn moved_row(action: TableAction, current: Option<usize>, last: usize, page: usize) -> usize {

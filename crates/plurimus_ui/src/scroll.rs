@@ -27,7 +27,7 @@ use crate::modal::ModalGuard;
 /// windowed into the resolved area at render time by its
 /// [`ScrollOffset`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-#[require(ScrollOffset, WheelReceptive, RasterDeferred)]
+#[require(ScrollOffset, WheelReceptive, RasterDeferred, ComputedWidgetArea)]
 pub struct ScrollArea {
     /// Content extent in cells.
     pub content_size: Size,
@@ -76,9 +76,12 @@ pub struct ScrollIntoView {
 
 /// Marks a widget as a wheel target. Every receptive widget under the
 /// cursor is arbitrated by z-order and only the topmost is sent a
-/// [`WheelScroll`], so stacked widgets never both scroll. Widgets with
+/// [`ScrollBy`], so stacked widgets never both scroll. Widgets with
 /// [`InteractionDisabled`] are skipped, and the tick falls through to the
 /// next receptive widget beneath.
+///
+/// Wheel arbitration only: a scroll addressed to a widget by any other
+/// route reaches it without consulting this.
 #[derive(Component, Debug, Clone, Copy, Default)]
 #[require(WheelAxes)]
 pub struct WheelReceptive;
@@ -101,7 +104,7 @@ pub struct WheelAxes {
 }
 
 impl WheelAxes {
-    const fn consumes(self, (columns, rows): (i16, i16)) -> bool {
+    const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
         (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
     }
 }
@@ -115,13 +118,21 @@ impl Default for WheelAxes {
     }
 }
 
-/// One wheel tick, delivered to the arbitrated widget.
+/// A scroll of `step` cells, delivered to one widget.
+///
+/// Produced by a wheel tick over the widget and by a key bound through
+/// [`ScrollKeys`](crate::ScrollKeys); an app triggers it directly to
+/// scroll a widget from anywhere else.
+///
+/// The step is what the producer asked for, not what the content allows:
+/// a consumer clamps against its own extent, so a step past the end is a
+/// jump to it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
-pub struct WheelScroll {
-    /// The widget receiving the tick.
+pub struct ScrollBy {
+    /// The widget receiving the scroll.
     pub entity: Entity,
     /// Step in cells, as (columns, rows).
-    pub step: (i16, i16),
+    pub step: (i32, i32),
 }
 
 type WheelTargetQuery<'w, 's> =
@@ -145,7 +156,7 @@ pub(crate) fn route_wheel(
         let Some(entity) = topmost_at(message.position, &targets, consumes) else {
             continue;
         };
-        commands.trigger(WheelScroll { entity, step });
+        commands.trigger(ScrollBy { entity, step });
     }
 }
 
@@ -172,8 +183,8 @@ type OffsetQuery<'w, 's> = Query<
     ),
 >;
 
-pub(crate) fn scroll_area_wheel(
-    event: On<WheelScroll>,
+pub(crate) fn scroll_area_scrolled(
+    event: On<ScrollBy>,
     mut areas: OffsetQuery,
     mut commands: Commands,
 ) {
@@ -182,10 +193,18 @@ pub(crate) fn scroll_area_wheel(
     };
     let max = max_offset(scroll.content_size, computed.0);
     let stepped = Position::new(
-        offset.0.x.saturating_add_signed(event.step.0).min(max.x),
-        offset.0.y.saturating_add_signed(event.step.1).min(max.y),
+        stepped_offset(offset.0.x, event.step.0, max.x),
+        stepped_offset(offset.0.y, event.step.1, max.y),
     );
     apply_offset(event.entity, stepped, &mut offset, &mut commands);
+}
+
+// Saturating rather than wrapping, because a step asking for an extreme
+// is i32 at full range and would overflow the sum on the way there.
+fn stepped_offset(offset: u16, step: i32, max: u16) -> u16 {
+    i32::from(offset)
+        .saturating_add(step)
+        .clamp(0, i32::from(max)) as u16
 }
 
 pub(crate) fn scroll_into_view(
@@ -216,7 +235,7 @@ pub(crate) fn scroll_into_view(
     apply_offset(event.entity, revealed, &mut offset, &mut commands);
 }
 
-const fn wheel_step(kind: MouseKind) -> Option<(i16, i16)> {
+const fn wheel_step(kind: MouseKind) -> Option<(i32, i32)> {
     match kind {
         MouseKind::ScrollUp => Some((0, -1)),
         MouseKind::ScrollDown => Some((0, 1)),
@@ -300,11 +319,28 @@ fn reveal_axis(offset: u16, start: u16, length: u16, window: u16) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{content_cell, screen_cell};
+    use super::{content_cell, screen_cell, stepped_offset};
     use plurimus_core::ratatui_core::layout::{Position, Rect};
 
     const AREA: Rect = Rect::new(4, 2, 10, 5);
     const UNSCROLLED: Position = Position::new(0, 0);
+
+    #[test]
+    fn a_step_moves_the_offset_and_stops_at_either_bound() {
+        assert_eq!(stepped_offset(10, 5, 100), 15);
+        assert_eq!(stepped_offset(10, -5, 100), 5);
+        assert_eq!(stepped_offset(10, -50, 100), 0);
+        assert_eq!(stepped_offset(10, 500, 100), 100);
+    }
+
+    // A jump to an extreme is a step at the full range of its type, which
+    // must saturate at the bound rather than overflow reaching it.
+    #[test]
+    fn a_step_past_the_offsets_own_range_still_lands_on_the_bound() {
+        assert_eq!(stepped_offset(u16::MAX - 1, i32::MAX, u16::MAX), u16::MAX);
+        assert_eq!(stepped_offset(u16::MAX - 1, i32::MIN, u16::MAX), 0);
+        assert_eq!(stepped_offset(0, i32::from(i16::MAX) + 1, u16::MAX), 32768);
+    }
 
     #[test]
     fn a_cell_inside_the_area_is_its_offset_from_the_origin() {

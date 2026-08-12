@@ -8,6 +8,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A scrolled pane can be scrolled from the keyboard.** `ScrollKeys` binds keys
+  to `ScrollAction`s - page, jump to either end, move by a row - and is the
+  whole opt-in: it carries `TabIndex`, so adding it makes the widget a tab stop
+  that can be sent a key at all. Bindings are data scanned in order, the
+  treatment `ListBoxKeys` and `TableKeys` already had, so an app remaps a pane
+  to vim keys by replacing the component. Deliberately not required by
+  `ScrollArea`, since a list box, table, or editor owning its own movement keys
+  would otherwise answer one press twice. Horizontal actions exist but ship
+  unbound, so an area that does not overflow sideways leaves the left and right
+  arrows to directional navigation. A bound key is consumed whether or not the
+  offset moved, so a pane sitting at an extreme does not lose focus to a
+  neighbour instead of ignoring the key.
+- **`plurimus_ui::first_bound`**, the scan behind all three bindings components,
+  so a widget library outside this workspace states "first match wins, a release
+  binds to nothing" by calling it rather than by copying it. `plurimus_ui` now
+  also re-exports `bevy_input`'s `Key`, the type those bindings are written in.
 - **A paste key can be correct.** `LastCopied` records what an app last asked
   the clipboard for, filled by a stock system from the `TerminalRequest` stream
   in the new `RequestSystems::Echo` set. Plurimus still never reads the system
@@ -20,8 +36,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stream stayed one-way. Apps may also write it, to seed what a paste key
   inserts.
 
+### Fixed
+
+- **A `ScrollArea` with no widget of its own now scrolls.** Every scroll system
+  reads the resolved area, which was attached only to entities that draw, so an
+  area drawn by something else - a bevy_ui subtree, an app's own rasterizer -
+  silently refused the wheel. `ScrollArea` now requires `ComputedWidgetArea`.
+
 ### Changed
 
+- **`WheelScroll` is now `ScrollBy`, and its step is `(i32, i32)`.** The event
+  was never about the wheel - it is the one way anything asks a widget to
+  scroll, and the keyboard is now a second producer, so the name said something
+  false the moment it had one. The wider step lets a jump to a content edge be
+  an ordinary saturated step rather than a special case, and every consumer
+  clamps it against its own extent as before. Apps observing the event rename
+  the type and widen the tuple; nothing else about it moved.
 - **A `TextEditor` copy now leaves the app.** ctrl+c and ctrl+x still copy and
   cut as ratatui-textarea would, but also offer the text to the terminal through
   `TerminalRequest`, where before both moved it into a buffer private to the one

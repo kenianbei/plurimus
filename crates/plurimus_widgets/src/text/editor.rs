@@ -30,7 +30,7 @@ use super::grapheme::{cluster_len_after, cluster_len_before};
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::held_modifiers;
 use plurimus_ui::{Hovered, InteractionDisabled};
-use plurimus_ui::{WheelReceptive, WheelScroll};
+use plurimus_ui::{ScrollBy, WheelReceptive};
 
 use plurimus_ui::LiveWidget;
 
@@ -283,12 +283,18 @@ pub(crate) fn text_editor_paste(
     commands.trigger(TextChanged { entity });
 }
 
-pub(crate) fn text_editor_wheel(event: On<WheelScroll>, editors: Query<&TextEditor>) {
+pub(crate) fn text_editor_scrolled(event: On<ScrollBy>, editors: Query<&TextEditor>) {
     let Ok(editor) = editors.get(event.entity) else {
         return;
     };
     let (step_x, step_y) = event.step;
-    editor.lock().scroll((step_y, step_x));
+    // The engine's own delta is i16; a larger step is a jump it clamps
+    // to its extent anyway.
+    editor.lock().scroll((narrowed(step_y), narrowed(step_x)));
+}
+
+fn narrowed(step: i32) -> i16 {
+    step.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16
 }
 
 /// Deliberate exception to the immutable-`UiWidget` contract: reads live

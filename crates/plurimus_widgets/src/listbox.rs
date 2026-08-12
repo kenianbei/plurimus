@@ -12,7 +12,6 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Children, Commands, Component, On, Query, With, Without};
-use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -23,6 +22,7 @@ use super::{ValueChange, placeholder};
 use crate::rows::ContentDirty;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
+use plurimus_ui::first_bound;
 use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
@@ -157,7 +157,7 @@ pub(crate) fn listbox_key(
     let Ok((children, keys, area, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let Some(action) = bound_action(keys, &input.input) else {
+    let Some(action) = first_bound(&keys.0, &input.input) else {
         return;
     };
     input.propagate(false);
@@ -197,16 +197,6 @@ fn reveal_row(listbox: Entity, span: RowSpan, commands: &mut Commands) {
         entity: listbox,
         target: Rect::new(0, span.top, 1, span.height),
     });
-}
-
-fn bound_action(keys: &ListBoxKeys, input: &KeyboardInput) -> Option<ListBoxAction> {
-    if input.state != ButtonState::Pressed {
-        return None;
-    }
-    keys.0
-        .iter()
-        .find(|(key, _)| *key == input.logical_key)
-        .map(|(_, action)| *action)
 }
 
 fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
