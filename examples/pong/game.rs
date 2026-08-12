@@ -75,9 +75,7 @@ fn spawn_scene(mut commands: Commands) {
     spawn_paddle(&mut commands, PADDLE_X, (KeyCode::Up, KeyCode::Down));
     commands.spawn((
         Ball::default(),
-        Pixel {
-            color: Color::White,
-        },
+        Pixel::new(Color::White),
         Transform::default(),
     ));
 }
@@ -88,7 +86,7 @@ fn spawn_court(commands: &mut Commands) {
         let column = -COURT_HALF_WIDTH + step as f32 * WALL_CELL_WIDTH;
         for row in [-COURT_HALF_HEIGHT, COURT_HALF_HEIGHT] {
             commands.spawn((
-                Glyph::new("─").style(wall_style),
+                Glyph::new("─").with_style(wall_style),
                 Transform::from_xyz(column, row, 0.0),
             ));
         }
@@ -103,7 +101,7 @@ fn spawn_paddle(commands: &mut Commands, x: f32, direction_keys: (KeyCode, KeyCo
     for step in 0..PADDLE_GLYPH_COUNT {
         let offset = -PADDLE_HALF_HEIGHT + CELL_HEIGHT / 2.0 + step as f32 * CELL_HEIGHT;
         commands.spawn((
-            Glyph::new("█").style(style),
+            Glyph::new("█").with_style(style),
             Transform::from_xyz(0.0, offset, 1.0),
             ChildOf(root),
         ));

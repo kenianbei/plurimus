@@ -26,7 +26,7 @@ const AREA: Rect = Rect::new(0, 0, 20, 6);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
@@ -73,11 +73,11 @@ fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
     app.update();
 
     let world = app.world_mut();
-    world.write_message(KeyMessage {
-        code: KeyCode::Char('a'),
-        modifiers: KeyModifiers::default().with_shift(true),
-        kind: KeyKind::Press,
-    });
+    world.write_message(KeyMessage::new(
+        KeyCode::Char('a'),
+        KeyModifiers::default().with_shift(true),
+        KeyKind::Press,
+    ));
     world.write_message(PasteMessage("x".into()));
     app.update();
 

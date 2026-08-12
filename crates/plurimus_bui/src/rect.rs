@@ -22,6 +22,7 @@ use super::upsert;
 /// [`ComputedWidgetArea`](plurimus_ui::ComputedWidgetArea), which the bridge
 /// maintains only for interactive nodes, every laid-out node carries one.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ComputedNodeRect {
     /// The outer rect, border and padding included.
     pub rect: Rect,

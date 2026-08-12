@@ -33,10 +33,20 @@ const GRID_MIN_ALIGNMENT: f32 = 0.5;
 /// Controls the stock rebuild of the
 /// [`DirectionalNavigationMap`](bevy_input_focus::directional_navigation::DirectionalNavigationMap).
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct NavigationConfig {
     /// Rebuild the map from widget geometry whenever it changes. Hand-made
     /// edges survive rebuilds; disable to own the map entirely.
     pub auto_build: bool,
+}
+
+impl NavigationConfig {
+    /// Sets whether the map is rebuilt from widget geometry.
+    #[must_use]
+    pub const fn with_auto_build(mut self, auto_build: bool) -> Self {
+        self.auto_build = auto_build;
+        self
+    }
 }
 
 impl Default for NavigationConfig {

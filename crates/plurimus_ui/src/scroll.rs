@@ -28,6 +28,7 @@ use crate::modal::ModalGuard;
 /// [`ScrollOffset`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(ScrollOffset, WheelReceptive, RasterDeferred, ComputedWidgetArea)]
+#[non_exhaustive]
 pub struct ScrollArea {
     /// Content extent in cells.
     pub content_size: Size,
@@ -44,6 +45,14 @@ impl ScrollArea {
             content_size,
             scrollbars: ScrollbarVisibility::Automatic,
         }
+    }
+
+    /// Sets which scrollbars the area draws for itself; `Never` when a
+    /// bar beside it supplies the visuals instead.
+    #[must_use]
+    pub const fn with_scrollbars(mut self, scrollbars: ScrollbarVisibility) -> Self {
+        self.scrollbars = scrollbars;
+        self
     }
 
     /// Usable content width inside `area_width`, accounting for the
@@ -96,6 +105,7 @@ pub struct WheelReceptive;
 /// cannot measure - a `TextEditor` scrolling its own
 /// viewport - should keep.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct WheelAxes {
     /// Consumes horizontal ticks.
     pub horizontal: bool,
@@ -104,6 +114,15 @@ pub struct WheelAxes {
 }
 
 impl WheelAxes {
+    /// The axes a widget can consume, both `false` claiming nothing.
+    #[must_use]
+    pub const fn new(horizontal: bool, vertical: bool) -> Self {
+        Self {
+            horizontal,
+            vertical,
+        }
+    }
+
     const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
         (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
     }
@@ -128,11 +147,20 @@ impl Default for WheelAxes {
 /// a consumer clamps against its own extent, so a step past the end is a
 /// jump to it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct ScrollBy {
     /// The widget receiving the scroll.
     pub entity: Entity,
     /// Step in cells, as (columns, rows).
     pub step: (i32, i32),
+}
+
+impl ScrollBy {
+    /// A scroll of `step` cells addressed to `entity`.
+    #[must_use]
+    pub const fn new(entity: Entity, step: (i32, i32)) -> Self {
+        Self { entity, step }
+    }
 }
 
 type WheelTargetQuery<'w, 's> =
@@ -254,11 +282,7 @@ pub fn apply_offset(
     commands: &mut Commands,
 ) {
     if offset.set_if_neq(ScrollOffset(position)) {
-        commands.trigger(ValueChange {
-            source: entity,
-            value: position,
-            is_final: true,
-        });
+        commands.trigger(ValueChange::new(entity, position, true));
     }
 }
 

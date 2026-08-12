@@ -18,6 +18,9 @@ use plurimus_ui::ComputedWidgetArea;
 
 /// Which side of the anchor the popover opens on; mirrored to the
 /// opposite side when it would overflow the camera viewport.
+///
+/// Closed: a rect has four sides, which is what makes [`Self::mirror`]
+/// total.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PopoverSide {
     /// Above the anchor.
@@ -45,6 +48,8 @@ impl PopoverSide {
 }
 
 /// Alignment along the anchor edge the popover attaches to.
+///
+/// Closed: start, center and end span the edge.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PopoverAlign {
     /// Leading edges aligned.
@@ -62,6 +67,7 @@ pub enum PopoverAlign {
 /// The anchor must not itself be a popover.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(UiOrder = UiOrder::OVERLAY)]
+#[non_exhaustive]
 pub struct Popover {
     /// The widget this popover attaches to.
     pub anchor: Entity,
@@ -71,6 +77,20 @@ pub struct Popover {
     pub align: PopoverAlign,
     /// Popover size in cells.
     pub size: Size,
+}
+
+impl Popover {
+    /// A popover of `size` cells below `anchor`, leading edges aligned -
+    /// the two [`Default`] placements.
+    #[must_use]
+    pub const fn new(anchor: Entity, size: Size) -> Self {
+        Self {
+            anchor,
+            side: PopoverSide::Bottom,
+            align: PopoverAlign::Start,
+            size,
+        }
+    }
 }
 
 pub(crate) fn place_popovers(

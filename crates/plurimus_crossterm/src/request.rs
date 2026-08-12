@@ -109,16 +109,17 @@ pub(crate) fn write_cursor_style<W: Write + Send + Sync + 'static>(
     Ok(())
 }
 
-/// `None` for the terminal's own shape, which is asked for by not asking.
+/// `None` for the terminal's own shape, which is asked for by not asking -
+/// and which a shape this backend has no escape for falls back to.
 const fn cursor_style(style: TerminalCursorStyle) -> Option<SetCursorStyle> {
     match style {
-        TerminalCursorStyle::Default => None,
         TerminalCursorStyle::BlinkingBlock => Some(SetCursorStyle::BlinkingBlock),
         TerminalCursorStyle::SteadyBlock => Some(SetCursorStyle::SteadyBlock),
         TerminalCursorStyle::BlinkingUnderline => Some(SetCursorStyle::BlinkingUnderScore),
         TerminalCursorStyle::SteadyUnderline => Some(SetCursorStyle::SteadyUnderScore),
         TerminalCursorStyle::BlinkingBar => Some(SetCursorStyle::BlinkingBar),
         TerminalCursorStyle::SteadyBar => Some(SetCursorStyle::SteadyBar),
+        _ => None,
     }
 }
 
@@ -223,7 +224,7 @@ mod tests {
         let writer = SharedWriter::default();
         let mut app = App::new();
         app.add_plugins((CorePlugin, plurimus_term::TermPlugin));
-        app.insert_resource(TerminalSize { cols: 10, rows: 2 });
+        app.insert_resource(TerminalSize::new(10, 2));
         app.add_plugins(PresenterPlugin::new(CrosstermBackend::new(writer.clone())));
         app.add_extract_systems((
             write_terminal_requests::<SharedWriter>,

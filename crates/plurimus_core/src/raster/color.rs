@@ -45,6 +45,7 @@ const ANSI16_PALETTE: [(Color, [u8; 3]); 16] = [
 /// the frame after compositing, before present. A main-world resource,
 /// defaulting to `TrueColor`.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ColorDepth {
     /// 24-bit RGB pass-through.
     #[default]
@@ -161,7 +162,7 @@ mod tests {
     fn ansi16_app() -> App {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 2, rows: 1 });
+        app.insert_resource(TerminalSize::new(2, 1));
         app.insert_resource(ColorDepth::Ansi16);
         app.world_mut().spawn(TerminalCamera::default());
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_truecolor);

@@ -49,14 +49,24 @@ pub struct ComputedWidgetArea(pub Rect);
 
 /// Pointer click completed on a widget: pressed and released on it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct Click {
     /// The clicked widget.
     pub entity: Entity,
 }
 
+impl Click {
+    /// A click completed on `entity`.
+    #[must_use]
+    pub const fn new(entity: Entity) -> Self {
+        Self { entity }
+    }
+}
+
 /// Pointer pressed on a widget. Sent to the topmost hovered widget only,
 /// so a press on an overlay never also reaches widgets beneath it.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PointerPress {
     /// The pressed widget.
     pub entity: Entity,
@@ -64,9 +74,18 @@ pub struct PointerPress {
     pub position: Position,
 }
 
+impl PointerPress {
+    /// A press on `entity` at `position`.
+    #[must_use]
+    pub const fn new(entity: Entity, position: Position) -> Self {
+        Self { entity, position }
+    }
+}
+
 /// Pointer moved while a widget is [`Pressed`]. Captured to that widget:
 /// it arrives regardless of where the cursor has since moved.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PointerDrag {
     /// The widget the gesture started on.
     pub entity: Entity,
@@ -74,15 +93,32 @@ pub struct PointerDrag {
     pub position: Position,
 }
 
+impl PointerDrag {
+    /// A drag captured to `entity`, now at `position`.
+    #[must_use]
+    pub const fn new(entity: Entity, position: Position) -> Self {
+        Self { entity, position }
+    }
+}
+
 /// Pointer released, ending the gesture on a [`Pressed`] widget. Captured
 /// like [`PointerDrag`]; [`Click`] is the separate activation event, sent
 /// only when the release lands back on the widget.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PointerRelease {
     /// The widget the gesture started on.
     pub entity: Entity,
     /// Cursor cell at release time.
     pub position: Position,
+}
+
+impl PointerRelease {
+    /// A release ending the gesture on `entity`.
+    #[must_use]
+    pub const fn new(entity: Entity, position: Position) -> Self {
+        Self { entity, position }
+    }
 }
 
 /// Arbitration key: highest band first, then the innermost (smallest)
@@ -303,6 +339,7 @@ fn release_all(
 /// `f32` for sliders, [`Entity`] for selections, `String` for text,
 /// `Position` for scroll offsets.
 #[derive(EntityEvent, Debug, Clone)]
+#[non_exhaustive]
 pub struct ValueChange<T: Send + Sync + 'static> {
     /// The widget whose value changed.
     #[event_target]
@@ -312,4 +349,17 @@ pub struct ValueChange<T: Send + Sync + 'static> {
     /// Whether this ends an interaction (a released drag, Enter) rather
     /// than an intermediate step of one.
     pub is_final: bool,
+}
+
+impl<T: Send + Sync + 'static> ValueChange<T> {
+    /// A change of `source` to `value`, `is_final` when it ends an
+    /// interaction rather than stepping through one.
+    #[must_use]
+    pub const fn new(source: Entity, value: T, is_final: bool) -> Self {
+        Self {
+            source,
+            value,
+            is_final,
+        }
+    }
 }

@@ -17,12 +17,22 @@ use ratatui_core::layout::Rect;
 /// middle of the viewport. World space is Y-up.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct Projection2d {
     /// World units per cell column; larger values zoom out.
     pub scale: f32,
     /// Cell height in units of cell width; terminal cells are tall, so a
     /// square world shape looks square on screen at the default.
     pub cell_aspect: f32,
+}
+
+impl Projection2d {
+    /// Sets world units per cell column.
+    #[must_use]
+    pub const fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
 }
 
 impl Default for Projection2d {
@@ -38,6 +48,7 @@ impl Default for Projection2d {
 /// entities. A per-camera component beside [`Projection2d`]; absent
 /// means halfblocks.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum SubcellMode {
     /// 1×2 points per cell, colored foreground and background.
     #[default]

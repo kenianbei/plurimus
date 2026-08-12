@@ -14,6 +14,7 @@ const DIRECTION_BUCKET_DEGREES: f32 = 45.0;
 
 /// Directional characters for [`EdgeOverlay`], one per gradient bucket.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EdgeCharacters {
     /// Horizontal edges.
     pub horizontal: char,
@@ -38,6 +39,7 @@ impl Default for EdgeCharacters {
 
 /// What an [`EdgeOverlay`] measures its gradients over.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EdgeSource {
     /// Shading gradients of the color frame.
     #[default]
@@ -67,6 +69,7 @@ impl EdgeSource {
 /// renders an edges-only wireframe. Cells at or below the threshold are
 /// untouched, so the base render shows through.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct EdgeOverlay {
     /// Which frame data the gradients are measured over.
     pub source: EdgeSource,
@@ -84,6 +87,15 @@ pub struct EdgeOverlay {
     pub characters: EdgeCharacters,
     /// Foreground for edge cells; `None` keeps each cell's own color.
     pub color: Option<Color>,
+}
+
+impl EdgeOverlay {
+    /// Sets which frame data the gradients are measured over.
+    #[must_use]
+    pub const fn with_source(mut self, source: EdgeSource) -> Self {
+        self.source = source;
+        self
+    }
 }
 
 impl Default for EdgeOverlay {

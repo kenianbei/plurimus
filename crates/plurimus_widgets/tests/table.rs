@@ -24,7 +24,7 @@ const AREA: Rect = Rect::new(0, 0, 20, 6);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
@@ -91,10 +91,9 @@ fn columns_land_where_their_constraints_put_them() {
 fn a_wider_column_spacing_moves_the_second_column() {
     let mut app = app();
     let (table, _) = spawn_table(&mut app);
-    app.world_mut().entity_mut(table).insert(TableLayout {
-        column_spacing: 3,
-        ..TableLayout::default()
-    });
+    app.world_mut()
+        .entity_mut(table)
+        .insert(TableLayout::default().with_column_spacing(3));
     app.update();
 
     let frame = composed_frame(&app);
@@ -323,10 +322,9 @@ fn a_table_edit_reaches_the_stylist() {
     );
     assert!(
         rebuilds_after(|app, table, _| {
-            app.world_mut().entity_mut(table).insert(TableLayout {
-                column_spacing: 3,
-                ..TableLayout::default()
-            });
+            app.world_mut()
+                .entity_mut(table)
+                .insert(TableLayout::default().with_column_spacing(3));
         }),
         "the column spacing"
     );

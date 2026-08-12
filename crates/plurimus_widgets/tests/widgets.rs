@@ -19,7 +19,7 @@ use plurimus_widgets::{
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 30, rows: 8 });
+    app.insert_resource(TerminalSize::new(30, 8));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

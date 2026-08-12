@@ -40,6 +40,7 @@ pub struct WidgetRasterize;
 /// pipelines spawn their own during extraction; every `ExtractedWidget`
 /// entity is despawned at the start of the next extraction.
 #[derive(Component)]
+#[non_exhaustive]
 pub struct ExtractedWidget {
     /// What to render.
     pub widget: Arc<dyn TerminalWidget>,
@@ -51,6 +52,36 @@ pub struct ExtractedWidget {
     pub source: Entity,
     /// Main-world target camera; `None` falls back to the default camera.
     pub target: Option<Entity>,
+}
+
+impl ExtractedWidget {
+    /// A widget extracted for `source`, on the default camera at order
+    /// zero.
+    #[must_use]
+    pub fn new(widget: Arc<dyn TerminalWidget>, area: UiArea, source: Entity) -> Self {
+        Self {
+            widget,
+            area,
+            order: 0,
+            source,
+            target: None,
+        }
+    }
+
+    /// Sets the z-order; higher renders later, on top.
+    #[must_use]
+    pub const fn with_order(mut self, order: i32) -> Self {
+        self.order = order;
+        self
+    }
+
+    /// Sets the main-world camera to render on; `None` is the default
+    /// camera.
+    #[must_use]
+    pub const fn with_target(mut self, target: Option<Entity>) -> Self {
+        self.target = target;
+        self
+    }
 }
 
 pub(crate) fn extract_widgets(

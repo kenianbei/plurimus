@@ -4,6 +4,7 @@ use bevy_ecs::message::Message;
 
 /// A key event forwarded from the terminal backend.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct KeyMessage {
     /// The key.
     pub code: KeyCode,
@@ -13,11 +14,26 @@ pub struct KeyMessage {
     pub kind: KeyKind,
 }
 
+impl KeyMessage {
+    /// A key event as a backend reports it.
+    #[must_use]
+    pub const fn new(code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) -> Self {
+        Self {
+            code,
+            modifiers,
+            kind,
+        }
+    }
+}
+
 /// The kind of a key event.
 ///
 /// Legacy terminals only report presses; releases are synthesized after
 /// [`crate::ReleaseTimeout`] unless [`crate::InputCapabilities::key_release`]
 /// is set.
+///
+/// Closed: press, repeat and release are the whole key lifecycle, so an
+/// exhaustive match over it stays correct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyKind {
     /// Key went down.

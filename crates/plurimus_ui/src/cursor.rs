@@ -30,6 +30,7 @@ use crate::scroll::{ScrollOffset, screen_cell};
 /// strip - sets [`TerminalCursor`] directly instead, in screen space.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 #[require(ComputedWidgetArea)]
+#[non_exhaustive]
 pub struct WidgetCursor {
     /// Cell in the widget's content space.
     pub cell: Position,
@@ -45,6 +46,13 @@ impl WidgetCursor {
             cell,
             style: TerminalCursorStyle::Default,
         }
+    }
+
+    /// Sets the shape the caret asks the terminal for.
+    #[must_use]
+    pub const fn with_style(mut self, style: TerminalCursorStyle) -> Self {
+        self.style = style;
+        self
     }
 }
 
@@ -76,12 +84,12 @@ pub(crate) fn sync_terminal_cursor(
             if displaced.is_none() {
                 *displaced = Some(*style);
             }
-            cursor.set_if_neq(TerminalCursor { cell: Some(cell) });
+            cursor.set_if_neq(TerminalCursor::at(cell));
             style.set_if_neq(wanted);
         }
         None => {
             if let Some(restored) = displaced.take() {
-                cursor.set_if_neq(TerminalCursor { cell: None });
+                cursor.set_if_neq(TerminalCursor::hidden());
                 style.set_if_neq(restored);
             }
         }

@@ -8,6 +8,29 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The published types that grow now say so.** Fifteen enums and thirty-nine
+  structs carry `#[non_exhaustive]`, so adding a pipeline phase, a cursor shape,
+  a 3d strategy, a theme state or a field to a config is a minor release rather
+  than a breaking one. Which types those are is stated in `ARCHITECTURE.md`
+  rather than left to be rediscovered: a type is sealed when its vocabulary is
+  open - defined by terminals, by pipeline phases, or by an app's needs - and
+  deliberately left open when an app has to handle every case to be correct, so
+  that growth is a compile error rather than a `_` arm that swallows it.
+  `KeyKind`, `ClipboardTarget`, `TableSelection`, `UiArea`, `PopoverSide`,
+  `PopoverAlign` and `Edge` are open by decision, and each now says so where it
+  is declared.
+- **Constructors for everything sealed**, because an attribute that leaves a
+  type unbuildable is a wall rather than forward compatibility. `TerminalSize`
+  and `UiTheme` gain `const fn new`, since a size and a theme are often built in
+  a `const` context where `Default` cannot be called; `TerminalCamera`,
+  `UiTheme` and `InteractionState` gain `with_*` builders; `Popover`,
+  `Scrollbar`, `WheelAxes`, `TerminalCursor`, `Pixel`, the four backend message
+  types, `TerminalContext`, `ExtractedWidget`, `ExtractedCamera`, the two 3d
+  ramps, and the widget events (`Click`, `PointerPress`, `PointerDrag`,
+  `PointerRelease`, `ScrollBy`, `ValueChange`, `TableHeaderClick`) all gain a
+  `new`. A type whose `Default` and public fields already build it got nothing
+  new.
+
 - **A scrolled pane can be scrolled from the keyboard.** `ScrollKeys` binds keys
   to `ScrollAction`s - page, jump to either end, move by a row - and is the
   whole opt-in: it carries `TabIndex`, so adding it makes the widget a tab stop
@@ -38,13 +61,31 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **An empty 3d ramp no longer panics.** `LuminanceRamp` and `DepthRamp` carry a
+  public `characters` slice, and converting a frame indexed it as `len() - 1`,
+  which underflowed on an empty one - reachable from safe code by any app that
+  assigned the field. An empty ramp names no character to draw, so it now leaves
+  cells alone.
 - **A `ScrollArea` with no widget of its own now scrolls.** Every scroll system
   reads the resolved area, which was attached only to entities that draw, so an
   area drawn by something else - a bevy_ui subtree, an app's own rasterizer -
   silently refused the wheel. `ScrollArea` now requires `ComputedWidgetArea`.
+- **`TerminalWidget`'s documentation was wrong about its own trait.** It claimed
+  coherence precludes implementing it directly; the `headless` example does
+  exactly that and CI compiles it. Implementing the trait directly is how a
+  widget that does not follow ratatui's `Widget for &Self` convention joins the
+  pipeline, and the docs now say so.
 
 ### Changed
 
+- **The 2d sprite builders are named `with_*`.** `Glyph::style` and
+  `GlyphBlock::style` are now `with_style`, and `PixelBlock::mirrored` is
+  `with_mirrored`, matching every other builder on a sealed type.
+  `CrosstermPlugin`'s configuration methods keep their bare names: its fields
+  are private, so it was never a sealed type needing a builder path.
+- **`TerminalRenderAppExt` is sealed.** Bevy's `App` is its only sensible
+  implementor, and sealing is what lets a registration method appear as new
+  sub-app phases land. No consumer implements it.
 - **`WheelScroll` is now `ScrollBy`, and its step is `(i32, i32)`.** The event
   was never about the wheel - it is the one way anything asks a widget to
   scroll, and the keyboard is now a second producer, so the name said something

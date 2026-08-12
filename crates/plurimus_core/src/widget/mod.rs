@@ -24,8 +24,10 @@ pub(crate) mod raster;
 ///
 /// Blanket-implemented for every type whose reference implements
 /// [`Widget`] - all ratatui built-ins and idiomatic third-party widgets.
-/// Custom widgets implement `Widget for &Self` (the blanket then applies;
-/// coherence rules preclude implementing this trait directly).
+/// A widget following that convention needs nothing else. One that does
+/// not - drawing through the subcell grids rather than into cells - can
+/// implement this trait directly instead, which the `headless` example
+/// does: the blanket impl is conditional, so it does not collide.
 pub trait TerminalWidget: Send + Sync + 'static {
     /// Renders the widget into `area` of `buffer`.
     fn render(&self, area: Rect, buffer: &mut Buffer);

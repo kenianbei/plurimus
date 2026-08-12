@@ -44,13 +44,7 @@ pub(crate) fn style_panes(
     >,
 ) {
     for (focused, label, over, mut cache, mut widget) in &mut panes {
-        let next = StylistCache::new(
-            InteractionState {
-                focused,
-                ..InteractionState::default()
-            },
-            over,
-        );
+        let next = StylistCache::new(InteractionState::default().with_focused(focused), over);
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }

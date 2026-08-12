@@ -73,6 +73,7 @@ use plurimus_term::InputSystems;
 /// after `bevy_input_focus::InputFocusSystems::Dispatch` rather than
 /// after [`Areas`](Self::Areas) alone.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum UiSystems {
     /// Widget screen areas are attached and computed.
     Areas,

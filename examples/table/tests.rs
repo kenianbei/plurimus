@@ -6,7 +6,7 @@ use plurimus_test::{click, composed_frame, press_key, send_mouse};
 
 use super::*;
 
-const TEST_SIZE: TerminalSize = TerminalSize { cols: 60, rows: 14 };
+const TEST_SIZE: TerminalSize = TerminalSize::new(60, 14);
 
 /// The header band: the pane's border takes the row above it.
 const HEADER_Y: u16 = TABLE.y;

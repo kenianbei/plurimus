@@ -34,7 +34,7 @@ fn gltf_app() -> App {
     app.init_resource::<GltfExtensionHandlers>();
     app.add_plugins(PbrPlugin::default());
     app.add_plugins((WorldSerializationPlugin, GltfPlugin::default(), Plugin3d));
-    app.insert_resource(TerminalSize { cols: 40, rows: 12 });
+    app.insert_resource(TerminalSize::new(40, 12));
     while app.plugins_state() == PluginsState::Adding {
         bevy_tasks::tick_global_task_pools_on_main_thread();
     }

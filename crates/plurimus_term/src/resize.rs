@@ -15,6 +15,7 @@ use plurimus_core::TerminalSize;
 /// [`CameraSystems::SyncSize`](plurimus_core::CameraSystems::SyncSize) so the
 /// size applies in the same frame.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TerminalResized {
     /// Number of columns.
     pub cols: u16,
@@ -22,14 +23,19 @@ pub struct TerminalResized {
     pub rows: u16,
 }
 
+impl TerminalResized {
+    /// A resize to `cols` by `rows` cells.
+    #[must_use]
+    pub const fn new(cols: u16, rows: u16) -> Self {
+        Self { cols, rows }
+    }
+}
+
 pub(crate) fn apply_terminal_resize(
     mut resizes: MessageReader<TerminalResized>,
     mut size: ResMut<TerminalSize>,
 ) {
     if let Some(resized) = resizes.read().last() {
-        size.set_if_neq(TerminalSize {
-            cols: resized.cols,
-            rows: resized.rows,
-        });
+        size.set_if_neq(TerminalSize::new(resized.cols, resized.rows));
     }
 }

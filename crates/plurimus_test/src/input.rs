@@ -15,11 +15,8 @@ pub fn write_key(app: &mut App, code: KeyCode) {
 }
 
 fn write_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
-    app.world_mut().write_message(KeyMessage {
-        code,
-        modifiers,
-        kind,
-    });
+    app.world_mut()
+        .write_message(KeyMessage::new(code, modifiers, kind));
 }
 
 fn press_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
@@ -29,11 +26,11 @@ fn press_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: K
 
 /// Queues a mouse message at `(x, y)` with no modifiers.
 pub fn write_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {
-    app.world_mut().write_message(MouseMessage {
+    app.world_mut().write_message(MouseMessage::new(
         kind,
-        position: Position::new(x, y),
-        modifiers: KeyModifiers::default(),
-    });
+        Position::new(x, y),
+        KeyModifiers::default(),
+    ));
 }
 
 /// Queues a key press with no modifiers, then ticks the app.

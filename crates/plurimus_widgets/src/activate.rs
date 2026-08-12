@@ -67,21 +67,13 @@ fn activate_widget(entity: Entity, targets: &ActivationTargets, commands: &mut C
         return true;
     }
     if let Ok(checked) = targets.checkboxes.get(entity) {
-        commands.trigger(ValueChange {
-            source: entity,
-            value: !checked,
-            is_final: true,
-        });
+        commands.trigger(ValueChange::new(entity, !checked, true));
         return true;
     }
     if targets.radios.contains(entity)
         && let Some(group) = radio_group_of(entity, targets)
     {
-        commands.trigger(ValueChange {
-            source: group,
-            value: entity,
-            is_final: true,
-        });
+        commands.trigger(ValueChange::new(group, entity, true));
         return true;
     }
     false

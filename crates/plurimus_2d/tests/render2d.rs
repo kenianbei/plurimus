@@ -13,7 +13,7 @@ use plurimus_test::{composed_frame, composed_styled_frame};
 fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, Plugin2d));
-    app.insert_resource(TerminalSize { cols, rows });
+    app.insert_resource(TerminalSize::new(cols, rows));
     app
 }
 
@@ -56,20 +56,12 @@ fn pixels_land_in_upper_and_lower_halves() {
     let mut app = app(5, 2);
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(-2.0, 1.5, 0.0),
-    ));
-    app.world_mut().spawn((
-        Pixel { color: Color::Blue },
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
-    app.world_mut().spawn((
-        Pixel {
-            color: Color::Green,
-        },
-        Transform::from_xyz(1.0, 0.0, 0.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(-2.0, 1.5, 0.0)));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Blue), Transform::from_xyz(0.0, 0.5, 0.0)));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Green), Transform::from_xyz(1.0, 0.0, 0.0)));
 
     app.update();
 
@@ -80,22 +72,14 @@ fn pixels_land_in_upper_and_lower_halves() {
 fn two_cameras_view_the_world_at_different_scales() {
     let mut app = app(12, 4);
     app.world_mut().spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(0, 0, 8, 4)),
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 8, 4))),
         Projection2d::default(),
     ));
     app.world_mut().spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(8, 0, 4, 4)),
-            order: 1,
-            ..TerminalCamera::default()
-        },
-        Projection2d {
-            scale: 2.0,
-            ..Projection2d::default()
-        },
+        TerminalCamera::default()
+            .with_order(1)
+            .with_viewport(Viewport::Fixed(Rect::new(8, 0, 4, 4))),
+        Projection2d::default().with_scale(2.0),
     ));
     app.world_mut().spawn(glyph_at("@", 2.0, 2.0, 0.0));
     app.world_mut().spawn(glyph_at("#", -2.0, -2.0, 0.0));
@@ -109,18 +93,13 @@ fn two_cameras_view_the_world_at_different_scales() {
 fn render_layers_mask_entities_per_camera() {
     let mut app = app(8, 3);
     app.world_mut().spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(0, 0, 4, 3)),
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 3))),
         Projection2d::default(),
     ));
     app.world_mut().spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(4, 0, 4, 3)),
-            order: 1,
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default()
+            .with_order(1)
+            .with_viewport(Viewport::Fixed(Rect::new(4, 0, 4, 3))),
         Projection2d::default(),
         RenderLayers::layer(1),
     ));
@@ -128,10 +107,8 @@ fn render_layers_mask_entities_per_camera() {
         .spawn(glyph_at("@", 0.0, 0.0, 0.0))
         .insert(RenderLayers::layer(0).with(1));
     app.world_mut().spawn(glyph_at("#", -1.0, 0.0, 0.0));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(1.0, 0.0, 0.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(1.0, 0.0, 0.0)));
     app.world_mut()
         .spawn(glyph_at("!", 1.0, 1.0, 0.0))
         .insert(RenderLayers::none());
@@ -146,12 +123,10 @@ fn glyphs_draw_over_pixels() {
     let mut app = app(3, 1);
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(0.0, 0.0, 5.0)));
     app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(0.0, 0.0, 5.0),
-    ));
-    app.world_mut().spawn((
-        Glyph::new("X").style(Style::new().fg(Color::White)),
+        Glyph::new("X").with_style(Style::new().fg(Color::White)),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
@@ -212,25 +187,20 @@ fn wide_graphemes_occupy_their_display_width() {
 fn braille_cameras_render_pixels_at_dot_resolution() {
     let mut app = app(8, 2);
     app.world_mut().spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(0, 0, 4, 2)),
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 2))),
         Projection2d::default(),
     ));
     app.world_mut().spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(4, 0, 4, 2)),
-            order: 1,
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default()
+            .with_order(1)
+            .with_viewport(Viewport::Fixed(Rect::new(4, 0, 4, 2))),
         Projection2d::default(),
         SubcellMode::Braille,
     ));
     for step in 0..8 {
         let along = step as f32 / 2.0;
         app.world_mut().spawn((
-            Pixel { color: Color::Red },
+            Pixel::new(Color::Red),
             Transform::from_xyz(along - 2.0, along - 2.0, 0.0),
         ));
     }
@@ -287,7 +257,7 @@ fn pixel_blocks_mirror_horizontally() {
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
     app.world_mut().spawn((
-        PixelBlock::new("rb\nrb", BRICK).mirrored(true),
+        PixelBlock::new("rb\nrb", BRICK).with_mirrored(true),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
@@ -331,14 +301,10 @@ fn higher_z_pixel_wins_the_subcell() {
     let mut app = app(3, 1);
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
-    app.world_mut().spawn((
-        Pixel { color: Color::Blue },
-        Transform::from_xyz(0.0, 0.0, 2.0),
-    ));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(0.0, 0.0, 1.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Blue), Transform::from_xyz(0.0, 0.0, 2.0)));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(0.0, 0.0, 1.0)));
 
     app.update();
 
@@ -351,17 +317,11 @@ fn pixels_and_pixel_blocks_share_one_z_order() {
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
     app.world_mut().spawn((
-        Pixel {
-            color: Color::Green,
-        },
+        Pixel::new(Color::Green),
         Transform::from_xyz(-1.0, 0.5, 2.0),
     ));
-    app.world_mut().spawn((
-        Pixel {
-            color: Color::Green,
-        },
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Green), Transform::from_xyz(0.0, 0.5, 0.0)));
     app.world_mut().spawn((
         PixelBlock::new("rrr", BRICK),
         Transform::from_xyz(0.0, 0.5, 1.0),

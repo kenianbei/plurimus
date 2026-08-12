@@ -64,7 +64,7 @@ fn ui_and_3d_render_together() {
     // reads this registry during PbrPlugin's build, so it comes first.
     app.init_resource::<GltfExtensionHandlers>();
     app.add_plugins((PbrPlugin::default(), Plugin3d));
-    app.insert_resource(TerminalSize { cols: 40, rows: 12 });
+    app.insert_resource(TerminalSize::new(40, 12));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,
     )));

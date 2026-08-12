@@ -109,10 +109,7 @@ mod tests {
     fn every_widget_tile_renders_its_title() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize {
-            cols: 100,
-            rows: 30,
-        });
+        app.insert_resource(TerminalSize::new(100, 30));
         app.add_systems(Startup, spawn_gallery);
         app.add_systems(Update, (layout_tiles, animate_tiles));
         app.update();

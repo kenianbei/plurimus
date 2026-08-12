@@ -23,7 +23,7 @@ const TINT: Color = Color::Indexed(236);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 12, rows: 4 });
+    app.insert_resource(TerminalSize::new(12, 4));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

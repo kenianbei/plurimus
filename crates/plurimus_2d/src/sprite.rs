@@ -11,6 +11,7 @@ use ratatui_core::style::{Color, Style};
 /// `z`, higher in front.
 #[derive(Component, Debug, Clone)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct Glyph {
     /// Cell content; a single grapheme cluster.
     pub symbol: String,
@@ -30,7 +31,7 @@ impl Glyph {
 
     /// Sets the glyph's style.
     #[must_use]
-    pub const fn style(mut self, style: Style) -> Self {
+    pub const fn with_style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
@@ -45,6 +46,7 @@ impl Glyph {
 /// Z-ordering matches [`Glyph`].
 #[derive(Component, Debug, Clone)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct GlyphBlock {
     /// Rows of cell content, top to bottom.
     pub rows: Vec<String>,
@@ -64,7 +66,7 @@ impl GlyphBlock {
 
     /// Sets the block's style.
     #[must_use]
-    pub const fn style(mut self, style: Style) -> Self {
+    pub const fn with_style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
@@ -76,9 +78,18 @@ impl GlyphBlock {
 /// transform's `z`, higher in front.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct Pixel {
     /// Color of the halfblock point.
     pub color: Color,
+}
+
+impl Pixel {
+    /// A halfblock point in `color`.
+    #[must_use]
+    pub const fn new(color: Color) -> Self {
+        Self { color }
+    }
 }
 
 /// A rectangular pixel-art sprite stamped centered on its transform's
@@ -93,6 +104,7 @@ pub struct Pixel {
 /// against which it interleaves.
 #[derive(Component, Debug, Clone, Default)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct PixelBlock {
     /// Rows of palette-indexed pixels, top to bottom.
     pub rows: Vec<String>,
@@ -114,9 +126,20 @@ impl PixelBlock {
         }
     }
 
+    /// A block from rows already split, for a bitmap built a row at a
+    /// time rather than written as a literal.
+    #[must_use]
+    pub fn from_rows(rows: impl Into<Vec<String>>, palette: impl Into<Vec<(char, Color)>>) -> Self {
+        Self {
+            rows: rows.into(),
+            palette: palette.into(),
+            mirrored: false,
+        }
+    }
+
     /// Sets whether the bitmap stamps mirrored horizontally.
     #[must_use]
-    pub const fn mirrored(mut self, mirrored: bool) -> Self {
+    pub const fn with_mirrored(mut self, mirrored: bool) -> Self {
         self.mirrored = mirrored;
         self
     }

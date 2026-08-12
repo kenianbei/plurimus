@@ -86,11 +86,21 @@ pub struct TableStripe(pub Style);
 /// A [`Table`]'s column spacing and extra-space distribution. Defaults to
 /// ratatui's: one cell between columns, spare width left at the end.
 #[derive(Component, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct TableLayout {
     /// Cells between one column and the next.
     pub column_spacing: u16,
     /// Where width the columns did not claim ends up.
     pub flex: Flex,
+}
+
+impl TableLayout {
+    /// Sets the blank columns drawn between cells.
+    #[must_use]
+    pub const fn with_column_spacing(mut self, column_spacing: u16) -> Self {
+        self.column_spacing = column_spacing;
+        self
+    }
 }
 
 impl Default for TableLayout {
@@ -119,6 +129,9 @@ pub struct TableCheckedStyle(pub Style);
 /// goes: removing it leaves a non-interactive table in the tab order.
 /// [`InteractionDisabled`](plurimus_ui::InteractionDisabled) is how a table
 /// is turned off.
+///
+/// Closed: row, column and cell are the whole granularity lattice, and an
+/// app branching on it has to handle each to be correct.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[require(TabIndex, ActiveDescendant, ActiveColumn, TableKeys)]
 pub enum TableSelection {
@@ -169,11 +182,20 @@ pub struct TableCursor(pub Line<'static>);
 /// the pointer. Sorting is the app's: reorder the row entities and the
 /// table redraws.
 #[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct TableHeaderClick {
     /// The table that was clicked.
     pub entity: Entity,
     /// The column under the pointer.
     pub column: usize,
+}
+
+impl TableHeaderClick {
+    /// A header click on `entity`'s `column`.
+    #[must_use]
+    pub const fn new(entity: Entity, column: usize) -> Self {
+        Self { entity, column }
+    }
 }
 
 /// What a key does to a [`Table`].

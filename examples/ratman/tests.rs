@@ -21,10 +21,7 @@ const STEP: Duration = Duration::from_millis(50);
 fn headless_app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin, Plugin2d));
-    app.insert_resource(TerminalSize {
-        cols: 280,
-        rows: 76,
-    });
+    app.insert_resource(TerminalSize::new(280, 76));
     app.insert_resource(TimeUpdateStrategy::ManualDuration(STEP));
     add_game(&mut app);
     app.update();
@@ -262,7 +259,7 @@ fn restarting_rebuilds_the_maze_and_the_counters() {
 #[test]
 fn a_small_terminal_pauses_the_game() {
     let mut app = headless_app();
-    app.insert_resource(TerminalSize { cols: 80, rows: 24 });
+    app.insert_resource(TerminalSize::new(80, 24));
     set_player(&mut app, IVec2::new(1, 13), Dir::Right);
 
     for _ in 0..8 {
@@ -290,7 +287,7 @@ fn the_maze_and_its_actors_rasterize() {
 #[test]
 fn a_small_terminal_says_so() {
     let mut app = headless_app();
-    app.insert_resource(TerminalSize { cols: 80, rows: 24 });
+    app.insert_resource(TerminalSize::new(80, 24));
 
     app.update();
 

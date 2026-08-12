@@ -155,15 +155,12 @@ fn cycle_strategies(cameras: &mut Query<(Entity, &mut Strategy3d, Option<&EdgeOv
 
 fn next_strategy(strategy: Strategy3d) -> Strategy3d {
     match strategy {
-        Strategy3d::Halfblocks => Strategy3d::Luminance(LuminanceRamp {
-            characters: RAMP_SHADING,
-            ..LuminanceRamp::default()
-        }),
+        Strategy3d::Halfblocks => Strategy3d::Luminance(LuminanceRamp::new(RAMP_SHADING)),
         Strategy3d::Luminance(ramp) if ramp.characters == RAMP_SHADING => {
             Strategy3d::Luminance(LuminanceRamp::default())
         }
         Strategy3d::Luminance(_) => Strategy3d::Braille,
-        Strategy3d::Braille | Strategy3d::Depth(_) | Strategy3d::None => Strategy3d::Halfblocks,
+        _ => Strategy3d::Halfblocks,
     }
 }
 
@@ -176,10 +173,9 @@ fn cycle_edges(
     for (camera, _, overlay) in cameras.iter() {
         match next_edge_source(overlay.map(|overlay| overlay.source)) {
             Some(source) => {
-                commands.entity(camera).insert(EdgeOverlay {
-                    source,
-                    ..EdgeOverlay::default()
-                });
+                commands
+                    .entity(camera)
+                    .insert(EdgeOverlay::default().with_source(source));
             }
             None => {
                 commands.entity(camera).remove::<EdgeOverlay>();
@@ -193,7 +189,7 @@ const fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
         None => Some(EdgeSource::Luminance),
         Some(EdgeSource::Luminance) => Some(EdgeSource::Depth),
         Some(EdgeSource::Depth) => Some(EdgeSource::Both),
-        Some(EdgeSource::Both) => None,
+        Some(_) => None,
     }
 }
 

@@ -55,7 +55,7 @@ pub(crate) fn init<W: Write + Send + Sync + 'static>(
     let (cols, rows) = terminal::size()?;
     Ok((
         CrosstermBackend::new(writer),
-        TerminalSize { cols, rows },
+        TerminalSize::new(cols, rows),
         InputCapabilities::none()
             .with_key_release(key_release)
             .with_modifier_keys(key_release),

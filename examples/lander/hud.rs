@@ -40,11 +40,9 @@ pub fn add_hud(app: &mut App) {
 fn spawn_panel(mut commands: Commands) {
     let panel = commands
         .spawn((
-            TerminalCamera {
-                order: 2,
-                viewport: Viewport::Fixed(Rect::ZERO),
-                ..TerminalCamera::default()
-            },
+            TerminalCamera::default()
+                .with_order(2)
+                .with_viewport(Viewport::Fixed(Rect::ZERO)),
             PanelCamera,
         ))
         .id();

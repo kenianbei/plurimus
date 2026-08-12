@@ -24,6 +24,7 @@ const BYTES_PER_PIXEL: usize = 4;
 
 /// Latest CPU copy of a camera's rendered pixels, tightly packed RGBA8.
 #[derive(Component, Debug, Default)]
+#[non_exhaustive]
 pub struct ReadbackFrame {
     /// Row-major RGBA8 bytes with padding stripped.
     pub pixels: Vec<u8>,

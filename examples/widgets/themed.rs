@@ -134,15 +134,16 @@ pub(crate) fn add_themed_side(app: &mut App) {
 // it. On a `Pane`, whose whole rendering is its border, the same focused
 // style reads as a border color change.
 const fn demo_theme() -> UiTheme {
-    UiTheme {
-        normal: Style::new().fg(Color::Gray),
-        hovered: Style::new().fg(Color::White).add_modifier(Modifier::BOLD),
-        pressed: Style::new()
-            .fg(Color::LightGreen)
-            .add_modifier(Modifier::REVERSED),
-        disabled: Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM),
-        focused: Style::new().fg(Color::LightMagenta).bg(FOCUS_BG),
-    }
+    UiTheme::new()
+        .with_normal(Style::new().fg(Color::Gray))
+        .with_hovered(Style::new().fg(Color::White).add_modifier(Modifier::BOLD))
+        .with_pressed(
+            Style::new()
+                .fg(Color::LightGreen)
+                .add_modifier(Modifier::REVERSED),
+        )
+        .with_disabled(Style::new().fg(Color::DarkGray).add_modifier(Modifier::DIM))
+        .with_focused(Style::new().fg(Color::LightMagenta).bg(FOCUS_BG))
 }
 
 // The editor draws through its own engine rather than a stylist, so the
@@ -323,12 +324,9 @@ fn spawn_log(commands: &mut Commands, parent: Entity) {
     let view = commands
         .spawn((
             listbox(),
-            ScrollArea {
-                // `sync_row_scroll` owns the extent from the first frame,
-                // summing the two-line rows.
-                content_size: Size::default(),
-                scrollbars: ScrollbarVisibility::Never,
-            },
+            // `sync_row_scroll` owns the extent from the first frame,
+            // summing the two-line rows.
+            ScrollArea::new(Size::default()).with_scrollbars(ScrollbarVisibility::Never),
             UiArea::Fixed(LOG_VIEW),
             Stretched::LogView(LOG_VIEW),
             ChildOf(parent),

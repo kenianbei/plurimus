@@ -23,6 +23,7 @@ pub struct Text(pub Vec<TextSpan>);
 /// One styled run inside a [`Text`]; its style patches the node's
 /// [`TextStyle`].
 #[derive(Debug, Clone, Default, PartialEq)]
+#[non_exhaustive]
 pub struct TextSpan {
     /// The span's text content.
     pub content: String,

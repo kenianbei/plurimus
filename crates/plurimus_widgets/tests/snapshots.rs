@@ -6,7 +6,7 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
 use plurimus_test::composed_frame;
 use plurimus_ui::tui_scrollview::ScrollbarVisibility;
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
-use plurimus_widgets::{Popover, PopoverAlign, PopoverSide, WidgetsPlugin, scrollbar};
+use plurimus_widgets::{Popover, WidgetsPlugin, scrollbar};
 use ratatui_widgets::list::{List, ListState};
 use ratatui_widgets::paragraph::Paragraph;
 use ratatui_widgets::scrollbar::{Scrollbar, ScrollbarOrientation, ScrollbarState};
@@ -14,7 +14,7 @@ use ratatui_widgets::scrollbar::{Scrollbar, ScrollbarOrientation, ScrollbarState
 fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols, rows });
+    app.insert_resource(TerminalSize::new(cols, rows));
     app
 }
 
@@ -49,17 +49,15 @@ fn z_order_beats_spawn_order() {
 #[test]
 fn widgets_target_cameras_explicitly_or_by_default() {
     let mut app = app(8, 1);
-    app.world_mut().spawn(TerminalCamera {
-        viewport: Viewport::Fixed(Rect::new(0, 0, 4, 1)),
-        ..TerminalCamera::default()
-    });
+    app.world_mut()
+        .spawn(TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 1))));
     let right = app
         .world_mut()
-        .spawn(TerminalCamera {
-            order: 1,
-            viewport: Viewport::Fixed(Rect::new(4, 0, 4, 1)),
-            ..TerminalCamera::default()
-        })
+        .spawn(
+            TerminalCamera::default()
+                .with_order(1)
+                .with_viewport(Viewport::Fixed(Rect::new(4, 0, 4, 1))),
+        )
         .id();
     app.world_mut().spawn(UiWidget::new(Paragraph::new("main")));
     app.world_mut()
@@ -102,12 +100,7 @@ fn popover_renders_anchored_with_overlay_order() {
         .world_mut()
         .spawn((
             UiWidget::new(Paragraph::new("open\nsave")),
-            Popover {
-                anchor,
-                side: PopoverSide::Bottom,
-                align: PopoverAlign::Start,
-                size: Size::new(4, 2),
-            },
+            Popover::new(anchor, Size::new(4, 2)),
         ))
         .id();
 
@@ -191,10 +184,7 @@ fn scrollbar_entity_tracks_target() {
         .spawn((
             UiWidget::new(Paragraph::new("l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8")),
             UiArea::Fixed(Rect::new(0, 0, 6, 4)),
-            ScrollArea {
-                content_size: Size::new(6, 8),
-                scrollbars: ScrollbarVisibility::Never,
-            },
+            ScrollArea::new(Size::new(6, 8)).with_scrollbars(ScrollbarVisibility::Never),
             ScrollOffset(Position::new(0, 4)),
         ))
         .id();
@@ -214,10 +204,7 @@ fn scroll_area_never_hides_scrollbars() {
     app.world_mut().spawn(TerminalCamera::default());
     app.world_mut().spawn((
         UiWidget::new(Paragraph::new("aa\nbb\ncc")),
-        ScrollArea {
-            content_size: Size::new(5, 3),
-            scrollbars: ScrollbarVisibility::Never,
-        },
+        ScrollArea::new(Size::new(5, 3)).with_scrollbars(ScrollbarVisibility::Never),
     ));
 
     app.update();
@@ -231,10 +218,7 @@ fn widget_on_inactive_camera_is_skipped() {
     app.world_mut().spawn(TerminalCamera::default());
     let inactive = app
         .world_mut()
-        .spawn(TerminalCamera {
-            active: false,
-            ..TerminalCamera::default()
-        })
+        .spawn(TerminalCamera::default().with_active(false))
         .id();
     app.world_mut()
         .spawn((UiWidget::new(Paragraph::new("gone")), UiCamera(inactive)));

@@ -44,7 +44,7 @@ mod tests {
     fn headless_app() -> App {
         let mut app = App::new();
         app.add_plugins((CorePlugin, WidgetsPlugin, Plugin2d));
-        app.insert_resource(TerminalSize { cols: 80, rows: 24 });
+        app.insert_resource(TerminalSize::new(80, 24));
         app.insert_resource(TimeUpdateStrategy::ManualDuration(STEP));
         add_game(&mut app);
         app.update();

@@ -22,7 +22,7 @@ struct Menu {
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 8 });
+    app.insert_resource(TerminalSize::new(20, 8));
     app.init_resource::<Activations>();
     app.add_observer(|_: On<Activate>, mut log: ResMut<Activations>| log.0 += 1);
     app.world_mut().spawn(TerminalCamera::default());

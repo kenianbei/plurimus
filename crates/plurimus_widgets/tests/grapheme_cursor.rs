@@ -20,7 +20,7 @@ const KEYCAP: &str = "#\u{FE0F}\u{20E3}";
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 1 });
+    app.insert_resource(TerminalSize::new(20, 1));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

@@ -47,6 +47,7 @@ pub struct DepthOcclusion;
 /// Depths are bevy's reverse-Z: 1.0 at the near plane, 0.0 at the far
 /// plane, non-linear in between - higher is closer.
 #[derive(Component, Debug, Default)]
+#[non_exhaustive]
 pub struct DepthFrame {
     /// Row-major reverse-Z depths.
     pub depths: Vec<f32>,

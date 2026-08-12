@@ -10,6 +10,7 @@ use bevy_math::UVec2;
 
 /// How a 3d camera's rendered pixels become terminal cells.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
+#[non_exhaustive]
 pub enum Strategy3d {
     /// `▀`/`▄` color pairs at half-cell resolution.
     #[default]
@@ -42,6 +43,7 @@ impl Strategy3d {
 
 /// Brightness-to-character mapping for [`Strategy3d::Luminance`].
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct LuminanceRamp {
     /// Characters from darkest to brightest.
     pub characters: &'static [char],
@@ -52,6 +54,7 @@ pub struct LuminanceRamp {
 
 /// Depth-to-character mapping for [`Strategy3d::Depth`].
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct DepthRamp {
     /// Characters from farthest to nearest.
     pub characters: &'static [char],
@@ -62,13 +65,51 @@ pub struct DepthRamp {
 }
 
 const DEPTH_SCALE_DEFAULT: f32 = 30.0;
+const LUMINANCE_SCALE_DEFAULT: f32 = 10.0;
+
+impl LuminanceRamp {
+    /// A ramp over `characters`, darkest first, keeping the default
+    /// scale. An empty slice draws nothing rather than every cell, so
+    /// pass one of the `RAMP_*` constants or your own non-empty set.
+    #[must_use]
+    pub const fn new(characters: &'static [char]) -> Self {
+        Self {
+            characters,
+            scale: LUMINANCE_SCALE_DEFAULT,
+        }
+    }
+
+    /// Sets the multiplier applied before indexing.
+    #[must_use]
+    pub const fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+}
+
+impl DepthRamp {
+    /// A ramp over `characters`, farthest first, keeping the default
+    /// scale. An empty slice draws nothing rather than every cell, so
+    /// pass one of the `RAMP_*` constants or your own non-empty set.
+    #[must_use]
+    pub const fn new(characters: &'static [char]) -> Self {
+        Self {
+            characters,
+            scale: DEPTH_SCALE_DEFAULT,
+        }
+    }
+
+    /// Sets the multiplier applied before indexing.
+    #[must_use]
+    pub const fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+}
 
 impl Default for DepthRamp {
     fn default() -> Self {
-        Self {
-            characters: RAMP_ASCII,
-            scale: DEPTH_SCALE_DEFAULT,
-        }
+        Self::new(RAMP_ASCII)
     }
 }
 
@@ -86,10 +127,7 @@ pub const RAMP_BRAILLE: &[char] = &[' ', '⠂', '⠒', '⠖', '⠶', '⠷', '⠿
 
 impl Default for LuminanceRamp {
     fn default() -> Self {
-        Self {
-            characters: RAMP_ASCII,
-            scale: 10.0,
-        }
+        Self::new(RAMP_ASCII)
     }
 }
 
