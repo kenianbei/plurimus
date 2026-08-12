@@ -141,7 +141,7 @@ fn spawn_level(mut commands: Commands, maze: Res<Maze>, mut pending: ResMut<Leve
         Spawned,
         Player,
         Actor::new(maze.player_spawn, Dir::Left, PLAYER_SPEED),
-        PixelBlock::new(RAT, RAT_PALETTE).mirrored(true),
+        PixelBlock::new(RAT, RAT_PALETTE).with_mirrored(true),
         Transform::default(),
     ));
 }

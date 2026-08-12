@@ -126,7 +126,7 @@ fn glyphs_draw_over_pixels() {
     app.world_mut()
         .spawn((Pixel::new(Color::Red), Transform::from_xyz(0.0, 0.0, 5.0)));
     app.world_mut().spawn((
-        Glyph::new("X").style(Style::new().fg(Color::White)),
+        Glyph::new("X").with_style(Style::new().fg(Color::White)),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
@@ -257,7 +257,7 @@ fn pixel_blocks_mirror_horizontally() {
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
     app.world_mut().spawn((
-        PixelBlock::new("rb\nrb", BRICK).mirrored(true),
+        PixelBlock::new("rb\nrb", BRICK).with_mirrored(true),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
