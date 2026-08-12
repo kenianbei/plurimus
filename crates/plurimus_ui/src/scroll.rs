@@ -155,6 +155,14 @@ pub struct ScrollBy {
     pub step: (i32, i32),
 }
 
+impl ScrollBy {
+    /// A scroll of `step` cells addressed to `entity`.
+    #[must_use]
+    pub const fn new(entity: Entity, step: (i32, i32)) -> Self {
+        Self { entity, step }
+    }
+}
+
 type WheelTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<InteractionDisabled>)>;
 
@@ -274,11 +282,7 @@ pub fn apply_offset(
     commands: &mut Commands,
 ) {
     if offset.set_if_neq(ScrollOffset(position)) {
-        commands.trigger(ValueChange {
-            source: entity,
-            value: position,
-            is_final: true,
-        });
+        commands.trigger(ValueChange::new(entity, position, true));
     }
 }
 

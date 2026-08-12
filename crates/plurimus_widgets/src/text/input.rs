@@ -112,11 +112,7 @@ fn cluster_edit(key: &Key, text: &mut TextInput) -> bool {
 }
 
 fn emit(field: Entity, text: &TextInput, is_final: bool, commands: &mut Commands) {
-    commands.trigger(ValueChange {
-        source: field,
-        value: text.value().to_owned(),
-        is_final,
-    });
+    commands.trigger(ValueChange::new(field, text.value().to_owned(), is_final));
 }
 
 pub(crate) fn text_input_paste(

@@ -96,34 +96,6 @@ impl EdgeOverlay {
         self.source = source;
         self
     }
-
-    /// Sets the luminance gradient magnitude that draws an edge.
-    #[must_use]
-    pub const fn with_threshold(mut self, threshold: f32) -> Self {
-        self.threshold = threshold;
-        self
-    }
-
-    /// Sets the depth gradient magnitude that draws an edge.
-    #[must_use]
-    pub const fn with_depth_threshold(mut self, depth_threshold: f32) -> Self {
-        self.depth_threshold = depth_threshold;
-        self
-    }
-
-    /// Sets the characters drawn per edge direction.
-    #[must_use]
-    pub const fn with_characters(mut self, characters: EdgeCharacters) -> Self {
-        self.characters = characters;
-        self
-    }
-
-    /// Sets the foreground for edge cells; `None` keeps each cell's own.
-    #[must_use]
-    pub const fn with_color(mut self, color: Option<Color>) -> Self {
-        self.color = color;
-        self
-    }
 }
 
 impl Default for EdgeOverlay {

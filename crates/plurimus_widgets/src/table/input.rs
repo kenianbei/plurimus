@@ -65,11 +65,7 @@ pub(crate) fn table_key(
             return;
         }
         let value = position(*selection, *active, *column);
-        commands.trigger(ValueChange {
-            source: table,
-            value,
-            is_final: true,
-        });
+        commands.trigger(ValueChange::new(table, value, true));
         return;
     }
     if action.moves_column() && selection.tracks_column() {
@@ -157,11 +153,7 @@ pub(crate) fn table_press(
         column.set_if_neq(ActiveColumn(Some(hit)));
     }
     let value = position(*selection, *active, *column);
-    commands.trigger(ValueChange {
-        source: table,
-        value,
-        is_final: true,
-    });
+    commands.trigger(ValueChange::new(table, value, true));
 }
 
 fn position(

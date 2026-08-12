@@ -212,11 +212,7 @@ fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page:
 
 fn select_active(listbox: Entity, active: ActiveDescendant, commands: &mut Commands) {
     if let Some(item) = active.0 {
-        commands.trigger(ValueChange {
-            source: listbox,
-            value: item,
-            is_final: true,
-        });
+        commands.trigger(ValueChange::new(listbox, item, true));
     }
 }
 

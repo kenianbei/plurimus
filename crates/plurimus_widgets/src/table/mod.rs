@@ -101,13 +101,6 @@ impl TableLayout {
         self.column_spacing = column_spacing;
         self
     }
-
-    /// Sets how spare width is distributed across columns.
-    #[must_use]
-    pub const fn with_flex(mut self, flex: Flex) -> Self {
-        self.flex = flex;
-        self
-    }
 }
 
 impl Default for TableLayout {
@@ -195,6 +188,14 @@ pub struct TableHeaderClick {
     pub entity: Entity,
     /// The column under the pointer.
     pub column: usize,
+}
+
+impl TableHeaderClick {
+    /// A header click on `entity`'s `column`.
+    #[must_use]
+    pub const fn new(entity: Entity, column: usize) -> Self {
+        Self { entity, column }
+    }
 }
 
 /// What a key does to a [`Table`].

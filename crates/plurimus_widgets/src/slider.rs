@@ -187,11 +187,7 @@ fn track_value(area: Rect, range: SliderRange, x: u16) -> f32 {
 
 fn emit(entity: Entity, current: f32, value: f32, is_final: bool, commands: &mut Commands) {
     if is_final || (value - current).abs() > f32::EPSILON {
-        commands.trigger(ValueChange {
-            source: entity,
-            value,
-            is_final,
-        });
+        commands.trigger(ValueChange::new(entity, value, is_final));
     }
 }
 

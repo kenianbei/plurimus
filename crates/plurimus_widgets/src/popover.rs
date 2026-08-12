@@ -80,8 +80,8 @@ pub struct Popover {
 }
 
 impl Popover {
-    /// A popover of `size` cells attached to `anchor`, on the preferred
-    /// side and alignment.
+    /// A popover of `size` cells below `anchor`, leading edges aligned -
+    /// the two [`Default`] placements.
     #[must_use]
     pub const fn new(anchor: Entity, size: Size) -> Self {
         Self {
@@ -90,20 +90,6 @@ impl Popover {
             align: PopoverAlign::Start,
             size,
         }
-    }
-
-    /// Sets the preferred side of the anchor, mirrored when it overflows.
-    #[must_use]
-    pub const fn with_side(mut self, side: PopoverSide) -> Self {
-        self.side = side;
-        self
-    }
-
-    /// Sets the alignment along the anchor edge.
-    #[must_use]
-    pub const fn with_align(mut self, align: PopoverAlign) -> Self {
-        self.align = align;
-        self
     }
 }
 

@@ -87,7 +87,7 @@ where
     fn build(&self, app: &mut App) {
         let backend = self.take_backend();
         let sub_app = app.sub_app_mut(TerminalRenderApp);
-        sub_app.insert_resource(TerminalContext { backend });
+        sub_app.insert_resource(TerminalContext::new(backend));
         sub_app.init_resource::<PreviousFrame>();
         sub_app.init_resource::<PreviousCursor>();
         app.add_terminal_systems(TerminalRenderSystems::Present, present::<B>);

@@ -98,6 +98,11 @@ fn convert_braille(pixels: &[u8], size: UVec2, grid: &mut BrailleGrid, canvas: &
 }
 
 fn convert_luminance(pixels: &[u8], size: UVec2, ramp: &LuminanceRamp, canvas: &mut Canvas<'_>) {
+    // `characters` is a public field, so a validating constructor cannot
+    // hold the invariant; an empty ramp names nothing to draw.
+    if ramp.characters.is_empty() {
+        return;
+    }
     let dest = canvas.dest;
     for row in 0..dest.height {
         for column in 0..dest.width {
@@ -121,6 +126,9 @@ fn convert_depth(sources: &FrameSources<'_>, ramp: &DepthRamp, canvas: &mut Canv
     let Some(depth) = sources.depth else {
         return;
     };
+    if ramp.characters.is_empty() {
+        return;
+    }
     let dest = canvas.dest;
     for row in 0..dest.height {
         for column in 0..dest.width {
@@ -152,13 +160,7 @@ fn write_ramp_cell(
     (level, linear): (f32, LinearRgba),
     characters: &[char],
 ) {
-    // A ramp is publicly constructible and its characters publicly
-    // assignable, so an empty one reaches here; it names no character to
-    // draw, which leaves the cell alone rather than underflowing on
-    // `len() - 1`.
-    let Some(last) = characters.len().checked_sub(1) else {
-        return;
-    };
+    let last = characters.len() - 1;
     let index = (level.clamp(0.0, 1.0) * last as f32).round() as usize;
     if let Some(cell) = buffer.cell_mut(position) {
         cell.set_char(characters[index]);

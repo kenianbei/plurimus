@@ -169,11 +169,7 @@ pub(crate) fn extract_cameras(
         }
         let viewport = resolved.0;
         commands.spawn((
-            ExtractedCamera {
-                order: camera.order,
-                viewport,
-                background: camera.background,
-            },
+            ExtractedCamera::new(camera.order, viewport, camera.background),
             SourceCamera(source),
             CameraBuffer(camera_buffer(viewport, camera.background)),
         ));

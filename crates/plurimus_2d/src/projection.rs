@@ -33,13 +33,6 @@ impl Projection2d {
         self.scale = scale;
         self
     }
-
-    /// Sets cell height in units of cell width.
-    #[must_use]
-    pub const fn with_cell_aspect(mut self, cell_aspect: f32) -> Self {
-        self.cell_aspect = cell_aspect;
-        self
-    }
 }
 
 impl Default for Projection2d {

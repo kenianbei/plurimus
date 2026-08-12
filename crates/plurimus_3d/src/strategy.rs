@@ -89,7 +89,8 @@ impl LuminanceRamp {
 
 impl DepthRamp {
     /// A ramp over `characters`, farthest first, keeping the default
-    /// scale. An empty slice draws nothing.
+    /// scale. An empty slice draws nothing rather than every cell, so
+    /// pass one of the `RAMP_*` constants or your own non-empty set.
     #[must_use]
     pub const fn new(characters: &'static [char]) -> Self {
         Self {

@@ -118,7 +118,7 @@ pub(crate) fn echo_clipboard_writes(
 /// [`Clipboard`](Self::Clipboard) - the X11 idiom, which one shared setting
 /// could not express.
 ///
-/// Deliberately closed to the two selections terminals actually implement.
+/// Closed: the two selections terminals actually implement.
 /// OSC 52 also names cut buffers `0`-`7`, which are xterm trivia nothing
 /// else honors; a variant for them would be a breaking change worth making
 /// only if something asks.

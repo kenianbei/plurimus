@@ -324,6 +324,8 @@ fn spawn_log(commands: &mut Commands, parent: Entity) {
     let view = commands
         .spawn((
             listbox(),
+            // `sync_row_scroll` owns the extent from the first frame,
+            // summing the two-line rows.
             ScrollArea::new(Size::default()).with_scrollbars(ScrollbarVisibility::Never),
             UiArea::Fixed(LOG_VIEW),
             Stretched::LogView(LOG_VIEW),
