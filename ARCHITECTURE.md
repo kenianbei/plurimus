@@ -277,6 +277,35 @@ redraw from a skipped one.
 The minimum supported Rust version is 1.95, declared once in `workspace.package`
 and verified in CI.
 
+## Public API
+
+The crates are published, so a public type is a commitment about what may change
+under it. A type carries `#[non_exhaustive]` when the thing it models has an
+open vocabulary - one terminals define, or pipeline phases, or an app's own
+needs rather than a closed domain - so that gaining a field or a variant is a
+minor release rather than a breaking one. Every sealed type keeps a constructor
+path that survives the seal: `KeyModifiers` and `InputCapabilities` are the
+pattern, each pairing the attribute with `Default` or `none()` and a
+`const fn with_*` per field, because an attribute that leaves a type unbuildable
+from outside is not forward compatibility but a wall.
+
+A type is deliberately left open when an app has to handle every case to be
+correct. `KeyKind` is the clearest: press, repeat and release are the whole key
+lifecycle, and a consumer's exhaustive match failing to compile is the point - a
+`_` arm would swallow a kind it needs to decide about. `ClipboardTarget`,
+`TableSelection`, `UiArea`, `PopoverSide`, `PopoverAlign` and `Edge` are open
+for the same reason, each saying so where it is declared. Two categories are out
+of scope by construction, since neither can grow: unit markers, and tuple
+newtypes, where a second field is a redesign rather than an addition.
+
+Traits are sealed only where a downstream implementation would be a mistake.
+`TerminalRenderAppExt` is sealed, being an extension trait whose one sensible
+implementor is bevy's `App`; sealing it is what lets registration methods appear
+as sub-app phases land. `TerminalWidget` is deliberately open, because
+implementing it is how a widget outside ratatui's `Widget` convention joins the
+pipeline - the `headless` example does exactly that, and the blanket impl over
+`Widget for &Self` covers everything else.
+
 ## Testing
 
 Tests drive full apps headlessly. Because the presenter is `Backend`-generic and
