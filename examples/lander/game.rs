@@ -163,7 +163,7 @@ fn next_strategy(strategy: Strategy3d) -> Strategy3d {
             Strategy3d::Luminance(LuminanceRamp::default())
         }
         Strategy3d::Luminance(_) => Strategy3d::Braille,
-        Strategy3d::Braille | Strategy3d::Depth(_) | Strategy3d::None => Strategy3d::Halfblocks,
+        _ => Strategy3d::Halfblocks,
     }
 }
 
@@ -193,7 +193,7 @@ const fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
         None => Some(EdgeSource::Luminance),
         Some(EdgeSource::Luminance) => Some(EdgeSource::Depth),
         Some(EdgeSource::Depth) => Some(EdgeSource::Both),
-        Some(EdgeSource::Both) => None,
+        Some(_) => None,
     }
 }
 

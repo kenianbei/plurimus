@@ -38,6 +38,7 @@ impl Default for EdgeCharacters {
 
 /// What an [`EdgeOverlay`] measures its gradients over.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EdgeSource {
     /// Shading gradients of the color frame.
     #[default]

@@ -19,6 +19,7 @@ use crate::viewport::{ResolvedViewport, Viewport};
 
 /// What a camera's untouched cells become when composited.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum Background {
     /// Untouched cells keep the terminal default.
     #[default]

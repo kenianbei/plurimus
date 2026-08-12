@@ -119,6 +119,9 @@ pub struct TableCheckedStyle(pub Style);
 /// goes: removing it leaves a non-interactive table in the tab order.
 /// [`InteractionDisabled`](plurimus_ui::InteractionDisabled) is how a table
 /// is turned off.
+///
+/// Closed: row, column and cell are the whole granularity lattice, and an
+/// app branching on it has to handle each to be correct.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[require(TabIndex, ActiveDescendant, ActiveColumn, TableKeys)]
 pub enum TableSelection {

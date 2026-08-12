@@ -77,6 +77,7 @@ pub struct LastCopied(pub Option<String>);
 
 /// Phases for the outbound half of the terminal contract.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RequestSystems {
     /// `Last`: fills [`LastCopied`] from the requests written this frame.
     ///

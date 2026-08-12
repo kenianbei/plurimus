@@ -14,6 +14,7 @@ use bevy_ecs::prelude::Resource;
 /// the user configured, which is the polite choice for anything that is not
 /// specifically a text caret.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TerminalCursorStyle {
     /// Whatever the terminal was already using.
     #[default]

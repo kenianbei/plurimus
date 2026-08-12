@@ -18,6 +18,9 @@ use plurimus_ui::ComputedWidgetArea;
 
 /// Which side of the anchor the popover opens on; mirrored to the
 /// opposite side when it would overflow the camera viewport.
+///
+/// Closed: a rect has four sides, which is what makes [`Self::mirror`]
+/// total.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PopoverSide {
     /// Above the anchor.
@@ -45,6 +48,8 @@ impl PopoverSide {
 }
 
 /// Alignment along the anchor edge the popover attaches to.
+///
+/// Closed: start, center and end span the edge.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PopoverAlign {
     /// Leading edges aligned.

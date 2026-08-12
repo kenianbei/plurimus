@@ -14,6 +14,8 @@ use ratatui_core::layout::Rect;
 use crate::camera::DefaultCamera;
 
 /// Where a widget renders, in camera-local cells.
+///
+/// Closed: a widget either takes a rect of its own or fills its camera.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum UiArea {
     /// The camera's whole viewport.

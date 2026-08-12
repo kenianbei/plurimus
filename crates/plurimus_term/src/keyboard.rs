@@ -18,6 +18,9 @@ pub struct KeyMessage {
 /// Legacy terminals only report presses; releases are synthesized after
 /// [`crate::ReleaseTimeout`] unless [`crate::InputCapabilities::key_release`]
 /// is set.
+///
+/// Closed: press, repeat and release are the whole key lifecycle, so an
+/// exhaustive match over it stays correct.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyKind {
     /// Key went down.

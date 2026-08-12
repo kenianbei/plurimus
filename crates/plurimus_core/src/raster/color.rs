@@ -45,6 +45,7 @@ const ANSI16_PALETTE: [(Color, [u8; 3]); 16] = [
 /// the frame after compositing, before present. A main-world resource,
 /// defaulting to `TrueColor`.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ColorDepth {
     /// 24-bit RGB pass-through.
     #[default]

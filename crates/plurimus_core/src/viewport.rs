@@ -20,6 +20,7 @@ use crate::size::TerminalSize;
 /// frame. Docked strips carve from a shared remaining region in
 /// `(order, entity)` sequence; fills take what is left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum Viewport {
     /// The whole terminal.
     #[default]
@@ -38,6 +39,8 @@ pub enum Viewport {
 }
 
 /// A terminal edge for [`Viewport::Docked`].
+///
+/// Closed: a terminal has four edges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edge {
     /// Left edge.
@@ -60,6 +63,7 @@ pub struct ResolvedViewport(pub Rect);
 /// of [`ResolvedViewport`] order themselves after
 /// [`CameraSystems::ResolveViewports`].
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CameraSystems {
     /// Where [`TerminalSize`](crate::TerminalSize) settles for the frame.
     /// Core writes nothing here itself; a crate reporting size changes -

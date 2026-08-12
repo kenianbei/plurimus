@@ -13,6 +13,7 @@ use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, Mo
 
 /// Ordered phases of input handling in `PreUpdate`.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum InputSystems {
     /// Backends drain their event source into messages.
     Pump,

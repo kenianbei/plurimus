@@ -104,6 +104,7 @@ pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
 /// their own systems against these - a stylist replacing a stock one runs
 /// [`after`](IntoScheduleConfigs::after) [`WidgetSystems::Style`].
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WidgetSystems {
     /// `PreUpdate`: scroll extent and row-change forwarding for the
     /// containers drawn from row children, popup sizing, and popover and

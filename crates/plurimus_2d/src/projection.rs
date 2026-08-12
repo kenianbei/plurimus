@@ -38,6 +38,7 @@ impl Default for Projection2d {
 /// entities. A per-camera component beside [`Projection2d`]; absent
 /// means halfblocks.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum SubcellMode {
     /// 1×2 points per cell, colored foreground and background.
     #[default]

@@ -30,6 +30,7 @@ pub struct TerminalRender;
 
 /// Ordered phases of the [`TerminalRender`] schedule.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TerminalRenderSystems {
     /// Pipelines write cells into camera buffers.
     Rasterize,
@@ -42,6 +43,7 @@ pub enum TerminalRenderSystems {
 /// Ordered pipeline passes within [`TerminalRenderSystems::Rasterize`]:
 /// world-space pipelines draw beneath the ui pipeline.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RasterizeSystems {
     /// World-space pipelines (2d, 3d).
     World,
@@ -53,6 +55,7 @@ pub enum RasterizeSystems {
 /// post-process the composed frame after cameras merge and before color
 /// depth is reduced, while every color is still what the widgets chose.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CompositeSystems {
     /// Camera buffers merge into the frame buffer.
     Merge,

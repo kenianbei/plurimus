@@ -10,6 +10,7 @@ use bevy_math::UVec2;
 
 /// How a 3d camera's rendered pixels become terminal cells.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
+#[non_exhaustive]
 pub enum Strategy3d {
     /// `▀`/`▄` color pairs at half-cell resolution.
     #[default]
