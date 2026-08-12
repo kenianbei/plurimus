@@ -152,7 +152,14 @@ fn write_ramp_cell(
     (level, linear): (f32, LinearRgba),
     characters: &[char],
 ) {
-    let index = (level.clamp(0.0, 1.0) * (characters.len() - 1) as f32).round() as usize;
+    // A ramp is publicly constructible and its characters publicly
+    // assignable, so an empty one reaches here; it names no character to
+    // draw, which leaves the cell alone rather than underflowing on
+    // `len() - 1`.
+    let Some(last) = characters.len().checked_sub(1) else {
+        return;
+    };
+    let index = (level.clamp(0.0, 1.0) * last as f32).round() as usize;
     if let Some(cell) = buffer.cell_mut(position) {
         cell.set_char(characters[index]);
         cell.set_fg(linear_cell_color(linear));
@@ -200,10 +207,7 @@ mod tests {
 
     #[test]
     fn depth_picks_nearer_denser_characters_and_scene_color() {
-        let ramp = DepthRamp {
-            characters: RAMP_SHADING,
-            scale: 1.0,
-        };
+        let ramp = DepthRamp::new(RAMP_SHADING).with_scale(1.0);
         let pixels = rgba_grid(&[[255, 0, 0, 255]; 4]);
         let depths = [0.9, 0.01, 0.9, 0.01];
         let mut buffer = Buffer::empty(Rect::new(0, 0, 2, 1));
@@ -284,12 +288,27 @@ mod tests {
         assert_eq!(buffer.cell((0, 0)).unwrap().symbol(), " ");
     }
 
+    // A ramp names no character to draw, which must leave the cell
+    // alone: indexing it once underflowed on `len() - 1`.
+    #[test]
+    fn an_empty_ramp_draws_nothing_rather_than_panicking() {
+        let ramp = LuminanceRamp::new(&[]);
+        let pixels = rgba_grid(&[[255, 255, 255, 255]; 4]);
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 2, 1));
+        let mut scratch = Scratch3d::default();
+
+        Strategy3d::Luminance(ramp).convert(
+            &sources(&pixels, UVec2::new(2, 2)),
+            &mut scratch,
+            &mut Canvas::full(&mut buffer),
+        );
+
+        assert_eq!(buffer, Buffer::empty(Rect::new(0, 0, 2, 1)));
+    }
+
     #[test]
     fn luminance_picks_darkest_and_brightest_ramp_ends() {
-        let ramp = LuminanceRamp {
-            characters: RAMP_SHADING,
-            scale: 1.0,
-        };
+        let ramp = LuminanceRamp::new(RAMP_SHADING).with_scale(1.0);
         let pixels = rgba_grid(&[
             [3, 3, 3, 255],
             [255, 255, 255, 255],
@@ -312,10 +331,7 @@ mod tests {
 
     #[test]
     fn luminance_skips_fully_transparent_cells_only() {
-        let ramp = LuminanceRamp {
-            characters: RAMP_SHADING,
-            scale: 1.0,
-        };
+        let ramp = LuminanceRamp::new(RAMP_SHADING).with_scale(1.0);
         let pixels = rgba_grid(&[
             [0, 0, 0, 0],
             [255, 255, 255, 255],
@@ -338,10 +354,7 @@ mod tests {
 
     #[test]
     fn oversized_luminance_frames_scale_down_instead_of_cropping() {
-        let ramp = LuminanceRamp {
-            characters: RAMP_SHADING,
-            scale: 1.0,
-        };
+        let ramp = LuminanceRamp::new(RAMP_SHADING).with_scale(1.0);
         let mut pixels = vec![[3u8, 3, 3, 255]; 4 * 4];
         for row in 0..4 {
             pixels[row * 4 + 2] = [255, 255, 255, 255];

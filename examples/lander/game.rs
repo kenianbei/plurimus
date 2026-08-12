@@ -155,10 +155,7 @@ fn cycle_strategies(cameras: &mut Query<(Entity, &mut Strategy3d, Option<&EdgeOv
 
 fn next_strategy(strategy: Strategy3d) -> Strategy3d {
     match strategy {
-        Strategy3d::Halfblocks => Strategy3d::Luminance(LuminanceRamp {
-            characters: RAMP_SHADING,
-            ..LuminanceRamp::default()
-        }),
+        Strategy3d::Halfblocks => Strategy3d::Luminance(LuminanceRamp::new(RAMP_SHADING)),
         Strategy3d::Luminance(ramp) if ramp.characters == RAMP_SHADING => {
             Strategy3d::Luminance(LuminanceRamp::default())
         }

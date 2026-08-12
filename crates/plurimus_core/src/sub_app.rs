@@ -65,9 +65,21 @@ pub enum CompositeSystems {
     Downsample,
 }
 
+mod sealed {
+    /// Seals [`TerminalRenderAppExt`](super::TerminalRenderAppExt): bevy's
+    /// `App` is its only sensible implementor, so a downstream one would be
+    /// a mistake, and sealing is what lets a registration method appear as
+    /// a sub-app phase lands.
+    pub trait Sealed {}
+
+    impl Sealed for bevy_app::App {}
+}
+
 /// Registers systems in the terminal render sub-app without exposing its
 /// internals.
-pub trait TerminalRenderAppExt {
+///
+/// Sealed: implemented for bevy's `App` and nothing else.
+pub trait TerminalRenderAppExt: sealed::Sealed {
     /// Adds systems to `set` within the [`TerminalRender`] schedule.
     fn add_terminal_systems<M>(
         &mut self,
