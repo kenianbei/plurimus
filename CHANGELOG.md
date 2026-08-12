@@ -8,7 +8,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **The published types that grow now say so.** Fifteen enums and thirty-odd
+- **The published types that grow now say so.** Fifteen enums and thirty-nine
   structs carry `#[non_exhaustive]`, so adding a pipeline phase, a cursor shape,
   a 3d strategy, a theme state or a field to a config is a minor release rather
   than a breaking one. Which types those are is stated in `ARCHITECTURE.md`
@@ -24,11 +24,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and `UiTheme` gain `const fn new`, since a size and a theme are often built in
   a `const` context where `Default` cannot be called; `TerminalCamera`,
   `UiTheme` and `InteractionState` gain `with_*` builders; `Popover`,
-  `Scrollbar`, `WheelAxes`, `TerminalCursor`, the four backend message types,
-  `TerminalContext`, `ExtractedWidget`, `ExtractedCamera`, the two 3d ramps, and
-  the widget events (`Click`, `PointerPress`, `PointerDrag`, `PointerRelease`,
-  `ScrollBy`, `ValueChange`, `TableHeaderClick`) all gain a `new`. A type whose
-  `Default` and public fields already build it got nothing new.
+  `Scrollbar`, `WheelAxes`, `TerminalCursor`, `Pixel`, the four backend message
+  types, `TerminalContext`, `ExtractedWidget`, `ExtractedCamera`, the two 3d
+  ramps, and the widget events (`Click`, `PointerPress`, `PointerDrag`,
+  `PointerRelease`, `ScrollBy`, `ValueChange`, `TableHeaderClick`) all gain a
+  `new`. A type whose `Default` and public fields already build it got nothing
+  new.
 
 - **A scrolled pane can be scrolled from the keyboard.** `ScrollKeys` binds keys
   to `ScrollAction`s - page, jump to either end, move by a row - and is the
@@ -77,6 +78,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **The 2d sprite builders are named `with_*`.** `Glyph::style` and
+  `GlyphBlock::style` are now `with_style`, and `PixelBlock::mirrored` is
+  `with_mirrored`, matching every other builder on a sealed type.
+  `CrosstermPlugin`'s configuration methods keep their bare names: its fields
+  are private, so it was never a sealed type needing a builder path.
 - **`TerminalRenderAppExt` is sealed.** Bevy's `App` is its only sensible
   implementor, and sealing is what lets a registration method appear as new
   sub-app phases land. No consumer implements it.
