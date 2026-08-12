@@ -11,6 +11,7 @@ use ratatui_core::style::{Color, Style};
 /// `z`, higher in front.
 #[derive(Component, Debug, Clone)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct Glyph {
     /// Cell content; a single grapheme cluster.
     pub symbol: String,
@@ -45,6 +46,7 @@ impl Glyph {
 /// Z-ordering matches [`Glyph`].
 #[derive(Component, Debug, Clone)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct GlyphBlock {
     /// Rows of cell content, top to bottom.
     pub rows: Vec<String>,
@@ -76,9 +78,18 @@ impl GlyphBlock {
 /// transform's `z`, higher in front.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Transform)]
+#[non_exhaustive]
 pub struct Pixel {
     /// Color of the halfblock point.
     pub color: Color,
+}
+
+impl Pixel {
+    /// A halfblock point in `color`.
+    #[must_use]
+    pub const fn new(color: Color) -> Self {
+        Self { color }
+    }
 }
 
 /// A rectangular pixel-art sprite stamped centered on its transform's

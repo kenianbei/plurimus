@@ -75,9 +75,7 @@ fn spawn_scene(mut commands: Commands) {
     spawn_paddle(&mut commands, PADDLE_X, (KeyCode::Up, KeyCode::Down));
     commands.spawn((
         Ball::default(),
-        Pixel {
-            color: Color::White,
-        },
+        Pixel::new(Color::White),
         Transform::default(),
     ));
 }

@@ -56,20 +56,12 @@ fn pixels_land_in_upper_and_lower_halves() {
     let mut app = app(5, 2);
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(-2.0, 1.5, 0.0),
-    ));
-    app.world_mut().spawn((
-        Pixel { color: Color::Blue },
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
-    app.world_mut().spawn((
-        Pixel {
-            color: Color::Green,
-        },
-        Transform::from_xyz(1.0, 0.0, 0.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(-2.0, 1.5, 0.0)));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Blue), Transform::from_xyz(0.0, 0.5, 0.0)));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Green), Transform::from_xyz(1.0, 0.0, 0.0)));
 
     app.update();
 
@@ -115,10 +107,8 @@ fn render_layers_mask_entities_per_camera() {
         .spawn(glyph_at("@", 0.0, 0.0, 0.0))
         .insert(RenderLayers::layer(0).with(1));
     app.world_mut().spawn(glyph_at("#", -1.0, 0.0, 0.0));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(1.0, 0.0, 0.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(1.0, 0.0, 0.0)));
     app.world_mut()
         .spawn(glyph_at("!", 1.0, 1.0, 0.0))
         .insert(RenderLayers::none());
@@ -133,10 +123,8 @@ fn glyphs_draw_over_pixels() {
     let mut app = app(3, 1);
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(0.0, 0.0, 5.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(0.0, 0.0, 5.0)));
     app.world_mut().spawn((
         Glyph::new("X").style(Style::new().fg(Color::White)),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -212,7 +200,7 @@ fn braille_cameras_render_pixels_at_dot_resolution() {
     for step in 0..8 {
         let along = step as f32 / 2.0;
         app.world_mut().spawn((
-            Pixel { color: Color::Red },
+            Pixel::new(Color::Red),
             Transform::from_xyz(along - 2.0, along - 2.0, 0.0),
         ));
     }
@@ -313,14 +301,10 @@ fn higher_z_pixel_wins_the_subcell() {
     let mut app = app(3, 1);
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
-    app.world_mut().spawn((
-        Pixel { color: Color::Blue },
-        Transform::from_xyz(0.0, 0.0, 2.0),
-    ));
-    app.world_mut().spawn((
-        Pixel { color: Color::Red },
-        Transform::from_xyz(0.0, 0.0, 1.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Blue), Transform::from_xyz(0.0, 0.0, 2.0)));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Red), Transform::from_xyz(0.0, 0.0, 1.0)));
 
     app.update();
 
@@ -333,17 +317,11 @@ fn pixels_and_pixel_blocks_share_one_z_order() {
     app.world_mut()
         .spawn((TerminalCamera::default(), Projection2d::default()));
     app.world_mut().spawn((
-        Pixel {
-            color: Color::Green,
-        },
+        Pixel::new(Color::Green),
         Transform::from_xyz(-1.0, 0.5, 2.0),
     ));
-    app.world_mut().spawn((
-        Pixel {
-            color: Color::Green,
-        },
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
+    app.world_mut()
+        .spawn((Pixel::new(Color::Green), Transform::from_xyz(0.0, 0.5, 0.0)));
     app.world_mut().spawn((
         PixelBlock::new("rrr", BRICK),
         Transform::from_xyz(0.0, 0.5, 1.0),
