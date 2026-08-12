@@ -120,6 +120,10 @@ impl Default for WheelAxes {
 
 /// A scroll of `step` cells, delivered to one widget.
 ///
+/// Produced by a wheel tick over the widget and by a key bound through
+/// [`ScrollKeys`](crate::ScrollKeys); an app triggers it directly to
+/// scroll a widget from anywhere else.
+///
 /// The step is what the producer asked for, not what the content allows:
 /// a consumer clamps against its own extent, so a step past the end is a
 /// jump to it.

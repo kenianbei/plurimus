@@ -1,0 +1,241 @@
+//! Keyboard scrolling of the focused scroll area, driven headlessly
+//! through the real key path.
+
+use bevy_app::App;
+use bevy_ecs::entity::Entity;
+use bevy_input_focus::{FocusCause, InputFocus};
+use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_term::KeyCode;
+use plurimus_test::press_key;
+use plurimus_ui::{
+    InteractionDisabled, Key, ScrollAction, ScrollArea, ScrollKeys, ScrollOffset, UiArea, UiPlugin,
+};
+
+const AREA: Rect = Rect::new(0, 0, 10, 4);
+/// Overflows the area on both axes, so a horizontal offset has somewhere
+/// to be and is not clamped back to zero by the vertical assertions.
+const CONTENT: Size = Size::new(30, 20);
+/// `content.height - area.height`, the furthest the offset can travel.
+const MAX_ROW: u16 = 16;
+
+fn app() -> App {
+    let mut app = App::new();
+    app.add_plugins((CorePlugin, UiPlugin));
+    app.insert_resource(TerminalSize { cols: 10, rows: 4 });
+    app.world_mut().spawn(TerminalCamera::default());
+    app
+}
+
+fn spawn_pane(app: &mut App) -> Entity {
+    app.world_mut()
+        .spawn((
+            ScrollArea::new(CONTENT),
+            ScrollKeys::default(),
+            UiArea::Fixed(AREA),
+        ))
+        .id()
+}
+
+/// Focus after a frame has run: `bevy_input_focus` hands focus to the
+/// virtual window in `PostStartup`, which would overwrite an earlier set.
+fn focus(app: &mut App, entity: Entity) {
+    app.update();
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(entity, FocusCause::Pressed);
+}
+
+fn row(app: &App, entity: Entity) -> u16 {
+    app.world()
+        .entity(entity)
+        .get::<ScrollOffset>()
+        .unwrap()
+        .0
+        .y
+}
+
+fn offset(app: &App, entity: Entity) -> Position {
+    app.world().entity(entity).get::<ScrollOffset>().unwrap().0
+}
+
+#[test]
+fn page_down_moves_the_offset_by_the_viewport_height() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::PageDown);
+
+    assert_eq!(row(&app, pane), AREA.height);
+}
+
+#[test]
+fn paging_down_stops_at_the_content_end() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus(&mut app, pane);
+
+    for _ in 0..10 {
+        press_key(&mut app, KeyCode::PageDown);
+    }
+
+    assert_eq!(row(&app, pane), MAX_ROW);
+}
+
+#[test]
+fn paging_up_stops_at_the_top() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::PageDown);
+    for _ in 0..10 {
+        press_key(&mut app, KeyCode::PageUp);
+    }
+
+    assert_eq!(row(&app, pane), 0);
+}
+
+#[test]
+fn end_and_home_reach_both_extremes_in_one_press() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::End);
+    assert_eq!(row(&app, pane), MAX_ROW);
+
+    press_key(&mut app, KeyCode::Home);
+    assert_eq!(row(&app, pane), 0);
+}
+
+#[test]
+fn a_jump_leaves_the_horizontal_offset_where_it_was() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus(&mut app, pane);
+    app.world_mut()
+        .entity_mut(pane)
+        .insert(ScrollOffset(Position::new(3, 0)));
+
+    press_key(&mut app, KeyCode::End);
+
+    assert_eq!(offset(&app, pane), Position::new(3, MAX_ROW));
+}
+
+#[test]
+fn the_arrows_move_one_row() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, KeyCode::Down);
+    assert_eq!(row(&app, pane), 2);
+
+    press_key(&mut app, KeyCode::Up);
+    assert_eq!(row(&app, pane), 1);
+}
+
+// Directional navigation would otherwise take an arrow the pane could not
+// use and move focus out of it, which reads as the pane losing the key.
+// The neighbor sits in the direction pressed, so an unconsumed arrow has
+// somewhere to go and the assertion can tell the two apart.
+#[test]
+fn a_bound_key_at_an_extreme_is_still_consumed() {
+    let mut app = app();
+    app.insert_resource(TerminalSize { cols: 10, rows: 8 });
+    let above = app
+        .world_mut()
+        .spawn((
+            ScrollArea::new(CONTENT),
+            ScrollKeys::default(),
+            UiArea::Fixed(Rect::new(0, 0, 10, 4)),
+        ))
+        .id();
+    let pane = app
+        .world_mut()
+        .spawn((
+            ScrollArea::new(CONTENT),
+            ScrollKeys::default(),
+            UiArea::Fixed(Rect::new(0, 4, 10, 4)),
+        ))
+        .id();
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::Up);
+
+    assert_eq!(row(&app, pane), 0);
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(pane));
+    assert_eq!(row(&app, above), 0);
+}
+
+#[test]
+fn an_unfocused_pane_ignores_the_keys() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    app.update();
+
+    press_key(&mut app, KeyCode::PageDown);
+
+    assert_eq!(row(&app, pane), 0);
+}
+
+#[test]
+fn a_scroll_area_without_the_component_ignores_the_keys() {
+    let mut app = app();
+    let pane = app
+        .world_mut()
+        .spawn((ScrollArea::new(CONTENT), UiArea::Fixed(AREA)))
+        .id();
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::PageDown);
+
+    assert_eq!(row(&app, pane), 0);
+}
+
+#[test]
+fn a_disabled_pane_ignores_the_keys() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    app.world_mut().entity_mut(pane).insert(InteractionDisabled);
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::PageDown);
+
+    assert_eq!(row(&app, pane), 0);
+}
+
+#[test]
+fn a_remapped_binding_replaces_the_default_one() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    app.world_mut().entity_mut(pane).insert(ScrollKeys(vec![
+        (Key::Character("j".into()), ScrollAction::LineDown),
+        (Key::Character("G".into()), ScrollAction::Bottom),
+    ]));
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::Char('j'));
+    assert_eq!(row(&app, pane), 1);
+
+    press_key(&mut app, KeyCode::PageDown);
+    assert_eq!(row(&app, pane), 1);
+}
+
+// The component is the whole opt-in: it carries TabIndex, so a pane takes
+// focus by tab and click without the app naming bevy_input_focus.
+#[test]
+fn the_component_makes_the_pane_a_tab_stop() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    app.update();
+
+    assert!(
+        app.world()
+            .entity(pane)
+            .contains::<bevy_input_focus::tab_navigation::TabIndex>()
+    );
+}

@@ -23,12 +23,14 @@ mod interaction;
 mod modal;
 mod nav;
 mod scroll;
+mod scroll_keys;
 mod scrolled;
 mod stylist;
 mod theme;
 
 pub use tui_scrollview;
 
+pub use bevy_input::keyboard::Key;
 pub use cursor::WidgetCursor;
 pub use focus::FocusWithin;
 pub use interaction::ValueChange;
@@ -43,6 +45,7 @@ pub use scroll::{
     ScrollArea, ScrollBy, ScrollIntoView, ScrollOffset, WheelAxes, WheelReceptive, apply_offset,
     content_cell, max_offset, screen_cell,
 };
+pub use scroll_keys::{ScrollAction, ScrollKeys};
 pub use scrolled::LiveWidget;
 pub use stylist::{
     LabeledQuery, StateQuery, Stylable, StylistCache, UiLabel, decorate, hashed_bits, observed,
@@ -123,6 +126,7 @@ impl Plugin for UiPlugin {
         app.add_systems(bevy_app::PostUpdate, cursor::sync_terminal_cursor);
         app.add_observer(scroll::scroll_into_view);
         app.add_observer(scroll::scroll_area_scrolled);
+        app.add_observer(scroll_keys::scroll_key);
         app.add_extract_systems(scrolled::extract_scrolled_widgets);
         app.sub_app_mut(TerminalRenderApp)
             .init_resource::<scrolled::ScrolledContentCache>();
