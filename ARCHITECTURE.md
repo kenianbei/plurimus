@@ -128,11 +128,21 @@ what `plurimus_widgets` does with `WidgetSystems::Layout`. It also builds the
 directional navigation map, and provides scrolling (`ScrollArea`,
 `ScrollOffset`, `ScrollIntoView`) with cached extraction of scrolled content,
 plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
-menus and popovers are built from. `content_cell` is where a pointer cell
-becomes a content cell for any of it, clamping into the area so a captured drag
-past an edge keeps addressing the nearest one; `screen_cell` is the way back,
-refusing rather than clamping, and it is what places the focused widget's
-`WidgetCursor` on the terminal.
+menus and popovers are built from. Every scroll converges on one event: a wheel
+tick, arbitrated by z-order among the `WheelReceptive` widgets under the cursor
+whose `WheelAxes` can still use that axis, and a key bound through `ScrollKeys`
+on whichever widget holds focus both become a `ScrollBy`, which whoever stores
+the scroll consumes - this crate's `ScrollOffset`, a bevy_ui node's own
+position, a text editor's engine viewport - each clamping the step against its
+own extent. `ScrollKeys` is the whole opt-in for the keyboard, carrying the
+`TabIndex` without which nothing can be sent a key, and it is one of three
+`(Key, Action)` bindings components sharing `first_bound`, the scan this crate
+owns so a widget family written elsewhere states "first match wins" by calling
+it rather than by copying it. `content_cell` is where a pointer cell becomes a
+content cell for any of it, clamping into the area so a captured drag past an
+edge keeps addressing the nearest one; `screen_cell` is the way back, refusing
+rather than clamping, and it is what places the focused widget's `WidgetCursor`
+on the terminal.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
@@ -145,7 +155,8 @@ consumes it: `StylistCache` records what a widget last drew and
 theme swap or a dirtied container repaints and an idle frame costs a comparison.
 `observed` reads an entity's state through `StateQuery`, `restyle` runs the
 whole loop for the label-driven case, and a `UiLabel` is a ratatui `Line`, so a
-label carries per-span style of its own. Re-exports `tui_scrollview`.
+label carries per-span style of its own. Re-exports `tui_scrollview`, and
+`bevy_input`'s `Key`, the type its bindings are written in.
 
 ### plurimus_widgets
 
@@ -184,9 +195,11 @@ only a list box draws: that row is as tall as its text has lines, and the
 extent, the row a click lands in, and the reveal that keeps the cursor visible
 all measure by height rather than by count. Both containers also take their
 movement keys from a component of `(Key, Action)` bindings - `ListBoxKeys`,
-`TableKeys` - scanned in order so the first match wins, which is how an app
-remaps a list to vim keys without reimplementing movement beside the widget; the
-sliders, menus, and text widgets still match keys inline.
+`TableKeys` - which is how an app remaps a list to vim keys without
+reimplementing movement beside the widget. Only the bindings are the crate's:
+the scan itself is `plurimus_ui`'s `first_bound`, the same one a focused scroll
+area's keys go through. The sliders, menus, and text widgets still match keys
+inline.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
