@@ -80,9 +80,10 @@ The writer is generic: stdout by default, or the controlling terminal via
 Interaction over any entity with an area. It computes widget areas, resolves
 hover with z-order hit testing, and routes pointer press, drag, release, click,
 and wheel events. Focus runs over `bevy_input_focus`, with a directional
-navigation map for arrow-key movement, scrolling through `ScrollArea` and
-`ScrollIntoView`, and the modal-overlay primitives menus and popovers are built
-from.
+navigation map for arrow-key movement, scrolling through `ScrollArea`,
+`ScrollIntoView` and `ScrollKeys` - a wheel tick and a bound key both arriving
+as one `ScrollBy` - and the modal-overlay primitives menus and popovers are
+built from.
 
 It also owns the styling contract a widget library builds on, rather than
 inventing its own: the `UiTheme` resource, `UiStyle` to patch one entity's
@@ -145,7 +146,7 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.5"
+plurimus = "0.6"
 bevy_app = "0.19"
 bevy_ecs = "0.19"
 ratatui-widgets = "0.3"
@@ -327,7 +328,7 @@ seconds while GPU pipelines compile.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.5      | 0.19 | 0.1          |
+| 0.6      | 0.19 | 0.1          |
 
 - **Rust 1.95** or newer, edition 2024.
 - **Bevy 0.19** for any bevy crates added alongside.
@@ -341,6 +342,13 @@ seconds while GPU pipelines compile.
 Pre-1.0, versioned in lockstep across the workspace. The architecture is
 settled; the API still moves between minor releases, and
 [CHANGELOG.md](CHANGELOG.md) records what changed.
+
+Types whose vocabulary is open carry `#[non_exhaustive]`, so they can gain a
+field or a variant without a breaking release; each keeps a constructor or a
+`Default` you build from. Types an app must handle exhaustively to be correct
+are deliberately left open, so growth there is a compile error rather than a
+silently-taken `_` arm. [ARCHITECTURE.md](ARCHITECTURE.md) states which are
+which.
 
 ## License
 
