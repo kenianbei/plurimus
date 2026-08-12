@@ -27,14 +27,18 @@ fn app() -> App {
     app
 }
 
-fn spawn_pane(app: &mut App) -> Entity {
+fn spawn_pane_at(app: &mut App, area: Rect) -> Entity {
     app.world_mut()
         .spawn((
             ScrollArea::new(CONTENT),
             ScrollKeys::default(),
-            UiArea::Fixed(AREA),
+            UiArea::Fixed(area),
         ))
         .id()
+}
+
+fn spawn_pane(app: &mut App) -> Entity {
+    spawn_pane_at(app, AREA)
 }
 
 /// Focus after a frame has run: `bevy_input_focus` hands focus to the
@@ -46,17 +50,12 @@ fn focus(app: &mut App, entity: Entity) {
         .set(entity, FocusCause::Pressed);
 }
 
-fn row(app: &App, entity: Entity) -> u16 {
-    app.world()
-        .entity(entity)
-        .get::<ScrollOffset>()
-        .unwrap()
-        .0
-        .y
-}
-
 fn offset(app: &App, entity: Entity) -> Position {
     app.world().entity(entity).get::<ScrollOffset>().unwrap().0
+}
+
+fn row(app: &App, entity: Entity) -> u16 {
+    offset(app, entity).y
 }
 
 #[test]
@@ -70,8 +69,11 @@ fn page_down_moves_the_offset_by_the_viewport_height() {
     assert_eq!(row(&app, pane), AREA.height);
 }
 
+// Accumulated paging, which a single saturated jump does not exercise:
+// the clamp has to hold on the press that crosses the bound and on every
+// press after it.
 #[test]
-fn paging_down_stops_at_the_content_end() {
+fn repeated_paging_settles_at_each_bound() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
     focus(&mut app, pane);
@@ -79,21 +81,11 @@ fn paging_down_stops_at_the_content_end() {
     for _ in 0..10 {
         press_key(&mut app, KeyCode::PageDown);
     }
-
     assert_eq!(row(&app, pane), MAX_ROW);
-}
 
-#[test]
-fn paging_up_stops_at_the_top() {
-    let mut app = app();
-    let pane = spawn_pane(&mut app);
-    focus(&mut app, pane);
-
-    press_key(&mut app, KeyCode::PageDown);
     for _ in 0..10 {
         press_key(&mut app, KeyCode::PageUp);
     }
-
     assert_eq!(row(&app, pane), 0);
 }
 
@@ -146,22 +138,8 @@ fn the_arrows_move_one_row() {
 fn a_bound_key_at_an_extreme_is_still_consumed() {
     let mut app = app();
     app.insert_resource(TerminalSize { cols: 10, rows: 8 });
-    let above = app
-        .world_mut()
-        .spawn((
-            ScrollArea::new(CONTENT),
-            ScrollKeys::default(),
-            UiArea::Fixed(Rect::new(0, 0, 10, 4)),
-        ))
-        .id();
-    let pane = app
-        .world_mut()
-        .spawn((
-            ScrollArea::new(CONTENT),
-            ScrollKeys::default(),
-            UiArea::Fixed(Rect::new(0, 4, 10, 4)),
-        ))
-        .id();
+    let above = spawn_pane_at(&mut app, Rect::new(0, 0, 10, 4));
+    let pane = spawn_pane_at(&mut app, Rect::new(0, 4, 10, 4));
     focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::Up);
@@ -225,8 +203,27 @@ fn a_remapped_binding_replaces_the_default_one() {
     assert_eq!(row(&app, pane), 1);
 }
 
-// The component is the whole opt-in: it carries TabIndex, so a pane takes
-// focus by tab and click without the app naming bevy_input_focus.
+#[test]
+fn the_horizontal_actions_move_the_column() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    app.world_mut().entity_mut(pane).insert(ScrollKeys(vec![
+        (Key::ArrowRight, ScrollAction::LineRight),
+        (Key::ArrowLeft, ScrollAction::LineLeft),
+    ]));
+    focus(&mut app, pane);
+
+    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, KeyCode::Right);
+    assert_eq!(offset(&app, pane), Position::new(2, 0));
+
+    press_key(&mut app, KeyCode::Left);
+    assert_eq!(offset(&app, pane), Position::new(1, 0));
+}
+
+// Pins the require list rather than Bevy's mechanism: the crate documents
+// the component as the whole opt-in, so dropping TabIndex from it would
+// silently leave a pane that can never be focused and never take a key.
 #[test]
 fn the_component_makes_the_pane_a_tab_stop() {
     let mut app = app();

@@ -6,12 +6,12 @@
 //! scroll consumer page without knowing a key was pressed.
 
 use bevy_ecs::prelude::{Commands, Component, On, Query, Without};
-use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 
 use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
+use crate::keys::first_bound;
 use crate::scroll::ScrollBy;
 
 /// What a bound key does to a scrolled widget.
@@ -39,6 +39,10 @@ pub enum ScrollAction {
 /// Scroll bindings for a widget, scanned in order so the first match
 /// wins. Adding it makes the entity a tab stop, since a widget that
 /// cannot hold focus cannot be sent a key.
+///
+/// Requires [`TabIndex`], which Bevy does not remove when this component
+/// goes: removing it leaves an unscrollable widget in the tab order.
+/// [`InteractionDisabled`] is how one is turned off.
 ///
 /// Deliberately not required by [`ScrollArea`](crate::ScrollArea): a
 /// widget owning its own movement keys - a list box, a table, a text
@@ -78,7 +82,7 @@ pub(crate) fn scroll_key(
     let Ok((keys, area)) = areas.get(entity) else {
         return;
     };
-    let Some(action) = bound_action(keys, &input.input) else {
+    let Some(action) = first_bound(&keys.0, &input.input) else {
         return;
     };
     // Consumed even at an extreme, so a bound key never reaches
@@ -90,20 +94,10 @@ pub(crate) fn scroll_key(
     });
 }
 
-fn bound_action(keys: &ScrollKeys, input: &KeyboardInput) -> Option<ScrollAction> {
-    if input.state != ButtonState::Pressed {
-        return None;
-    }
-    keys.0
-        .iter()
-        .find(|(key, _)| *key == input.logical_key)
-        .map(|(_, action)| *action)
-}
-
 fn step(action: ScrollAction, height: u16) -> (i32, i32) {
-    // A widget kept off screen holds focus with no area; a page there is
-    // still movement rather than a dead key.
-    let page = i32::from(height.max(1));
+    // A hidden widget keeps focus but resolves to no area, and a page of
+    // nothing is no movement; the key is still consumed, having matched.
+    let page = i32::from(height);
     match action {
         ScrollAction::LineUp => (0, -1),
         ScrollAction::LineDown => (0, 1),
@@ -127,8 +121,8 @@ mod tests {
     }
 
     #[test]
-    fn an_arealess_widget_still_pages_by_a_row() {
-        assert_eq!(step(ScrollAction::PageDown, 0), (0, 1));
+    fn an_arealess_widget_pages_nowhere() {
+        assert_eq!(step(ScrollAction::PageDown, 0), (0, 0));
     }
 
     #[test]

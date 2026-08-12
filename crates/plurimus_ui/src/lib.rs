@@ -20,6 +20,7 @@
 mod cursor;
 mod focus;
 mod interaction;
+mod keys;
 mod modal;
 mod nav;
 mod scroll;
@@ -38,6 +39,7 @@ pub use interaction::{
     Checked, Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
     PointerRelease, Pressed,
 };
+pub use keys::first_bound;
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
 pub use nav::NavigationConfig;
 pub use plurimus_core::{TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};

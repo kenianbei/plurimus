@@ -27,7 +27,7 @@ use crate::modal::ModalGuard;
 /// windowed into the resolved area at render time by its
 /// [`ScrollOffset`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-#[require(ScrollOffset, WheelReceptive, RasterDeferred)]
+#[require(ScrollOffset, WheelReceptive, RasterDeferred, ComputedWidgetArea)]
 pub struct ScrollArea {
     /// Content extent in cells.
     pub content_size: Size,
@@ -199,10 +199,12 @@ pub(crate) fn scroll_area_scrolled(
     apply_offset(event.entity, stepped, &mut offset, &mut commands);
 }
 
-// Widened past both operands before the add: a step asking for an
-// extreme is i32 at full range, which an i32 sum would overflow.
+// Saturating rather than wrapping, because a step asking for an extreme
+// is i32 at full range and would overflow the sum on the way there.
 fn stepped_offset(offset: u16, step: i32, max: u16) -> u16 {
-    (i64::from(offset) + i64::from(step)).clamp(0, i64::from(max)) as u16
+    i32::from(offset)
+        .saturating_add(step)
+        .clamp(0, i32::from(max)) as u16
 }
 
 pub(crate) fn scroll_into_view(
