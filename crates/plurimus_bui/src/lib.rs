@@ -82,7 +82,7 @@ impl Plugin for BuiPlugin {
                 .after(CameraSystems::ResolveViewports)
                 .before(PuiSystems::Hover),
         );
-        app.add_observer(scroll::bui_node_wheel);
+        app.add_observer(scroll::bui_node_scrolled);
         app.sub_app_mut(TerminalRenderApp)
             .init_resource::<extract::ExtractedBuiNodes>();
         app.add_extract_systems(extract::extract_bui_nodes);

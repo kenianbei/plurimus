@@ -40,7 +40,7 @@ pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
 pub use nav::NavigationConfig;
 pub use plurimus_core::{TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
 pub use scroll::{
-    ScrollArea, ScrollIntoView, ScrollOffset, WheelAxes, WheelReceptive, WheelScroll, apply_offset,
+    ScrollArea, ScrollBy, ScrollIntoView, ScrollOffset, WheelAxes, WheelReceptive, apply_offset,
     content_cell, max_offset, screen_cell,
 };
 pub use scrolled::LiveWidget;
@@ -122,7 +122,7 @@ impl Plugin for UiPlugin {
         // before the sub-app extracts it.
         app.add_systems(bevy_app::PostUpdate, cursor::sync_terminal_cursor);
         app.add_observer(scroll::scroll_into_view);
-        app.add_observer(scroll::scroll_area_wheel);
+        app.add_observer(scroll::scroll_area_scrolled);
         app.add_extract_systems(scrolled::extract_scrolled_widgets);
         app.sub_app_mut(TerminalRenderApp)
             .init_resource::<scrolled::ScrolledContentCache>();

@@ -14,7 +14,7 @@ use bevy_ui::{ComputedNode, Node, Overflow, OverflowAxis, ScrollPosition};
 use super::rect::ComputedNodeRect;
 use super::{publish_area, upsert};
 use plurimus_ui::ComputedWidgetArea;
-use plurimus_ui::{WheelAxes, WheelReceptive, WheelScroll};
+use plurimus_ui::{ScrollBy, WheelAxes, WheelReceptive};
 
 type BridgeQuery<'w, 's> = Query<
     'w,
@@ -50,15 +50,15 @@ pub(crate) fn sync_bui_wheel_targets(mut nodes: BridgeQuery, mut commands: Comma
 
 // Uses the previous frame's layout (same one-frame lag as bevy_picking);
 // bevy_ui clamps and applies the position during the next layout pass.
-pub(crate) fn bui_node_wheel(
-    event: On<WheelScroll>,
+pub(crate) fn bui_node_scrolled(
+    event: On<ScrollBy>,
     mut nodes: Query<(&ComputedNode, &mut ScrollPosition)>,
 ) {
     let Ok((computed, mut scroll)) = nodes.get_mut(event.entity) else {
         return;
     };
     let max = (computed.content_size - computed.size).max(Vec2::ZERO);
-    let stepped = scroll.0 + Vec2::new(f32::from(event.step.0), f32::from(event.step.1));
+    let stepped = scroll.0 + Vec2::new(event.step.0 as f32, event.step.1 as f32);
     let clamped = stepped.clamp(Vec2::ZERO, max);
     if scroll.0 != clamped {
         scroll.0 = clamped;
