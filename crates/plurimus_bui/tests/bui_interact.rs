@@ -18,7 +18,7 @@ struct Activations(u32);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, BuiPlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.init_resource::<Activations>();
     app.world_mut().spawn(TerminalCamera::default());
     app

@@ -16,7 +16,7 @@ use plurimus_widgets::{Slider, SliderRange, SliderValue, WidgetsPlugin, slider_s
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app
 }
 

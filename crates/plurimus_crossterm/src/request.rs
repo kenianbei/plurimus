@@ -224,7 +224,7 @@ mod tests {
         let writer = SharedWriter::default();
         let mut app = App::new();
         app.add_plugins((CorePlugin, plurimus_term::TermPlugin));
-        app.insert_resource(TerminalSize { cols: 10, rows: 2 });
+        app.insert_resource(TerminalSize::new(10, 2));
         app.add_plugins(PresenterPlugin::new(CrosstermBackend::new(writer.clone())));
         app.add_extract_systems((
             write_terminal_requests::<SharedWriter>,

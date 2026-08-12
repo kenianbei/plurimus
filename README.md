@@ -266,7 +266,7 @@ use ratatui_widgets::paragraph::Paragraph;
 
 let mut app = App::new();
 app.add_plugins(CorePlugin);
-app.insert_resource(TerminalSize { cols: 24, rows: 3 });
+app.insert_resource(TerminalSize::new(24, 3));
 app.world_mut().spawn(TerminalCamera::default());
 app.world_mut().spawn((UiWidget::new(Paragraph::new("ready")), UiArea::Fill));
 app.update();

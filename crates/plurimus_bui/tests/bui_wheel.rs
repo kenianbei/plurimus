@@ -18,7 +18,7 @@ use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, BuiPlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 8, rows: 3 });
+    app.insert_resource(TerminalSize::new(8, 3));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

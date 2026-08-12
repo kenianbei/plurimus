@@ -33,16 +33,13 @@ impl Widget for &Rows {
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, UiPlugin));
-    app.insert_resource(TerminalSize { cols: 4, rows: 2 });
+    app.insert_resource(TerminalSize::new(4, 2));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
 
 const fn scroll_area(height: u16) -> ScrollArea {
-    ScrollArea {
-        content_size: Size::new(4, height),
-        scrollbars: ScrollbarVisibility::Never,
-    }
+    ScrollArea::new(Size::new(4, height)).with_scrollbars(ScrollbarVisibility::Never)
 }
 
 fn spawn_scrolled(app: &mut App, renders: &Arc<AtomicUsize>) -> Entity {

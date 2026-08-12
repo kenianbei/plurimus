@@ -28,6 +28,7 @@ use crate::modal::ModalGuard;
 /// [`ScrollOffset`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(ScrollOffset, WheelReceptive, RasterDeferred, ComputedWidgetArea)]
+#[non_exhaustive]
 pub struct ScrollArea {
     /// Content extent in cells.
     pub content_size: Size,
@@ -44,6 +45,14 @@ impl ScrollArea {
             content_size,
             scrollbars: ScrollbarVisibility::Automatic,
         }
+    }
+
+    /// Sets which scrollbars the area draws for itself; `Never` when a
+    /// bar beside it supplies the visuals instead.
+    #[must_use]
+    pub const fn with_scrollbars(mut self, scrollbars: ScrollbarVisibility) -> Self {
+        self.scrollbars = scrollbars;
+        self
     }
 
     /// Usable content width inside `area_width`, accounting for the

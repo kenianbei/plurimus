@@ -18,6 +18,7 @@ use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
     clippy::struct_excessive_bools,
     reason = "the four states of the documented precedence, not a config"
 )]
+#[non_exhaustive]
 pub struct InteractionState {
     /// Cursor over the widget.
     pub hovered: bool,
@@ -32,6 +33,7 @@ pub struct InteractionState {
 /// Per-state styles for widgets. Replace the resource to restyle;
 /// `focused` is patched on top of the state style.
 #[derive(Resource, Debug, Clone)]
+#[non_exhaustive]
 pub struct UiTheme {
     /// Idle widgets.
     pub normal: Style,
@@ -47,6 +49,46 @@ pub struct UiTheme {
 
 impl Default for UiTheme {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InteractionState {
+    /// Sets the cursor-over-the-widget term.
+    #[must_use]
+    pub const fn with_hovered(mut self, hovered: bool) -> Self {
+        self.hovered = hovered;
+        self
+    }
+
+    /// Sets the pointer-held term.
+    #[must_use]
+    pub const fn with_pressed(mut self, pressed: bool) -> Self {
+        self.pressed = pressed;
+        self
+    }
+
+    /// Sets the disabled term, which wins over every other.
+    #[must_use]
+    pub const fn with_disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// Sets the focus term, which patches over whichever other wins.
+    #[must_use]
+    pub const fn with_focused(mut self, focused: bool) -> Self {
+        self.focused = focused;
+        self
+    }
+}
+
+impl UiTheme {
+    /// The stock theme, and the seed the `with_*` builders patch. A
+    /// `const fn` because an app's theme is often one too, and
+    /// [`Default`] cannot be called from one.
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             normal: Style::new(),
             hovered: Style::new().fg(Color::Cyan),
@@ -55,9 +97,43 @@ impl Default for UiTheme {
             focused: Style::new().add_modifier(Modifier::BOLD).fg(Color::Yellow),
         }
     }
-}
 
-impl UiTheme {
+    /// Sets the style for idle widgets.
+    #[must_use]
+    pub const fn with_normal(mut self, normal: Style) -> Self {
+        self.normal = normal;
+        self
+    }
+
+    /// Sets the style for a widget under the cursor.
+    #[must_use]
+    pub const fn with_hovered(mut self, hovered: Style) -> Self {
+        self.hovered = hovered;
+        self
+    }
+
+    /// Sets the style for a widget the pointer is held on.
+    #[must_use]
+    pub const fn with_pressed(mut self, pressed: Style) -> Self {
+        self.pressed = pressed;
+        self
+    }
+
+    /// Sets the style for a disabled widget.
+    #[must_use]
+    pub const fn with_disabled(mut self, disabled: Style) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// Sets the patch applied over whichever state style wins while the
+    /// widget holds focus.
+    #[must_use]
+    pub const fn with_focused(mut self, focused: Style) -> Self {
+        self.focused = focused;
+        self
+    }
+
     /// The style for one interaction state: `disabled` wins over `pressed`
     /// over `hovered` over `normal`, and `focused` patches over whichever
     /// won.

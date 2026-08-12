@@ -20,7 +20,7 @@ struct OffsetChanges(Vec<Position>);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.init_resource::<OffsetChanges>();
     app.add_observer(
         |change: On<ValueChange<Position>>, mut log: ResMut<OffsetChanges>| {

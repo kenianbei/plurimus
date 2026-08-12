@@ -17,7 +17,7 @@ const COLS: f32 = 8.0;
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, BuiPlugin));
-    app.insert_resource(TerminalSize { cols: 8, rows: 5 });
+    app.insert_resource(TerminalSize::new(8, 5));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

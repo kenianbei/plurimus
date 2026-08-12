@@ -19,10 +19,7 @@ const WIDTH: u16 = 10;
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize {
-        cols: WIDTH,
-        rows: 1,
-    });
+    app.insert_resource(TerminalSize::new(WIDTH, 1));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

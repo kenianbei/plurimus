@@ -29,7 +29,7 @@ struct HeaderClicks(Vec<usize>);
 fn app(mode: TableSelection) -> (App, Entity, [Entity; 3]) {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.init_resource::<Selected>();
     app.init_resource::<HeaderClicks>();
     app.world_mut().spawn(TerminalCamera::default());
@@ -387,7 +387,7 @@ fn multi_select_toggles_instead_of_moving() {
 fn the_hit_test_agrees_with_where_the_cells_rendered() {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.world_mut().spawn(TerminalCamera::default());
     let world = app.world_mut();
     let table = world

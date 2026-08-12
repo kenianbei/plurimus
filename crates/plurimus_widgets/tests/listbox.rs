@@ -24,7 +24,7 @@ struct Selections(Vec<(Entity, Entity)>);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 12, rows: 4 });
+    app.insert_resource(TerminalSize::new(12, 4));
     app.init_resource::<Selections>();
     app.add_observer(
         |change: On<ValueChange<Entity>>, mut log: ResMut<Selections>| {

@@ -35,7 +35,7 @@ fn app_with(
 ) -> (App, Entity, Vec<Entity>) {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 6 });
+    app.insert_resource(TerminalSize::new(20, 6));
     app.world_mut().spawn(TerminalCamera::default());
 
     let world = app.world_mut();

@@ -85,13 +85,13 @@ mod tests {
     fn transparent_cameras_let_untouched_cells_through() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 4, rows: 1 });
+        app.insert_resource(TerminalSize::new(4, 1));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(TerminalCamera {
-            order: 1,
-            background: Background::Transparent,
-            ..TerminalCamera::default()
-        });
+        app.world_mut().spawn(
+            TerminalCamera::default()
+                .with_order(1)
+                .with_background(Background::Transparent),
+        );
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_partial);
 
         app.update();
@@ -124,14 +124,14 @@ mod tests {
     fn clear_cameras_fill_untouched_cells_over_lower_layers() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 4, rows: 1 });
+        app.insert_resource(TerminalSize::new(4, 1));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(TerminalCamera {
-            order: 1,
-            viewport: Viewport::Fixed(Rect::new(2, 0, 2, 1)),
-            background: Background::Clear(Color::Blue),
-            ..TerminalCamera::default()
-        });
+        app.world_mut().spawn(
+            TerminalCamera::default()
+                .with_order(1)
+                .with_viewport(Viewport::Fixed(Rect::new(2, 0, 2, 1)))
+                .with_background(Background::Clear(Color::Blue)),
+        );
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_base_only);
 
         app.update();
@@ -162,13 +162,13 @@ mod tests {
     fn composite_layers_cameras_by_order() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 4, rows: 1 });
+        app.insert_resource(TerminalSize::new(4, 1));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(TerminalCamera {
-            order: 1,
-            viewport: Viewport::Fixed(Rect::new(2, 0, 2, 1)),
-            ..TerminalCamera::default()
-        });
+        app.world_mut().spawn(
+            TerminalCamera::default()
+                .with_order(1)
+                .with_viewport(Viewport::Fixed(Rect::new(2, 0, 2, 1))),
+        );
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint);
 
         app.update();

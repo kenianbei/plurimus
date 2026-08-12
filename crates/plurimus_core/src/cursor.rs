@@ -87,7 +87,7 @@ mod tests {
     fn app() -> App {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 8, rows: 3 });
+        app.insert_resource(TerminalSize::new(8, 3));
         app.add_plugins(PresenterPlugin::new(TestBackend::new(8, 3)));
         app
     }

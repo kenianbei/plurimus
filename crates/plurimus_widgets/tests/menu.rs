@@ -15,7 +15,7 @@ use plurimus_widgets::{Activate, MenuOpen, WidgetsPlugin, menu_button, menu_item
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 8 });
+    app.insert_resource(TerminalSize::new(20, 8));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

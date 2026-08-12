@@ -162,7 +162,7 @@ mod tests {
     fn ansi16_app() -> App {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 2, rows: 1 });
+        app.insert_resource(TerminalSize::new(2, 1));
         app.insert_resource(ColorDepth::Ansi16);
         app.world_mut().spawn(TerminalCamera::default());
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_truecolor);

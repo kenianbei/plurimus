@@ -13,10 +13,7 @@ use super::*;
 
 const THEMED_FOCUSABLES: usize = 13;
 
-const TEST_SIZE: TerminalSize = TerminalSize {
-    cols: 100,
-    rows: 32,
-};
+const TEST_SIZE: TerminalSize = TerminalSize::new(100, 32);
 
 fn headless_app() -> App {
     let mut app = App::new();

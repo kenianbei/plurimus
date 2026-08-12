@@ -18,7 +18,7 @@ const FLAG: &str = "\u{1F1EB}\u{1F1F7}";
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 20, rows: 4 });
+    app.insert_resource(TerminalSize::new(20, 4));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }

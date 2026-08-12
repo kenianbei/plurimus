@@ -62,7 +62,7 @@ fn depth_readback_fills_reverse_z_depths() {
     // on - so the registry is initialized first either way.
     app.init_resource::<GltfExtensionHandlers>();
     app.add_plugins((PbrPlugin::default(), Plugin3d));
-    app.insert_resource(TerminalSize { cols: 40, rows: 12 });
+    app.insert_resource(TerminalSize::new(40, 12));
     wait_for_renderer(&mut app);
     spawn_cube_scene(&mut app);
     let camera = {
@@ -102,7 +102,7 @@ fn renders_a_lit_cube_to_cells() {
     // on - so the registry is initialized first either way.
     app.init_resource::<GltfExtensionHandlers>();
     app.add_plugins((PbrPlugin::default(), Plugin3d));
-    app.insert_resource(TerminalSize { cols: 40, rows: 12 });
+    app.insert_resource(TerminalSize::new(40, 12));
     wait_for_renderer(&mut app);
     spawn_cube_scene(&mut app);
 

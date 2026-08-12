@@ -33,7 +33,7 @@ use plurimus::core::{
 
 use widget::Waveform;
 
-const SIZE: TerminalSize = TerminalSize { cols: 40, rows: 12 };
+const SIZE: TerminalSize = TerminalSize::new(40, 12);
 const TOP: Rect = Rect::new(0, 0, 40, 8);
 const BOTTOM: Rect = Rect::new(0, 8, 40, 4);
 
@@ -60,18 +60,15 @@ fn demo() -> App {
     // Two cameras split the target the way they would split a terminal.
     let top = app
         .world_mut()
-        .spawn(TerminalCamera {
-            viewport: Viewport::Fixed(TOP),
-            ..TerminalCamera::default()
-        })
+        .spawn(TerminalCamera::default().with_viewport(Viewport::Fixed(TOP)))
         .id();
     let bottom = app
         .world_mut()
-        .spawn(TerminalCamera {
-            order: 1,
-            viewport: Viewport::Fixed(BOTTOM),
-            ..TerminalCamera::default()
-        })
+        .spawn(
+            TerminalCamera::default()
+                .with_order(1)
+                .with_viewport(Viewport::Fixed(BOTTOM)),
+        )
         .id();
     // A `UiArea` is camera-local and clipped to its camera's viewport, so
     // each widget names its camera and fills it from the origin.

@@ -15,7 +15,7 @@ use plurimus_test::{composed_styled_frame, send_mouse};
 fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, BuiPlugin));
-    app.insert_resource(TerminalSize { cols, rows });
+    app.insert_resource(TerminalSize::new(cols, rows));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
@@ -152,11 +152,13 @@ fn two_cameras_partition_nodes() {
     let mut app = app(12, 2);
     let right_camera = app
         .world_mut()
-        .spawn(TerminalCamera {
-            order: 1,
-            viewport: Viewport::Fixed(plurimus_core::ratatui_core::layout::Rect::new(6, 0, 6, 2)),
-            ..TerminalCamera::default()
-        })
+        .spawn(
+            TerminalCamera::default()
+                .with_order(1)
+                .with_viewport(Viewport::Fixed(
+                    plurimus_core::ratatui_core::layout::Rect::new(6, 0, 6, 2),
+                )),
+        )
         .id();
     app.world_mut().spawn((
         Node {

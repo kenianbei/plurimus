@@ -17,7 +17,7 @@ struct Edits(Vec<(String, bool)>);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 6, rows: 1 });
+    app.insert_resource(TerminalSize::new(6, 1));
     app.init_resource::<Edits>();
     app.add_observer(|change: On<ValueChange<String>>, mut log: ResMut<Edits>| {
         log.0.push((change.value.clone(), change.is_final));

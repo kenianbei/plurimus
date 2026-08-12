@@ -67,6 +67,7 @@ pub enum PopoverAlign {
 /// The anchor must not itself be a popover.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(UiOrder = UiOrder::OVERLAY)]
+#[non_exhaustive]
 pub struct Popover {
     /// The widget this popover attaches to.
     pub anchor: Entity,
@@ -76,6 +77,34 @@ pub struct Popover {
     pub align: PopoverAlign,
     /// Popover size in cells.
     pub size: Size,
+}
+
+impl Popover {
+    /// A popover of `size` cells attached to `anchor`, on the preferred
+    /// side and alignment.
+    #[must_use]
+    pub const fn new(anchor: Entity, size: Size) -> Self {
+        Self {
+            anchor,
+            side: PopoverSide::Bottom,
+            align: PopoverAlign::Start,
+            size,
+        }
+    }
+
+    /// Sets the preferred side of the anchor, mirrored when it overflows.
+    #[must_use]
+    pub const fn with_side(mut self, side: PopoverSide) -> Self {
+        self.side = side;
+        self
+    }
+
+    /// Sets the alignment along the anchor edge.
+    #[must_use]
+    pub const fn with_align(mut self, align: PopoverAlign) -> Self {
+        self.align = align;
+        self
+    }
 }
 
 pub(crate) fn place_popovers(

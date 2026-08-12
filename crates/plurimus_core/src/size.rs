@@ -20,6 +20,7 @@ use crate::extract::MainWorld;
 /// a terminal should treat it as read-only. The default stands in until
 /// something reports otherwise.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TerminalSize {
     /// Number of columns.
     pub cols: u16,
@@ -28,6 +29,12 @@ pub struct TerminalSize {
 }
 
 impl TerminalSize {
+    /// A terminal of `cols` by `rows` cells.
+    #[must_use]
+    pub const fn new(cols: u16, rows: u16) -> Self {
+        Self { cols, rows }
+    }
+
     /// The full-terminal rectangle at the origin.
     #[must_use]
     pub const fn rect(&self) -> Rect {

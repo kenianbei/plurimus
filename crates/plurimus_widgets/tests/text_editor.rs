@@ -21,7 +21,7 @@ struct Changes(usize);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize { cols: 8, rows: 2 });
+    app.insert_resource(TerminalSize::new(8, 2));
     app.init_resource::<Changes>();
     app.add_observer(|_: On<TextChanged>, mut log: ResMut<Changes>| {
         log.0 += 1;

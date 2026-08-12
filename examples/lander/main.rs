@@ -78,7 +78,7 @@ mod tests {
     fn headless_app() -> App {
         let mut app = App::new();
         app.add_plugins((CorePlugin, WidgetsPlugin));
-        app.insert_resource(TerminalSize { cols: 80, rows: 24 });
+        app.insert_resource(TerminalSize::new(80, 24));
         app.insert_resource(TimeUpdateStrategy::ManualDuration(STEP));
         add_game(&mut app);
         app.world_mut().spawn((
@@ -115,11 +115,11 @@ mod tests {
     #[test]
     fn panel_renders_uncamouflaged_over_the_scene() {
         let mut app = headless_app();
-        app.world_mut().spawn(TerminalCamera {
-            viewport: Viewport::Fill,
-            background: Background::Clear(Color::Rgb(43, 44, 47)),
-            ..TerminalCamera::default()
-        });
+        app.world_mut().spawn(
+            TerminalCamera::default()
+                .with_viewport(Viewport::Fill)
+                .with_background(Background::Clear(Color::Rgb(43, 44, 47))),
+        );
 
         app.update();
         app.update();

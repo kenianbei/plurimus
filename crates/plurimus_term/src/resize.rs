@@ -27,9 +27,6 @@ pub(crate) fn apply_terminal_resize(
     mut size: ResMut<TerminalSize>,
 ) {
     if let Some(resized) = resizes.read().last() {
-        size.set_if_neq(TerminalSize {
-            cols: resized.cols,
-            rows: resized.rows,
-        });
+        size.set_if_neq(TerminalSize::new(resized.cols, resized.rows));
     }
 }

@@ -112,18 +112,13 @@ fn add_demo(app: &mut App) {
 
 fn spawn_cameras(mut commands: Commands) {
     commands.spawn((
-        TerminalCamera {
-            viewport: Viewport::Fixed(Rect::ZERO),
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::ZERO)),
         ThemedCamera,
     ));
     commands.spawn((
-        TerminalCamera {
-            order: 1,
-            viewport: Viewport::Fixed(Rect::ZERO),
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default()
+            .with_order(1)
+            .with_viewport(Viewport::Fixed(Rect::ZERO)),
         BuiCamera,
     ));
 }

@@ -83,10 +83,7 @@ fn spawn_camera(commands: &mut Commands) {
             fov: CAMERA_FOV_DEGREES.to_radians(),
             ..PerspectiveProjection::default()
         }),
-        TerminalCamera {
-            viewport: Viewport::Fill,
-            ..TerminalCamera::default()
-        },
+        TerminalCamera::default().with_viewport(Viewport::Fill),
         Strategy3d::default(),
         // Feeds the depth-sourced edge overlay modes.
         DepthReadback,

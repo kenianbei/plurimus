@@ -31,6 +31,7 @@ use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 /// not drawn twice.
 #[derive(Component, Debug, Clone)]
 #[require(Hovered, StylistCache)]
+#[non_exhaustive]
 pub struct Scrollbar {
     /// The scroll-area entity this bar controls.
     pub target: Entity,
@@ -38,16 +39,21 @@ pub struct Scrollbar {
     pub orientation: ScrollbarOrientation,
 }
 
+impl Scrollbar {
+    /// A bar driving `target` along `orientation`'s axis.
+    #[must_use]
+    pub const fn new(target: Entity, orientation: ScrollbarOrientation) -> Self {
+        Self {
+            target,
+            orientation,
+        }
+    }
+}
+
 /// Spawn bundle for a scrollbar driving `target`.
 #[must_use]
 pub fn scrollbar(target: Entity, orientation: ScrollbarOrientation) -> impl Bundle {
-    (
-        Scrollbar {
-            target,
-            orientation,
-        },
-        placeholder(),
-    )
+    (Scrollbar::new(target, orientation), placeholder())
 }
 
 type BarQuery<'w, 's> = Query<'w, 's, (&'static ComputedWidgetArea, &'static Scrollbar)>;

@@ -34,6 +34,7 @@ pub enum Background {
 
 /// A view composited into the terminal frame.
 #[derive(Component, Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct TerminalCamera {
     /// Cameras with a higher order composite later, on top.
     pub order: isize,
@@ -43,6 +44,36 @@ pub struct TerminalCamera {
     pub active: bool,
     /// What untouched cells become when composited.
     pub background: Background,
+}
+
+impl TerminalCamera {
+    /// Sets the composite order; higher composites later, on top.
+    #[must_use]
+    pub const fn with_order(mut self, order: isize) -> Self {
+        self.order = order;
+        self
+    }
+
+    /// Sets the cell-space region of the terminal the camera occupies.
+    #[must_use]
+    pub const fn with_viewport(mut self, viewport: Viewport) -> Self {
+        self.viewport = viewport;
+        self
+    }
+
+    /// Sets whether the camera renders at all.
+    #[must_use]
+    pub const fn with_active(mut self, active: bool) -> Self {
+        self.active = active;
+        self
+    }
+
+    /// Sets what untouched cells become when composited.
+    #[must_use]
+    pub const fn with_background(mut self, background: Background) -> Self {
+        self.background = background;
+        self
+    }
 }
 
 impl Default for TerminalCamera {
@@ -159,16 +190,13 @@ mod tests {
     fn extracts_active_cameras_with_clamped_viewports() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 10, rows: 5 });
+        app.insert_resource(TerminalSize::new(10, 5));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(TerminalCamera {
-            viewport: Viewport::Fixed(Rect::new(8, 3, 10, 10)),
-            ..TerminalCamera::default()
-        });
-        app.world_mut().spawn(TerminalCamera {
-            active: false,
-            ..TerminalCamera::default()
-        });
+        app.world_mut().spawn(
+            TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(8, 3, 10, 10))),
+        );
+        app.world_mut()
+            .spawn(TerminalCamera::default().with_active(false));
 
         app.update();
 
@@ -193,10 +221,8 @@ mod tests {
     fn default_camera_is_lowest_order_active() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.world_mut().spawn(TerminalCamera {
-            order: 1,
-            ..TerminalCamera::default()
-        });
+        app.world_mut()
+            .spawn(TerminalCamera::default().with_order(1));
         let lowest = app.world_mut().spawn(TerminalCamera::default()).id();
 
         app.update();

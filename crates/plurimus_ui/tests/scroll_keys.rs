@@ -22,7 +22,7 @@ const MAX_ROW: u16 = 16;
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, UiPlugin));
-    app.insert_resource(TerminalSize { cols: 10, rows: 4 });
+    app.insert_resource(TerminalSize::new(10, 4));
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
@@ -134,7 +134,7 @@ fn the_arrows_move_one_row() {
 #[test]
 fn a_bound_key_at_an_extreme_is_still_consumed() {
     let mut app = app();
-    app.insert_resource(TerminalSize { cols: 10, rows: 8 });
+    app.insert_resource(TerminalSize::new(10, 8));
     let above = spawn_pane_at(&mut app, Rect::new(0, 0, 10, 4));
     let pane = spawn_pane_at(&mut app, Rect::new(0, 4, 10, 4));
     focus(&mut app, pane);

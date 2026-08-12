@@ -160,35 +160,32 @@ mod tests {
     fn docked_strips_carve_in_order_and_fill_takes_the_rest() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 10, rows: 6 });
+        app.insert_resource(TerminalSize::new(10, 6));
         let main = app
             .world_mut()
-            .spawn(TerminalCamera {
-                viewport: Viewport::Fill,
-                ..TerminalCamera::default()
-            })
+            .spawn(TerminalCamera::default().with_viewport(Viewport::Fill))
             .id();
         let sidebar = app
             .world_mut()
-            .spawn(TerminalCamera {
-                order: 1,
-                viewport: Viewport::Docked {
-                    edge: Edge::Left,
-                    cells: 3,
-                },
-                ..TerminalCamera::default()
-            })
+            .spawn(
+                TerminalCamera::default()
+                    .with_order(1)
+                    .with_viewport(Viewport::Docked {
+                        edge: Edge::Left,
+                        cells: 3,
+                    }),
+            )
             .id();
         let status = app
             .world_mut()
-            .spawn(TerminalCamera {
-                order: 2,
-                viewport: Viewport::Docked {
-                    edge: Edge::Bottom,
-                    cells: 1,
-                },
-                ..TerminalCamera::default()
-            })
+            .spawn(
+                TerminalCamera::default()
+                    .with_order(2)
+                    .with_viewport(Viewport::Docked {
+                        edge: Edge::Bottom,
+                        cells: 1,
+                    }),
+            )
             .id();
 
         app.update();
@@ -202,31 +199,25 @@ mod tests {
     fn oversized_docks_clamp_and_inactive_cameras_resolve_empty() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 4, rows: 2 });
+        app.insert_resource(TerminalSize::new(4, 2));
         let greedy = app
             .world_mut()
-            .spawn(TerminalCamera {
-                viewport: Viewport::Docked {
-                    edge: Edge::Right,
-                    cells: 10,
-                },
-                ..TerminalCamera::default()
-            })
+            .spawn(TerminalCamera::default().with_viewport(Viewport::Docked {
+                edge: Edge::Right,
+                cells: 10,
+            }))
             .id();
         let leftover = app
             .world_mut()
-            .spawn(TerminalCamera {
-                order: 1,
-                viewport: Viewport::Fill,
-                ..TerminalCamera::default()
-            })
+            .spawn(
+                TerminalCamera::default()
+                    .with_order(1)
+                    .with_viewport(Viewport::Fill),
+            )
             .id();
         let dormant = app
             .world_mut()
-            .spawn(TerminalCamera {
-                active: false,
-                ..TerminalCamera::default()
-            })
+            .spawn(TerminalCamera::default().with_active(false))
             .id();
 
         app.update();
@@ -240,29 +231,26 @@ mod tests {
     fn full_and_fixed_viewports_ignore_docking() {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
-        app.insert_resource(TerminalSize { cols: 10, rows: 4 });
+        app.insert_resource(TerminalSize::new(10, 4));
         let overlay = app
             .world_mut()
-            .spawn(TerminalCamera {
-                order: 5,
-                ..TerminalCamera::default()
-            })
+            .spawn(TerminalCamera::default().with_order(5))
             .id();
         let pinned = app
             .world_mut()
-            .spawn(TerminalCamera {
-                viewport: Viewport::Fixed(Rect::new(8, 3, 10, 10)),
-                ..TerminalCamera::default()
-            })
+            .spawn(
+                TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(8, 3, 10, 10))),
+            )
             .id();
-        app.world_mut().spawn(TerminalCamera {
-            order: 1,
-            viewport: Viewport::Docked {
-                edge: Edge::Top,
-                cells: 2,
-            },
-            ..TerminalCamera::default()
-        });
+        app.world_mut()
+            .spawn(
+                TerminalCamera::default()
+                    .with_order(1)
+                    .with_viewport(Viewport::Docked {
+                        edge: Edge::Top,
+                        cells: 2,
+                    }),
+            );
 
         app.update();
 
