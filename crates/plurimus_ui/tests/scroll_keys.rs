@@ -69,9 +69,8 @@ fn page_down_moves_the_offset_by_the_viewport_height() {
     assert_eq!(row(&app, pane), AREA.height);
 }
 
-// Accumulated paging, which a single saturated jump does not exercise:
-// the clamp has to hold on the press that crosses the bound and on every
-// press after it.
+// A single saturated jump does not exercise this: the clamp has to hold
+// on the press that crosses the bound and on every press after it.
 #[test]
 fn repeated_paging_settles_at_each_bound() {
     let mut app = app();
@@ -130,10 +129,8 @@ fn the_arrows_move_one_row() {
     assert_eq!(row(&app, pane), 1);
 }
 
-// Directional navigation would otherwise take an arrow the pane could not
-// use and move focus out of it, which reads as the pane losing the key.
 // The neighbor sits in the direction pressed, so an unconsumed arrow has
-// somewhere to go and the assertion can tell the two apart.
+// somewhere to go and the assertion can tell consumption from inertia.
 #[test]
 fn a_bound_key_at_an_extreme_is_still_consumed() {
     let mut app = app();
@@ -221,9 +218,9 @@ fn the_horizontal_actions_move_the_column() {
     assert_eq!(offset(&app, pane), Position::new(1, 0));
 }
 
-// Pins the require list rather than Bevy's mechanism: the crate documents
-// the component as the whole opt-in, so dropping TabIndex from it would
-// silently leave a pane that can never be focused and never take a key.
+// Pins the require list: dropping TabIndex from it would leave a pane
+// that can never be focused, and so never take a key, with nothing else
+// failing.
 #[test]
 fn the_component_makes_the_pane_a_tab_stop() {
     let mut app = app();

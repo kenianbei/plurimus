@@ -96,7 +96,7 @@ pub(crate) fn scroll_key(
 
 fn step(action: ScrollAction, height: u16) -> (i32, i32) {
     // A hidden widget keeps focus but resolves to no area, and a page of
-    // nothing is no movement; the key is still consumed, having matched.
+    // nothing is no movement.
     let page = i32::from(height);
     match action {
         ScrollAction::LineUp => (0, -1),
