@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use bevy_ecs::prelude::MessageWriter;
+use bevy_ecs::prelude::{Local, MessageWriter};
 use bevy_ecs::system::SystemParam;
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
 
@@ -28,27 +28,125 @@ pub(crate) struct EventSinks<'w> {
     resize: MessageWriter<'w, TerminalResized>,
 }
 
-pub(crate) fn pump_events(mut sinks: EventSinks) {
+/// How long a drain ending on a key release waits for the press that would
+/// make it an autorepeat. The two arrive in the same millisecond, so this is
+/// a scheduling margin rather than a guess at the terminal.
+const AUTOREPEAT_GRACE: Duration = Duration::from_millis(1);
+
+/// How the terminal encodes a held key, learned from what it sends.
+///
+/// A conforming terminal reports [`KeyEventKind::Repeat`]. One that honors
+/// the protocol's event types without detectable autorepeat sends a release
+/// immediately followed by a press instead, and only that one needs the pair
+/// recognized or a trailing release waited on - so a terminal is asked to
+/// prove it before either cost is paid on its behalf.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepeatEncoding {
+    #[default]
+    Unknown,
+    Native,
+    Paired,
+}
+
+pub(crate) fn pump_events(
+    mut sinks: EventSinks,
+    mut batch: Local<Vec<Event>>,
+    mut encoding: Local<RepeatEncoding>,
+) {
+    drain(&mut batch, &mut encoding);
+    forward_batch(&mut batch, &mut sinks, &mut encoding);
+}
+
+fn drain(batch: &mut Vec<Event>, encoding: &mut RepeatEncoding) {
+    batch.clear();
     while event::poll(Duration::ZERO).unwrap_or(false) {
         let Ok(terminal_event) = event::read() else {
-            return;
+            break;
         };
-        forward_event(terminal_event, &mut sinks);
+        batch.push(terminal_event);
+    }
+    // Classified before anything is rewritten, since a coalesced pair is a
+    // repeat by the time the walk sees it.
+    if batch
+        .iter()
+        .any(|event| matches!(event, Event::Key(key) if key.kind == KeyEventKind::Repeat))
+    {
+        *encoding = RepeatEncoding::Native;
+    }
+    // Only a terminal proven to pair waits: elsewhere a trailing release is
+    // a genuine key-up and the poll blocks out the full grace period for
+    // nothing.
+    if *encoding == RepeatEncoding::Paired
+        && matches!(batch.last(), Some(Event::Key(key)) if key.kind == KeyEventKind::Release)
+        && event::poll(AUTOREPEAT_GRACE).unwrap_or(false)
+        && let Ok(trailing) = event::read()
+    {
+        batch.push(trailing);
     }
 }
 
-fn forward_event(terminal_event: Event, sinks: &mut EventSinks) {
+fn forward_batch(batch: &mut [Event], sinks: &mut EventSinks, encoding: &mut RepeatEncoding) {
+    let mut index = 0;
+    while index < batch.len() {
+        if *encoding != RepeatEncoding::Native
+            && let Some(press_at) = autorepeat_press_at(&batch[index..])
+        {
+            // The press carries the repeat, so whatever sat between the two
+            // still travels by the ordinary path.
+            if let Event::Key(press) = &mut batch[index + press_at] {
+                press.kind = KeyEventKind::Repeat;
+            }
+            *encoding = RepeatEncoding::Paired;
+            index += 1;
+            continue;
+        }
+        forward_event(&mut batch[index], sinks);
+        index += 1;
+    }
+}
+
+/// Where the press sits that makes `events[0]` an autorepeat's release.
+///
+/// A terminal that reports releases but not repeats encodes a held key as a
+/// release immediately followed by a press of the same key: the key never
+/// rose, so the contract reports the pair as the repeat it is rather than
+/// letting a release nobody made reach a consumer.
+///
+/// Events that are not keys are stepped over rather than breaking the pair,
+/// since a mouse report can land between the two - and does, for anyone
+/// moving the mouse while holding a key. An intervening *key* event does
+/// break it: that is a different key's business, not this one's.
+fn autorepeat_press_at(events: &[Event]) -> Option<usize> {
+    let [Event::Key(release), rest @ ..] = events else {
+        return None;
+    };
+    if release.kind != KeyEventKind::Release {
+        return None;
+    }
+    let (offset, press) = rest
+        .iter()
+        .enumerate()
+        .find_map(|(offset, event)| match event {
+            Event::Key(key) => Some((offset, key)),
+            _ => None,
+        })?;
+    (press.kind == KeyEventKind::Press && press.code == release.code).then_some(offset + 1)
+}
+
+fn forward_event(terminal_event: &mut Event, sinks: &mut EventSinks) {
     match terminal_event {
         Event::Key(key) => {
-            if let Some(message) = convert_key(key) {
+            if let Some(message) = convert_key(*key) {
                 sinks.keys.write(message);
             }
         }
         Event::Mouse(mouse) => {
-            sinks.mouse.write(convert_mouse(mouse));
+            sinks.mouse.write(convert_mouse(*mouse));
         }
+        // Taken rather than cloned: a paste is unbounded, and the batch is
+        // cleared before it is read again.
         Event::Paste(text) => {
-            sinks.paste.write(PasteMessage(text));
+            sinks.paste.write(PasteMessage(std::mem::take(text)));
         }
         Event::FocusGained => {
             sinks.focus.write(FocusMessage::new(true));
@@ -57,7 +155,7 @@ fn forward_event(terminal_event: Event, sinks: &mut EventSinks) {
             sinks.focus.write(FocusMessage::new(false));
         }
         Event::Resize(cols, rows) => {
-            sinks.resize.write(TerminalResized::new(cols, rows));
+            sinks.resize.write(TerminalResized::new(*cols, *rows));
         }
     }
 }
@@ -67,16 +165,32 @@ fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
     // the shift bit alongside it; the contract carries it as a modified
     // Tab so consumers need only one key to reason about.
     let is_back_tab = key.code == event::KeyCode::BackTab;
+    let code = convert_code(key.code)?;
     let modifiers = convert_modifiers(key.modifiers);
     Some(KeyMessage::new(
-        convert_code(key.code)?,
-        if is_back_tab {
+        code,
+        if is_back_tab || is_shifted_letter(code) {
             modifiers.with_shift(true)
         } else {
             modifiers
         },
         convert_kind(key.kind),
     ))
+}
+
+/// Whether `code` is a letter that shift produced.
+///
+/// The kitty protocol reports the shifted character alongside the key, and
+/// crossterm substitutes it and drops the shift bit with it; a legacy
+/// terminal reports the same uppercase character and adds the bit. Restoring
+/// it is what makes one keystroke mean one thing on both tiers. Only letters
+/// can be recovered this way - a shifted symbol carries no trace of the key
+/// it came from.
+///
+/// Uppercase in the same sense crossterm's own legacy path uses, so the two
+/// tiers agree beyond ASCII as well.
+const fn is_shifted_letter(code: KeyCode) -> bool {
+    matches!(code, KeyCode::Char(c) if c.is_uppercase())
 }
 
 const fn convert_kind(kind: KeyEventKind) -> KeyKind {
@@ -181,7 +295,81 @@ mod tests {
     use plurimus_core::ratatui_core::layout::Position;
     use plurimus_term::{KeyCode, KeyKind, MouseKind};
 
-    use super::{convert_key, convert_mouse};
+    use crossterm::event::Event;
+
+    use super::{autorepeat_press_at, convert_key, convert_mouse};
+
+    fn key_event(code: CtKeyCode, kind: KeyEventKind) -> Event {
+        let mut key = KeyEvent::new(code, CtModifiers::NONE);
+        key.kind = kind;
+        Event::Key(key)
+    }
+
+    fn held(code: CtKeyCode) -> [Event; 2] {
+        [
+            key_event(code, KeyEventKind::Release),
+            key_event(code, KeyEventKind::Press),
+        ]
+    }
+
+    const MOVED: Event = Event::Mouse(MouseEvent {
+        kind: MouseEventKind::Moved,
+        column: 1,
+        row: 1,
+        modifiers: CtModifiers::NONE,
+    });
+
+    #[test]
+    fn a_release_then_press_of_one_key_is_the_repeat_it_is() {
+        assert_eq!(autorepeat_press_at(&held(CtKeyCode::Char('w'))), Some(1));
+    }
+
+    #[test]
+    fn a_mouse_report_between_the_two_does_not_break_the_pair() {
+        let [release, press] = held(CtKeyCode::Right);
+        let batch = [release, MOVED, MOVED, press];
+        assert_eq!(
+            autorepeat_press_at(&batch),
+            Some(3),
+            "the events between the pair keep their own places"
+        );
+    }
+
+    #[test]
+    fn another_key_between_the_two_does_break_the_pair() {
+        let [release, press] = held(CtKeyCode::Char('w'));
+        let batch = [
+            release,
+            key_event(CtKeyCode::Char('d'), KeyEventKind::Press),
+            press,
+        ];
+        assert_eq!(autorepeat_press_at(&batch), None);
+    }
+
+    #[test]
+    fn a_release_that_ends_a_hold_stays_a_release() {
+        let release = key_event(CtKeyCode::Char('w'), KeyEventKind::Release);
+        assert_eq!(autorepeat_press_at(std::slice::from_ref(&release)), None);
+        assert_eq!(autorepeat_press_at(&[release, MOVED]), None);
+    }
+
+    #[test]
+    fn a_different_key_pressed_after_a_release_is_not_a_repeat() {
+        let batch = [
+            key_event(CtKeyCode::Char('w'), KeyEventKind::Release),
+            key_event(CtKeyCode::Char('d'), KeyEventKind::Press),
+        ];
+        assert_eq!(autorepeat_press_at(&batch), None);
+    }
+
+    #[test]
+    fn a_press_first_is_never_the_start_of_a_pair() {
+        let batch = [
+            key_event(CtKeyCode::Char('w'), KeyEventKind::Press),
+            key_event(CtKeyCode::Char('w'), KeyEventKind::Release),
+        ];
+        assert_eq!(autorepeat_press_at(&batch), None);
+    }
 
     #[test]
     fn converts_char_with_modifiers() {
@@ -209,6 +397,34 @@ mod tests {
 
         let flagged = KeyEvent::new(CtKeyCode::BackTab, CtModifiers::SHIFT);
         assert_eq!(convert_key(flagged).unwrap(), message);
+    }
+
+    #[test]
+    fn an_uppercase_letter_carries_shift_on_either_tier() {
+        let substituted = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::NONE);
+        let message = convert_key(substituted).unwrap();
+        assert_eq!(message.code, KeyCode::Char('W'));
+        assert!(message.modifiers.shift);
+
+        let legacy = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::SHIFT);
+        assert_eq!(convert_key(legacy).unwrap(), message);
+    }
+
+    #[test]
+    fn an_unshifted_letter_is_left_alone() {
+        let message = convert_key(KeyEvent::new(CtKeyCode::Char('w'), CtModifiers::NONE)).unwrap();
+        assert!(!message.modifiers.shift);
+    }
+
+    // A shifted symbol keeps whatever the terminal said: `:` and `;` are
+    // different characters, and nothing in the event says which key was hit.
+    #[test]
+    fn a_shifted_symbol_keeps_the_bit_it_arrived_with() {
+        let bare = convert_key(KeyEvent::new(CtKeyCode::Char(':'), CtModifiers::NONE)).unwrap();
+        assert!(!bare.modifiers.shift);
+
+        let flagged = convert_key(KeyEvent::new(CtKeyCode::Char(':'), CtModifiers::SHIFT)).unwrap();
+        assert!(flagged.modifiers.shift);
     }
 
     #[test]

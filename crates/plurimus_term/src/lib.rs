@@ -35,7 +35,7 @@ pub use synthesis::ReleaseTimeout;
 
 pub(crate) use request::echo_clipboard_writes;
 pub(crate) use state::{track_cursor_cell, update_button_input};
-pub(crate) use synthesis::synthesize_releases;
+pub(crate) use synthesis::{release_keys_on_focus_loss, synthesize_releases};
 
 use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::message::Message;
@@ -151,7 +151,15 @@ impl Plugin for TermPlugin {
         );
         app.add_systems(
             PreUpdate,
-            (synthesize_releases, update_button_input, track_cursor_cell)
+            // Focus-loss releases go after the state they read: a key
+            // pressed in the losing frame is only held once
+            // `update_button_input` has applied it.
+            (
+                synthesize_releases,
+                update_button_input,
+                release_keys_on_focus_loss,
+                track_cursor_cell,
+            )
                 .chain()
                 .in_set(InputSystems::Update),
         );

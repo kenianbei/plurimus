@@ -31,9 +31,11 @@ pub(crate) fn update_button_input(
     mouse_state.clear();
     for key in keys.read() {
         match key.kind {
-            KeyKind::Press => key_state.press(key.code),
+            // A repeat means the key is down, so it presses like one, and a
+            // hold whose press never arrived is put back by the next one.
+            // `press` sets `just_pressed` only on a transition.
+            KeyKind::Press | KeyKind::Repeat => key_state.press(key.code),
             KeyKind::Release => key_state.release(key.code),
-            KeyKind::Repeat => {}
         }
     }
     for event in mouse.read() {
@@ -65,6 +67,12 @@ mod tests {
         MouseMessage, TermPlugin,
     };
 
+    fn app() -> App {
+        let mut app = App::new();
+        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
+        app
+    }
+
     fn key(kind: KeyKind) -> KeyMessage {
         KeyMessage {
             code: KeyCode::Char('w'),
@@ -75,9 +83,7 @@ mod tests {
 
     #[test]
     fn press_and_release_drive_button_state() {
-        let mut app = App::new();
-        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
-
+        let mut app = app();
         app.world_mut().write_message(key(KeyKind::Press));
         app.update();
         let state = app.world().resource::<ButtonInput<KeyCode>>();
@@ -97,11 +103,31 @@ mod tests {
         assert!(state.just_released(KeyCode::Char('w')));
     }
 
+    // A backend can only pair an autorepeat's release with its press inside
+    // one drained batch, so a pair split across two leaks the release.
+    #[test]
+    fn a_repeat_restores_a_hold_a_leaked_release_ended() {
+        let mut app = app();
+        app.world_mut().write_message(key(KeyKind::Press));
+        app.update();
+        app.world_mut().write_message(key(KeyKind::Release));
+        app.update();
+        assert!(
+            !app.world()
+                .resource::<ButtonInput<KeyCode>>()
+                .pressed(KeyCode::Char('w'))
+        );
+
+        app.world_mut().write_message(key(KeyKind::Repeat));
+        app.update();
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(state.pressed(KeyCode::Char('w')));
+        assert!(state.just_pressed(KeyCode::Char('w')));
+    }
+
     #[test]
     fn mouse_state_and_cursor_track_messages() {
-        let mut app = App::new();
-        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
-
+        let mut app = app();
         app.world_mut().write_message(MouseMessage {
             kind: MouseKind::Down(MouseButton::Left),
             position: Position::new(7, 3),

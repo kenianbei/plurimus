@@ -4,6 +4,47 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`plurimus_test::write_focus` and `send_focus`**, the focus half of the
+  injection helpers, following the module's queue-only and queue-then-tick
+  families.
+
+### Fixed
+
+- **A held key is reported as held.** A terminal that honors the kitty
+  protocol's event types without detectable autorepeat encodes a held key as a
+  release immediately followed by a press, so nothing ever produced
+  `KeyKind::Repeat` and a held key read as roughly twenty-five presses a second:
+  a focused button activated that often, a checkbox toggled that often,
+  directional navigation moved that often, and `just_pressed` and
+  `just_released` both fired on every cycle. The crossterm backend now reports
+  such a pair as the repeat it is. A terminal reporting repeats natively is
+  unaffected and pays nothing for the check - the encoding is learned from what
+  arrives rather than assumed.
+- **Keys held when the terminal loses focus are released.** A terminal reports
+  no key events while unfocused, so the release of a key held across an alt-tab
+  never arrived; on the kitty tier nothing expired it either and the key stayed
+  down until the user returned and tapped it. `FocusMessage`, which until now
+  had no consumer anywhere, releases every held key. Keys only: a synthetic key
+  release corrects held state and triggers nothing, while a pointer release
+  would complete a click that was never made.
+- **A repeat refreshes polled state**, so a hold survives a press that went
+  missing rather than reading as released until the user lets go.
+- **A release cancels its press whatever modifiers it carries.** Synthesized
+  releases were matched on the key together with its modifier bits, so a shift+a
+  gesture - which ends with an `a` release carrying nothing, since an event
+  reports the state it leaves behind - left the key held to expire later as a
+  phantom release.
+- **A shifted letter carries the same modifiers on every terminal.** The kitty
+  protocol reports the shifted character alongside the key and the shift bit was
+  dropped with it, while a legacy terminal reports the same uppercase character
+  and sets the bit. A shifted symbol still carries what the terminal sent, since
+  nothing in the event says which key produced it, which `KeyModifiers` now
+  documents.
+
 ## [0.6.0] - 2026-08-12
 
 ### Added
