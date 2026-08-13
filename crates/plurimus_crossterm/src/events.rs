@@ -145,16 +145,32 @@ fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
     // the shift bit alongside it; the contract carries it as a modified
     // Tab so consumers need only one key to reason about.
     let is_back_tab = key.code == event::KeyCode::BackTab;
+    let code = convert_code(key.code)?;
     let modifiers = convert_modifiers(key.modifiers);
     Some(KeyMessage::new(
-        convert_code(key.code)?,
-        if is_back_tab {
+        code,
+        if is_back_tab || is_shifted_letter(code) {
             modifiers.with_shift(true)
         } else {
             modifiers
         },
         convert_kind(key.kind),
     ))
+}
+
+/// Whether `code` is a letter that shift produced.
+///
+/// The kitty protocol reports the shifted character alongside the key, and
+/// crossterm substitutes it and drops the shift bit with it; a legacy
+/// terminal reports the same uppercase character and adds the bit. Restoring
+/// it is what makes one keystroke mean one thing on both tiers. Only letters
+/// can be recovered this way - a shifted symbol carries no trace of the key
+/// it came from.
+///
+/// Uppercase in the same sense crossterm's own legacy path uses, so the two
+/// tiers agree beyond ASCII as well.
+const fn is_shifted_letter(code: KeyCode) -> bool {
+    matches!(code, KeyCode::Char(c) if c.is_uppercase())
 }
 
 const fn convert_kind(kind: KeyEventKind) -> KeyKind {
@@ -384,6 +400,37 @@ mod tests {
 
         let flagged = KeyEvent::new(CtKeyCode::BackTab, CtModifiers::SHIFT);
         assert_eq!(convert_key(flagged).unwrap(), message);
+    }
+
+    // The kitty protocol hands crossterm the shifted character and it drops
+    // the shift bit with it; the legacy path reports the same character and
+    // adds the bit. One keystroke has to mean one thing.
+    #[test]
+    fn an_uppercase_letter_carries_shift_on_either_tier() {
+        let substituted = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::NONE);
+        let message = convert_key(substituted).unwrap();
+        assert_eq!(message.code, KeyCode::Char('W'));
+        assert!(message.modifiers.shift);
+
+        let legacy = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::SHIFT);
+        assert_eq!(convert_key(legacy).unwrap(), message);
+    }
+
+    #[test]
+    fn an_unshifted_letter_is_left_alone() {
+        let message = convert_key(KeyEvent::new(CtKeyCode::Char('w'), CtModifiers::NONE)).unwrap();
+        assert!(!message.modifiers.shift);
+    }
+
+    // A shifted symbol keeps whatever the terminal said: `:` and `;` are
+    // different characters, and nothing in the event says which key was hit.
+    #[test]
+    fn a_shifted_symbol_keeps_the_bit_it_arrived_with() {
+        let bare = convert_key(KeyEvent::new(CtKeyCode::Char(':'), CtModifiers::NONE)).unwrap();
+        assert!(!bare.modifiers.shift);
+
+        let flagged = convert_key(KeyEvent::new(CtKeyCode::Char(':'), CtModifiers::SHIFT)).unwrap();
+        assert!(flagged.modifiers.shift);
     }
 
     #[test]

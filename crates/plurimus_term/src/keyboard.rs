@@ -129,6 +129,13 @@ pub enum ModifierKey {
 /// One flag per modifier, with left and right collapsed: a `ShiftRight`
 /// press sets `shift`. Super/hyper/meta are only reported on the kitty
 /// tier.
+///
+/// A shifted character reports the character, and `shift` beside it is only
+/// dependable for letters: `W` carries the flag on every terminal, while a
+/// shifted symbol such as `:` carries it on some and not others, depending
+/// on whether the terminal reports the unshifted key alongside it. Match the
+/// character for those, and compare the fields a binding cares about rather
+/// than whole values, since an unexpected flag makes an equality test fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 #[expect(
