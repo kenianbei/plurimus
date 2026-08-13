@@ -15,7 +15,10 @@ use bevy_time::{Real, Time};
 
 use super::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
 
-type HeldKeys = HashMap<(KeyCode, KeyModifiers), Duration>;
+/// Keyed by code alone: a terminal reports the state an event leaves behind,
+/// so a shift+a gesture ends with an `a` release carrying no bits, and a
+/// press it has to cancel that carried them.
+type HeldKeys = HashMap<KeyCode, Duration>;
 
 /// How long after the last press/repeat a key without release events is
 /// considered released. Must exceed the OS first-repeat delay.
@@ -46,13 +49,12 @@ pub(crate) fn synthesize_releases(
     let now = clock.time.elapsed();
     let mut reader = messages.p0();
     for message in reader.read() {
-        let entry = (message.code, message.modifiers);
         match message.kind {
             KeyKind::Press | KeyKind::Repeat => {
-                held.insert(entry, now);
+                held.insert(message.code, now);
             }
             KeyKind::Release => {
-                held.remove(&entry);
+                held.remove(&message.code);
             }
         }
     }
@@ -65,9 +67,9 @@ pub(crate) fn synthesize_releases(
 
 fn expire_held(held: &mut HeldKeys, now: Duration, timeout: Duration) -> Vec<KeyMessage> {
     held.extract_if(|_, at| now.saturating_sub(*at) >= timeout)
-        .map(|((code, modifiers), _)| KeyMessage {
+        .map(|(code, _)| KeyMessage {
             code,
-            modifiers,
+            modifiers: KeyModifiers::default(),
             kind: KeyKind::Release,
         })
         .collect()
@@ -77,16 +79,17 @@ fn expire_held(held: &mut HeldKeys, now: Duration, timeout: Duration) -> Vec<Key
 mod tests {
     use std::time::Duration;
 
-    use super::{HeldKeys, expire_held};
-    use crate::{KeyCode, KeyKind, KeyModifiers};
+    use bevy_ecs::message::Messages;
+    use bevy_ecs::prelude::World;
+    use bevy_time::{Real, Time};
+
+    use super::{HeldKeys, ReleaseTimeout, expire_held, synthesize_releases};
+    use crate::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
 
     #[test]
     fn stale_keys_expire_as_releases() {
         let mut held = HeldKeys::default();
-        held.insert(
-            (KeyCode::Char('w'), KeyModifiers::default()),
-            Duration::ZERO,
-        );
+        held.insert(KeyCode::Char('w'), Duration::ZERO);
 
         let before = expire_held(
             &mut held,
@@ -109,10 +112,7 @@ mod tests {
     #[test]
     fn refreshed_keys_stay_alive() {
         let mut held = HeldKeys::default();
-        held.insert(
-            (KeyCode::Char('w'), KeyModifiers::default()),
-            Duration::from_millis(500),
-        );
+        held.insert(KeyCode::Char('w'), Duration::from_millis(500));
 
         let expired = expire_held(
             &mut held,
@@ -121,5 +121,37 @@ mod tests {
         );
         assert!(expired.is_empty());
         assert_eq!(held.len(), 1);
+    }
+
+    // A zero timeout expires anything still held on the same run, so a
+    // press the release failed to cancel shows up as a third message.
+    fn surviving(press: KeyModifiers, release: KeyModifiers) -> Vec<KeyMessage> {
+        let mut world = World::new();
+        world.init_resource::<Messages<KeyMessage>>();
+        world.insert_resource(InputCapabilities::none());
+        world.insert_resource(ReleaseTimeout(Duration::ZERO));
+        world.insert_resource(Time::<Real>::default());
+        let system = world.register_system(synthesize_releases);
+
+        let code = KeyCode::Char('a');
+        world.write_message(KeyMessage::new(code, press, KeyKind::Press));
+        world.write_message(KeyMessage::new(code, release, KeyKind::Release));
+        world.run_system(system).unwrap();
+        world
+            .resource_mut::<Messages<KeyMessage>>()
+            .drain()
+            .collect()
+    }
+
+    #[test]
+    fn a_release_cancels_its_press_whatever_bits_it_carries() {
+        let shifted = KeyModifiers::default().with_shift(true);
+        let bare = KeyModifiers::default();
+
+        // The real gesture: a terminal reports the state the release leaves
+        // behind, so shift+a ends with an `a` release carrying nothing.
+        assert_eq!(surviving(shifted, bare).len(), 2);
+        assert_eq!(surviving(bare, bare).len(), 2);
+        assert_eq!(surviving(shifted, shifted).len(), 2);
     }
 }
