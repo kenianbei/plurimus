@@ -31,9 +31,11 @@ pub(crate) fn update_button_input(
     mouse_state.clear();
     for key in keys.read() {
         match key.kind {
-            KeyKind::Press => key_state.press(key.code),
+            // A repeat presses too, so a hold recovers if its press was
+            // missed. `press` sets `just_pressed` only on a transition, so
+            // a key already down costs a lookup and no edge.
+            KeyKind::Press | KeyKind::Repeat => key_state.press(key.code),
             KeyKind::Release => key_state.release(key.code),
-            KeyKind::Repeat => {}
         }
     }
     for event in mouse.read() {
@@ -95,6 +97,31 @@ mod tests {
         let state = app.world().resource::<ButtonInput<KeyCode>>();
         assert!(!state.pressed(KeyCode::Char('w')));
         assert!(state.just_released(KeyCode::Char('w')));
+    }
+
+    // A backend can only pair an autorepeat's release with its press inside
+    // one drained batch, so a pair split across two leaks the release. The
+    // next repeat is what puts the hold back.
+    #[test]
+    fn a_repeat_restores_a_hold_a_leaked_release_ended() {
+        let mut app = App::new();
+        app.add_plugins((plurimus_core::CorePlugin, TermPlugin));
+
+        app.world_mut().write_message(key(KeyKind::Press));
+        app.update();
+        app.world_mut().write_message(key(KeyKind::Release));
+        app.update();
+        assert!(
+            !app.world()
+                .resource::<ButtonInput<KeyCode>>()
+                .pressed(KeyCode::Char('w'))
+        );
+
+        app.world_mut().write_message(key(KeyKind::Repeat));
+        app.update();
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(state.pressed(KeyCode::Char('w')));
+        assert!(state.just_pressed(KeyCode::Char('w')));
     }
 
     #[test]
