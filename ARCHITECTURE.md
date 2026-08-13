@@ -96,8 +96,14 @@ requires `CorePlugin` first, since applying a resize writes core's
 `TerminalSize`. `InputCapabilities` records what the active backend can report
 (real key releases, modifier key events - the kitty keyboard protocol tier);
 where a capability is absent, release synthesis fills the gap on a
-`ReleaseTimeout`. The `bevy_compat` module forwards messages into `bevy_input`
-event types for crates built on them, such as the focus stack.
+`ReleaseTimeout`. Losing focus is the gap no capability covers, since a terminal
+reports nothing at all while unfocused: every held key is released when a
+`FocusMessage` says focus went away, keys only, because a synthetic key release
+corrects held state while a pointer release would complete a click nobody made.
+Both paths write a release carrying no modifiers, which is what a terminal does
+too - an event reports the state it leaves behind, so a release is matched to
+its press by key alone. The `bevy_compat` module forwards messages into
+`bevy_input` event types for crates built on them, such as the focus stack.
 
 ### plurimus_crossterm
 
@@ -106,13 +112,20 @@ mode, alternate screen, mouse capture, bracketed paste, the kitty keyboard
 protocol when the terminal supports it, focus reporting - and restores all of it
 on exit or panic, the cursor shape included. It detects color support from the
 environment, pumps crossterm events into input messages and `TerminalResized`,
-and hands a `CrosstermBackend` (via ratatui-crossterm) to core's presenter.
-Going the other way it serves `TerminalRequest` during extraction - which runs
-inside the sub-app world with the main world lent in, so one system reaches both
-the messages and the writer - and sets the cursor shape, which no `Backend`
-method reaches. Both flush themselves, since the presenter skips its flush on a
-frame where no cell differs. The writer is generic: stdout by default, or the
-controlling terminal directly via `CrosstermPlugin::tty()`.
+and hands a `CrosstermBackend` (via ratatui-crossterm) to core's presenter. The
+pump is where a terminal's own encoding is normalized away, because a message
+cannot be un-written once emitted and only the writer still has the whole
+drained batch: a held key reported as a release followed by its own press
+becomes one `KeyKind::Repeat`, and a shifted letter keeps the shift bit the
+kitty protocol drops in favour of the shifted character. Which encoding a
+terminal uses is learned from what it sends rather than probed, since no
+crossterm query distinguishes them. Going the other way it serves
+`TerminalRequest` during extraction - which runs inside the sub-app world with
+the main world lent in, so one system reaches both the messages and the writer -
+and sets the cursor shape, which no `Backend` method reaches. Both flush
+themselves, since the presenter skips its flush on a frame where no cell
+differs. The writer is generic: stdout by default, or the controlling terminal
+directly via `CrosstermPlugin::tty()`.
 
 ### plurimus_ui
 
