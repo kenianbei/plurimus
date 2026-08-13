@@ -1,19 +1,22 @@
-//! Synthesized key releases for terminals without release events.
+//! The key releases no terminal will send.
 //!
-//! Most terminals report only key presses, so held state would never end and
-//! polled input would show every key stuck down. A press without a real
-//! release is therefore expired on a timeout, and the whole mechanism turns
-//! itself off when [`InputCapabilities`](crate::InputCapabilities) says the
-//! terminal reports releases itself.
+//! Two gaps, both ending with a release written as if a backend had reported
+//! it. Most terminals report only key presses, so a press without a real
+//! release is expired on a timeout, and that half turns itself off when
+//! [`InputCapabilities`](crate::InputCapabilities) says the terminal reports
+//! releases itself. The other half no capability covers: a terminal reports
+//! nothing at all while unfocused, so a key held across a focus loss is
+//! released here or stays down forever.
 
 use std::collections::HashMap;
 use std::time::Duration;
 
 use bevy_ecs::prelude::{Local, MessageReader, MessageWriter, ParamSet, Res, Resource};
 use bevy_ecs::system::SystemParam;
+use bevy_input::ButtonInput;
 use bevy_time::{Real, Time};
 
-use super::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
+use super::{FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
 
 /// Keyed by code alone: a terminal reports the state an event leaves behind,
 /// so a shift+a gesture ends with an `a` release carrying no bits, and a
@@ -65,6 +68,40 @@ pub(crate) fn synthesize_releases(
     }
 }
 
+/// Releases every held key when the terminal reports losing focus.
+///
+/// No capability covers this gap: a terminal reports nothing at all while
+/// unfocused, so the release of a key held across an alt-tab is never sent,
+/// and on the kitty tier [`synthesize_releases`] is off and nothing expires
+/// it either.
+///
+/// Keys only, and deliberately. Every keyboard consumer acts on a press, so a
+/// synthetic release corrects held state and triggers nothing else; a pointer
+/// release is not inert in the same way - it completes a click - so a
+/// captured drag is left for a cancellation path that can express it.
+///
+/// Runs after [`update_button_input`](crate::state::update_button_input), so
+/// it sees a key pressed in the same frame the focus was lost - which is the
+/// ordinary case, since alt-tab's own keys arrive in that batch. Polled state
+/// therefore clears on the next frame rather than this one; a message reader
+/// running after `PreUpdate` sees the release immediately.
+pub(crate) fn release_keys_on_focus_loss(
+    mut focus: MessageReader<FocusMessage>,
+    held: Res<ButtonInput<KeyCode>>,
+    mut keys: MessageWriter<KeyMessage>,
+) {
+    if !focus.read().any(|message| !message.gained) {
+        return;
+    }
+    for &code in held.get_pressed() {
+        keys.write(KeyMessage::new(
+            code,
+            KeyModifiers::default(),
+            KeyKind::Release,
+        ));
+    }
+}
+
 fn expire_held(held: &mut HeldKeys, now: Duration, timeout: Duration) -> Vec<KeyMessage> {
     held.extract_if(|_, at| now.saturating_sub(*at) >= timeout)
         .map(|(code, _)| KeyMessage {
@@ -81,10 +118,13 @@ mod tests {
 
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::World;
+    use bevy_input::ButtonInput;
     use bevy_time::{Real, Time};
 
-    use super::{HeldKeys, ReleaseTimeout, expire_held, synthesize_releases};
-    use crate::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
+    use super::{
+        HeldKeys, ReleaseTimeout, expire_held, release_keys_on_focus_loss, synthesize_releases,
+    };
+    use crate::{FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
 
     #[test]
     fn stale_keys_expire_as_releases() {
@@ -141,6 +181,51 @@ mod tests {
             .resource_mut::<Messages<KeyMessage>>()
             .drain()
             .collect()
+    }
+
+    fn on_focus_change(gained: bool, pressed: &[KeyCode]) -> Vec<KeyMessage> {
+        let mut world = World::new();
+        world.init_resource::<Messages<KeyMessage>>();
+        world.init_resource::<Messages<FocusMessage>>();
+        let mut held = ButtonInput::<KeyCode>::default();
+        for &code in pressed {
+            held.press(code);
+        }
+        world.insert_resource(held);
+        let system = world.register_system(release_keys_on_focus_loss);
+
+        world.write_message(FocusMessage::new(gained));
+        world.run_system(system).unwrap();
+        world
+            .resource_mut::<Messages<KeyMessage>>()
+            .drain()
+            .collect()
+    }
+
+    #[test]
+    fn losing_focus_releases_every_held_key() {
+        let held = [KeyCode::Char('w'), KeyCode::Left];
+        let released = on_focus_change(false, &held);
+
+        assert_eq!(released.len(), 2);
+        assert!(
+            released
+                .iter()
+                .all(|message| message.kind == KeyKind::Release)
+        );
+        for code in held {
+            assert!(released.iter().any(|message| message.code == code));
+        }
+    }
+
+    #[test]
+    fn focus_arriving_releases_nothing() {
+        assert!(on_focus_change(true, &[KeyCode::Char('w')]).is_empty());
+    }
+
+    #[test]
+    fn losing_focus_with_nothing_held_is_silent() {
+        assert!(on_focus_change(false, &[]).is_empty());
     }
 
     #[test]

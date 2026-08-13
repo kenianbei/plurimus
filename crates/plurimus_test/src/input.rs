@@ -6,7 +6,8 @@
 use bevy_app::App;
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{
-    KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind, MouseMessage,
+    FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind,
+    MouseMessage,
 };
 
 /// Queues a key press with no modifiers.
@@ -69,6 +70,20 @@ pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {
     press_key_kind(app, code, held, KeyKind::Press);
     press_key_kind(app, code, held, KeyKind::Release);
     press_key_kind(app, modifier_code, none, KeyKind::Release);
+}
+
+/// Queues a terminal focus change, `gained` for focus arriving.
+pub fn write_focus(app: &mut App, gained: bool) {
+    app.world_mut().write_message(FocusMessage::new(gained));
+}
+
+/// Queues a terminal focus change, then ticks the app.
+///
+/// Losing focus releases every held key, since a terminal reports nothing
+/// while unfocused.
+pub fn send_focus(app: &mut App, gained: bool) {
+    write_focus(app, gained);
+    app.update();
 }
 
 /// Queues a mouse message at `(x, y)`, then ticks the app.
