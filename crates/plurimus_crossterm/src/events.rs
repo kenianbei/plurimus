@@ -33,7 +33,31 @@ pub(crate) struct EventSinks<'w> {
 /// a scheduling margin rather than a guess at the terminal.
 const AUTOREPEAT_GRACE: Duration = Duration::from_millis(1);
 
-pub(crate) fn pump_events(mut sinks: EventSinks, mut batch: Local<Vec<Event>>) {
+/// How the terminal encodes a held key, learned from what it sends.
+///
+/// A conforming terminal reports [`KeyEventKind::Repeat`]. One that honors
+/// the protocol's event types without detectable autorepeat sends a release
+/// immediately followed by a press instead, and only that one needs the pair
+/// recognized or a trailing release waited on - so a terminal is asked to
+/// prove it before either cost is paid on its behalf.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepeatEncoding {
+    #[default]
+    Unknown,
+    Native,
+    Paired,
+}
+
+pub(crate) fn pump_events(
+    mut sinks: EventSinks,
+    mut batch: Local<Vec<Event>>,
+    mut encoding: Local<RepeatEncoding>,
+) {
+    drain(&mut batch, &mut encoding);
+    forward_batch(&mut batch, &mut sinks, &mut encoding);
+}
+
+fn drain(batch: &mut Vec<Event>, encoding: &mut RepeatEncoding) {
     batch.clear();
     while event::poll(Duration::ZERO).unwrap_or(false) {
         let Ok(terminal_event) = event::read() else {
@@ -41,45 +65,47 @@ pub(crate) fn pump_events(mut sinks: EventSinks, mut batch: Local<Vec<Event>>) {
         };
         batch.push(terminal_event);
     }
-    // A terminal encoding autorepeat as release+press can split the pair
-    // across two drains, and the leaked release ends a hold that never
-    // ended. Waiting out the grace period costs a millisecond on a drain
-    // that happens to end on a key-up.
-    if ends_on_key_release(&batch)
+    // Classified before anything is rewritten, since a coalesced pair is a
+    // repeat by the time the walk sees it.
+    if batch
+        .iter()
+        .any(|event| matches!(event, Event::Key(key) if key.kind == KeyEventKind::Repeat))
+    {
+        *encoding = RepeatEncoding::Native;
+    }
+    // Only a terminal proven to pair waits: elsewhere a trailing release is
+    // a genuine key-up and the poll blocks out the full grace period for
+    // nothing.
+    if *encoding == RepeatEncoding::Paired
+        && matches!(batch.last(), Some(Event::Key(key)) if key.kind == KeyEventKind::Release)
         && event::poll(AUTOREPEAT_GRACE).unwrap_or(false)
         && let Ok(trailing) = event::read()
     {
         batch.push(trailing);
     }
+}
 
+fn forward_batch(batch: &mut [Event], sinks: &mut EventSinks, encoding: &mut RepeatEncoding) {
     let mut index = 0;
     while index < batch.len() {
-        let Some(repeat) = autorepeat_at(&batch[index..]) else {
-            forward_event(&batch[index], &mut sinks);
+        if *encoding != RepeatEncoding::Native
+            && let Some(press_at) = autorepeat_press_at(&batch[index..])
+        {
+            // The press carries the repeat, so whatever sat between the two
+            // still travels by the ordinary path.
+            if let Event::Key(press) = &mut batch[index + press_at] {
+                press.kind = KeyEventKind::Repeat;
+            }
+            *encoding = RepeatEncoding::Paired;
             index += 1;
             continue;
-        };
-        sinks.keys.write(repeat.message);
-        for skipped in &batch[index + 1..index + repeat.press_at] {
-            forward_event(skipped, &mut sinks);
         }
-        index += repeat.press_at + 1;
+        forward_event(&mut batch[index], sinks);
+        index += 1;
     }
 }
 
-fn ends_on_key_release(batch: &[Event]) -> bool {
-    matches!(batch.last(), Some(Event::Key(key)) if key.kind == KeyEventKind::Release)
-}
-
-/// An autorepeat reported the legacy way, and where its press sits.
-struct Autorepeat {
-    message: KeyMessage,
-    /// Index of the press within the slice matched, so whatever landed
-    /// between the two still reaches its own sink.
-    press_at: usize,
-}
-
-/// The autorepeat starting at `events[0]`, if that is what it is.
+/// Where the press sits that makes `events[0]` an autorepeat's release.
 ///
 /// A terminal that reports releases but not repeats encodes a held key as a
 /// release immediately followed by a press of the same key: the key never
@@ -90,7 +116,7 @@ struct Autorepeat {
 /// since a mouse report can land between the two - and does, for anyone
 /// moving the mouse while holding a key. An intervening *key* event does
 /// break it: that is a different key's business, not this one's.
-fn autorepeat_at(events: &[Event]) -> Option<Autorepeat> {
+fn autorepeat_press_at(events: &[Event]) -> Option<usize> {
     let [Event::Key(release), rest @ ..] = events else {
         return None;
     };
@@ -104,18 +130,10 @@ fn autorepeat_at(events: &[Event]) -> Option<Autorepeat> {
             Event::Key(key) => Some((offset, key)),
             _ => None,
         })?;
-    if press.kind != KeyEventKind::Press || press.code != release.code {
-        return None;
-    }
-    let mut repeat = *press;
-    repeat.kind = KeyEventKind::Repeat;
-    Some(Autorepeat {
-        message: convert_key(repeat)?,
-        press_at: offset + 1,
-    })
+    (press.kind == KeyEventKind::Press && press.code == release.code).then_some(offset + 1)
 }
 
-fn forward_event(terminal_event: &Event, sinks: &mut EventSinks) {
+fn forward_event(terminal_event: &mut Event, sinks: &mut EventSinks) {
     match terminal_event {
         Event::Key(key) => {
             if let Some(message) = convert_key(*key) {
@@ -125,8 +143,10 @@ fn forward_event(terminal_event: &Event, sinks: &mut EventSinks) {
         Event::Mouse(mouse) => {
             sinks.mouse.write(convert_mouse(*mouse));
         }
+        // Taken rather than cloned: a paste is unbounded, and the batch is
+        // cleared before it is read again.
         Event::Paste(text) => {
-            sinks.paste.write(PasteMessage(text.clone()));
+            sinks.paste.write(PasteMessage(std::mem::take(text)));
         }
         Event::FocusGained => {
             sinks.focus.write(FocusMessage::new(true));
@@ -277,7 +297,7 @@ mod tests {
 
     use crossterm::event::Event;
 
-    use super::{autorepeat_at, convert_key, convert_mouse, ends_on_key_release};
+    use super::{autorepeat_press_at, convert_key, convert_mouse};
 
     fn key_event(code: CtKeyCode, kind: KeyEventKind) -> Event {
         let mut key = KeyEvent::new(code, CtModifiers::NONE);
@@ -301,22 +321,17 @@ mod tests {
 
     #[test]
     fn a_release_then_press_of_one_key_is_the_repeat_it_is() {
-        let batch = held(CtKeyCode::Char('w'));
-        let repeat = autorepeat_at(&batch).expect("a held key");
-        assert_eq!(repeat.message.kind, KeyKind::Repeat);
-        assert_eq!(repeat.message.code, KeyCode::Char('w'));
-        assert_eq!(repeat.press_at, 1);
+        assert_eq!(autorepeat_press_at(&held(CtKeyCode::Char('w'))), Some(1));
     }
 
     #[test]
     fn a_mouse_report_between_the_two_does_not_break_the_pair() {
         let [release, press] = held(CtKeyCode::Right);
         let batch = [release, MOVED, MOVED, press];
-        let repeat = autorepeat_at(&batch).expect("a held key past the mouse");
-        assert_eq!(repeat.message.code, KeyCode::Right);
         assert_eq!(
-            repeat.press_at, 3,
-            "the skipped events have to stay forwardable"
+            autorepeat_press_at(&batch),
+            Some(3),
+            "the events between the pair keep their own places"
         );
     }
 
@@ -328,19 +343,14 @@ mod tests {
             key_event(CtKeyCode::Char('d'), KeyEventKind::Press),
             press,
         ];
-        assert!(autorepeat_at(&batch).is_none());
+        assert_eq!(autorepeat_press_at(&batch), None);
     }
 
     #[test]
     fn a_release_that_ends_a_hold_stays_a_release() {
-        let lone = [key_event(CtKeyCode::Char('w'), KeyEventKind::Release)];
-        assert!(autorepeat_at(&lone).is_none());
-
-        let trailing = [
-            key_event(CtKeyCode::Char('w'), KeyEventKind::Release),
-            MOVED,
-        ];
-        assert!(autorepeat_at(&trailing).is_none());
+        let release = key_event(CtKeyCode::Char('w'), KeyEventKind::Release);
+        assert_eq!(autorepeat_press_at(std::slice::from_ref(&release)), None);
+        assert_eq!(autorepeat_press_at(&[release, MOVED]), None);
     }
 
     #[test]
@@ -349,7 +359,7 @@ mod tests {
             key_event(CtKeyCode::Char('w'), KeyEventKind::Release),
             key_event(CtKeyCode::Char('d'), KeyEventKind::Press),
         ];
-        assert!(autorepeat_at(&batch).is_none());
+        assert_eq!(autorepeat_press_at(&batch), None);
     }
 
     #[test]
@@ -358,20 +368,7 @@ mod tests {
             key_event(CtKeyCode::Char('w'), KeyEventKind::Press),
             key_event(CtKeyCode::Char('w'), KeyEventKind::Release),
         ];
-        assert!(autorepeat_at(&batch).is_none());
-    }
-
-    // The grace poll is what closes the split-drain case, and it can only be
-    // asked for by a batch whose last event is a key release.
-    #[test]
-    fn only_a_trailing_release_asks_for_the_grace_period() {
-        assert!(ends_on_key_release(&[key_event(
-            CtKeyCode::Char('w'),
-            KeyEventKind::Release
-        )]));
-        assert!(!ends_on_key_release(&held(CtKeyCode::Char('w'))));
-        assert!(!ends_on_key_release(&[MOVED]));
-        assert!(!ends_on_key_release(&[]));
+        assert_eq!(autorepeat_press_at(&batch), None);
     }
 
     #[test]
@@ -402,9 +399,6 @@ mod tests {
         assert_eq!(convert_key(flagged).unwrap(), message);
     }
 
-    // The kitty protocol hands crossterm the shifted character and it drops
-    // the shift bit with it; the legacy path reports the same character and
-    // adds the bit. One keystroke has to mean one thing.
     #[test]
     fn an_uppercase_letter_carries_shift_on_either_tier() {
         let substituted = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::NONE);

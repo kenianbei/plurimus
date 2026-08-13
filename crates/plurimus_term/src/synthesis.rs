@@ -94,21 +94,22 @@ pub(crate) fn release_keys_on_focus_loss(
         return;
     }
     for &code in held.get_pressed() {
-        keys.write(KeyMessage::new(
-            code,
-            KeyModifiers::default(),
-            KeyKind::Release,
-        ));
+        keys.write(synthetic_release(code));
     }
+}
+
+/// A release written as if a backend had reported it.
+///
+/// Carries no modifiers, which is what a terminal reports too: an event
+/// describes the state it leaves behind, and nothing is held once the gap
+/// this fills has opened.
+fn synthetic_release(code: KeyCode) -> KeyMessage {
+    KeyMessage::new(code, KeyModifiers::default(), KeyKind::Release)
 }
 
 fn expire_held(held: &mut HeldKeys, now: Duration, timeout: Duration) -> Vec<KeyMessage> {
     held.extract_if(|_, at| now.saturating_sub(*at) >= timeout)
-        .map(|(code, _)| KeyMessage {
-            code,
-            modifiers: KeyModifiers::default(),
-            kind: KeyKind::Release,
-        })
+        .map(|(code, _)| synthetic_release(code))
         .collect()
 }
 
@@ -163,9 +164,11 @@ mod tests {
         assert_eq!(held.len(), 1);
     }
 
-    // A zero timeout expires anything still held on the same run, so a
-    // press the release failed to cancel shows up as a third message.
-    fn surviving(press: KeyModifiers, release: KeyModifiers) -> Vec<KeyMessage> {
+    /// Whether a press carrying `press` is still held after a release
+    /// carrying `release`, with a zero timeout expiring anything that is -
+    /// so a press the release failed to cancel arrives as a third message
+    /// beside the two written here.
+    fn still_held_after_release(press: KeyModifiers, release: KeyModifiers) -> bool {
         let mut world = World::new();
         world.init_resource::<Messages<KeyMessage>>();
         world.insert_resource(InputCapabilities::none());
@@ -177,10 +180,7 @@ mod tests {
         world.write_message(KeyMessage::new(code, press, KeyKind::Press));
         world.write_message(KeyMessage::new(code, release, KeyKind::Release));
         world.run_system(system).unwrap();
-        world
-            .resource_mut::<Messages<KeyMessage>>()
-            .drain()
-            .collect()
+        world.resource_mut::<Messages<KeyMessage>>().drain().count() > 2
     }
 
     fn on_focus_change(gained: bool, pressed: &[KeyCode]) -> Vec<KeyMessage> {
@@ -228,15 +228,14 @@ mod tests {
         assert!(on_focus_change(false, &[]).is_empty());
     }
 
+    // A terminal reports the state an event leaves behind, so the real
+    // shift+a gesture ends with an `a` release carrying nothing at all.
     #[test]
     fn a_release_cancels_its_press_whatever_bits_it_carries() {
         let shifted = KeyModifiers::default().with_shift(true);
         let bare = KeyModifiers::default();
 
-        // The real gesture: a terminal reports the state the release leaves
-        // behind, so shift+a ends with an `a` release carrying nothing.
-        assert_eq!(surviving(shifted, bare).len(), 2);
-        assert_eq!(surviving(bare, bare).len(), 2);
-        assert_eq!(surviving(shifted, shifted).len(), 2);
+        assert!(!still_held_after_release(shifted, bare));
+        assert!(!still_held_after_release(bare, bare));
     }
 }

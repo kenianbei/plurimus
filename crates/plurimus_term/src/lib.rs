@@ -152,9 +152,8 @@ impl Plugin for TermPlugin {
         app.add_systems(
             PreUpdate,
             // Focus-loss releases go after the state they read: a key
-            // pressed in the frame the focus is lost - which alt-tab
-            // guarantees, its own keys arriving in that batch - is only held
-            // once `update_button_input` has applied it.
+            // pressed in the losing frame is only held once
+            // `update_button_input` has applied it.
             (
                 synthesize_releases,
                 update_button_input,

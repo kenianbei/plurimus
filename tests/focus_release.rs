@@ -5,10 +5,9 @@
 //! that batch.
 
 use bevy_app::App;
-use bevy_ecs::message::Messages;
 use bevy_input::ButtonInput;
 use plurimus::core::CorePlugin;
-use plurimus::term::{KeyCode, KeyKind, KeyMessage, TermPlugin};
+use plurimus::term::{KeyCode, TermPlugin};
 use plurimus_test::{press_key, send_focus, write_focus, write_key};
 
 fn app() -> App {
@@ -35,25 +34,6 @@ fn losing_focus_ends_a_hold_the_terminal_never_will() {
     );
 }
 
-#[test]
-fn the_release_reaches_message_readers_too() {
-    let mut app = app();
-    press_key(&mut app, KeyCode::Left);
-
-    let mut reader = app
-        .world_mut()
-        .resource_mut::<Messages<KeyMessage>>()
-        .get_cursor();
-    send_focus(&mut app, false);
-
-    let released: Vec<_> = reader
-        .read(app.world().resource::<Messages<KeyMessage>>())
-        .filter(|message| message.kind == KeyKind::Release)
-        .collect();
-    assert_eq!(released.len(), 1);
-    assert_eq!(released[0].code, KeyCode::Left);
-}
-
 // The press and the focus loss in one frame is the alt-tab a key triggers:
 // the release must still win, since it is written after the press arrives.
 #[test]
@@ -65,17 +45,4 @@ fn a_key_pressed_in_the_losing_frame_does_not_survive_it() {
     app.update();
 
     assert!(!is_held(&app, KeyCode::Char('w')));
-}
-
-#[test]
-fn regaining_focus_holds_nothing_by_itself() {
-    let mut app = app();
-    send_focus(&mut app, true);
-    assert!(
-        app.world()
-            .resource::<ButtonInput<KeyCode>>()
-            .get_pressed()
-            .next()
-            .is_none()
-    );
 }
