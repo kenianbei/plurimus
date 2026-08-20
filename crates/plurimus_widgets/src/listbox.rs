@@ -18,8 +18,9 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::text::{Line, Text};
 
-use super::{ValueChange, placeholder};
+use super::ValueChange;
 use crate::rows::ContentDirty;
+use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::first_bound;
@@ -88,7 +89,7 @@ pub struct ActiveDescendant(pub Option<Entity>);
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
 #[must_use]
 pub fn listbox() -> impl Bundle {
-    (ListBox, TabIndex(0), placeholder())
+    (ListBox, TabIndex(0), UiWidget::default())
 }
 
 /// Spawn bundle for one list row.

@@ -28,7 +28,7 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::{Popover, PopoverAlign, PopoverSide};
-use crate::{Activate, Button, is_activate_key, placeholder};
+use crate::{Activate, Button, is_activate_key};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
 use plurimus_ui::UiLabel;
 use plurimus_ui::{
@@ -67,7 +67,7 @@ pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
         ModalityToggle,
         UiLabel(label.into()),
         TabIndex(0),
-        placeholder(),
+        UiWidget::default(),
     )
 }
 
@@ -83,7 +83,7 @@ pub fn menu_popup(anchor: Entity) -> impl Bundle {
             size: Size::ZERO,
         },
         UiHidden,
-        placeholder(),
+        UiWidget::default(),
     )
 }
 
@@ -94,7 +94,7 @@ pub fn menu_item(label: impl Into<Line<'static>>) -> impl Bundle {
         UiLabel(label.into()),
         ITEM_ORDER,
         UiHidden,
-        placeholder(),
+        UiWidget::default(),
     )
 }
 

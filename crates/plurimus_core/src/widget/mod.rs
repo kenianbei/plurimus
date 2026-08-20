@@ -86,6 +86,21 @@ impl UiWidget {
     }
 }
 
+/// A widget drawing nothing, so an entity has content to hold before its
+/// first restyle replaces it - what a widget library's spawn bundles and
+/// `#[require(UiWidget)]` give a widget that has not been styled yet.
+impl Default for UiWidget {
+    fn default() -> Self {
+        Self::new(Blank)
+    }
+}
+
+struct Blank;
+
+impl TerminalWidget for Blank {
+    fn render(&self, _area: Rect, _buffer: &mut Buffer) {}
+}
+
 struct StatefulPair<W, S> {
     widget: W,
     state: S,
@@ -100,5 +115,25 @@ where
         self.widget
             .clone()
             .render(area, buf, &mut self.state.clone());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui_core::buffer::Buffer;
+    use ratatui_core::layout::Rect;
+
+    use super::UiWidget;
+
+    #[test]
+    fn a_default_widget_draws_nothing() {
+        let area = Rect::new(0, 0, 4, 2);
+        let mut buffer = Buffer::empty(area);
+        buffer.set_string(0, 0, "keep", ratatui_core::style::Style::default());
+        let untouched = buffer.clone();
+
+        UiWidget::default().0.render(area, &mut buffer);
+
+        assert_eq!(buffer, untouched);
     }
 }

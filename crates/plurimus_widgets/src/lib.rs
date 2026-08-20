@@ -83,15 +83,8 @@ use bevy_app::{App, Plugin, PreUpdate, Update};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use bevy_input_focus::InputFocusSystems;
-use ratatui_widgets::paragraph::Paragraph;
 
-use plurimus_core::UiWidget;
 use plurimus_ui::{UiPlugin, UiSystems};
-
-// The stock stylists replace this on the first frame.
-pub(crate) fn placeholder() -> UiWidget {
-    UiWidget::new(Paragraph::new(String::new()))
-}
 
 // Shared track convention: first cell is 0.0, last is 1.0, outside clamps.
 pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {

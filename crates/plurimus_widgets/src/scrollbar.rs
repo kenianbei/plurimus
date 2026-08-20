@@ -16,7 +16,6 @@ use ratatui_widgets::scrollbar::{
     Scrollbar as ScrollbarWidget, ScrollbarOrientation, ScrollbarState,
 };
 
-use super::placeholder;
 use plurimus_core::UiWidget;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, ScrollArea,
@@ -53,7 +52,7 @@ impl Scrollbar {
 /// Spawn bundle for a scrollbar driving `target`.
 #[must_use]
 pub fn scrollbar(target: Entity, orientation: ScrollbarOrientation) -> impl Bundle {
-    (Scrollbar::new(target, orientation), placeholder())
+    (Scrollbar::new(target, orientation), UiWidget::default())
 }
 
 type BarQuery<'w, 's> = Query<'w, 's, (&'static ComputedWidgetArea, &'static Scrollbar)>;

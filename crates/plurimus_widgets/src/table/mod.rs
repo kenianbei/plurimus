@@ -35,9 +35,9 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 
 use crate::listbox::ActiveDescendant;
-use crate::placeholder;
 use crate::rows::CURSOR_SYMBOL;
 use crate::rows::ContentDirty;
+use plurimus_core::UiWidget;
 use plurimus_ui::Hovered;
 use plurimus_ui::StylistCache;
 
@@ -273,7 +273,7 @@ pub fn table(widths: impl IntoIterator<Item = Constraint>) -> impl Bundle {
     (
         Table,
         TableColumns(widths.into_iter().collect()),
-        placeholder(),
+        UiWidget::default(),
     )
 }
 

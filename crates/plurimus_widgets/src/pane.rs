@@ -12,7 +12,6 @@ use bevy_ecs::prelude::{Component, Has, Query, Res};
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
-use super::placeholder;
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{FocusWithin, UiStyle, UiTheme};
@@ -27,7 +26,7 @@ pub struct Pane;
 /// Spawn bundle for a pane; parent widgets to it so the border follows
 /// their focus.
 pub fn pane(title: impl Into<Line<'static>>) -> impl Bundle {
-    (Pane, UiLabel(title.into()), placeholder())
+    (Pane, UiLabel(title.into()), UiWidget::default())
 }
 
 pub(crate) fn style_panes(
