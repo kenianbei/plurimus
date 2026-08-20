@@ -249,9 +249,13 @@ pub(crate) fn style_menu_items(
     focus: Res<InputFocus>,
     mut items: LabeledQuery<MenuItem>,
 ) {
-    restyle(&theme, &focus, &mut items, |_, label, style| {
-        UiWidget::new(Paragraph::new(decorate(" ", label, " ")).style(style))
-    });
+    restyle(
+        &theme,
+        theme.is_changed(),
+        &focus,
+        &mut items,
+        |_, label, style| UiWidget::new(Paragraph::new(decorate(" ", label, " ")).style(style)),
+    );
 }
 
 pub(crate) fn style_menu_popups(

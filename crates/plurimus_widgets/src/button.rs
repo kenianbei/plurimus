@@ -6,6 +6,7 @@
 //! why `menu_button()` requires it alongside [`crate::MenuButton`].
 
 use bevy_ecs::bundle::Bundle;
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{Component, Res};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -39,11 +40,17 @@ pub(crate) fn style_buttons(
     focus: Res<InputFocus>,
     mut buttons: LabeledQuery<Button>,
 ) {
-    restyle(&theme, &focus, &mut buttons, |_, label, style| {
-        UiWidget::new(
-            Paragraph::new(decorate("[ ", label, " ]"))
-                .style(style)
-                .alignment(Alignment::Center),
-        )
-    });
+    restyle(
+        &theme,
+        theme.is_changed(),
+        &focus,
+        &mut buttons,
+        |_, label, style| {
+            UiWidget::new(
+                Paragraph::new(decorate("[ ", label, " ]"))
+                    .style(style)
+                    .alignment(Alignment::Center),
+            )
+        },
+    );
 }

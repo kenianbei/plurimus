@@ -8,6 +8,7 @@
 //! themselves anywhere.
 
 use bevy_ecs::bundle::Bundle;
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{Component, Res};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -45,8 +46,14 @@ pub(crate) fn style_radios(
     focus: Res<InputFocus>,
     mut radios: LabeledQuery<RadioButton>,
 ) {
-    restyle(&theme, &focus, &mut radios, |state, label, style| {
-        let mark = if state.checked() { "(•) " } else { "( ) " };
-        UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
-    });
+    restyle(
+        &theme,
+        theme.is_changed(),
+        &focus,
+        &mut radios,
+        |state, label, style| {
+            let mark = if state.checked() { "(•) " } else { "( ) " };
+            UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
+        },
+    );
 }
