@@ -28,7 +28,7 @@ use crate::scroll::{ScrollOffset, screen_cell};
 ///
 /// An app placing a cursor that belongs to no widget - a prompt on a status
 /// strip - sets [`TerminalCursor`] directly instead, in screen space.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[require(ComputedWidgetArea)]
 #[non_exhaustive]
 pub struct WidgetCursor {
@@ -53,7 +53,7 @@ impl WidgetCursor {
         }
     }
 
-    /// A cursor naming no cell, keeping the shape for when one returns.
+    /// A cursor naming no cell, which is also [`Default`].
     #[must_use]
     pub const fn nowhere() -> Self {
         Self {

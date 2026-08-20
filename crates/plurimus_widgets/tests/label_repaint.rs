@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use bevy_app::App;
+use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
@@ -22,19 +23,17 @@ fn app() -> App {
     app
 }
 
-fn relabel(app: &mut App, entity: Entity, text: &'static str) {
-    app.world_mut()
-        .entity_mut(entity)
-        .insert(UiLabel(text.into()));
+fn spawn(app: &mut App, widget: impl Bundle) -> Entity {
+    app.world_mut().spawn((widget, UiArea::Fixed(AREA))).id()
 }
 
-// Whether editing the label rebuilt the widget, for a widget spawned by
-// `bundle`.
-fn repaints_on_relabel(entity: Entity, app: &mut App) -> bool {
+fn repaints_on_relabel(app: &mut App, entity: Entity) -> bool {
     app.update();
     let before = widget_content(app, entity);
 
-    relabel(app, entity, "after");
+    app.world_mut()
+        .entity_mut(entity)
+        .insert(UiLabel("after".into()));
     app.update();
 
     !Arc::ptr_eq(&before, &widget_content(app, entity))
@@ -43,46 +42,34 @@ fn repaints_on_relabel(entity: Entity, app: &mut App) -> bool {
 #[test]
 fn a_button_repaints_when_its_label_changes() {
     let mut app = app();
-    let button = app
-        .world_mut()
-        .spawn((button("before"), UiArea::Fixed(AREA)))
-        .id();
+    let button = spawn(&mut app, button("before"));
 
-    assert!(repaints_on_relabel(button, &mut app));
+    assert!(repaints_on_relabel(&mut app, button));
     assert!(composed_frame(&app).contains("after"));
 }
 
 #[test]
 fn a_pane_repaints_when_its_title_changes() {
     let mut app = app();
-    let pane = app
-        .world_mut()
-        .spawn((pane("before"), UiArea::Fixed(Rect::new(0, 0, 12, 1))))
-        .id();
+    let pane = spawn(&mut app, pane("before"));
 
-    assert!(repaints_on_relabel(pane, &mut app));
+    assert!(repaints_on_relabel(&mut app, pane));
 }
 
 #[test]
 fn a_checkbox_repaints_when_its_label_changes() {
     let mut app = app();
-    let checkbox = app
-        .world_mut()
-        .spawn((checkbox("before"), UiArea::Fixed(AREA)))
-        .id();
+    let checkbox = spawn(&mut app, checkbox("before"));
 
-    assert!(repaints_on_relabel(checkbox, &mut app));
+    assert!(repaints_on_relabel(&mut app, checkbox));
 }
 
 #[test]
 fn a_radio_repaints_when_its_label_changes() {
     let mut app = app();
-    let radio = app
-        .world_mut()
-        .spawn((radio("before"), UiArea::Fixed(AREA)))
-        .id();
+    let radio = spawn(&mut app, radio("before"));
 
-    assert!(repaints_on_relabel(radio, &mut app));
+    assert!(repaints_on_relabel(&mut app, radio));
 }
 
 // The label tick is an extra reason to repaint, not a reason to repaint
@@ -90,10 +77,7 @@ fn a_radio_repaints_when_its_label_changes() {
 #[test]
 fn an_untouched_label_still_skips_the_rebuild() {
     let mut app = app();
-    let button = app
-        .world_mut()
-        .spawn((button("steady"), UiArea::Fixed(AREA)))
-        .id();
+    let button = spawn(&mut app, button("steady"));
     app.update();
     let before = widget_content(&app, button);
 

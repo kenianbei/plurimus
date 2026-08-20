@@ -38,6 +38,14 @@ fn cursor(app: &App) -> Option<Position> {
     app.world().resource::<TerminalCursor>().cell
 }
 
+fn set_cell(app: &mut App, entity: Entity, cell: Option<Position>) {
+    app.world_mut()
+        .entity_mut(entity)
+        .get_mut::<WidgetCursor>()
+        .expect("the widget keeps its cursor")
+        .cell = cell;
+}
+
 #[test]
 fn a_focused_widgets_caret_lands_at_its_offset_from_the_area() {
     let mut app = app();
@@ -156,11 +164,7 @@ fn a_cursor_naming_no_cell_is_hidden_and_keeps_its_style() {
     app.update();
     assert_eq!(cursor(&app), Some(Position::new(6, 3)));
 
-    app.world_mut()
-        .entity_mut(editor)
-        .get_mut::<WidgetCursor>()
-        .expect("the widget keeps its cursor")
-        .cell = None;
+    set_cell(&mut app, editor, None);
     app.update();
 
     assert_eq!(cursor(&app), None, "no cell to name means no cursor");
@@ -182,11 +186,7 @@ fn naming_a_cell_again_places_the_caret_back() {
     app.update();
     assert_eq!(cursor(&app), None);
 
-    app.world_mut()
-        .entity_mut(editor)
-        .get_mut::<WidgetCursor>()
-        .expect("the widget keeps its cursor")
-        .cell = Some(Position::new(2, 1));
+    set_cell(&mut app, editor, Some(Position::new(2, 1)));
     app.update();
 
     assert_eq!(cursor(&app), Some(Position::new(6, 3)));

@@ -8,12 +8,8 @@
 //! [`UiStyle`] and [`StylistDisabled`] are the two escapes from it: patch one
 //! entity's style, or take one entity's look over entirely.
 
-use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::{Component, Resource};
-use bevy_ecs::world::DeferredWorld;
 use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
-
-use crate::stylist::StylistCache;
 
 /// The interaction flags a widget is in, resolved by [`UiTheme::resolve`]
 /// into one [`Style`].
@@ -173,14 +169,8 @@ impl UiTheme {
 /// sat outside every stylist query missed the theme swaps that landed
 /// meanwhile, and nothing else would mark it.
 #[derive(Component, Debug, Clone, Copy)]
-#[component(on_remove = invalidate_cache)]
+#[component(on_remove = crate::stylist::invalidate_cache)]
 pub struct StylistDisabled;
-
-fn invalidate_cache(mut world: DeferredWorld, context: HookContext) {
-    if let Some(mut cache) = world.get_mut::<StylistCache>(context.entity) {
-        *cache = StylistCache::default();
-    }
-}
 
 /// Patched over the style an entity would otherwise resolve to.
 ///

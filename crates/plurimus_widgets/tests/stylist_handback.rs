@@ -31,11 +31,6 @@ fn app() -> (App, Entity) {
     (app, button)
 }
 
-fn swap_theme(app: &mut App) {
-    app.world_mut().resource_mut::<UiTheme>().normal =
-        Style::default().fg(Color::Magenta).bg(Color::Black);
-}
-
 #[test]
 fn an_entity_handed_back_repaints_even_though_it_missed_the_theme_swap() {
     let (mut app, button) = app();
@@ -43,7 +38,8 @@ fn an_entity_handed_back_repaints_even_though_it_missed_the_theme_swap() {
     app.update();
     let taken_over = widget_content(&app, button);
 
-    swap_theme(&mut app);
+    app.world_mut().resource_mut::<UiTheme>().normal =
+        Style::default().fg(Color::Magenta).bg(Color::Black);
     app.update();
     assert!(
         Arc::ptr_eq(&taken_over, &widget_content(&app, button)),

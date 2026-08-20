@@ -68,13 +68,15 @@ then colors downsample to the terminal's `ColorDepth`), and `Present`. Core owns
 raster primitives in `raster` (halfblock and braille grids, blits, color
 averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
 placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
-pass with no other crate involved. `PresenterPlugin<B>` diffs the composed frame
-and writes changed cells through any ratatui-core `Backend`, and applies
-`TerminalCursor` - the terminal's own caret, which a screen reader follows and
-an input method anchors to - outside that diff, because a caret crossing a cell
-changes no cell's content and the diff skips a frame where nothing differs.
-Position and visibility go through `Backend`; the shape is a backend's to serve.
-Re-exports `ratatui_core`.
+pass with no other crate involved. Its `Default` draws nothing, which is what a
+widget holds before its first restyle replaces it, so no widget library needs a
+blank of its own. `PresenterPlugin<B>` diffs the composed frame and writes
+changed cells through any ratatui-core `Backend`, and applies `TerminalCursor` -
+the terminal's own caret, which a screen reader follows and an input method
+anchors to - outside that diff, because a caret crossing a cell changes no
+cell's content and the diff skips a frame where nothing differs. Position and
+visibility go through `Backend`; the shape is a backend's to serve. Re-exports
+`ratatui_core`.
 
 ### plurimus_term
 
@@ -155,7 +157,9 @@ it rather than by copying it. `content_cell` is where a pointer cell becomes a
 content cell for any of it, clamping into the area so a captured drag past an
 edge keeps addressing the nearest one; `screen_cell` is the way back, refusing
 rather than clamping, and it is what places the focused widget's `WidgetCursor`
-on the terminal.
+on the terminal - a cursor whose cell is `None` names none, which is how a
+widget with nowhere to put its caret says so without discarding the shape an app
+gave it.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
@@ -165,11 +169,16 @@ normal, focused patched over the winner - and `UiStyle` and `StylistDisabled`
 are the two escapes from it. Beside that vocabulary sits the engine that
 consumes it: `StylistCache` records what a widget last drew and
 `StylistCache::redraws` is the compare-and-swap every stylist gates on, so a
-theme swap or a dirtied container repaints and an idle frame costs a comparison.
-`observed` reads an entity's state through `StateQuery`, `restyle` runs the
-whole loop for the label-driven case, and a `UiLabel` is a ratatui `Line`, so a
-label carries per-span style of its own. Re-exports `tui_scrollview`, and
-`bevy_input`'s `Key`, the type its bindings are written in.
+theme swap, an edited label, or a dirtied container repaints and an idle frame
+costs a comparison. Handing an entity back from `StylistDisabled` repaints it
+too, by a removal hook that resets its cache - the entity sat outside every
+stylist query and so missed whatever landed meanwhile. `observed` reads an
+entity's state through `StateQuery` and `StylistCache::with_value` carries the
+hash a widget's own value contributes, for a stylist that resolves its state
+rather than reading it; `restyle` runs the whole loop for the label-driven case,
+and a `UiLabel` is a ratatui `Line`, so a label carries per-span style of its
+own. Re-exports `tui_scrollview`, and `bevy_input`'s `Key`, the type its
+bindings are written in.
 
 ### plurimus_widgets
 
@@ -186,10 +195,10 @@ ctrl+k last put there. Most widgets are stateless controllers emitting entity
 events (`Activate`, `ValueChange`); apps apply them, or attach the stock
 `*_self_update` observers for uncontrolled behavior. A stylist rebuilds a
 widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the state it last drew
-differs from the current one, not every frame, and they run in the
-`WidgetSystems::Style` set an app orders its own against. Only the stylists
-themselves are the crate's: the cache they gate on, the state they read, the
-label they draw, and the theme vocabulary the app speaks all belong to
+differs from the current one, or when its label changed, not every frame, and
+they run in the `WidgetSystems::Style` set an app orders its own against. Only
+the stylists themselves are the crate's: the cache they gate on, the state they
+read, the label they draw, and the theme vocabulary the app speaks all belong to
 `plurimus_ui`, which is what lets a widget family outside this workspace be
 written against the same engine. `StylistDisabled` exempts an entity so an app
 takes its look while keeping its behavior, and `UiStyle` patches over the style

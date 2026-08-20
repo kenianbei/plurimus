@@ -15,7 +15,9 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::{Component, Has, Query, With, Without};
+use bevy_ecs::world::DeferredWorld;
 use bevy_input_focus::InputFocus;
 use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::style::Style;
@@ -252,6 +254,15 @@ pub fn decorate(
     line.spans.insert(0, Span::raw(prefix));
     line.spans.push(Span::raw(suffix));
     line
+}
+
+/// Resets the cache of an entity leaving [`StylistDisabled`], so the
+/// stylist taking it back rebuilds on the first frame - see that
+/// component for why.
+pub(crate) fn invalidate_cache(mut world: DeferredWorld, context: HookContext) {
+    if let Some(mut cache) = world.get_mut::<StylistCache>(context.entity) {
+        *cache = StylistCache::default();
+    }
 }
 
 /// Hashes whatever a widget carries beyond its interaction state into the

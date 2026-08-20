@@ -11,8 +11,41 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`plurimus_test::write_focus` and `send_focus`**, the focus half of the
   injection helpers, following the module's queue-only and queue-then-tick
   families.
+- **`UiWidget` implements `Default`**, drawing nothing - the value a widget
+  holds before its first restyle replaces it. A widget library no longer needs a
+  blank of its own, and `#[require(UiWidget)]` can supply one with no suffix.
+- **`StylistCache::with_value`** sets the `value_bits` a redraw comparison turns
+  on, without the full `StateQuery` tuple `observed` demands. The seam for a
+  stylist that resolves its own interaction state - a painter drawing one
+  resting style - which could reach the mechanism no other way.
+
+### Changed
+
+- **`WidgetCursor::cell` is `Option<Position>`**, so a widget whose caret has
+  nowhere to sit can say so. Previously such a widget could only leave the last
+  cell standing or remove the component, which discards the style an app set
+  and, the component being required, never re-inserts it. `WidgetCursor::new` is
+  unchanged, and a `nowhere()` constructor joins it - which is also the type's
+  new `Default`, the spelling its sibling `TerminalCursor::hidden` already uses.
+- **`restyle` takes the theme by reference plus a `theme_changed` flag** rather
+  than `&Res<UiTheme>`, so a caller holding a plain `&UiTheme` can drive it.
+- **`LabeledQuery` carries `Ref<UiLabel>`** rather than `&UiLabel`, which is
+  what lets the label's own change tick reach the redraw decision.
 
 ### Fixed
+
+- **A widget repaints when its label changes.** The stylist cache compares
+  interaction state, which an edited `UiLabel` leaves untouched, so a button,
+  checkbox, radio button, menu item, or pane whose text was set after its first
+  paint kept drawing the old text - a pane could never be retitled at all. The
+  stylists now fold the label's change tick into the same dirty flag a theme
+  swap uses. An untouched widget still costs a comparison and no rebuild.
+- **An entity handed back from `StylistDisabled` repaints.** Change detection
+  compares against a system's last run, so an entity that sat outside every
+  stylist query missed the theme changes that landed meanwhile and kept a stale
+  drawing when the app gave it back. Removing the component now resets its
+  `StylistCache`, making take-over and hand-back a contract rather than a
+  caveat.
 
 - **A held key is reported as held.** A terminal that honors the kitty
   protocol's event types without detectable autorepeat encodes a held key as a
