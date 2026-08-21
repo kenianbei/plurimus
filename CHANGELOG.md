@@ -77,6 +77,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A press inside an open modal overlay no longer closes it.** The guard asked
+  only whether the pressed entity carried `ModalityToggle`, so a press on any
+  unmarked child - a menu popup's own border included - dismissed every open
+  overlay and fell through to whatever sat beneath it. "Inside" is now the
+  overlay's own rect, which is what the wheel path always used: a press an
+  overlay covers reaches that overlay's subtree or nothing at all, and only a
+  press outside every open overlay dismisses. A press outside them on a
+  `ModalityToggle` still routes, which is how an opener closes what it opened.
+- **A wheel tick inside an open modal overlay scrolls the overlay's own
+  content.** Every tick an overlay covered was swallowed, so a scrollable list
+  inside a dialog could not be wheel-scrolled at all. Arbitration now runs with
+  the candidates narrowed to the subtrees of the overlays under the pointer,
+  which keeps the reason such ticks were swallowed - nothing an overlay covers
+  may move - while letting the overlay's own content use them.
 - **A container driven through `ActiveDescendant` shows its cursor row.** Both
   stylists resolved the cursor's style from the container's own focus, so a list
   stepped by a search field beside it - the case `ActiveDescendant` exists for -
