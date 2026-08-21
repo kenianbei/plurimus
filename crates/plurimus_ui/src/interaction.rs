@@ -45,10 +45,10 @@ pub struct Pressed;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct InteractionDisabled;
 
-/// Exempts the widget from press hit-testing entirely: a press lands on
-/// whatever is beneath it, as if the widget had no area. On a widget with
-/// [`InteractionDisabled`], this restores fall-through where the default
-/// is to absorb.
+/// Exempts the widget from press hit-testing: a press lands on whatever
+/// is beneath it. Presses only - the widget keeps its area for hover, the
+/// wheel, and navigation. On a widget with [`InteractionDisabled`], this
+/// restores fall-through where the default is to absorb.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressPassThrough;
 
@@ -230,12 +230,14 @@ type PointerTargetQuery<'w, 's> =
 
 type PressedQuery<'w, 's> = Query<'w, 's, (Entity, Has<InteractionDisabled>), With<Pressed>>;
 
+type FocusableQuery<'w, 's> = Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>;
+
 /// Everything [`pointer_interaction`] routes against.
 #[derive(SystemParam)]
 pub(crate) struct PointerRouting<'w, 's> {
     targets: PointerTargetQuery<'w, 's>,
     pressed: PressedQuery<'w, 's>,
-    focusable: Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>,
+    focusable: FocusableQuery<'w, 's>,
     disabled: Query<'w, 's, (), With<InteractionDisabled>>,
     modal: ModalGuard<'w, 's>,
     focus: ResMut<'w, InputFocus>,
@@ -348,7 +350,7 @@ fn drag_pressed(
 
 fn press(
     target: Entity,
-    focusable: &Query<(), (With<TabIndex>, Without<PressFocusDisabled>)>,
+    focusable: &FocusableQuery,
     focus: &mut ResMut<InputFocus>,
     commands: &mut Commands,
 ) {
@@ -364,8 +366,8 @@ fn release_all(
     position: Position,
     commands: &mut Commands,
 ) -> bool {
-    // Run-pressed entities came from a query excluding disabled widgets,
-    // and nothing disables them mid-run.
+    // Run-pressed entities cannot be disabled: an absorbed press never
+    // reaches `run_pressed`, and nothing disables them mid-run.
     let fresh = run_pressed
         .drain(..)
         .filter(|&entity| !routing.pressed.contains(entity))
@@ -375,10 +377,13 @@ fn release_all(
         if !disabled {
             commands.trigger(PointerRelease { entity, position });
         }
-        let released_on = routing
-            .targets
-            .get(entity)
-            .is_ok_and(|(_, area, _)| area.0.contains(position));
+        // The disabled term keeps a widget disabled mid-gesture from
+        // activating: the target query no longer excludes it.
+        let released_on = !disabled
+            && routing
+                .targets
+                .get(entity)
+                .is_ok_and(|(_, area, _)| area.0.contains(position));
         if released_on {
             commands.trigger(Click { entity, position });
             menu_clicked |= routing.modal.affects_modality(entity);

@@ -252,3 +252,84 @@ fn tab_still_reaches_a_press_focus_disabled_widget() {
 
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(toolbar));
 }
+
+// Disabling a widget mid-gesture silences the whole rest of the gesture:
+// the release must not activate a control that went grey under the
+// pointer. The target query no longer excludes disabled widgets, so this
+// is the release path's own term, not the query's.
+#[test]
+fn a_widget_disabled_mid_gesture_does_not_click() {
+    let mut app = app();
+    let widget = spawn_widget(&mut app, AREA);
+    app.init_resource::<Gestures>();
+    app.add_observer(|_: On<Click>, mut log: ResMut<Gestures>| log.0.push("click"));
+    app.update();
+
+    send_mouse(&mut app, MouseKind::Moved, AREA.x + 1, AREA.y + 1);
+    send_mouse(
+        &mut app,
+        MouseKind::Down(MouseButton::Left),
+        AREA.x + 1,
+        AREA.y + 1,
+    );
+    assert!(app.world().entity(widget).contains::<Pressed>());
+    app.world_mut()
+        .entity_mut(widget)
+        .insert(InteractionDisabled);
+    send_mouse(
+        &mut app,
+        MouseKind::Up(MouseButton::Left),
+        AREA.x + 1,
+        AREA.y + 1,
+    );
+
+    assert!(
+        app.world().resource::<Gestures>().0.is_empty(),
+        "no click from a widget that went grey mid-gesture"
+    );
+    assert!(
+        !app.world().entity(widget).contains::<Pressed>(),
+        "but the gesture still ended"
+    );
+}
+
+// Inside an open modal the guard confines rather than dismisses, and a
+// disabled child then absorbs like anywhere else.
+#[test]
+fn a_disabled_child_inside_a_modal_absorbs_without_dismissing() {
+    let mut app = app();
+    let button = app
+        .world_mut()
+        .spawn((menu_button("File"), UiArea::Fixed(Rect::new(11, 0, 8, 1))))
+        .id();
+    let popup = app
+        .world_mut()
+        .spawn((menu_popup(button), ChildOf(button)))
+        .id();
+    app.world_mut().spawn((menu_item("Open"), ChildOf(popup)));
+    app.update();
+    click(&mut app, 12, 0);
+    app.update();
+    let frame = app
+        .world()
+        .get::<plurimus_ui::ComputedWidgetArea>(popup)
+        .unwrap()
+        .0;
+    let footer = Rect::new(frame.x, frame.y + frame.height - 1, frame.width, 1);
+    let child = spawn_widget(&mut app, footer);
+    app.world_mut()
+        .entity_mut(child)
+        .insert((InteractionDisabled, ChildOf(popup)));
+    app.update();
+
+    click(&mut app, footer.x + 1, footer.y);
+
+    assert!(
+        app.world().entity(popup).contains::<MenuOpen>(),
+        "the confined press dismissed nothing"
+    );
+    assert!(
+        !was_pressed(&app, child),
+        "and the disabled child absorbed it"
+    );
+}
