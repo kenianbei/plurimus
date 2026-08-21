@@ -112,9 +112,8 @@ pub(super) fn body_height(area: ComputedWidgetArea, (header, footer): (bool, boo
         .saturating_sub(u16::from(footer))
 }
 
-// Content-space, one cell tall: where each column starts and how wide it
-// is. The click and the published rect both read it, so a cell cannot be
-// reported at one place and clicked at another.
+// Content-space. The click and the published rect both read it, so a cell
+// cannot be reported at one place and clicked at another.
 pub(super) fn column_rects(geometry: &Columns) -> Rc<[Rect]> {
     let [_, columns] =
         Layout::horizontal([Constraint::Length(geometry.gutter), Constraint::Fill(0)])
@@ -139,9 +138,8 @@ pub(super) fn solve_width(area: ComputedWidgetArea, scroll: Option<&ScrollArea>)
 
 // An empty width set is expanded here rather than by ratatui, which reads
 // one as "never called" and applies this same rule to its own render area.
-// The stylist and the click path both take the result, so a table's columns
-// cannot be solved from two different widths. `widest` is only called for
-// such a set, a stated one costing no pass over the rows at all.
+// Both the stylist and the click path take the result, so a table's columns
+// cannot be solved from two different widths.
 pub(super) fn resolved_widths(
     columns: &TableColumns,
     widest: impl FnOnce() -> usize,
@@ -230,9 +228,8 @@ impl TableGeometry<'_, '_> {
     }
 }
 
-// The inverse of `clicked_row`, band for band: the header on the first
-// line, the body in child order beneath it, and the footer on the last line
-// of whatever the table is drawn into.
+// The inverse of `clicked_row`, band for band, so a row is named at the
+// line a click on that line resolves back to.
 fn row_line(row: Entity, children: &Children, rows: &Rows, placed: &Placed) -> Option<u16> {
     let (_, is_header, is_footer) = rows.get(row).ok()?;
     if !children.contains(&row) {

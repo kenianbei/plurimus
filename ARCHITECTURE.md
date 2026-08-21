@@ -299,7 +299,14 @@ cursor on press and drag, so the highlight follows the pointer; a table does
 not, its cursor gutter existing only while a row is current, so moving the
 cursor mid-gesture would shift the columns the release resolves against. Because
 a scroll area windows a widget whole, a scrolled table's bands scroll with its
-body.
+body. A cell is text in its row rather than an entity, so nothing can be a child
+of one and `TableGeometry::cell_rect` publishes where a cell is instead - a host
+floating a field over that rect is how a cell is edited in place. It and the
+click router resolve against one column solve, taken from the table's current
+state rather than from what was last drawn, so the two agree whoever moved the
+cursor; and it is why an unstated `TableColumns` is divided by this crate rather
+than by ratatui, whose identical rule would answer to its own render area and so
+could drift from the geometry that has been published.
 
 Re-exports `ratatui_widgets`, `ratatui_textarea`, and `bevy_input`'s `Key`.
 

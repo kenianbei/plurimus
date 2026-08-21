@@ -139,8 +139,7 @@ pub(crate) fn style_tables(
         let (selection, active, column) = cursor;
         let (area, scroll) = extent;
         // `Copy` scalars, compared here so neither the cursor nor a resize
-        // needs system ordering against whatever moved it. The width earns
-        // its place because an empty `TableColumns` is divided by it.
+        // needs system ordering against whatever moved it.
         let width = solve_width(*area, scroll);
         let next = observed(
             state,

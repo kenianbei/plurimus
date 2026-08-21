@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`TableGeometry::cell_rect`**, where a `Table`'s cells are on screen. A cell
+  is text in its row rather than an entity, so it cannot hold a widget; a host
+  that wants one there - a field editing a cell in place - floats it over the
+  rect, which the table's own docs now say. The rect accounts for the cursor
+  gutter, the scroll offset, and the bands, is clipped to what the table shows,
+  and is `None` for a cell scrolled out of view or a row with no line left. It
+  is the same column solve the click router uses, so what it names is what the
+  pointer reaches.
 - **`ActivateKeys`**, the keys that activate a focused `Button`, `Checkbox`, or
   `RadioButton`. All three require it, defaulting to Enter and space, so nothing
   changes until an app replaces it - and replacing it is the whole of remapping.
@@ -72,6 +80,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **A `Table` with no stated column widths divides its own width**, rather than
+  leaving ratatui to divide the area it renders into. The two rules agreed, so
+  nothing is drawn differently; what changes is that one solve now feeds both
+  the drawing and the click routing, which is what makes `cell_rect` able to
+  promise that where it says a cell is, is where the pointer finds it. Such a
+  table also redraws when it is resized, its columns having been divided from a
+  width that changed.
 - **A disabled widget absorbs the press instead of hiding from it.** A widget
   with `InteractionDisabled` was invisible to press hit-testing, so a press on
   greyed chrome was not swallowed but routed to whatever the widget covered. It
