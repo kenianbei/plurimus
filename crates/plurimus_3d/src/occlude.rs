@@ -84,6 +84,14 @@ mod tests {
         masked
     }
 
+    fn every_alpha_is(pixels: &[u8], alpha: u8) -> bool {
+        pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|pixel| pixel[3] == alpha)
+    }
+
     #[test]
     fn nearer_frames_pass_and_farther_frames_mask() {
         let area = Rect::new(0, 0, 2, 1);
@@ -91,10 +99,10 @@ mod tests {
         let mut pixels = vec![255u8; 2 * 2 * 4];
 
         assert!(!occlude(&[0.8; 4], area, &mut shared, &mut pixels));
-        assert!(pixels.chunks_exact(4).all(|pixel| pixel[3] == 255));
+        assert!(every_alpha_is(&pixels, 255));
 
         assert!(occlude(&[0.5; 4], area, &mut shared, &mut pixels));
-        assert!(pixels.chunks_exact(4).all(|pixel| pixel[3] == 0));
+        assert!(every_alpha_is(&pixels, 0));
     }
 
     #[test]
