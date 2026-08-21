@@ -8,6 +8,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`PressPassThrough`**, press transparency: a widget carrying it is invisible
+  to press hit-testing, so a press lands on whatever it covers. Presses only -
+  hover, the wheel, and navigation still see the widget. On a disabled widget it
+  restores the fall-through that used to be the default.
+- **`PressFocusDisabled`** keeps a press from moving focus while the press
+  itself still lands - `Pressed`, drags, and `Click` all arrive. A toolbar
+  control can be tab-reachable through its `TabIndex` without a click on it
+  taking the keyboard off the editor; the browser's preventDefault-on-mousedown.
+
 - **`plurimus_test::write_focus` and `send_focus`**, the focus half of the
   injection helpers, following the module's queue-only and queue-then-tick
   families.
@@ -54,6 +63,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   patch, unlike rebuilding the cache by hand.
 
 ### Changed
+
+- **A disabled widget absorbs the press instead of hiding from it.** A widget
+  with `InteractionDisabled` was invisible to press hit-testing, so a press on
+  greyed chrome was not swallowed but routed to whatever the widget covered. It
+  now wins arbitration like anything else and the press stops there: no event,
+  no focus movement, nothing beneath pressed - and a widget disabled mid-gesture
+  no longer clicks on release. Wheel ticks still fall through a disabled widget,
+  consuming being that router's own opt-in, and an open menu is still dismissed
+  by a press on disabled chrome outside it. Anything relying on the old
+  fall-through opts back in with `PressPassThrough`.
 
 - **A list or table row is selected on release rather than on press**, and
   `Click` now carries the cell it was released on (`Click::new` takes it). Down-
