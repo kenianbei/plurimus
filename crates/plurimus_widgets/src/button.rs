@@ -14,15 +14,16 @@ use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
+use crate::activate::ActivateKeys;
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
 use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
-/// A push button. Emits [`Activate`](crate::Activate) on click or
-/// Enter/Space.
+/// A push button. Emits [`Activate`](crate::Activate) on a click or a key
+/// in its [`ActivateKeys`].
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache)]
+#[require(Hovered, StylistCache, ActivateKeys)]
 pub struct Button;
 
 /// Spawn bundle for a standard button.

@@ -33,7 +33,7 @@ pub use plurimus_ui::ValueChange;
 pub use ratatui_textarea;
 pub use ratatui_widgets;
 
-pub use activate::Activate;
+pub use activate::{Activate, ActivateKeys};
 pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
 pub use listbox::{
