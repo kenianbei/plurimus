@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`ActivateKeys`**, the keys that activate a focused `Button`, `Checkbox`, or
+  `RadioButton`. All three require it, defaulting to Enter and space, so nothing
+  changes until an app replaces it - and replacing it is the whole of remapping.
+  Binding space alone is what lets a form keep Enter for its submit: a key the
+  widget is not bound to activates nothing and propagates, the way one on a
+  disabled widget already did. An empty list turns the keyboard path off without
+  disabling the widget, which a click still activates. Menu items keep their
+  fixed Enter and space.
 - **`PressPassThrough`**, press transparency: a widget carrying it is invisible
   to press hit-testing, so a press lands on whatever it covers. Presses only -
   hover, the wheel, and navigation still see the widget. On a disabled widget it

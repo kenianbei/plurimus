@@ -15,6 +15,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
+use crate::activate::ActivateKeys;
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
@@ -22,7 +23,7 @@ use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
 /// One option inside a [`RadioGroup`].
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache)]
+#[require(Hovered, StylistCache, ActivateKeys)]
 pub struct RadioButton;
 
 /// Exclusive-choice container; its [`RadioButton`] children select via

@@ -1,15 +1,18 @@
 //! The activation contract shared by every widget that responds to a click
-//! or an Enter/Space press.
+//! or a bound key press.
 //!
 //! [`Activate`] is not the button's private event: `menu.rs` triggers it for
 //! menu items that have no [`Button`] component, and `menu_button()` composes
 //! [`Button`] deliberately to inherit this path. Widgets with their own key
 //! handling route around this file entirely; what arrives here is the generic
-//! click-or-Enter/Space contract, so [`ActivationTargets`] is where a new
+//! click-or-[`ActivateKeys`] contract, so [`ActivationTargets`] is where a new
 //! widget opts into it.
+//!
+//! Activation fires on key press, unlike bevy's release semantics: legacy
+//! terminals have no timely release events.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{ChildOf, Commands, EntityEvent, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{ChildOf, Commands, Component, EntityEvent, Has, On, Query, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
@@ -20,19 +23,43 @@ use crate::checkbox::Checkbox;
 use crate::radio::{RadioButton, RadioGroup};
 use plurimus_ui::{Checked, Click, InteractionDisabled, ValueChange};
 
-/// The widget was activated (button click, Enter/Space).
+/// The widget was activated (a click, or a key in [`ActivateKeys`]).
 #[derive(EntityEvent, Debug, Clone, Copy)]
 pub struct Activate {
     /// The activated widget.
     pub entity: Entity,
 }
 
-// Activation fires on key PRESS, unlike bevy's release semantics: legacy
-// terminals have no timely release events.
+/// The keys that activate a [`Button`], [`Checkbox`] or [`RadioButton`]
+/// holding focus, defaulting to `Enter` and space.
+///
+/// Required by all three, so replacing it is the whole of remapping:
+/// binding space alone is what lets a form keep `Enter` for its submit,
+/// since a key that activates nothing is left to propagate. An empty list
+/// therefore disables the keyboard path without disabling the widget, which
+/// a click still activates.
+///
+/// A repeat never activates - one intent commits once - so a held key is
+/// not the way to toggle a checkbox repeatedly.
+#[derive(Component, Debug, Clone)]
+pub struct ActivateKeys(pub Vec<Key>);
+
+impl Default for ActivateKeys {
+    fn default() -> Self {
+        Self(vec![Key::Enter, Key::Character(" ".into())])
+    }
+}
+
+fn is_fresh_press(input: &KeyboardInput) -> bool {
+    input.state == ButtonState::Pressed && !input.repeat
+}
+
+// A menu's keys are fixed rather than bound, so this set is independent of
+// `ActivateKeys::default` and does not follow it.
 pub(crate) fn is_activate_key(input: &KeyboardInput) -> bool {
     let key = &input.logical_key;
     let activates = *key == Key::Enter || matches!(key, Key::Character(c) if c == " ");
-    input.state == ButtonState::Pressed && !input.repeat && activates
+    is_fresh_press(input) && activates
 }
 
 #[derive(SystemParam)]
@@ -40,8 +67,19 @@ pub(crate) struct ActivationTargets<'w, 's> {
     buttons: Query<'w, 's, (), (With<Button>, Without<InteractionDisabled>)>,
     checkboxes: Query<'w, 's, Has<Checked>, (With<Checkbox>, Without<InteractionDisabled>)>,
     radios: Query<'w, 's, (), (With<RadioButton>, Without<InteractionDisabled>)>,
+    keys: Query<'w, 's, &'static ActivateKeys>,
     parents: Query<'w, 's, &'static ChildOf>,
     groups: Query<'w, 's, (), With<RadioGroup>>,
+}
+
+impl ActivationTargets<'_, '_> {
+    fn binds(&self, entity: Entity, input: &KeyboardInput) -> bool {
+        is_fresh_press(input)
+            && self
+                .keys
+                .get(entity)
+                .is_ok_and(|keys| keys.0.contains(&input.logical_key))
+    }
 }
 
 pub(crate) fn widget_click(click: On<Click>, targets: ActivationTargets, mut commands: Commands) {
@@ -53,10 +91,11 @@ pub(crate) fn widget_key(
     targets: ActivationTargets,
     mut commands: Commands,
 ) {
-    if !is_activate_key(&input.input) {
+    let entity = input.focused_entity;
+    if !targets.binds(entity, &input.input) {
         return;
     }
-    if activate_widget(input.focused_entity, &targets, &mut commands) {
+    if activate_widget(entity, &targets, &mut commands) {
         input.propagate(false);
     }
 }
