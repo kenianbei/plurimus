@@ -19,7 +19,7 @@ use super::{
     ActiveColumn, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter, TableHeader,
     TableLayout, TableRow, TableSelection, TableStripe,
 };
-use crate::listbox::ActiveDescendant;
+use crate::rows::ActiveDescendant;
 use crate::rows::ContentDirty;
 use crate::rows::cursor_symbol;
 use plurimus_core::UiWidget;

@@ -4,7 +4,7 @@
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Commands, On, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Commands, On, Query, With, Without};
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
@@ -17,7 +17,7 @@ use super::{
     ActiveColumn, Table, TableAction, TableColumns, TableHeaderClick, TableKeys, TablePosition,
     TableSelection, cursor_gutter,
 };
-use crate::listbox::ActiveDescendant;
+use crate::rows::ActiveDescendant;
 use plurimus_ui::{
     ComputedWidgetArea, InteractionDisabled, PointerPress, ScrollIntoView, ValueChange, first_bound,
 };
@@ -73,7 +73,28 @@ pub(crate) fn table_key(
         column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)));
         return;
     }
-    if let Some(line) = move_row(action, (children, &rows, *area), &mut active) {
+    move_row(action, (children, &rows, *area), &mut active);
+}
+
+/// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set
+/// it - the table's own keys, a click, a repair after a rebuild, or an app
+/// stepping the cursor itself.
+pub(crate) fn reveal_table_cursor(
+    tables: Query<(Entity, &Children, &ActiveDescendant), (With<Table>, Changed<ActiveDescendant>)>,
+    rows: Rows,
+    mut commands: Commands,
+) {
+    for (table, children, active) in &tables {
+        let Some(row) = active.0 else {
+            continue;
+        };
+        let Some(index) = body_rows(children, &rows).position(|candidate| candidate == row) else {
+            continue;
+        };
+        let (header, _) = bands(children, &rows);
+        let line = u16::try_from(index)
+            .unwrap_or(u16::MAX)
+            .saturating_add(u16::from(header));
         commands.trigger(ScrollIntoView {
             entity: table,
             target: Rect::new(0, line, 1, 1),
@@ -85,7 +106,7 @@ fn move_row(
     action: TableAction,
     (children, rows, area): (&Children, &Rows, ComputedWidgetArea),
     active: &mut Mut<ActiveDescendant>,
-) -> Option<u16> {
+) -> Option<()> {
     let body: Vec<Entity> = body_rows(children, rows).collect();
     let last = body.len().checked_sub(1)?;
     let current = active
@@ -97,11 +118,7 @@ fn move_row(
     let page = usize::from(body_height(area, (header, footer))).max(1);
     let index = moved_row(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(body[index])));
-    Some(
-        u16::try_from(index)
-            .unwrap_or(u16::MAX)
-            .saturating_add(u16::from(header)),
-    )
+    Some(())
 }
 
 pub(crate) fn table_press(

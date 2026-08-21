@@ -37,6 +37,18 @@ impl<M: Send + Sync + 'static> Default for ContentDirty<M> {
     }
 }
 
+/// The row a container's keys act on, whoever holds keyboard focus.
+///
+/// A container is driven either by holding focus itself or by another
+/// widget writing this - a search field stepping the list beneath it - so
+/// the cursor row is styled as the active one in both cases.
+///
+/// Kept pointing at a live row: when a container's children change, a value
+/// naming a row that is gone re-points to the first surviving one, and to
+/// `None` when none survives. A deliberately empty cursor stays empty.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ActiveDescendant(pub Option<Entity>);
+
 /// Draws a [`ListItem`](crate::ListItem) as more than one terminal row, in place of its
 /// [`UiLabel`](plurimus_ui::UiLabel).
 ///
@@ -111,6 +123,45 @@ pub(crate) fn mark_dirty_content<Container, Row, RowsChanged, SelfChanged>(
         if let Ok(mut dirty) = content.get_mut(container) {
             dirty.set_changed();
         }
+    }
+}
+
+/// Keeps a container's [`ActiveDescendant`] pointing at a live row.
+///
+/// A row it named can be despawned or reparented - filtering a list is
+/// despawning its children and spawning new ones - and nothing about the
+/// container says so afterwards, leaving a cursor that highlights nothing
+/// and moves from nowhere. The first surviving row is where a container
+/// with no cursor already sends its first key press, so it is where a lost
+/// one lands.
+///
+/// A cursor an app deliberately emptied stays empty: only a value naming a
+/// row that is gone is repaired.
+pub(crate) fn repair_active_descendants<Container, Row>(
+    mut containers: Query<(Option<&Children>, &mut ActiveDescendant), With<Container>>,
+    refilled: Query<Entity, (With<Container>, Changed<Children>)>,
+    // Losing the last child removes `Children` outright, so the container
+    // an emptied list leaves behind matches no `Changed<Children>` filter.
+    mut emptied: RemovedComponents<Children>,
+    rows: Query<(), Row>,
+) where
+    Container: Component,
+    Row: QueryFilter + 'static,
+{
+    for container in refilled.iter().chain(emptied.read()) {
+        let Ok((children, mut active)) = containers.get_mut(container) else {
+            continue;
+        };
+        let Some(current) = active.0 else {
+            continue;
+        };
+        let surviving = |row| children.is_some_and(|kept: &Children| kept.contains(&row));
+        if surviving(current) && rows.get(current).is_ok() {
+            continue;
+        }
+        let first =
+            children.and_then(|kept| kept.iter().copied().find(|&child| rows.get(child).is_ok()));
+        active.set_if_neq(ActiveDescendant(first));
     }
 }
 

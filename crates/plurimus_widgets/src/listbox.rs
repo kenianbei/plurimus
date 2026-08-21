@@ -11,7 +11,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Children, Commands, Component, On, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, With, Without};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -19,7 +19,7 @@ use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::text::Line;
 
 use super::ValueChange;
-use crate::rows::{ContentDirty, ListItemText, row_height};
+use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, row_height};
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
@@ -69,11 +69,6 @@ pub struct ListBoxCursor(pub Line<'static>);
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListItem;
-
-/// The highlighted item. Keyboard focus stays on the [`ListBox`] itself;
-/// this tracks which row its keys act on.
-#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ActiveDescendant(pub Option<Entity>);
 
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
 #[must_use]
@@ -158,8 +153,32 @@ pub(crate) fn listbox_key(
         return;
     }
     let rows: Vec<RowSpan> = row_spans(children, &items).collect();
-    if let Some(span) = move_active(action, &rows, *area, &mut active) {
-        reveal_row(listbox, span, &mut commands);
+    move_active(action, &rows, *area, &mut active);
+}
+
+/// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set
+/// it - a key, a click, a repair, or an app driving the list from a search
+/// field beside it. The reveal belongs to the cursor rather than to the
+/// thing that moved it, so no writer has to remember it.
+pub(crate) fn reveal_listbox_cursor(
+    boxes: Query<
+        (Entity, &Children, &ActiveDescendant),
+        (With<ListBox>, Changed<ActiveDescendant>),
+    >,
+    items: RowTexts,
+    mut commands: Commands,
+) {
+    for (listbox, children, active) in &boxes {
+        let Some(item) = active.0 else {
+            continue;
+        };
+        let Some(span) = row_spans(children, &items).find(|span| span.entity == item) else {
+            continue;
+        };
+        commands.trigger(ScrollIntoView {
+            entity: listbox,
+            target: Rect::new(0, span.top, 1, span.height),
+        });
     }
 }
 
@@ -168,7 +187,7 @@ fn move_active(
     rows: &[RowSpan],
     area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
-) -> Option<RowSpan> {
+) -> Option<()> {
     let last = rows.len().checked_sub(1)?;
     let current = active
         .0
@@ -179,14 +198,7 @@ fn move_active(
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));
-    Some(rows[index])
-}
-
-fn reveal_row(listbox: Entity, span: RowSpan, commands: &mut Commands) {
-    commands.trigger(ScrollIntoView {
-        entity: listbox,
-        target: Rect::new(0, span.top, 1, span.height),
-    });
+    Some(())
 }
 
 fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {

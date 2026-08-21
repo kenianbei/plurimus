@@ -22,7 +22,7 @@ mod geometry;
 mod input;
 mod style;
 
-pub(crate) use input::{table_key, table_press};
+pub(crate) use input::{reveal_table_cursor, table_key, table_press};
 pub(crate) use style::{TableRowsChanged, TableSelfChanged, style_tables};
 
 use bevy_ecs::bundle::Bundle;
@@ -34,7 +34,7 @@ use plurimus_core::ratatui_core::layout::{Constraint, Flex};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 
-use crate::listbox::ActiveDescendant;
+use crate::rows::ActiveDescendant;
 use crate::rows::CURSOR_SYMBOL;
 use crate::rows::ContentDirty;
 use plurimus_core::UiWidget;
