@@ -226,31 +226,54 @@ written against the same engine. `StylistDisabled` exempts an entity so an app
 takes its look while keeping its behavior, and `UiStyle` patches over the style
 an entity would otherwise resolve to, on a widget or on one list or table row.
 
-The two widgets drawn from row children - the list box and the table - carry a
-second change signal beside that one. Their rows are child entities, and a
-child's change never marks its parent, so one generic pass in
-`WidgetSystems::Layout` forwards a row's edit, restyle, check, or uncheck to the
-container before any stylist runs, and a second sums its rows' heights into the
-scroll extent, reading that same signal so a row's edit resizes the content in
-the frame it happens. A stylist reads it too, rather than hashing every row to
-find out, which is what keeps a settled list of any length free on an idle
-frame. A row is one terminal row tall unless it carries `ListItemText`, which
-only a list box draws: that row is as tall as its text has lines, and the
+The two widgets drawn from row children - the list box and the table - share
+everything a container cannot work out for itself, which is why `rows` holds it
+and depends on neither: the cursor (`ActiveDescendant`), the row decorations
+(`ListItemText`, `ListItemTrailing`, `Marked`), and four generic passes in
+`WidgetSystems::Layout`. Their rows are child entities, and a child's change
+never marks its parent, so one pass forwards a row's edit, restyle, check, mark,
+or uncheck to the container before any stylist runs, and a second sums its rows'
+heights into the scroll extent, reading that same signal so a row's edit resizes
+the content in the frame it happens. A third keeps the cursor pointing at a live
+row - filtering a list is despawning its rows, and a cursor naming a dead one
+highlights nothing and moves from nowhere, so it re-points to the first
+survivor, or to none when none survives, leaving a deliberately empty cursor
+alone. A fourth scrolls whichever row the cursor names into view, which belongs
+to the cursor rather than to the key that moved it: a click, a repair, and an
+app driving the list from a search field beside it all reveal, where once only
+the container's own key handler did. A stylist reads it too, rather than hashing
+every row to find out, which is what keeps a settled list of any length free on
+an idle frame. A row is one terminal row tall unless it carries `ListItemText`,
+which only a list box draws: that row is as tall as its text has lines, and the
 extent, the row a click lands in, and the reveal that keeps the cursor visible
-all measure by height rather than by count. Both containers also take their
-movement keys from a component of `(Key, Action)` bindings - `ListBoxKeys`,
-`TableKeys` - which is how an app remaps a list to vim keys without
-reimplementing movement beside the widget. Only the bindings are the crate's:
-the scan itself is `plurimus_ui`'s `first_bound`, the same one a focused scroll
-area's keys go through. The sliders, menus, and text widgets still match keys
-inline.
+all measure by height rather than by count. A row's marker gutter lights for
+`Checked` or for `Marked`, two channels because `Checked` is the selection the
+stock updater writes and an app marking a row for a reason of its own must not
+have that redefined under it; `ListItemTrailing` is right-aligned by the list
+against a width only the list has, a row being built before the box is placed.
+Whichever container holds the cursor, the row it names is styled as focused even
+when focus sits elsewhere - being driven is what `ActiveDescendant` is for, and
+a cursor nobody can see is that pattern contradicting itself. Both containers
+also take their movement keys from a component of `(Key, Action)` bindings -
+`ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim keys
+without reimplementing movement beside the widget. Only the bindings are the
+crate's: the scan itself is `plurimus_ui`'s `first_bound`, the same one a
+focused scroll area's keys go through. The sliders, menus, and text widgets
+still match keys inline.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
 opt-in: `TableSelection` makes the table a tab stop and chooses row, column, or
-cell granularity. A header click reports its column so the app can sort - the
-crate supplies the geometry and never the ordering. Because a scroll area
-windows a widget whole, a scrolled table's bands scroll with its body.
+cell granularity. Selection lands on the release rather than the press, `Click`
+carrying the cell it ended on, because selecting usually closes what was clicked
+and closing on the way down despawns the entity the pointer router is still owed
+a release for; a header click reports its column on the same edge so the app can
+sort - the crate supplies the geometry and never the ordering. A list moves its
+cursor on press and drag, so the highlight follows the pointer; a table does
+not, its cursor gutter existing only while a row is current, so moving the
+cursor mid-gesture would shift the columns the release resolves against. Because
+a scroll area windows a widget whole, a scrolled table's bands scroll with its
+body.
 
 Re-exports `ratatui_widgets`, `ratatui_textarea`, and `bevy_input`'s `Key`.
 

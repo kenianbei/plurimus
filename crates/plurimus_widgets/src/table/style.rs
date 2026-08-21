@@ -19,9 +19,9 @@ use super::{
     ActiveColumn, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter, TableHeader,
     TableLayout, TableRow, TableSelection, TableStripe,
 };
-use crate::listbox::ActiveDescendant;
+use crate::rows::ActiveDescendant;
 use crate::rows::ContentDirty;
-use crate::rows::cursor_symbol;
+use crate::rows::{cursor_style, cursor_symbol};
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
@@ -148,7 +148,11 @@ pub(crate) fn style_tables(
         };
         let highlight = Highlight {
             selection: selection.copied(),
-            style: next.style(&theme),
+            style: cursor_style(
+                next,
+                active.is_some_and(|active| active.0.is_some()),
+                &theme,
+            ),
             symbol: cursor_symbol(symbol.map(|cursor| &cursor.0)),
             column: column.and_then(|column| column.0),
         };

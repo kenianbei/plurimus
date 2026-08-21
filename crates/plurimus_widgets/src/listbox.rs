@@ -11,20 +11,22 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Children, Commands, Component, On, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, With, Without};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
-use plurimus_core::ratatui_core::text::{Line, Text};
+use plurimus_core::ratatui_core::text::Line;
 
 use super::ValueChange;
-use crate::rows::ContentDirty;
+use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, row_height};
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::first_bound;
-use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
+use plurimus_ui::{
+    Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
+};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
 /// A focusable list of [`ListItem`] children. Selection emits
@@ -69,22 +71,6 @@ pub struct ListBoxCursor(pub Line<'static>);
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListItem;
-
-/// Draws a [`ListItem`] as more than one terminal row, in place of its
-/// [`UiLabel`].
-///
-/// Explicit line breaks only: the list truncates a line rather than
-/// wrapping it, so a row is exactly as tall as the [`Text`] has lines. An
-/// empty one still takes a row. Only the list box reads this - every other
-/// widget draws the single-line [`UiLabel`], which stays the row's label
-/// for anything that asks.
-#[derive(Component, Debug, Clone)]
-pub struct ListItemText(pub Text<'static>);
-
-/// The highlighted item. Keyboard focus stays on the [`ListBox`] itself;
-/// this tracks which row its keys act on.
-#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ActiveDescendant(pub Option<Entity>);
 
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
 #[must_use]
@@ -169,8 +155,32 @@ pub(crate) fn listbox_key(
         return;
     }
     let rows: Vec<RowSpan> = row_spans(children, &items).collect();
-    if let Some(span) = move_active(action, &rows, *area, &mut active) {
-        reveal_row(listbox, span, &mut commands);
+    move_active(action, &rows, *area, &mut active);
+}
+
+/// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set
+/// it - a key, a click, a repair, or an app driving the list from a search
+/// field beside it. The reveal belongs to the cursor rather than to the
+/// thing that moved it, so no writer has to remember it.
+pub(crate) fn reveal_listbox_cursor(
+    boxes: Query<
+        (Entity, &Children, &ActiveDescendant),
+        (With<ListBox>, Changed<ActiveDescendant>),
+    >,
+    items: RowTexts,
+    mut commands: Commands,
+) {
+    for (listbox, children, active) in &boxes {
+        let Some(item) = active.0 else {
+            continue;
+        };
+        let Some(span) = row_spans(children, &items).find(|span| span.entity == item) else {
+            continue;
+        };
+        commands.trigger(ScrollIntoView {
+            entity: listbox,
+            target: Rect::new(0, span.top, 1, span.height),
+        });
     }
 }
 
@@ -179,8 +189,10 @@ fn move_active(
     rows: &[RowSpan],
     area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
-) -> Option<RowSpan> {
-    let last = rows.len().checked_sub(1)?;
+) {
+    let Some(last) = rows.len().checked_sub(1) else {
+        return;
+    };
     let current = active
         .0
         .and_then(|item| rows.iter().position(|row| row.entity == item));
@@ -190,14 +202,6 @@ fn move_active(
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));
-    Some(rows[index])
-}
-
-fn reveal_row(listbox: Entity, span: RowSpan, commands: &mut Commands) {
-    commands.trigger(ScrollIntoView {
-        entity: listbox,
-        target: Rect::new(0, span.top, 1, span.height),
-    });
 }
 
 fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
@@ -217,17 +221,66 @@ fn select_active(listbox: Entity, active: ActiveDescendant, commands: &mut Comma
     }
 }
 
-pub(crate) fn listbox_press(
-    event: On<PointerPress>,
-    mut boxes: Query<
-        (
-            &ComputedWidgetArea,
-            Option<&ScrollOffset>,
-            &Children,
-            &mut ActiveDescendant,
-        ),
-        With<ListBox>,
-    >,
+/// The rows a pointer is resolved against, and the cursor it moves.
+type Pointed<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static ComputedWidgetArea,
+        Option<&'static ScrollOffset>,
+        &'static Children,
+        &'static mut ActiveDescendant,
+    ),
+    (With<ListBox>, Without<InteractionDisabled>),
+>;
+
+fn row_at(
+    position: Position,
+    (area, offset, children): (&ComputedWidgetArea, Option<&ScrollOffset>, &Children),
+    items: &RowTexts,
+) -> Option<Entity> {
+    let scrolled = offset.map_or(Position::ORIGIN, |offset| offset.0);
+    let cell = content_cell(position, area.0, scrolled)?;
+    Some(
+        row_spans(children, items)
+            .find(|span| span.contains(cell.y))?
+            .entity,
+    )
+}
+
+/// Moves the cursor to the row under the pointer, so a press shows what it
+/// is on. Selecting is the release's, in [`listbox_click`].
+pub(crate) fn listbox_press(event: On<PointerPress>, mut boxes: Pointed, items: RowTexts) {
+    let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
+        return;
+    };
+    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+        return;
+    };
+    active.set_if_neq(ActiveDescendant(Some(row)));
+}
+
+/// Keeps the cursor under a held pointer, so the highlight never disagrees
+/// with the row a release would select.
+pub(crate) fn listbox_drag(event: On<PointerDrag>, mut boxes: Pointed, items: RowTexts) {
+    let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
+        return;
+    };
+    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+        return;
+    };
+    active.set_if_neq(ActiveDescendant(Some(row)));
+}
+
+/// Selects the row the pointer was released on.
+///
+/// The release edge rather than the press: a list selection usually closes
+/// the thing it was made in, and closing on the way down despawns the entity
+/// the pointer router is still holding a gesture for. A release outside any
+/// row selects nothing, and a drag across rows names the one it ended on.
+pub(crate) fn listbox_click(
+    event: On<Click>,
+    mut boxes: Pointed,
     items: RowTexts,
     mut commands: Commands,
 ) {
@@ -235,14 +288,10 @@ pub(crate) fn listbox_press(
     let Ok((area, offset, children, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let scrolled = offset.map_or(Position::ORIGIN, |offset| offset.0);
-    let Some(cell) = content_cell(event.position, area.0, scrolled) else {
+    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
         return;
     };
-    let Some(span) = row_spans(children, &items).find(|span| span.contains(cell.y)) else {
-        return;
-    };
-    active.set_if_neq(ActiveDescendant(Some(span.entity)));
+    active.set_if_neq(ActiveDescendant(Some(row)));
     select_active(listbox, *active, &mut commands);
 }
 
@@ -262,14 +311,6 @@ impl RowSpan {
     const fn contains(self, line: u16) -> bool {
         line >= self.top && line < self.top.saturating_add(self.height)
     }
-}
-
-// A row is at least one line tall, so an empty `ListItemText` cannot make
-// two rows share a top and swallow the clicks meant for one of them.
-pub(crate) fn row_height(text: Option<&ListItemText>) -> u16 {
-    text.map_or(1, |text| {
-        u16::try_from(text.0.height()).unwrap_or(u16::MAX).max(1)
-    })
 }
 
 pub(crate) fn row_spans<'a>(

@@ -41,9 +41,29 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`CameraViewports`**, a system param resolving a camera to its viewport with
   the default-camera fallback applied, so a system placing its own widgets
   states that rule by calling it rather than by repeating it.
+- **`Marked`**, a second marker channel for a list row. `Checked` is the
+  selection channel `listbox_self_update` writes, so an app marking a row for a
+  reason of its own - a command already in force - had to borrow it and hope
+  nothing attached that observer broadly. Nothing in the crate writes `Marked`;
+  the gutter lights for either.
+- **`ListItemTrailing`**, per-row content the list right-aligns against its own
+  drawn width. A row is built before the list is placed, so no row builder
+  outside the widget can hold the number to align against.
+- **`StylistCache::with_focused`**, the seam for a container drawing one part of
+  itself as active while keyboard focus sits elsewhere. It keeps any `UiStyle`
+  patch, unlike rebuilding the cache by hand.
 
 ### Changed
 
+- **A list or table row is selected on release rather than on press**, and
+  `Click` now carries the cell it was released on (`Click::new` takes it). Down-
+  edge selection despawned the entity the pointer router was still owed a
+  release for, which is what selection usually does - close the thing it was
+  made in. A drag now names the row it ends on, a release outside every row
+  selects nothing, and `TableHeaderClick` moves to the release with the rest. A
+  list's press and drag still move the cursor; a table's do not, because its
+  cursor gutter exists only while a row is current, so moving the cursor
+  mid-gesture would shift the columns the release resolves against.
 - **`WidgetCursor::cell` is `Option<Position>`**, so a widget whose caret has
   nowhere to sit can say so. Previously such a widget could only leave the last
   cell standing or remove the component, which discards the style an app set
@@ -57,6 +77,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A container driven through `ActiveDescendant` shows its cursor row.** Both
+  stylists resolved the cursor's style from the container's own focus, so a list
+  stepped by a search field beside it - the case `ActiveDescendant` exists for -
+  painted its cursor in the resting style: an invisible highlight.
+- **A cursor whose row is gone re-points instead of dangling.** Filtering a list
+  is despawning its rows and spawning new ones, and nothing repaired
+  `ActiveDescendant` afterwards, so the cursor named a dead entity - it
+  highlighted nothing and moved from nowhere. It now re-points to the first
+  surviving row, or to none when none survives; a deliberately empty cursor
+  stays empty.
+- **The cursor row is scrolled into view whoever moved it.** Only the
+  container's own key handler revealed, so a click, a rebuild, or an app driving
+  the list from elsewhere scrolled nothing - including the crate's own press
+  path. The reveal now follows the cursor.
 - **A widget with no camera of its own follows its nearest ancestor's.** It fell
   straight to the default camera before, so a child of a widget on a dedicated
   camera drew on the wrong one unless every spawn site remembered to copy the
