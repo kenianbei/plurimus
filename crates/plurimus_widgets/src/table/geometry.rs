@@ -44,11 +44,8 @@ pub(super) struct Placed<'a> {
 }
 
 impl Placed<'_> {
-    // A scrolled table is drawn into a buffer as wide as its content, which
-    // is a scrollbar's width narrower than the area it shows through.
     pub(super) fn width(&self) -> u16 {
-        self.scroll
-            .map_or(self.area.0.width, |scroll| scroll.content_size.width)
+        solve_width(*self.area, self.scroll)
     }
 
     // Both axes: a scrolled table's columns are laid out against its
@@ -104,31 +101,39 @@ pub(super) fn clicked_column(x: u16, geometry: &Columns) -> Option<usize> {
         .position(|rect| x >= rect.x && x < rect.x.saturating_add(rect.width))
 }
 
-// Ratatui reads an empty width set as "never called" and divides the area
-// equally among as many columns as the widest row has.
+// A scrolled table is drawn into a buffer as wide as its content, which is
+// a scrollbar's width narrower than the area it shows through.
+pub(super) fn solve_width(area: ComputedWidgetArea, scroll: Option<&ScrollArea>) -> u16 {
+    scroll.map_or(area.0.width, |scroll| scroll.content_size.width)
+}
+
+// An empty width set is expanded here rather than by ratatui, which reads
+// one as "never called" and applies this same rule to its own render area.
+// The stylist and the click path both take the result, so a table's columns
+// cannot be solved from two different widths. `widest` is ignored when the
+// app stated its widths, and is what each caller's own pass over the rows
+// already found.
 pub(super) fn resolved_widths(
     columns: &TableColumns,
-    children: &Children,
-    rows: &Rows,
+    widest: usize,
     width: u16,
 ) -> Vec<Constraint> {
     if !columns.0.is_empty() {
         return columns.0.clone();
     }
-    let count = widest_row(children, rows);
-    let each = width / u16::try_from(count.max(1)).unwrap_or(u16::MAX);
-    vec![Constraint::Length(each); count]
+    let each = width / u16::try_from(widest.max(1)).unwrap_or(u16::MAX);
+    vec![Constraint::Length(each); widest]
 }
 
-pub(super) fn column_count(columns: &TableColumns, children: &Children, rows: &Rows) -> usize {
+pub(super) const fn column_count(columns: &TableColumns, widest: usize) -> usize {
     if columns.0.is_empty() {
-        widest_row(children, rows)
+        widest
     } else {
         columns.0.len()
     }
 }
 
-fn widest_row(children: &Children, rows: &Rows) -> usize {
+pub(super) fn widest_row(children: &Children, rows: &Rows) -> usize {
     children
         .iter()
         .filter_map(|&child| rows.get(child).ok())
