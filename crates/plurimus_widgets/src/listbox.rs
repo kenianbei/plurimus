@@ -24,7 +24,7 @@ use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::first_bound;
-use plurimus_ui::{ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
+use plurimus_ui::{Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
 /// A focusable list of [`ListItem`] children. Selection emits
@@ -218,17 +218,54 @@ fn select_active(listbox: Entity, active: ActiveDescendant, commands: &mut Comma
     }
 }
 
-pub(crate) fn listbox_press(
-    event: On<PointerPress>,
-    mut boxes: Query<
-        (
-            &ComputedWidgetArea,
-            Option<&ScrollOffset>,
-            &Children,
-            &mut ActiveDescendant,
-        ),
-        With<ListBox>,
-    >,
+/// The rows a pointer is resolved against, and the cursor it moves.
+type Pointed<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static ComputedWidgetArea,
+        Option<&'static ScrollOffset>,
+        &'static Children,
+        &'static mut ActiveDescendant,
+    ),
+    (With<ListBox>, Without<InteractionDisabled>),
+>;
+
+fn row_at(
+    position: Position,
+    (area, offset, children): (&ComputedWidgetArea, Option<&ScrollOffset>, &Children),
+    items: &RowTexts,
+) -> Option<Entity> {
+    let scrolled = offset.map_or(Position::ORIGIN, |offset| offset.0);
+    let cell = content_cell(position, area.0, scrolled)?;
+    Some(
+        row_spans(children, items)
+            .find(|span| span.contains(cell.y))?
+            .entity,
+    )
+}
+
+/// Moves the cursor to the row under the pointer, so a press shows what it
+/// is on. Selecting is the release's, in [`listbox_click`].
+pub(crate) fn listbox_press(event: On<PointerPress>, mut boxes: Pointed, items: RowTexts) {
+    let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
+        return;
+    };
+    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+        return;
+    };
+    active.set_if_neq(ActiveDescendant(Some(row)));
+}
+
+/// Selects the row the pointer was released on.
+///
+/// The release edge rather than the press: a list selection usually closes
+/// the thing it was made in, and closing on the way down despawns the entity
+/// the pointer router is still holding a gesture for. A release outside any
+/// row selects nothing, and a drag across rows names the one it ended on.
+pub(crate) fn listbox_click(
+    event: On<Click>,
+    mut boxes: Pointed,
     items: RowTexts,
     mut commands: Commands,
 ) {
@@ -236,14 +273,10 @@ pub(crate) fn listbox_press(
     let Ok((area, offset, children, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let scrolled = offset.map_or(Position::ORIGIN, |offset| offset.0);
-    let Some(cell) = content_cell(event.position, area.0, scrolled) else {
+    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
         return;
     };
-    let Some(span) = row_spans(children, &items).find(|span| span.contains(cell.y)) else {
-        return;
-    };
-    active.set_if_neq(ActiveDescendant(Some(span.entity)));
+    active.set_if_neq(ActiveDescendant(Some(row)));
     select_active(listbox, *active, &mut commands);
 }
 

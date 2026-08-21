@@ -22,7 +22,7 @@ mod geometry;
 mod input;
 mod style;
 
-pub(crate) use input::{reveal_table_cursor, table_key, table_press};
+pub(crate) use input::{reveal_table_cursor, table_click, table_key};
 pub(crate) use style::{TableRowsChanged, TableSelfChanged, style_tables};
 
 use bevy_ecs::bundle::Bundle;

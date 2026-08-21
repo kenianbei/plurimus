@@ -52,18 +52,26 @@ pub struct Checked;
 pub struct ComputedWidgetArea(pub Rect);
 
 /// Pointer click completed on a widget: pressed and released on it.
+///
+/// The release edge, so a widget that closes or despawns something on being
+/// clicked does it after the pointer router is done with the gesture. What
+/// the click landed on is resolved from [`position`](Self::position), not
+/// from where the press was: a drag that starts on one row and ends on
+/// another names the one it ended on.
 #[derive(EntityEvent, Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct Click {
     /// The clicked widget.
     pub entity: Entity,
+    /// Cursor cell at release time, inside the widget's area.
+    pub position: Position,
 }
 
 impl Click {
-    /// A click completed on `entity`.
+    /// A click completed on `entity`, released at `position`.
     #[must_use]
-    pub const fn new(entity: Entity) -> Self {
-        Self { entity }
+    pub const fn new(entity: Entity, position: Position) -> Self {
+        Self { entity, position }
     }
 }
 
@@ -330,7 +338,7 @@ fn release_all(
             .get(entity)
             .is_ok_and(|(_, area, _)| area.0.contains(position));
         if released_on {
-            commands.trigger(Click { entity });
+            commands.trigger(Click { entity, position });
             menu_clicked |= routing.modal.affects_modality(entity);
         }
         commands.entity(entity).remove::<Pressed>();

@@ -9,7 +9,7 @@ use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{press_key, repeat_key, send_mouse};
+use plurimus_test::{click, press_key, repeat_key, send_mouse};
 use plurimus_ui::{
     Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
 };
@@ -294,14 +294,54 @@ fn click_selects_the_clicked_row() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 1);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    click(&mut app, 2, 1);
 
     assert_eq!(active(&app, container), Some(items[1]));
     assert_eq!(
         app.world().resource::<Selections>().0,
         [(container, items[1])]
     );
+}
+
+// Selecting usually closes what was clicked, and closing on the way down
+// despawns the entity the pointer router is still owed a release for.
+#[test]
+fn a_press_moves_the_cursor_without_selecting() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+
+    send_mouse(&mut app, MouseKind::Moved, 2, 1);
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+
+    assert_eq!(active(&app, container), Some(items[1]));
+    assert!(app.world().resource::<Selections>().0.is_empty());
+}
+
+#[test]
+fn a_drag_across_rows_selects_the_one_it_ends_on() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+
+    send_mouse(&mut app, MouseKind::Moved, 2, 0);
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 2);
+
+    assert_eq!(active(&app, container), Some(items[2]));
+    assert_eq!(
+        app.world().resource::<Selections>().0,
+        [(container, items[2])]
+    );
+}
+
+#[test]
+fn a_release_below_every_row_selects_nothing() {
+    let mut app = app();
+    let (container, _) = spawn_listbox(&mut app);
+
+    click(&mut app, 2, 3);
+
+    assert!(app.world().resource::<Selections>().0.is_empty());
+    assert_eq!(active(&app, container), None);
 }
 
 #[test]

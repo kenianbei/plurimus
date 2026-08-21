@@ -7,7 +7,7 @@ use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Commands, On, Query, With, Without};
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
-use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::ratatui_core::layout::{Position, Rect};
 
 use super::geometry::{
     Placed, Placement, Rows, bands, body_height, body_rows, clicked_column, clicked_row,
@@ -19,7 +19,7 @@ use super::{
 };
 use crate::rows::ActiveDescendant;
 use plurimus_ui::{
-    ComputedWidgetArea, InteractionDisabled, PointerPress, ScrollIntoView, ValueChange, first_bound,
+    Click, ComputedWidgetArea, InteractionDisabled, ScrollIntoView, ValueChange, first_bound,
 };
 
 type Navigable<'a> = (
@@ -121,8 +121,60 @@ fn move_row(
     Some(())
 }
 
-pub(crate) fn table_press(
-    event: On<PointerPress>,
+/// What a pointer cell landed on, once the column layout has been solved.
+enum Hit {
+    /// The header band, naming the column under the pointer.
+    Header(Option<usize>),
+    /// A body row, with the column under the pointer.
+    Body(Entity, Option<usize>),
+}
+
+/// Everything the column solve needs, gathered so press and click resolve a
+/// cell exactly alike rather than twice over.
+struct Geometry<'a> {
+    children: &'a Children,
+    columns: &'a TableColumns,
+    selection: TableSelection,
+    placement: Placement<'a>,
+    active: Option<Entity>,
+}
+
+impl Geometry<'_> {
+    fn hit(&self, cell: Position, rows: &Rows) -> Option<Hit> {
+        let (area, layout, cursor, scroll, offset) = self.placement;
+        let placed = Placed {
+            area,
+            layout,
+            scroll,
+            offset,
+        };
+        let cell = placed.content_cell(cell)?;
+        let widths = resolved_widths(self.columns, self.children, rows, placed.width());
+        let gutter = cursor_gutter(self.selection, self.active, cursor);
+        let column = clicked_column(cell.x, &placed.columns(widths, gutter));
+        let (header, footer) = bands(self.children, rows);
+        if header && cell.y == 0 {
+            return Some(Hit::Header(column));
+        }
+        let row = clicked_row(cell.y, header, placed.band((header, footer)))
+            .and_then(|index| body_rows(self.children, rows).nth(index))?;
+        Some(Hit::Body(row, column))
+    }
+}
+
+/// Moves the cursor to the row released on, selects it, and reports a
+/// header click.
+///
+/// The release edge rather than the press: selecting usually closes what was
+/// clicked, and closing on the way down despawns the entity the pointer
+/// router is still holding a gesture for.
+///
+/// A press moves nothing, which the column geometry requires rather than
+/// merely permits: the cursor gutter exists only while a row is current, so
+/// a press that set the cursor would shift every column before the release
+/// resolved against them - against a layout no frame had drawn yet.
+pub(crate) fn table_click(
+    event: On<Click>,
     mut tables: Query<Pressable, Interactive>,
     rows: Rows,
     mut commands: Commands,
@@ -133,41 +185,32 @@ pub(crate) fn table_press(
     else {
         return;
     };
-    let (area, layout, cursor, scroll, offset) = placement;
-    let placed = Placed {
-        area,
-        layout,
-        scroll,
-        offset,
+    let geometry = Geometry {
+        children,
+        columns,
+        selection: *selection,
+        placement,
+        active: active.0,
     };
-    let Some(cell) = placed.content_cell(event.position) else {
+    let Some(hit) = geometry.hit(event.position, &rows) else {
         return;
     };
-    let widths = resolved_widths(columns, children, &rows, placed.width());
-    let gutter = cursor_gutter(*selection, active.0, cursor);
-    let hit = clicked_column(cell.x, &placed.columns(widths, gutter));
-    let line = cell.y;
-    let (header, footer) = bands(children, &rows);
-
-    if header && line == 0 {
-        if let Some(column) = hit {
+    let (row, hit_column) = match hit {
+        Hit::Header(Some(header_column)) => {
             commands.trigger(TableHeaderClick {
                 entity: table,
-                column,
+                column: header_column,
             });
+            return;
         }
-        return;
-    }
-    let Some(row) = clicked_row(line, header, placed.band((header, footer)))
-        .and_then(|index| body_rows(children, &rows).nth(index))
-    else {
-        return;
+        Hit::Header(None) => return,
+        Hit::Body(row, hit_column) => (row, hit_column),
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
     if selection.tracks_column()
-        && let Some(hit) = hit
+        && let Some(hit_column) = hit_column
     {
-        column.set_if_neq(ActiveColumn(Some(hit)));
+        column.set_if_neq(ActiveColumn(Some(hit_column)));
     }
     let value = position(*selection, *active, *column);
     commands.trigger(ValueChange::new(table, value, true));

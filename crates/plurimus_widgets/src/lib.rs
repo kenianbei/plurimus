@@ -63,7 +63,7 @@ pub use text::{
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
-pub(crate) use listbox::{listbox_key, listbox_press, reveal_listbox_cursor};
+pub(crate) use listbox::{listbox_click, listbox_key, listbox_press, reveal_listbox_cursor};
 pub(crate) use listbox_style::{ListRowsChanged, ListSelfChanged, style_listboxes};
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
@@ -77,7 +77,7 @@ pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_sc
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use table::{
-    TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables, table_key, table_press,
+    TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables, table_click, table_key,
 };
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste,
@@ -212,8 +212,9 @@ fn add_observers(app: &mut App) {
     app.add_observer(scrollbar_drag);
     app.add_observer(scrollbar_release);
     app.add_observer(listbox_press);
+    app.add_observer(listbox_click);
     app.add_observer(listbox_key);
-    app.add_observer(table_press);
+    app.add_observer(table_click);
     app.add_observer(table_key);
     app.add_observer(text_input_key);
     app.add_observer(text_input_paste);
