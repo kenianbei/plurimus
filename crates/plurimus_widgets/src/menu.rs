@@ -3,9 +3,10 @@
 //!
 //! A menu is assembled rather than built in: the button opens a popup, the
 //! popup is placed by `popover`, and the rows are ordinary entities. Menus
-//! own no geometry and no dismissal logic of their own - they mark
-//! themselves modal and let `plurimus_ui`'s routers swallow outside presses -
-//! so what remains here is opening, closing, and moving the highlight.
+//! own no dismissal logic of their own - they mark the popup modal and let
+//! `plurimus_ui`'s routers confine the pointer to it and swallow what lands
+//! outside - so what remains here is opening, closing, and moving the
+//! highlight.
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
@@ -46,7 +47,7 @@ pub struct MenuButton;
 /// The popup container; a child of its [`MenuButton`], auto-sized around
 /// its [`MenuItem`] children.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(StylistCache, ModalityToggle)]
+#[require(StylistCache)]
 pub struct MenuPopup;
 
 /// Present on a [`MenuPopup`] while it is open.

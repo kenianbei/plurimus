@@ -177,11 +177,17 @@ pub(crate) fn route_wheel(
         let Some(step) = wheel_step(message.kind) else {
             continue;
         };
-        if modal.intercept_wheel(message.position, &mut commands) {
+        let position = message.position;
+        if modal.dismisses(position) {
+            modal.dismiss_all(&mut commands);
             continue;
         }
-        let consumes = |entity| axes.get(entity).is_ok_and(|axes| axes.consumes(step));
-        let Some(entity) = topmost_at(message.position, &targets, consumes) else {
+        // Letting a covered tick through would scroll what the overlay is
+        // drawn on top of.
+        let consumes = |entity| {
+            axes.get(entity).is_ok_and(|axes| axes.consumes(step)) && modal.admits(position, entity)
+        };
+        let Some(entity) = topmost_at(position, &targets, consumes) else {
             continue;
         };
         commands.trigger(ScrollBy { entity, step });

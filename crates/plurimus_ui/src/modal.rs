@@ -1,29 +1,36 @@
 //! Generic modal-overlay primitives the input routers enforce.
 //!
 //! A modal overlay (a menu popup, a dialog) carries [`ModalOpen`] while it
-//! is showing. The routers then treat modality generically: presses
-//! outside every open modal request dismissal and are swallowed, wheel
-//! ticks are swallowed wholesale, and interacting with a
-//! [`ModalityToggle`] entity defers the rest of the input batch a frame so
-//! it hit-tests the settled state.
+//! is showing, and the root's screen rect is the geometry both routers ask
+//! about. A pointer outside every open modal requests dismissal and is
+//! swallowed; a pointer inside one is confined to the subtrees of the
+//! modals containing it, so nothing an overlay covers is reachable through
+//! it. Interacting with a [`ModalityToggle`] entity outside the overlays
+//! routes rather than dismissing, and a click on one defers the rest of the
+//! input batch a frame so it hit-tests the settled state.
+
+use core::iter;
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, Query, With};
+use bevy_ecs::prelude::{ChildOf, Commands, Component, EntityEvent, Query, With};
 use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Position;
 
 use crate::interaction::ComputedWidgetArea;
 
 /// Present on a modal overlay root while it is showing. The root's
-/// [`ComputedWidgetArea`] is the geometry that contains wheel ticks; its
-/// owner removes the component when the modal closes.
+/// [`ComputedWidgetArea`] is the geometry that confines input: a pointer
+/// inside it reaches this modal's subtree and nothing else, and one outside
+/// every open modal dismisses. Its owner removes the component when the
+/// modal closes.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ModalOpen;
 
-/// Marks an entity whose activation changes modal state (an opener, a
-/// row inside an overlay, the overlay itself). A press on one never
-/// dismisses open modals, and a click on one defers the rest of the
-/// pointer batch.
+/// Marks an entity whose activation changes modal state. It answers two
+/// questions, and a widget usually wants one of them: a press on one
+/// outside every open modal routes instead of dismissing, which is how an
+/// opener closes what it opened, and a click on one defers the rest of the
+/// pointer batch, which is what a row inside an overlay needs.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct ModalityToggle;
 
@@ -40,49 +47,44 @@ pub struct ModalDismiss {
 pub(crate) struct ModalGuard<'w, 's> {
     open: Query<'w, 's, (Entity, &'static ComputedWidgetArea), With<ModalOpen>>,
     toggles: Query<'w, 's, (), With<ModalityToggle>>,
+    parents: Query<'w, 's, &'static ChildOf>,
 }
 
 impl ModalGuard<'_, '_> {
-    /// Requests dismissal of open modals on a press outside them.
-    /// Returns true when the press was swallowed.
-    pub(crate) fn dismiss_outside_press(
-        &self,
-        target: Option<Entity>,
-        commands: &mut Commands,
-    ) -> bool {
-        if self.open.is_empty() || target.is_some_and(|target| self.affects_modality(target)) {
-            return false;
-        }
-        self.dismiss_all(commands);
-        true
+    /// Whether a pointer at `position` may reach `entity`: everything,
+    /// where no overlay covers the position, else the subtrees of the
+    /// overlays that do. Taking their union is what admits a submenu
+    /// inside its parent, and needs no ordering among open modals.
+    pub(crate) fn admits(&self, position: Position, entity: Entity) -> bool {
+        !self.confines(position)
+            || iter::once(entity)
+                .chain(self.parents.iter_ancestors(entity))
+                .any(|ancestor| self.contains(position, ancestor))
     }
 
-    /// Swallows a wheel tick while any modal is open, requesting
-    /// dismissal when the tick lands outside them all. Returns true when
-    /// swallowed.
-    ///
-    /// Ticks inside a modal are swallowed without closing it: letting one
-    /// through would scroll whatever sits beneath the overlay. Hit-tests
-    /// geometry rather than the wheel target, since overlays are not
-    /// [`WheelReceptive`](crate::WheelReceptive) and so never win
-    /// arbitration.
-    pub(crate) fn intercept_wheel(&self, position: Position, commands: &mut Commands) -> bool {
-        if self.open.is_empty() {
-            return false;
-        }
-        if !self.open.iter().any(|(_, area)| area.0.contains(position)) {
-            self.dismiss_all(commands);
-        }
-        true
+    /// Whether a pointer at `position` closes what is open: there is an
+    /// open modal, and none of them covers the position.
+    pub(crate) fn dismisses(&self, position: Position) -> bool {
+        !self.open.is_empty() && !self.confines(position)
     }
 
     pub(crate) fn affects_modality(&self, target: Entity) -> bool {
         self.toggles.contains(target)
     }
 
-    fn dismiss_all(&self, commands: &mut Commands) {
+    pub(crate) fn dismiss_all(&self, commands: &mut Commands) {
         for (root, _) in self.open.iter() {
             commands.trigger(ModalDismiss { entity: root });
         }
+    }
+
+    fn confines(&self, position: Position) -> bool {
+        self.open.iter().any(|(_, area)| area.0.contains(position))
+    }
+
+    fn contains(&self, position: Position, entity: Entity) -> bool {
+        self.open
+            .get(entity)
+            .is_ok_and(|(_, area)| area.0.contains(position))
     }
 }

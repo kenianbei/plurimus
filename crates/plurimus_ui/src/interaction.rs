@@ -249,19 +249,7 @@ fn route_message(
 ) -> bool {
     match message.kind {
         MouseKind::Down(MouseButton::Left) => {
-            let target = topmost_at(message.position, &routing.targets, |_| true);
-            if routing.modal.dismiss_outside_press(target, commands) {
-                return true;
-            }
-            if let Some(entity) = target {
-                commands.trigger(PointerPress {
-                    entity,
-                    position: message.position,
-                });
-                press(entity, &routing.focusable, &mut routing.focus, commands);
-                run_pressed.push(entity);
-            }
-            false
+            route_press(message.position, routing, run_pressed, commands)
         }
         MouseKind::Drag(MouseButton::Left) => {
             drag_pressed(&routing.pressed, run_pressed, message.position, commands);
@@ -272,6 +260,31 @@ fn route_message(
         }
         _ => false,
     }
+}
+
+// A toggle outside the overlays is exempt from dismissal so that pressing
+// an opener closes what it opened, rather than the dismissal swallowing
+// the press that would have toggled it.
+fn route_press(
+    position: Position,
+    routing: &mut PointerRouting,
+    run_pressed: &mut Vec<Entity>,
+    commands: &mut Commands,
+) -> bool {
+    let target = topmost_at(position, &routing.targets, |entity| {
+        routing.modal.admits(position, entity)
+    });
+    let opener = target.is_some_and(|entity| routing.modal.affects_modality(entity));
+    if routing.modal.dismisses(position) && !opener {
+        routing.modal.dismiss_all(commands);
+        return true;
+    }
+    if let Some(entity) = target {
+        commands.trigger(PointerPress { entity, position });
+        press(entity, &routing.focusable, &mut routing.focus, commands);
+        run_pressed.push(entity);
+    }
+    false
 }
 
 /// The topmost target containing `position` that `accepts` the input, by
