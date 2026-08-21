@@ -35,8 +35,22 @@ pub struct Hovered(pub bool);
 pub struct Pressed;
 
 /// Disables all interaction with the widget.
+///
+/// A disabled widget is inert, not invisible: it still wins press
+/// arbitration and absorbs the press - no event, no focus movement, and
+/// nothing beneath it is pressed - the way a disabled control blocks a
+/// click everywhere else. [`PressPassThrough`] is the opt-out. Wheel ticks
+/// are the exception: a disabled widget consumes none, so they fall
+/// through, the same as an axis it cannot scroll.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct InteractionDisabled;
+
+/// Exempts the widget from press hit-testing entirely: a press lands on
+/// whatever is beneath it, as if the widget had no area. On a widget with
+/// [`InteractionDisabled`], this restores fall-through where the default
+/// is to absorb.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct PressPassThrough;
 
 /// Toggle state for checkboxes and radio buttons.
 #[derive(Component, Debug, Clone, Copy)]
@@ -204,7 +218,7 @@ pub(crate) type AreaTargetQuery<'w, 's, F> = Query<
 // Hovered marks participation by its presence: its value is the frame's
 // last cursor cell, but arbitration needs each message's own position.
 type PointerTargetQuery<'w, 's> =
-    AreaTargetQuery<'w, 's, (With<Hovered>, Without<InteractionDisabled>)>;
+    AreaTargetQuery<'w, 's, (With<Hovered>, Without<PressPassThrough>)>;
 
 type PressedQuery<'w, 's> = Query<'w, 's, (Entity, Has<InteractionDisabled>), With<Pressed>>;
 
@@ -214,6 +228,7 @@ pub(crate) struct PointerRouting<'w, 's> {
     targets: PointerTargetQuery<'w, 's>,
     pressed: PressedQuery<'w, 's>,
     focusable: Query<'w, 's, (), With<TabIndex>>,
+    disabled: Query<'w, 's, (), With<InteractionDisabled>>,
     modal: ModalGuard<'w, 's>,
     focus: ResMut<'w, InputFocus>,
 }
@@ -274,10 +289,16 @@ fn route_press(
     let target = topmost_at(position, &routing.targets, |entity| {
         routing.modal.admits(position, entity)
     });
-    let opener = target.is_some_and(|entity| routing.modal.affects_modality(entity));
+    let inert = target.is_some_and(|entity| routing.disabled.contains(entity));
+    // A disabled opener cannot activate, so exempting it would leave the
+    // menu open with the press dead.
+    let opener = !inert && target.is_some_and(|entity| routing.modal.affects_modality(entity));
     if routing.modal.dismisses(position) && !opener {
         routing.modal.dismiss_all(commands);
         return true;
+    }
+    if inert {
+        return false;
     }
     if let Some(entity) = target {
         commands.trigger(PointerPress { entity, position });
