@@ -8,10 +8,11 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
-use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiWidget};
-use plurimus_test::click;
-use plurimus_ui::{ComputedWidgetArea, Hovered, PointerPress, UiArea};
+use plurimus_term::MouseKind;
+use plurimus_test::{click, send_mouse};
+use plurimus_ui::{ComputedWidgetArea, Hovered, PointerPress, ScrollArea, ScrollOffset, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
 
@@ -112,4 +113,57 @@ fn a_press_inside_the_popup_routes_to_an_unmarked_child() {
     assert!(was_pressed(&app, child), "an unmarked child still routes");
     assert!(is_open(&app, popup), "and pressing it dismissed nothing");
     assert!(!was_pressed(&app, beneath));
+}
+
+fn spawn_scroller(app: &mut App, area: Rect, parent: Option<Entity>) -> Entity {
+    let mut scroller = app.world_mut().spawn((
+        UiWidget::new(Paragraph::new("scrollable")),
+        UiArea::Fixed(area),
+        ScrollArea::new(Size::new(area.width, area.height * 4)),
+    ));
+    if let Some(parent) = parent {
+        scroller.insert(ChildOf(parent));
+    }
+    scroller.id()
+}
+
+fn offset_of(app: &App, scroller: Entity) -> Position {
+    app.world().get::<ScrollOffset>(scroller).unwrap().0
+}
+
+// The overlay covers the scroller beneath it, so the tick belongs to
+// whatever the overlay itself holds - previously it belonged to nobody.
+#[test]
+fn a_wheel_tick_inside_a_modal_scrolls_that_modal_and_nothing_under_it() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    let beneath = spawn_scroller(&mut app, Rect::new(0, 1, 20, 7), None);
+    click(&mut app, 2, 0);
+    app.update();
+    let frame = popup_area(&app, popup);
+    let inside = spawn_scroller(&mut app, frame, Some(popup));
+    app.update();
+
+    send_mouse(&mut app, MouseKind::ScrollDown, frame.x + 1, frame.y + 1);
+
+    assert_eq!(offset_of(&app, inside), Position::new(0, 1), "it scrolled");
+    assert_eq!(offset_of(&app, beneath), Position::new(0, 0), "it did not");
+    assert!(is_open(&app, popup), "and the tick dismissed nothing");
+}
+
+// The rationale the wheel path always had: a tick the overlay covers with
+// nothing of its own to scroll dies rather than reaching through.
+#[test]
+fn a_wheel_tick_inside_a_modal_with_nothing_to_scroll_dies() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    let beneath = spawn_scroller(&mut app, Rect::new(0, 1, 20, 7), None);
+    click(&mut app, 2, 0);
+    app.update();
+    let frame = popup_area(&app, popup);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, frame.x + 1, frame.y + 1);
+
+    assert_eq!(offset_of(&app, beneath), Position::new(0, 0));
+    assert!(is_open(&app, popup), "and it dismissed nothing");
 }

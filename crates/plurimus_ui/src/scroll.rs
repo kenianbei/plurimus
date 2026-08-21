@@ -177,16 +177,23 @@ pub(crate) fn route_wheel(
         let Some(step) = wheel_step(message.kind) else {
             continue;
         };
-        match modal.routing(message.position) {
-            ModalRouting::Unguarded => {}
-            ModalRouting::Confined => continue,
+        let position = message.position;
+        let confined = match modal.routing(position) {
+            ModalRouting::Unguarded => false,
+            ModalRouting::Confined => true,
             ModalRouting::Outside => {
                 modal.dismiss_all(&mut commands);
                 continue;
             }
-        }
-        let consumes = |entity| axes.get(entity).is_ok_and(|axes| axes.consumes(step));
-        let Some(entity) = topmost_at(message.position, &targets, consumes) else {
+        };
+        // A tick an open overlay covers scrolls inside that overlay or
+        // scrolls nothing: letting it through would move what the overlay
+        // is drawn on top of.
+        let consumes = |entity| {
+            axes.get(entity).is_ok_and(|axes| axes.consumes(step))
+                && (!confined || modal.admits(position, entity))
+        };
+        let Some(entity) = topmost_at(position, &targets, consumes) else {
             continue;
         };
         commands.trigger(ScrollBy { entity, step });
