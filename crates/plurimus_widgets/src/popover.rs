@@ -10,10 +10,9 @@
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{Component, Entity, Has, Query, Without};
-use plurimus_core::ResolvedViewport;
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 
-use plurimus_core::{ComputedUiCamera, UiArea, UiHidden, UiOrder, local_area};
+use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, local_area};
 use plurimus_ui::ComputedWidgetArea;
 
 /// Which side of the anchor the popover opens on; mirrored to the
@@ -66,7 +65,8 @@ pub enum PopoverAlign {
 ///
 /// The camera is the anchor's, which is what lets a popover follow
 /// something it is not parented to; the popover's own
-/// [`ComputedUiCamera`] carries it, leaving [`UiCamera`] the app's to set.
+/// [`ComputedUiCamera`] carries it, leaving
+/// [`UiCamera`](plurimus_core::UiCamera) the app's to set.
 /// A popover's children still inherit through the hierarchy, so parent
 /// them to the popover.
 ///
@@ -100,7 +100,7 @@ impl Popover {
 }
 
 pub(crate) fn place_popovers(
-    cameras: Query<&ResolvedViewport>,
+    cameras: CameraViewports,
     anchors: Query<(&ComputedWidgetArea, &ComputedUiCamera), Without<Popover>>,
     mut popovers: Query<(
         &Popover,
@@ -115,9 +115,7 @@ pub(crate) fn place_popovers(
             continue;
         };
         let camera = anchor_camera.0;
-        let viewport = camera
-            .and_then(|entity| cameras.get(entity).ok())
-            .map(|resolved| resolved.0);
+        let viewport = camera.and_then(|entity| cameras.of(Some(entity)));
         let rect = viewport
             .filter(|_| !anchor_area.0.is_empty())
             .map_or(Rect::ZERO, |viewport| {

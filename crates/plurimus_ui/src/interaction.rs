@@ -19,7 +19,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
-    ComputedUiCamera, ResolvedViewport, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
+    CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
 };
 use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 
@@ -153,7 +153,7 @@ pub(crate) fn attach_widget_areas(
 }
 
 pub(crate) fn compute_widget_areas(
-    cameras: Query<&ResolvedViewport>,
+    cameras: CameraViewports,
     mut widgets: Query<(
         &UiArea,
         &ComputedUiCamera,
@@ -165,8 +165,8 @@ pub(crate) fn compute_widget_areas(
         let resolved = target
             .0
             .filter(|_| !hidden)
-            .and_then(|entity| cameras.get(entity).ok())
-            .map_or(Rect::ZERO, |viewport| resolve_area(*area, viewport.0));
+            .and_then(|entity| cameras.of(Some(entity)))
+            .map_or(Rect::ZERO, |viewport| resolve_area(*area, viewport));
         computed.set_if_neq(ComputedWidgetArea(resolved));
     }
 }

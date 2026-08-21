@@ -49,7 +49,7 @@ pub use sub_app::{
     CompositeSystems, ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp,
     TerminalRenderAppExt, TerminalRenderSystems,
 };
-pub use viewport::{CameraSystems, Edge, ResolvedViewport, Viewport};
+pub use viewport::{CameraSystems, CameraViewports, Edge, ResolvedViewport, Viewport};
 pub use widget::placement::{
     ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area, resolve_area, resolve_camera,
 };

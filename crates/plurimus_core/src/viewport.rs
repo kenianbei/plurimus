@@ -11,9 +11,10 @@
 
 use bevy_ecs::prelude::{Commands, Component, DetectChangesMut, Entity, Query, Res};
 use bevy_ecs::schedule::SystemSet;
+use bevy_ecs::system::SystemParam;
 use ratatui_core::layout::Rect;
 
-use crate::camera::TerminalCamera;
+use crate::camera::{DefaultCamera, TerminalCamera};
 use crate::size::TerminalSize;
 
 /// Where a camera's viewport sits, resolved against the terminal each
@@ -58,6 +59,31 @@ pub enum Edge {
 /// [`CameraSystems::ResolveViewports`].
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedViewport(pub Rect);
+
+/// Looks up a camera's [`ResolvedViewport`], falling back to the default
+/// camera, so the fallback is one rule rather than one per system.
+///
+/// A system placing its own widgets pairs this with
+/// [`ComputedUiCamera`](crate::ComputedUiCamera), which is where the camera
+/// to pass comes from. Order such a system after
+/// [`CameraSystems::ResolveViewports`], or the rect is the previous frame's.
+#[derive(SystemParam)]
+pub struct CameraViewports<'w, 's> {
+    default_camera: Res<'w, DefaultCamera>,
+    viewports: Query<'w, 's, &'static ResolvedViewport>,
+}
+
+impl CameraViewports<'_, '_> {
+    /// The viewport of `camera`, or of the default camera when `None`.
+    ///
+    /// `None` when no camera answers - none is active, or the one named has
+    /// no viewport resolved yet, which is the frame an entity spawns on.
+    #[must_use]
+    pub fn of(&self, camera: Option<Entity>) -> Option<Rect> {
+        let target = camera.or(self.default_camera.0)?;
+        self.viewports.get(target).ok().map(|resolved| resolved.0)
+    }
+}
 
 /// Main-world camera maintenance sets, chained in `PreUpdate`; consumers
 /// of [`ResolvedViewport`] order themselves after
@@ -151,13 +177,65 @@ fn carve(remaining: &mut Rect, edge: Edge, cells: u16) -> Rect {
 #[cfg(test)]
 mod tests {
     use bevy_app::App;
+    use bevy_ecs::system::SystemState;
     use ratatui_core::layout::Rect;
 
-    use super::{Edge, ResolvedViewport, Viewport};
+    use super::{CameraViewports, Edge, ResolvedViewport, Viewport};
     use crate::{CorePlugin, TerminalCamera, TerminalSize};
 
     fn resolved(app: &App, entity: bevy_ecs::entity::Entity) -> Rect {
         app.world().get::<ResolvedViewport>(entity).unwrap().0
+    }
+
+    #[test]
+    fn a_lookup_falls_back_to_the_default_camera() {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.insert_resource(TerminalSize::new(10, 6));
+        let main = app
+            .world_mut()
+            .spawn(TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 2))))
+            .id();
+        let side = app
+            .world_mut()
+            .spawn(
+                TerminalCamera::default()
+                    .with_order(1)
+                    .with_viewport(Viewport::Fixed(Rect::new(4, 0, 6, 2))),
+            )
+            .id();
+        let stranger = app.world_mut().spawn_empty().id();
+        app.update();
+
+        let mut lookup = SystemState::<CameraViewports>::new(app.world_mut());
+        let cameras = lookup.get(app.world()).expect("the lookup borrows cleanly");
+
+        assert_eq!(cameras.of(Some(side)), Some(Rect::new(4, 0, 6, 2)));
+        assert_eq!(
+            cameras.of(None),
+            Some(Rect::new(0, 0, 4, 2)),
+            "no camera named means the default one, which is `main` by order"
+        );
+        assert_eq!(cameras.of(Some(main)), cameras.of(None));
+        assert_eq!(
+            cameras.of(Some(stranger)),
+            None,
+            "an entity that is not a camera answers nothing rather than the default"
+        );
+    }
+
+    #[test]
+    fn a_lookup_with_no_camera_at_all_answers_nothing() {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.insert_resource(TerminalSize::new(10, 6));
+        app.update();
+
+        let mut lookup = SystemState::<CameraViewports>::new(app.world_mut());
+
+        let cameras = lookup.get(app.world()).expect("the lookup borrows cleanly");
+
+        assert_eq!(cameras.of(None), None);
     }
 
     #[test]
