@@ -10,7 +10,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, On, Query, Res, With, Without};
+use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
 use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -19,7 +19,6 @@ use plurimus_term::PasteMessage;
 
 use super::field::TextField;
 use super::state::TextInput;
-use super::word::{word_end_forward, word_start_backward, word_start_forward};
 use crate::ValueChange;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::held_modifiers;
@@ -32,6 +31,30 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Hovered, StylistCache, TextInput)]
 pub struct EditableText;
+
+/// An [`EditableText`] was submitted with Enter, carrying the value at that
+/// moment.
+///
+/// The final [`ValueChange<String>`] fires beside it, and again whenever the
+/// field loses focus, so the two are indistinguishable to a consumer that
+/// reads only that. Listening here is how committing an entry stays separate
+/// from abandoning one.
+#[derive(EntityEvent, Debug, Clone)]
+#[non_exhaustive]
+pub struct Submit {
+    /// The submitted field.
+    pub entity: Entity,
+    /// The field's value at submission.
+    pub value: String,
+}
+
+impl Submit {
+    /// A submission of `entity` carrying `value`.
+    #[must_use]
+    pub const fn new(entity: Entity, value: String) -> Self {
+        Self { entity, value }
+    }
+}
 
 /// Spawn bundle for a single-line text field.
 pub fn editable_text(value: impl Into<String>) -> impl Bundle {
@@ -56,59 +79,24 @@ pub(crate) fn text_input_key(
     if input.input.state != ButtonState::Pressed {
         return;
     }
-    let key = &input.input.logical_key;
+    if input.input.logical_key == Key::Enter {
+        // One intent commits once, however long Enter is held; the key is
+        // consumed either way, being the field's.
+        if !input.input.repeat {
+            emit(field, &text, true, &mut commands);
+            commands.trigger(Submit::new(field, text.value().to_owned()));
+        }
+        input.propagate(false);
+        return;
+    }
     let length_before = text.value().len();
-    let handled = word_edit(key, &held_keys, &mut text)
-        || cluster_edit(key, &mut text)
-        || apply_key(key, &mut text, field, &mut commands);
-    if !handled {
+    if !text.handle(&input.input, held_modifiers(&held_keys)) {
         return;
     }
     input.propagate(false);
     if text.value().len() != length_before {
         emit(field, &text, false, &mut commands);
     }
-}
-
-fn apply_key(key: &Key, text: &mut TextInput, field: Entity, commands: &mut Commands) -> bool {
-    match key {
-        Key::Character(chars) => chars.chars().for_each(|c| text.insert(c)),
-        Key::Space => text.insert(' '),
-        Key::Home => text.move_start(),
-        Key::End => text.move_end(),
-        Key::Enter => emit(field, text, true, commands),
-        _ => return false,
-    }
-    true
-}
-
-// Word bindings mirror TextEditor's, whose engine binds ctrl+arrows to
-// word motion and alt+Backspace/Delete to word deletion.
-fn word_edit(key: &Key, held_keys: &ButtonInput<KeyCode>, text: &mut TextInput) -> bool {
-    let held = held_modifiers(held_keys);
-    let cursor = text.cursor();
-    match key {
-        Key::ArrowLeft if held.ctrl => text.move_to(word_start_backward(text.value(), cursor)),
-        Key::ArrowRight if held.ctrl => text.move_to(word_start_forward(text.value(), cursor)),
-        Key::Backspace if held.alt => text.delete_to(word_start_backward(text.value(), cursor)),
-        Key::Delete if held.alt => text.delete_to(word_end_forward(text.value(), cursor)),
-        _ => return false,
-    }
-    true
-}
-
-// A one-past-the-cursor target is a whole cluster step: the snap carries
-// it the rest of the way across the cluster.
-fn cluster_edit(key: &Key, text: &mut TextInput) -> bool {
-    let cursor = text.cursor();
-    match key {
-        Key::ArrowLeft => text.move_to(cursor.saturating_sub(1)),
-        Key::ArrowRight => text.move_to(cursor + 1),
-        Key::Backspace => text.delete_to(cursor.saturating_sub(1)),
-        Key::Delete => text.delete_to(cursor + 1),
-        _ => return false,
-    }
-    true
 }
 
 fn emit(field: Entity, text: &TextInput, is_final: bool, commands: &mut Commands) {
@@ -125,12 +113,7 @@ pub(crate) fn text_input_paste(
         return;
     };
     input.propagate(false);
-    let mut edited = false;
-    for pasted in input.input.0.chars().filter(|c| !c.is_control()) {
-        text.insert(pasted);
-        edited = true;
-    }
-    if edited {
+    if text.paste(&input.input.0) {
         emit(field, &text, false, &mut commands);
     }
 }
@@ -162,6 +145,7 @@ pub(crate) fn style_text_inputs(
             value: text.value().to_owned(),
             cursor: text.cursor(),
             style: next.style(&theme),
+            caret: next.state().focused.then_some(theme.caret),
         });
     }
 }

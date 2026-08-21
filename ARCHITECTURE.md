@@ -166,19 +166,22 @@ depending on another widget library. `UiPlugin` initializes the `UiTheme`
 resource, `UiTheme::resolve` turns an `InteractionState` into the one `Style`
 its documented precedence gives - disabled over pressed over hovered over
 normal, focused patched over the winner - and `UiStyle` and `StylistDisabled`
-are the two escapes from it. Beside that vocabulary sits the engine that
-consumes it: `StylistCache` records what a widget last drew and
-`StylistCache::redraws` is the compare-and-swap every stylist gates on, so a
-theme swap, an edited label, or a dirtied container repaints and an idle frame
-costs a comparison. Handing an entity back from `StylistDisabled` repaints it
-too, by a removal hook that resets its cache - the entity sat outside every
-stylist query and so missed whatever landed meanwhile. `observed` reads an
-entity's state through `StateQuery` and `StylistCache::with_value` carries the
-hash a widget's own value contributes, for a stylist that resolves its state
-rather than reading it; `restyle` runs the whole loop for the label-driven case,
-and a `UiLabel` is a ratatui `Line`, so a label carries per-span style of its
-own. Re-exports `tui_scrollview`, and `bevy_input`'s `Key`, the type its
-bindings are written in.
+are the two escapes from it. `UiTheme::caret` is the one term `resolve` does not
+answer, a caret a widget draws into its own cells being a thing inside the
+widget rather than a state the widget is in; whoever draws one patches it over
+the character it covers. Beside that vocabulary sits the engine that consumes
+it: `StylistCache` records what a widget last drew and `StylistCache::redraws`
+is the compare-and-swap every stylist gates on, so a theme swap, an edited
+label, or a dirtied container repaints and an idle frame costs a comparison.
+Handing an entity back from `StylistDisabled` repaints it too, by a removal hook
+that resets its cache - the entity sat outside every stylist query and so missed
+whatever landed meanwhile. `observed` reads an entity's state through
+`StateQuery` and `StylistCache::with_value` carries the hash a widget's own
+value contributes, for a stylist that resolves its state rather than reading it;
+`restyle` runs the whole loop for the label-driven case, and a `UiLabel` is a
+ratatui `Line`, so a label carries per-span style of its own. Re-exports
+`tui_scrollview`, and `bevy_input`'s `Key`, the type its bindings are written
+in.
 
 ### plurimus_widgets
 
@@ -191,8 +194,19 @@ table to mirror. The editor is the one widget that talks to the clipboard, being
 the one with a selection to copy: ctrl+c and ctrl+x offer the text to the
 terminal as well as to the engine, and ctrl+v inserts `plurimus_term`'s
 `LastCopied`, read at the press so the engine's own kill ring stays whatever
-ctrl+k last put there. Most widgets are stateless controllers emitting entity
-events (`Activate`, `ValueChange`); apps apply them, or attach the stock
+ctrl+k last put there. The single-line field is the one whose engine is
+published instead: `TextInput` owns its value and a cursor resting on
+grapheme-cluster boundaries, and `TextInput::handle` and `TextInput::paste`
+apply a key or pasted text to it, so a host routing its own keys drives a field
+it never focuses rather than rewriting the cluster stepping that is the hard
+part. What the stock observers add around those two calls is dispatch and
+policy, which is why the core leaves Enter untaken: a press emits the final
+`ValueChange` and a `Submit` carrying the value, a repeat emits neither since
+one intent commits once, and focus loss still emits that final `ValueChange`
+alone - which is the whole of what tells committing an entry from abandoning
+one. Its caret is drawn only while it holds focus, so a screenful of fields
+shows the one the keys reach. Most widgets are stateless controllers emitting
+entity events (`Activate`, `ValueChange`); apps apply them, or attach the stock
 `*_self_update` observers for uncontrolled behavior. A stylist rebuilds a
 widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the state it last drew
 differs from the current one, or when its label changed, not every frame, and

@@ -55,7 +55,9 @@ pub use table::{
     TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect, TablePosition,
     TableRow, TableSelection, TableStripe, table, table_footer, table_header, table_row,
 };
-pub use text::{EditableText, TextChanged, TextEditor, TextInput, editable_text, text_editor};
+pub use text::{
+    EditableText, Submit, TextChanged, TextEditor, TextInput, editable_text, text_editor,
+};
 
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;

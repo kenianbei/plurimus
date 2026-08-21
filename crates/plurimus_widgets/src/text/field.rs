@@ -3,27 +3,30 @@
 //! The value is drawn into one row through a window that keeps the cursor
 //! visible: the window's right edge is pinned to the cursor's trailing
 //! column, so typing past the edge scrolls the text instead of letting the
-//! cursor leave the field. The cursor is a reverse-video span over the
-//! cluster it sits on rather than the terminal's own cursor, so the field
-//! looks the same whether or not the terminal is drawing a caret.
+//! cursor leave the field. The caret is a style patched over the cluster it
+//! sits on rather than the terminal's own cursor, so the field looks the
+//! same whether or not the terminal is drawing a caret.
 //!
-//! That is now a choice rather than the only option: `WidgetCursor` places
-//! the terminal's own caret, which is what a screen reader follows. Moving
-//! to it would change how every existing field looks, so it wants deciding
-//! on its own rather than riding along with the seam that made it possible.
+//! That is a choice rather than the only option: `WidgetCursor` places the
+//! terminal's own caret, which is what a screen reader follows. Moving to it
+//! would change how every existing field looks, so it wants deciding on its
+//! own rather than riding along with the seam that made it possible.
 
 use plurimus_core::ratatui_core::buffer::{Buffer, CellWidth};
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::ratatui_core::style::{Modifier, Style};
+use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::widgets::Widget;
 use unicode_segmentation::UnicodeSegmentation;
 
-/// The windowed single row: value, cursor as a char index, and the fill
-/// style the row is painted with.
+/// The windowed single row: value, cursor as a char index, the fill style
+/// the row is painted with, and the caret's style - `None` for a field
+/// without focus, which draws no caret at all rather than one more block
+/// competing with whichever field the keys actually reach.
 pub(super) struct TextField {
     pub(super) value: String,
     pub(super) cursor: usize,
     pub(super) style: Style,
+    pub(super) caret: Option<Style>,
 }
 
 struct Window {
@@ -56,16 +59,16 @@ impl Widget for &TextField {
         }
         buffer.set_style(area, self.style);
         render_window(&self.value, &window, buffer);
+        let Some(caret) = self.caret else {
+            return;
+        };
         let cursor = Rect::new(
             area.x + (cursor_column - window.start),
             area.y,
             cursor_width,
             1,
         );
-        buffer.set_style(
-            cursor.intersection(area),
-            Style::default().add_modifier(Modifier::REVERSED),
-        );
+        buffer.set_style(cursor.intersection(area), caret);
     }
 }
 
