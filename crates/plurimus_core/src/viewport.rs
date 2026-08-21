@@ -71,6 +71,10 @@ pub enum CameraSystems {
     /// target - applies them in this set, and backends order their event
     /// pump before it.
     SyncSize,
+    /// Resolves every widget's
+    /// [`ComputedUiCamera`](crate::ComputedUiCamera) against the hierarchy
+    /// and the default camera.
+    PropagateCameras,
     /// Resolves every camera's [`ResolvedViewport`].
     ResolveViewports,
 }

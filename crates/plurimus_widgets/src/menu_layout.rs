@@ -9,12 +9,12 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Commands, Query, With, Without};
+use bevy_ecs::prelude::{Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 
 use crate::menu::{MenuAccess, MenuItem, MenuPopup};
 use crate::popover::Popover;
-use plurimus_core::{UiArea, UiCamera};
+use plurimus_core::{ComputedUiCamera, UiArea};
 use plurimus_ui::ComputedWidgetArea;
 use plurimus_ui::UiLabel;
 
@@ -46,11 +46,10 @@ pub(crate) fn size_menu_popups(
 
 pub(crate) fn place_menu_items(
     popups: Query<
-        (&UiArea, &ComputedWidgetArea, Option<&UiCamera>, &Children),
+        (&UiArea, &ComputedWidgetArea, &ComputedUiCamera, &Children),
         (With<MenuPopup>, Without<MenuItem>),
     >,
-    mut items: Query<(&mut UiArea, &mut ComputedWidgetArea, Option<&UiCamera>), With<MenuItem>>,
-    mut commands: Commands,
+    mut items: Query<(&mut UiArea, &mut ComputedWidgetArea, &mut ComputedUiCamera), With<MenuItem>>,
 ) {
     for (popup_area, popup_computed, camera, children) in &popups {
         let UiArea::Fixed(local) = *popup_area else {
@@ -58,16 +57,14 @@ pub(crate) fn place_menu_items(
         };
         let mut index = 0;
         for &child in children {
-            let Ok((mut area, mut computed, own_camera)) = items.get_mut(child) else {
+            let Ok((mut area, mut computed, mut target)) = items.get_mut(child) else {
                 continue;
             };
             area.set_if_neq(UiArea::Fixed(inner_row(local, index)));
             computed.set_if_neq(ComputedWidgetArea(inner_row(popup_computed.0, index)));
-            if let Some(camera) = camera
-                && own_camera.map(|own| own.0) != Some(camera.0)
-            {
-                commands.entity(child).insert(*camera);
-            }
+            // The popup itself may have taken its anchor's camera over the
+            // hierarchy's; items follow the popup either way.
+            target.set_if_neq(*camera);
             index += 1;
         }
     }

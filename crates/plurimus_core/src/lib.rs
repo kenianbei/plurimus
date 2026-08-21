@@ -51,7 +51,7 @@ pub use sub_app::{
 };
 pub use viewport::{CameraSystems, Edge, ResolvedViewport, Viewport};
 pub use widget::placement::{
-    UiArea, UiCamera, UiHidden, UiOrder, local_area, resolve_area, resolve_camera,
+    ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area, resolve_area, resolve_camera,
 };
 pub use widget::raster::{ExtractedWidget, RasterDeferred, WidgetRasterize};
 pub use widget::{TerminalWidget, UiWidget};
@@ -70,11 +70,20 @@ impl Plugin for CorePlugin {
         app.init_resource::<TerminalCursor>();
         app.configure_sets(
             PreUpdate,
-            (CameraSystems::SyncSize, CameraSystems::ResolveViewports).chain(),
+            (
+                CameraSystems::SyncSize,
+                CameraSystems::PropagateCameras,
+                CameraSystems::ResolveViewports,
+            )
+                .chain(),
         );
         app.add_systems(
             PreUpdate,
             camera::update_default_camera.in_set(CameraSystems::SyncSize),
+        );
+        app.add_systems(
+            PreUpdate,
+            widget::placement::propagate_cameras.in_set(CameraSystems::PropagateCameras),
         );
         app.add_systems(
             PreUpdate,

@@ -21,7 +21,8 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::widgets::{StatefulWidget, Widget};
 use plurimus_core::{
-    ExtractedWidget, MainWorld, TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget,
+    ComputedUiCamera, ExtractedWidget, MainWorld, TerminalWidget, UiArea, UiHidden, UiOrder,
+    UiWidget,
 };
 use tui_scrollview::{ScrollView, ScrollViewState};
 
@@ -132,7 +133,7 @@ pub(crate) fn extract_scrolled_widgets(
         &UiWidget,
         &UiArea,
         Option<&UiOrder>,
-        Option<&UiCamera>,
+        &ComputedUiCamera,
         &ScrollArea,
         &ScrollOffset,
         Has<LiveWidget>,
@@ -146,7 +147,7 @@ pub(crate) fn extract_scrolled_widgets(
         commands.spawn(
             ExtractedWidget::new(window, *area, source)
                 .with_order(order.map_or(0, |order| order.0))
-                .with_target(camera.map(|camera| camera.0)),
+                .with_target(camera.0),
         );
     }
     cache.sweep();

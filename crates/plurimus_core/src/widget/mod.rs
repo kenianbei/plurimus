@@ -15,7 +15,7 @@ use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
 use ratatui_core::widgets::{StatefulWidget, Widget};
 
-use placement::UiArea;
+use placement::{ComputedUiCamera, UiArea};
 
 pub mod placement;
 pub(crate) mod raster;
@@ -53,7 +53,7 @@ where
 /// 3d) takes on that content's colors. Overlays belong on their own
 /// camera - see [`UiCamera`](crate::UiCamera).
 #[derive(Component, Clone)]
-#[require(UiArea)]
+#[require(UiArea, ComputedUiCamera)]
 pub struct UiWidget(pub(crate) Arc<dyn TerminalWidget>);
 
 impl UiWidget {

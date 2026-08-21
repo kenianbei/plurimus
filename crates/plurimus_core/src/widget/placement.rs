@@ -8,7 +8,9 @@
 //! drawing and interaction. Crates that place their own widgets go through
 //! [`resolve_camera`] and [`resolve_area`] instead of repeating the rules.
 
-use bevy_ecs::prelude::{Component, Entity};
+use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Component, Entity, Query, Res};
 use ratatui_core::layout::Rect;
 
 use crate::camera::DefaultCamera;
@@ -50,12 +52,51 @@ pub struct UiCamera(pub Entity);
 
 /// The camera a widget targets: its explicit [`UiCamera`], else the
 /// default camera.
+///
+/// The leaf rule [`ComputedUiCamera`] applies once an ancestor search has
+/// found whichever [`UiCamera`] governs; a widget reading which camera it
+/// draws on wants that component rather than this.
 #[must_use]
 pub fn resolve_camera(
     explicit: Option<&UiCamera>,
     default_camera: &DefaultCamera,
 ) -> Option<Entity> {
     explicit.map(|camera| camera.0).or(default_camera.0)
+}
+
+/// The camera a widget actually draws on this frame: its own [`UiCamera`],
+/// else the nearest ancestor's through `ChildOf`, else the default camera.
+/// `None` names no camera at all, which is what a widget has while none is
+/// active.
+///
+/// Resolved every frame in
+/// [`CameraSystems::PropagateCameras`](crate::CameraSystems::PropagateCameras),
+/// so a widget follows a parent that changes camera and a child needs no
+/// [`UiCamera`] of its own to sit on its parent's - forgetting one is
+/// otherwise a silent misplacement onto the default camera.
+///
+/// The search reads ancestors' [`UiCamera`] components, not their computed
+/// values, so a widget placed against something it is not parented to -
+/// a popover following its anchor - overrides this component directly and
+/// that override reaches the widget alone. Parent such a widget's own
+/// children to it, which is what a menu popup does.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ComputedUiCamera(pub Option<Entity>);
+
+pub(crate) fn propagate_cameras(
+    default_camera: Res<DefaultCamera>,
+    explicit: Query<&UiCamera>,
+    parents: Query<&ChildOf>,
+    mut widgets: Query<(Entity, Option<&UiCamera>, &mut ComputedUiCamera)>,
+) {
+    for (entity, own, mut computed) in &mut widgets {
+        let inherited = own.map(|camera| camera.0).or_else(|| {
+            parents
+                .iter_ancestors(entity)
+                .find_map(|ancestor| explicit.get(ancestor).ok().map(|camera| camera.0))
+        });
+        computed.set_if_neq(ComputedUiCamera(inherited.or(default_camera.0)));
+    }
 }
 
 /// A screen rect expressed camera-locally, for storing in a
