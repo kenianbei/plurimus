@@ -5,12 +5,17 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
-use bevy_input_focus::InputFocus;
+use bevy_input_focus::tab_navigation::TabGroup;
 use bevy_input_focus::tab_navigation::TabIndex;
+use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder, UiWidget};
-use plurimus_test::click;
-use plurimus_ui::{Hovered, InteractionDisabled, PointerPress, PressPassThrough, UiArea};
+use plurimus_term::{KeyCode, MouseButton, MouseKind};
+use plurimus_test::{click, press_key, send_mouse};
+use plurimus_ui::{
+    Click, Hovered, InteractionDisabled, PointerDrag, PointerPress, PressFocusDisabled,
+    PressPassThrough, Pressed, UiArea,
+};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
 
@@ -18,6 +23,9 @@ const AREA: Rect = Rect::new(0, 2, 10, 3);
 
 #[derive(Resource, Default)]
 struct Presses(Vec<Entity>);
+
+#[derive(Resource, Default)]
+struct Gestures(Vec<&'static str>);
 
 fn app() -> App {
     let mut app = App::new();
@@ -85,7 +93,7 @@ fn a_press_on_a_disabled_widget_moves_no_focus() {
     app.update();
     app.world_mut()
         .resource_mut::<InputFocus>()
-        .set(elsewhere, bevy_input_focus::FocusCause::Pressed);
+        .set(elsewhere, FocusCause::Pressed);
 
     click(&mut app, AREA.x + 1, AREA.y + 1);
 
@@ -156,4 +164,91 @@ fn a_press_on_disabled_chrome_still_dismisses_the_menu() {
         "the outside press dismissed"
     );
     assert!(!was_pressed(&app, chrome), "and the chrome stayed inert");
+}
+
+// The browser's preventDefault-on-mousedown: the gesture is the widget's,
+// the keyboard stays where it was.
+#[test]
+fn a_press_focus_disabled_widget_presses_without_taking_focus() {
+    let mut app = app();
+    let toolbar = spawn_widget(&mut app, AREA);
+    app.world_mut()
+        .entity_mut(toolbar)
+        .insert((TabIndex(0), PressFocusDisabled));
+    let editor = app.world_mut().spawn(TabIndex(1)).id();
+    app.update();
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(editor, FocusCause::Pressed);
+
+    send_mouse(&mut app, MouseKind::Moved, AREA.x + 1, AREA.y + 1);
+    send_mouse(
+        &mut app,
+        MouseKind::Down(MouseButton::Left),
+        AREA.x + 1,
+        AREA.y + 1,
+    );
+
+    assert!(was_pressed(&app, toolbar), "the press landed");
+    assert!(app.world().entity(toolbar).contains::<Pressed>());
+    assert_eq!(
+        app.world().resource::<InputFocus>().get(),
+        Some(editor),
+        "and the editor kept the keyboard"
+    );
+}
+
+#[test]
+fn a_press_focus_disabled_widget_still_drags_and_clicks() {
+    let mut app = app();
+    let toolbar = spawn_widget(&mut app, AREA);
+    app.world_mut()
+        .entity_mut(toolbar)
+        .insert((TabIndex(0), PressFocusDisabled));
+    app.init_resource::<Gestures>();
+    app.add_observer(|_: On<PointerDrag>, mut log: ResMut<Gestures>| log.0.push("drag"));
+    app.add_observer(|_: On<Click>, mut log: ResMut<Gestures>| log.0.push("click"));
+    app.update();
+
+    send_mouse(&mut app, MouseKind::Moved, AREA.x + 1, AREA.y + 1);
+    send_mouse(
+        &mut app,
+        MouseKind::Down(MouseButton::Left),
+        AREA.x + 1,
+        AREA.y + 1,
+    );
+    send_mouse(
+        &mut app,
+        MouseKind::Drag(MouseButton::Left),
+        AREA.x + 2,
+        AREA.y + 1,
+    );
+    send_mouse(
+        &mut app,
+        MouseKind::Up(MouseButton::Left),
+        AREA.x + 2,
+        AREA.y + 1,
+    );
+
+    assert_eq!(
+        app.world().resource::<Gestures>().0,
+        vec!["drag", "click"],
+        "the whole gesture belongs to the widget"
+    );
+}
+
+// The marker splits the flag, it does not take the keyboard half away.
+#[test]
+fn tab_still_reaches_a_press_focus_disabled_widget() {
+    let mut app = app();
+    let root = app.world_mut().spawn(TabGroup::new(0)).id();
+    let toolbar = spawn_widget(&mut app, AREA);
+    app.world_mut()
+        .entity_mut(toolbar)
+        .insert((TabIndex(0), PressFocusDisabled, ChildOf(root)));
+    app.update();
+
+    press_key(&mut app, KeyCode::Tab);
+
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(toolbar));
 }

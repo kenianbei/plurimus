@@ -37,7 +37,7 @@ pub use focus::FocusWithin;
 pub use interaction::ValueChange;
 pub use interaction::{
     Checked, Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
-    PointerRelease, PressPassThrough, Pressed,
+    PointerRelease, PressFocusDisabled, PressPassThrough, Pressed,
 };
 pub use keys::first_bound;
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};

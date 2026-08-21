@@ -52,6 +52,14 @@ pub struct InteractionDisabled;
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressPassThrough;
 
+/// Keeps a press on the widget from moving focus, while the press itself
+/// still lands - [`Pressed`], [`PointerDrag`], [`Click`] all arrive. For a
+/// toolbar control beside an editor: tab-reachable through its `TabIndex`,
+/// but a click on it leaves the keyboard - and any armed selection - where
+/// they were.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub struct PressFocusDisabled;
+
 /// Toggle state for checkboxes and radio buttons.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Checked;
@@ -227,7 +235,7 @@ type PressedQuery<'w, 's> = Query<'w, 's, (Entity, Has<InteractionDisabled>), Wi
 pub(crate) struct PointerRouting<'w, 's> {
     targets: PointerTargetQuery<'w, 's>,
     pressed: PressedQuery<'w, 's>,
-    focusable: Query<'w, 's, (), With<TabIndex>>,
+    focusable: Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>,
     disabled: Query<'w, 's, (), With<InteractionDisabled>>,
     modal: ModalGuard<'w, 's>,
     focus: ResMut<'w, InputFocus>,
@@ -340,7 +348,7 @@ fn drag_pressed(
 
 fn press(
     target: Entity,
-    focusable: &Query<(), With<TabIndex>>,
+    focusable: &Query<(), (With<TabIndex>, Without<PressFocusDisabled>)>,
     focus: &mut ResMut<InputFocus>,
     commands: &mut Commands,
 ) {
