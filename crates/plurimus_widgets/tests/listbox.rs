@@ -333,6 +333,22 @@ fn a_drag_across_rows_selects_the_one_it_ends_on() {
     );
 }
 
+// The highlight must not disagree with what letting go would select.
+#[test]
+fn a_held_pointer_drags_the_cursor_with_it() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+
+    send_mouse(&mut app, MouseKind::Moved, 2, 0);
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    assert_eq!(active(&app, container), Some(items[0]));
+
+    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 2, 2);
+
+    assert_eq!(active(&app, container), Some(items[2]));
+    assert!(app.world().resource::<Selections>().0.is_empty());
+}
+
 #[test]
 fn a_release_below_every_row_selects_nothing() {
     let mut app = app();

@@ -9,7 +9,7 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Has, Query};
+use bevy_ecs::prelude::{Has, Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Constraint, Layout, Position, Rect};
 
 use super::{TableColumns, TableCursor, TableFooter, TableHeader, TableLayout, TableRow};
@@ -136,6 +136,11 @@ fn widest_row(children: &Children, rows: &Rows) -> usize {
         .max()
         .unwrap_or_default()
 }
+
+/// The rows a cursor may land on, as a query filter - the same predicate
+/// [`body_rows`] applies, so a new band cannot be a row to one and not the
+/// other.
+pub(crate) type BodyRow = (With<TableRow>, Without<TableHeader>, Without<TableFooter>);
 
 pub(super) fn body_rows<'a>(
     children: &'a Children,

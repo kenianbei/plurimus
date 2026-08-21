@@ -20,8 +20,8 @@ use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
 use plurimus_core::ratatui_core::text::{Line, Text};
 
-use crate::listbox::ListItemTrailing;
-use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle};
+use plurimus_core::ratatui_core::style::Style;
+use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, StylistCache, UiStyle, UiTheme};
 
 /// Marks a container whose content changed: a row added, edited, restyled,
 /// or checked.
@@ -47,6 +47,11 @@ impl<M: Send + Sync + 'static> Default for ContentDirty<M> {
 /// Kept pointing at a live row: when a container's children change, a value
 /// naming a row that is gone re-points to the first surviving one, and to
 /// `None` when none survives. A deliberately empty cursor stays empty.
+///
+/// Whoever writes it, the row is scrolled into view in the next
+/// [`WidgetSystems::Layout`](crate::WidgetSystems::Layout) - the same frame
+/// for a write from a key handler, the next one for a write from `Update`
+/// or from the pointer routing that follows it.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ActiveDescendant(pub Option<Entity>);
 
@@ -63,6 +68,17 @@ pub struct ActiveDescendant(pub Option<Entity>);
 /// which lights the gutter for a row that is checked, marked, or both.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Marked;
+
+/// Trailing content the list right-aligns against its own drawn width - a
+/// shortcut hint beside a command name, a count beside a group.
+///
+/// The width a row is drawn at exists only inside the list, after placement
+/// and after any scrollbar gutter, so a row built by an app can never hold
+/// the number to align against. Only the row's first line carries it; a
+/// list too narrow for both keeps one space between them and lets the text
+/// truncate.
+#[derive(Component, Debug, Clone)]
+pub struct ListItemTrailing(pub Line<'static>);
 
 /// Draws a [`ListItem`](crate::ListItem) as more than one terminal row, in place of its
 /// [`UiLabel`](plurimus_ui::UiLabel).
@@ -176,12 +192,12 @@ pub(crate) fn repair_active_descendants<Container, Row>(
         let Some(current) = active.0 else {
             continue;
         };
-        let surviving = |row| children.is_some_and(|kept: &Children| kept.contains(&row));
-        if surviving(current) && rows.get(current).is_ok() {
+        let kept = children.is_some_and(|kept| kept.contains(&current)) && rows.contains(current);
+        if kept {
             continue;
         }
         let first =
-            children.and_then(|kept| kept.iter().copied().find(|&child| rows.get(child).is_ok()));
+            children.and_then(|kept| kept.iter().copied().find(|&child| rows.contains(child)));
         active.set_if_neq(ActiveDescendant(first));
     }
 }
@@ -228,6 +244,19 @@ pub(crate) fn sync_row_scroll<Container: Component, Row: Component>(
 
 /// Shared, so the crate's cursor cannot differ between two containers.
 pub(crate) const CURSOR_SYMBOL: &str = "> ";
+
+/// The style a container's cursor row resolves to.
+///
+/// Shared for the same reason [`cursor_symbol`] is: a container driven
+/// through [`ActiveDescendant`] while focus sits on whatever is doing the
+/// driving is still the thing being operated, and that must not be true of
+/// one container and false of the other. Without it the row a search field
+/// is stepping resolves to the resting style - an invisible cursor, in the
+/// case the component exists for.
+pub(crate) fn cursor_style(next: StylistCache, driven: bool, theme: &UiTheme) -> Style {
+    next.with_focused(next.state().focused || driven)
+        .style(theme)
+}
 
 /// The cursor a container draws, `over` replacing the default when a
 /// widget carries one of its own.

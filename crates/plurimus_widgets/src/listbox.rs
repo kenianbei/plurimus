@@ -24,7 +24,9 @@ use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::first_bound;
-use plurimus_ui::{Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerPress};
+use plurimus_ui::{
+    Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
+};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
 /// A focusable list of [`ListItem`] children. Selection emits
@@ -69,17 +71,6 @@ pub struct ListBoxCursor(pub Line<'static>);
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListItem;
-
-/// Trailing content the list right-aligns against its own drawn width - a
-/// shortcut hint beside a command name, a count beside a group.
-///
-/// The width a row is drawn at exists only inside the list, after placement
-/// and after any scrollbar gutter, so a row built by an app can never hold
-/// the number to align against. Only the row's first line carries it; a
-/// list too narrow for both keeps one space between them and lets the text
-/// truncate.
-#[derive(Component, Debug, Clone)]
-pub struct ListItemTrailing(pub Line<'static>);
 
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
 #[must_use]
@@ -198,8 +189,10 @@ fn move_active(
     rows: &[RowSpan],
     area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
-) -> Option<()> {
-    let last = rows.len().checked_sub(1)?;
+) {
+    let Some(last) = rows.len().checked_sub(1) else {
+        return;
+    };
     let current = active
         .0
         .and_then(|item| rows.iter().position(|row| row.entity == item));
@@ -209,7 +202,6 @@ fn move_active(
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));
-    Some(())
 }
 
 fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
@@ -259,6 +251,18 @@ fn row_at(
 /// Moves the cursor to the row under the pointer, so a press shows what it
 /// is on. Selecting is the release's, in [`listbox_click`].
 pub(crate) fn listbox_press(event: On<PointerPress>, mut boxes: Pointed, items: RowTexts) {
+    let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
+        return;
+    };
+    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+        return;
+    };
+    active.set_if_neq(ActiveDescendant(Some(row)));
+}
+
+/// Keeps the cursor under a held pointer, so the highlight never disagrees
+/// with the row a release would select.
+pub(crate) fn listbox_drag(event: On<PointerDrag>, mut boxes: Pointed, items: RowTexts) {
     let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
         return;
     };

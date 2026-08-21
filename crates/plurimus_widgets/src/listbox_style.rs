@@ -15,14 +15,16 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
 use bevy_input_focus::InputFocus;
-use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
-use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemTrailing};
+use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem};
 use crate::rows::ContentDirty;
-use crate::rows::{ActiveDescendant, ListItemText, Marked, cursor_symbol};
+use crate::rows::{
+    ActiveDescendant, CURSOR_SYMBOL, ListItemText, ListItemTrailing, Marked, cursor_style,
+    cursor_symbol,
+};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle, UiTheme};
@@ -49,6 +51,9 @@ pub(crate) type ListSelfChanged = Or<(
 )>;
 
 const CHECKED_MARKER: &str = "▪ ";
+/// Both markers are two cells wide by construction, which is what the
+/// trailing slot measures against.
+const MARKER_WIDTH: u16 = 2;
 const UNCHECKED_MARKER: &str = "  ";
 
 type RowItems<'w, 's> = Query<
@@ -109,21 +114,21 @@ pub(crate) fn style_listboxes(
     for (state, active, children, marker, cursor, size, content, mut cache, mut widget) in
         &mut boxes
     {
-        let gutters = Gutters {
-            marker,
-            cursor: cursor_symbol(cursor.map(|cursor| &cursor.0)),
-        };
-        let width = row_width(size, &gutters, active.0.is_some());
-        // Copy scalars, so an idle frame reaches the gate below without
-        // touching a row. The width joins them because a resize re-aligns
-        // every trailing slot without any row having changed.
+        let cursored = active.0.is_some();
+        // Widths only: an idle frame reaches the gate below without building
+        // a line, and a resize re-aligns rows that never changed.
+        let width = row_width(size, (marker, cursor_width(cursor), cursored));
         let next = observed(state, &focus, hashed_bits((active.0, width)));
         if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
         }
         let styles = RowStyles {
             every: next.resting_style(&theme),
-            cursor: cursor_style(next, active.0.is_some(), &theme),
+            cursor: cursor_style(next, cursored, &theme),
+        };
+        let gutters = Gutters {
+            marker,
+            cursor: cursor_symbol(cursor.map(|cursor| &cursor.0)),
         };
         *widget = list_widget((children, &items), active.0, (gutters, width), styles);
     }
@@ -137,30 +142,20 @@ pub(crate) fn style_listboxes(
 /// comparison: gaining one shifts every row.
 fn row_width(
     (area, scroll): (&ComputedWidgetArea, Option<&ScrollArea>),
-    gutters: &Gutters,
-    cursored: bool,
+    (marker, cursor, cursored): (bool, u16, bool),
 ) -> u16 {
     let drawn = scroll.map_or(area.0.width, |scroll| scroll.content_width(area.0.width));
-    let marker = if gutters.marker {
-        u16::try_from(UNCHECKED_MARKER.chars().count()).unwrap_or(u16::MAX)
-    } else {
-        0
-    };
-    let cursor = if cursored {
-        u16::try_from(gutters.cursor.width()).unwrap_or(u16::MAX)
-    } else {
-        0
-    };
-    drawn.saturating_sub(marker).saturating_sub(cursor)
+    let reserved = if marker { MARKER_WIDTH } else { 0 };
+    let reserved = reserved.saturating_add(if cursored { cursor } else { 0 });
+    drawn.saturating_sub(reserved)
 }
 
-// A list driven through `ActiveDescendant` while focus sits on whatever is
-// doing the driving is still the thing being operated, so its cursor row
-// takes the focused patch either way - otherwise the row a search field is
-// stepping resolves to the resting style, an invisible cursor.
-fn cursor_style(next: StylistCache, driven: bool, theme: &UiTheme) -> Style {
-    next.with_focused(next.state().focused || driven)
-        .style(theme)
+/// The cells the cursor gutter takes, without building the line itself -
+/// this is read before the redraw gate, where an allocation would be paid
+/// on every idle frame.
+fn cursor_width(over: Option<&ListBoxCursor>) -> u16 {
+    let width = over.map_or(CURSOR_SYMBOL.chars().count(), |cursor| cursor.0.width());
+    u16::try_from(width).unwrap_or(u16::MAX)
 }
 
 fn list_widget(
@@ -206,12 +201,10 @@ fn list_widget(
 fn aligned_line(label: &Line<'static>, trailing: &Line<'static>, width: u16) -> Line<'static> {
     let used = label.width().saturating_add(trailing.width());
     let gap = usize::from(width).saturating_sub(used).max(1);
-    let mut spans = label.spans.clone();
-    spans.push(Span::raw(" ".repeat(gap)));
-    spans.extend(trailing.spans.iter().cloned());
-    Line::from(spans)
-        .style(label.style)
-        .alignment(label.alignment.unwrap_or(Alignment::Left))
+    let mut aligned = label.clone();
+    aligned.push_span(Span::raw(" ".repeat(gap)));
+    aligned.spans.extend(trailing.spans.iter().cloned());
+    aligned
 }
 
 fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'static> {
@@ -220,37 +213,28 @@ fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'stat
     } else {
         UNCHECKED_MARKER
     };
-    let first = content.trailing.map(|trailing| {
-        aligned_line(
-            content.text.map_or(content.label, |text| {
-                text.0.lines.first().unwrap_or(content.label)
-            }),
-            &trailing.0,
-            width,
-        )
-    });
     let source = content.text.map_or(slice::from_ref(content.label), |text| {
         text.0.lines.as_slice()
     });
-    let source = match (&first, source.split_first()) {
-        (Some(first), Some((_, rest))) => {
-            let mut lines = vec![first.clone()];
-            lines.extend_from_slice(rest);
-            std::borrow::Cow::Owned(lines)
-        }
-        _ => std::borrow::Cow::Borrowed(source),
-    };
-    let source = source.as_ref();
+    // The trailing slot rides the first line only, which is the one a
+    // reader's eye ends on.
+    let first = content
+        .trailing
+        .zip(source.first())
+        .map(|(trailing, line)| aligned_line(line, &trailing.0, width));
     // Ratatui blanks the cursor gutter below a row's first line; the
     // marker column is ours, so its continuation blanks are drawn here.
     let mut drawn = Text::from(
         source
             .iter()
             .enumerate()
-            .map(|(index, line)| match (marker, index) {
-                (false, _) => line.clone(),
-                (true, 0) => decorate(mark, line, ""),
-                (true, _) => decorate(UNCHECKED_MARKER, line, ""),
+            .map(|(index, line)| {
+                let line = first.as_ref().filter(|_| index == 0).unwrap_or(line);
+                match (marker, index) {
+                    (false, _) => line.clone(),
+                    (true, 0) => decorate(mark, line, ""),
+                    (true, _) => decorate(UNCHECKED_MARKER, line, ""),
+                }
             })
             .collect::<Vec<_>>(),
     );

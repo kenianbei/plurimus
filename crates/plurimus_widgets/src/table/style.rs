@@ -21,7 +21,7 @@ use super::{
 };
 use crate::rows::ActiveDescendant;
 use crate::rows::ContentDirty;
-use crate::rows::cursor_symbol;
+use crate::rows::{cursor_style, cursor_symbol};
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
@@ -148,13 +148,11 @@ pub(crate) fn style_tables(
         };
         let highlight = Highlight {
             selection: selection.copied(),
-            // Driven from elsewhere is still driven; see the list box's
-            // stylist, which resolves its cursor row the same way.
-            style: next
-                .with_focused(
-                    next.state().focused || active.is_some_and(|active| active.0.is_some()),
-                )
-                .style(&theme),
+            style: cursor_style(
+                next,
+                active.is_some_and(|active| active.0.is_some()),
+                &theme,
+            ),
             symbol: cursor_symbol(symbol.map(|cursor| &cursor.0)),
             column: column.and_then(|column| column.0),
         };

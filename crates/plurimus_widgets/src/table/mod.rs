@@ -22,6 +22,7 @@ mod geometry;
 mod input;
 mod style;
 
+pub(crate) use geometry::BodyRow as TableBodyRow;
 pub(crate) use input::{reveal_table_cursor, table_click, table_key};
 pub(crate) use style::{TableRowsChanged, TableSelfChanged, style_tables};
 

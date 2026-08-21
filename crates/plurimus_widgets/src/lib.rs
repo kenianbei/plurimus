@@ -38,13 +38,13 @@ pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
 pub use listbox::{
     ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect, ListBoxSelectionMarker,
-    ListItem, ListItemTrailing, list_item, listbox,
+    ListItem, list_item, listbox,
 };
 pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
 pub use radio::{RadioButton, RadioGroup, radio};
-pub use rows::{ActiveDescendant, ListItemText, Marked};
+pub use rows::{ActiveDescendant, ListItemText, ListItemTrailing, Marked};
 pub use scrollbar::{Scrollbar, scrollbar};
 pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
@@ -63,7 +63,9 @@ pub use text::{
 pub(crate) use activate::{is_activate_key, widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
-pub(crate) use listbox::{listbox_click, listbox_key, listbox_press, reveal_listbox_cursor};
+pub(crate) use listbox::{
+    listbox_click, listbox_drag, listbox_key, listbox_press, reveal_listbox_cursor,
+};
 pub(crate) use listbox_style::{ListRowsChanged, ListSelfChanged, style_listboxes};
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
@@ -77,7 +79,8 @@ pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_sc
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use table::{
-    TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables, table_click, table_key,
+    TableBodyRow, TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables,
+    table_click, table_key,
 };
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste,
@@ -85,7 +88,7 @@ pub(crate) use text::{
 };
 
 use bevy_app::{App, Plugin, PreUpdate, Update};
-use bevy_ecs::prelude::{IntoScheduleConfigs, With, Without};
+use bevy_ecs::prelude::{IntoScheduleConfigs, With};
 use bevy_ecs::schedule::SystemSet;
 use bevy_input_focus::InputFocusSystems;
 
@@ -105,10 +108,12 @@ pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum WidgetSystems {
-    /// `PreUpdate`: scroll extent and row-change forwarding for the
-    /// containers drawn from row children, popup sizing, and popover and
-    /// menu row placement. Runs after [`UiSystems::Areas`] and focus
-    /// dispatch, before [`UiSystems::Hover`].
+    /// `PreUpdate`: cursor repair, scroll extent and row-change forwarding
+    /// for the containers drawn from row children, the reveal that keeps a
+    /// cursor visible, popup sizing, and popover and menu row placement.
+    /// Runs after [`UiSystems::Areas`] and focus dispatch, before
+    /// [`UiSystems::Hover`] - so a cursor written later in the frame is
+    /// revealed on the next one.
     Layout,
     /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`](plurimus_core::UiWidget).
     Style,
@@ -160,10 +165,7 @@ fn add_layout_systems(app: &mut App) {
             (
                 (
                     repair_active_descendants::<ListBox, With<ListItem>>,
-                    repair_active_descendants::<
-                        Table,
-                        (With<TableRow>, Without<TableHeader>, Without<TableFooter>),
-                    >,
+                    repair_active_descendants::<Table, TableBodyRow>,
                 ),
                 (
                     mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
@@ -212,6 +214,7 @@ fn add_observers(app: &mut App) {
     app.add_observer(scrollbar_drag);
     app.add_observer(scrollbar_release);
     app.add_observer(listbox_press);
+    app.add_observer(listbox_drag);
     app.add_observer(listbox_click);
     app.add_observer(listbox_key);
     app.add_observer(table_click);

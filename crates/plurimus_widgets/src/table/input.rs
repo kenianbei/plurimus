@@ -32,7 +32,7 @@ type Navigable<'a> = (
     &'a mut ActiveColumn,
 );
 
-type Pressable<'a> = (
+type Clickable<'a> = (
     &'a Children,
     &'a TableColumns,
     &'a TableSelection,
@@ -106,9 +106,11 @@ fn move_row(
     action: TableAction,
     (children, rows, area): (&Children, &Rows, ComputedWidgetArea),
     active: &mut Mut<ActiveDescendant>,
-) -> Option<()> {
+) {
     let body: Vec<Entity> = body_rows(children, rows).collect();
-    let last = body.len().checked_sub(1)?;
+    let Some(last) = body.len().checked_sub(1) else {
+        return;
+    };
     let current = active
         .0
         .and_then(|row| body.iter().position(|&candidate| candidate == row));
@@ -118,19 +120,19 @@ fn move_row(
     let page = usize::from(body_height(area, (header, footer))).max(1);
     let index = moved_row(action, current, last, page);
     active.set_if_neq(ActiveDescendant(Some(body[index])));
-    Some(())
 }
 
 /// What a pointer cell landed on, once the column layout has been solved.
 enum Hit {
     /// The header band, naming the column under the pointer.
-    Header(Option<usize>),
+    Header(usize),
     /// A body row, with the column under the pointer.
     Body(Entity, Option<usize>),
 }
 
-/// Everything the column solve needs, gathered so press and click resolve a
-/// cell exactly alike rather than twice over.
+/// Everything the column solve needs, in one place because seven loose
+/// parameters would breach the crate's limit - not because two callers
+/// share it. Only the release resolves a cell; see [`table_click`].
 struct Geometry<'a> {
     children: &'a Children,
     columns: &'a TableColumns,
@@ -154,7 +156,7 @@ impl Geometry<'_> {
         let column = clicked_column(cell.x, &placed.columns(widths, gutter));
         let (header, footer) = bands(self.children, rows);
         if header && cell.y == 0 {
-            return Some(Hit::Header(column));
+            return Some(Hit::Header(column?));
         }
         let row = clicked_row(cell.y, header, placed.band((header, footer)))
             .and_then(|index| body_rows(self.children, rows).nth(index))?;
@@ -175,7 +177,7 @@ impl Geometry<'_> {
 /// resolved against them - against a layout no frame had drawn yet.
 pub(crate) fn table_click(
     event: On<Click>,
-    mut tables: Query<Pressable, Interactive>,
+    mut tables: Query<Clickable, Interactive>,
     rows: Rows,
     mut commands: Commands,
 ) {
@@ -196,14 +198,13 @@ pub(crate) fn table_click(
         return;
     };
     let (row, hit_column) = match hit {
-        Hit::Header(Some(header_column)) => {
+        Hit::Header(header_column) => {
             commands.trigger(TableHeaderClick {
                 entity: table,
                 column: header_column,
             });
             return;
         }
-        Hit::Header(None) => return,
         Hit::Body(row, hit_column) => (row, hit_column),
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
