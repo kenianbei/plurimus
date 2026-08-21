@@ -10,8 +10,8 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiWidget};
-use plurimus_term::MouseKind;
-use plurimus_test::{click, send_mouse};
+use plurimus_term::{MouseButton, MouseKind};
+use plurimus_test::{click, send_mouse, write_mouse};
 use plurimus_ui::{ComputedWidgetArea, Hovered, PointerPress, ScrollArea, ScrollOffset, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
@@ -30,9 +30,13 @@ fn app() -> App {
 }
 
 fn spawn_menu(app: &mut App) -> Entity {
+    spawn_menu_at(app, Rect::new(1, 0, 8, 1))
+}
+
+fn spawn_menu_at(app: &mut App, button_area: Rect) -> Entity {
     let world = app.world_mut();
     let button = world
-        .spawn((menu_button("File"), UiArea::Fixed(Rect::new(1, 0, 8, 1))))
+        .spawn((menu_button("File"), UiArea::Fixed(button_area)))
         .id();
     let popup = world.spawn((menu_popup(button), ChildOf(button))).id();
     world.spawn((menu_item("Open"), ChildOf(popup)));
@@ -42,6 +46,18 @@ fn spawn_menu(app: &mut App) -> Entity {
 
 // Everything the popup covers, so a press falling through the overlay has
 // somewhere to land.
+fn spawn_pressable(app: &mut App, area: Rect, parent: Option<Entity>) -> Entity {
+    let mut pressable = app.world_mut().spawn((
+        UiWidget::new(Paragraph::new("row")),
+        UiArea::Fixed(area),
+        Hovered::default(),
+    ));
+    if let Some(parent) = parent {
+        pressable.insert(ChildOf(parent));
+    }
+    pressable.id()
+}
+
 fn spawn_beneath(app: &mut App) -> Entity {
     app.world_mut()
         .spawn((
@@ -54,6 +70,12 @@ fn spawn_beneath(app: &mut App) -> Entity {
 
 fn is_open(app: &App, popup: Entity) -> bool {
     app.world().entity(popup).contains::<MenuOpen>()
+}
+
+// The overlay's bottom border row: inside the popup, and never a row an
+// item was placed on.
+const fn footer_of(frame: Rect) -> Rect {
+    Rect::new(frame.x, frame.y + frame.height - 1, frame.width, 1)
 }
 
 fn popup_area(app: &App, popup: Entity) -> Rect {
@@ -96,16 +118,8 @@ fn a_press_inside_the_popup_routes_to_an_unmarked_child() {
     click(&mut app, 2, 0);
     app.update();
     let frame = popup_area(&app, popup);
-    let footer = Rect::new(frame.x, frame.y + frame.height - 1, frame.width, 1);
-    let child = app
-        .world_mut()
-        .spawn((
-            UiWidget::new(Paragraph::new("row")),
-            UiArea::Fixed(footer),
-            Hovered::default(),
-            ChildOf(popup),
-        ))
-        .id();
+    let footer = footer_of(frame);
+    let child = spawn_pressable(&mut app, footer, Some(popup));
     app.update();
 
     click(&mut app, footer.x, footer.y);
@@ -166,4 +180,69 @@ fn a_wheel_tick_inside_a_modal_with_nothing_to_scroll_dies() {
 
     assert_eq!(offset_of(&app, beneath), Position::new(0, 0));
     assert!(is_open(&app, popup), "and it dismissed nothing");
+}
+
+// A press the overlay swallows is not a modal flip, so the rest of the
+// batch still hit-tests a state nothing is about to change.
+#[test]
+fn a_swallowed_press_does_not_defer_the_rest_of_the_batch() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    click(&mut app, 2, 0);
+    app.update();
+    let frame = popup_area(&app, popup);
+    let child = spawn_pressable(&mut app, footer_of(frame), Some(popup));
+    app.update();
+
+    for (x, y) in [(frame.x, frame.y), (frame.x, footer_of(frame).y)] {
+        write_mouse(&mut app, MouseKind::Down(MouseButton::Left), x, y);
+        write_mouse(&mut app, MouseKind::Up(MouseButton::Left), x, y);
+    }
+    app.update();
+
+    assert!(
+        was_pressed(&app, child),
+        "the second press landed this frame"
+    );
+}
+
+// Admission is the union of the modals containing the pointer, not of
+// every open modal: an entity belonging to the menu next door is as
+// unreachable as one belonging to no modal at all.
+#[test]
+fn a_modal_the_pointer_is_outside_admits_nothing() {
+    let mut app = app();
+    let near = spawn_menu(&mut app);
+    let far = spawn_menu_at(&mut app, Rect::new(11, 0, 8, 1));
+    click(&mut app, 2, 0);
+    click(&mut app, 12, 0);
+    app.update();
+    assert!(is_open(&app, near) && is_open(&app, far), "both are open");
+    let frame = popup_area(&app, near);
+    let stray = spawn_pressable(&mut app, footer_of(frame), Some(far));
+    app.update();
+
+    click(&mut app, frame.x, footer_of(frame).y);
+
+    assert!(
+        !was_pressed(&app, stray),
+        "the far menu's child is not here"
+    );
+    assert!(is_open(&app, near) && is_open(&app, far), "and none closed");
+}
+
+#[test]
+fn a_press_deep_in_the_modal_subtree_routes() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    click(&mut app, 2, 0);
+    app.update();
+    let frame = popup_area(&app, popup);
+    let group = app.world_mut().spawn(ChildOf(popup)).id();
+    let nested = spawn_pressable(&mut app, footer_of(frame), Some(group));
+    app.update();
+
+    click(&mut app, frame.x, footer_of(frame).y);
+
+    assert!(was_pressed(&app, nested), "ancestry admits at any depth");
 }
