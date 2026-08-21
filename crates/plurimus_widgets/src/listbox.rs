@@ -16,10 +16,10 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
-use plurimus_core::ratatui_core::text::{Line, Text};
+use plurimus_core::ratatui_core::text::Line;
 
 use super::ValueChange;
-use crate::rows::ContentDirty;
+use crate::rows::{ContentDirty, ListItemText, row_height};
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
@@ -69,17 +69,6 @@ pub struct ListBoxCursor(pub Line<'static>);
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListItem;
-
-/// Draws a [`ListItem`] as more than one terminal row, in place of its
-/// [`UiLabel`].
-///
-/// Explicit line breaks only: the list truncates a line rather than
-/// wrapping it, so a row is exactly as tall as the [`Text`] has lines. An
-/// empty one still takes a row. Only the list box reads this - every other
-/// widget draws the single-line [`UiLabel`], which stays the row's label
-/// for anything that asks.
-#[derive(Component, Debug, Clone)]
-pub struct ListItemText(pub Text<'static>);
 
 /// The highlighted item. Keyboard focus stays on the [`ListBox`] itself;
 /// this tracks which row its keys act on.
@@ -262,14 +251,6 @@ impl RowSpan {
     const fn contains(self, line: u16) -> bool {
         line >= self.top && line < self.top.saturating_add(self.height)
     }
-}
-
-// A row is at least one line tall, so an empty `ListItemText` cannot make
-// two rows share a top and swallow the clicks meant for one of them.
-pub(crate) fn row_height(text: Option<&ListItemText>) -> u16 {
-    text.map_or(1, |text| {
-        u16::try_from(text.0.height()).unwrap_or(u16::MAX).max(1)
-    })
 }
 
 pub(crate) fn row_spans<'a>(

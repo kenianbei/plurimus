@@ -18,9 +18,8 @@ use bevy_ecs::prelude::{Changed, Component, Or, Query, RemovedComponents, With};
 use bevy_ecs::query::QueryFilter;
 use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
-use plurimus_core::ratatui_core::text::Line;
+use plurimus_core::ratatui_core::text::{Line, Text};
 
-use crate::listbox::{ListItemText, row_height};
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle};
 
 /// Marks a container whose content changed: a row added, edited, restyled,
@@ -36,6 +35,25 @@ impl<M: Send + Sync + 'static> Default for ContentDirty<M> {
     fn default() -> Self {
         Self(PhantomData)
     }
+}
+
+/// Draws a [`ListItem`](crate::ListItem) as more than one terminal row, in place of its
+/// [`UiLabel`](plurimus_ui::UiLabel).
+///
+/// Explicit line breaks only: the list truncates a line rather than
+/// wrapping it, so a row is exactly as tall as the [`Text`] has lines. An
+/// empty one still takes a row. Only the list box reads this - every other
+/// widget draws the single-line label, which stays the row's label for
+/// anything that asks.
+#[derive(Component, Debug, Clone)]
+pub struct ListItemText(pub Text<'static>);
+
+// A row is at least one line tall, so an empty `ListItemText` cannot make
+// two rows share a top and swallow the clicks meant for one of them.
+pub(crate) fn row_height(text: Option<&ListItemText>) -> u16 {
+    text.map_or(1, |text| {
+        u16::try_from(text.0.height()).unwrap_or(u16::MAX).max(1)
+    })
 }
 
 // A row clearing one of these reaches its container by no other route:
