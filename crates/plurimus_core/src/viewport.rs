@@ -78,6 +78,11 @@ impl CameraViewports<'_, '_> {
     ///
     /// `None` when no camera answers - none is active, or the one named has
     /// no viewport resolved yet, which is the frame an entity spawns on.
+    ///
+    /// A caller reading [`ComputedUiCamera`](crate::ComputedUiCamera) has
+    /// the default folded in already and never reaches the fallback; it is
+    /// here for a caller holding a camera an app chose, which is the shape
+    /// of every system that places widgets against a camera of its own.
     #[must_use]
     pub fn of(&self, camera: Option<Entity>) -> Option<Rect> {
         let target = camera.or(self.default_camera.0)?;
@@ -85,9 +90,14 @@ impl CameraViewports<'_, '_> {
     }
 }
 
-/// Main-world camera maintenance sets, chained in `PreUpdate`; consumers
-/// of [`ResolvedViewport`] order themselves after
-/// [`CameraSystems::ResolveViewports`].
+/// Main-world camera maintenance sets, chained in `PreUpdate` in the order
+/// `SyncSize`, `PropagateCameras`, `ResolveViewports`; consumers of
+/// [`ResolvedViewport`] order themselves after
+/// [`CameraSystems::ResolveViewports`], which is last and so after them all.
+///
+/// Declaration order is not run order: a set is appended here as it is
+/// added, keeping every variant's discriminant where it was, and the chain
+/// that `CorePlugin` configures is what sequences them.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CameraSystems {
@@ -97,12 +107,12 @@ pub enum CameraSystems {
     /// target - applies them in this set, and backends order their event
     /// pump before it.
     SyncSize,
+    /// Resolves every camera's [`ResolvedViewport`]. Runs last.
+    ResolveViewports,
     /// Resolves every widget's
     /// [`ComputedUiCamera`](crate::ComputedUiCamera) against the hierarchy
-    /// and the default camera.
+    /// and the default camera. Runs between the two above.
     PropagateCameras,
-    /// Resolves every camera's [`ResolvedViewport`].
-    ResolveViewports,
 }
 
 pub(crate) fn resolve_camera_viewports(

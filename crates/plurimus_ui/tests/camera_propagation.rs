@@ -103,8 +103,8 @@ fn an_explicit_camera_wins_over_an_ancestors() {
     assert_eq!(camera_of(&app, child), Some(left));
 }
 
-// The binding is re-resolved every frame, so a parent that moves cameras
-// takes its children with it - what an inserted copy could not do.
+// The camera is a binding rather than a value copied at spawn, so a parent
+// that moves cameras takes its children with it.
 #[test]
 fn a_child_follows_its_parent_to_another_camera() {
     let mut app = app();

@@ -14,7 +14,7 @@ use plurimus_core::ratatui_core::layout::{Rect, Size};
 
 use crate::menu::{MenuAccess, MenuItem, MenuPopup};
 use crate::popover::Popover;
-use plurimus_core::{ComputedUiCamera, UiArea};
+use plurimus_core::UiArea;
 use plurimus_ui::ComputedWidgetArea;
 use plurimus_ui::UiLabel;
 
@@ -44,27 +44,24 @@ pub(crate) fn size_menu_popups(
     }
 }
 
+// Items carry no camera of their own: they are children of the popup, and
+// the popup holds the UiCamera its anchor gave it, so the hierarchy already
+// says where they draw.
 pub(crate) fn place_menu_items(
-    popups: Query<
-        (&UiArea, &ComputedWidgetArea, &ComputedUiCamera, &Children),
-        (With<MenuPopup>, Without<MenuItem>),
-    >,
-    mut items: Query<(&mut UiArea, &mut ComputedWidgetArea, &mut ComputedUiCamera), With<MenuItem>>,
+    popups: Query<(&UiArea, &ComputedWidgetArea, &Children), (With<MenuPopup>, Without<MenuItem>)>,
+    mut items: Query<(&mut UiArea, &mut ComputedWidgetArea), With<MenuItem>>,
 ) {
-    for (popup_area, popup_computed, camera, children) in &popups {
+    for (popup_area, popup_computed, children) in &popups {
         let UiArea::Fixed(local) = *popup_area else {
             continue;
         };
         let mut index = 0;
         for &child in children {
-            let Ok((mut area, mut computed, mut target)) = items.get_mut(child) else {
+            let Ok((mut area, mut computed)) = items.get_mut(child) else {
                 continue;
             };
             area.set_if_neq(UiArea::Fixed(inner_row(local, index)));
             computed.set_if_neq(ComputedWidgetArea(inner_row(popup_computed.0, index)));
-            // The popup itself may have taken its anchor's camera over the
-            // hierarchy's; items follow the popup either way.
-            target.set_if_neq(*camera);
             index += 1;
         }
     }

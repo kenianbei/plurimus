@@ -3,11 +3,13 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Changed, Query, ResMut, Resource, With};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::{
     ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera, UiWidget,
     Viewport,
 };
+use plurimus_ui::ComputedWidgetArea;
 use plurimus_widgets::{Popover, WidgetsPlugin, menu_item, menu_popup};
 use ratatui_widgets::paragraph::Paragraph;
 
@@ -48,7 +50,7 @@ fn spawn_anchor(app: &mut App, camera: Entity) -> Entity {
 // A popover is placed against something it need not be parented to, so the
 // hierarchy cannot tell it which camera to use - the anchor does.
 #[test]
-fn an_unparented_popover_draws_on_its_anchors_camera() {
+fn a_popover_with_no_parent_draws_on_its_anchors_camera() {
     let mut app = app();
     spawn_camera(&mut app, MAIN, 0);
     let side = spawn_camera(&mut app, SIDE, 1);
@@ -66,10 +68,10 @@ fn an_unparented_popover_draws_on_its_anchors_camera() {
     assert_eq!(camera_of(&app, popover), Some(side));
 }
 
-// The app's own component stays the app's: placement writes the resolved
-// camera, not a UiCamera onto an entity the app spawned without one.
+// The popover's camera is a real one, so its own children inherit it the
+// way they inherit any camera - no second copier per widget family.
 #[test]
-fn placement_leaves_the_apps_camera_component_alone() {
+fn a_popovers_children_inherit_the_anchored_camera() {
     let mut app = app();
     spawn_camera(&mut app, MAIN, 0);
     let side = spawn_camera(&mut app, SIDE, 1);
@@ -81,10 +83,15 @@ fn placement_leaves_the_apps_camera_component_alone() {
             UiWidget::new(Paragraph::new("pop")),
         ))
         .id();
+    let child = app
+        .world_mut()
+        .spawn((UiWidget::new(Paragraph::new("in")), ChildOf(popover)))
+        .id();
 
     app.update();
+    app.update();
 
-    assert!(app.world().get::<UiCamera>(popover).is_none());
+    assert_eq!(camera_of(&app, child), Some(side));
 }
 
 #[test]
@@ -126,4 +133,42 @@ fn menu_items_take_the_popups_anchored_camera() {
 
     assert_eq!(camera_of(&app, popup), Some(side));
     assert_eq!(camera_of(&app, item), Some(side));
+}
+
+#[derive(Resource, Default)]
+struct AreaChanges(usize);
+
+// Two systems write a popover's placement each frame; if they disagree, all
+// the work gated on Changed<ComputedWidgetArea> reruns forever.
+#[test]
+fn a_placed_popover_settles_instead_of_flipping_every_frame() {
+    let mut app = app();
+    spawn_camera(&mut app, MAIN, 0);
+    let side = spawn_camera(&mut app, SIDE, 1);
+    let anchor = spawn_anchor(&mut app, side);
+    app.world_mut().spawn((
+        Popover::new(anchor, Size::new(4, 2)),
+        UiWidget::new(Paragraph::new("pop")),
+    ));
+    app.init_resource::<AreaChanges>();
+    app.add_systems(
+        bevy_app::Update,
+        |moved: Query<(), (Changed<ComputedWidgetArea>, With<Popover>)>,
+         mut count: ResMut<AreaChanges>| {
+            count.0 += moved.iter().count();
+        },
+    );
+
+    for _ in 0..4 {
+        app.update();
+    }
+    let settled = app.world().resource::<AreaChanges>().0;
+    app.update();
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<AreaChanges>().0,
+        settled,
+        "an idle frame must not move a placed popover"
+    );
 }

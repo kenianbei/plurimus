@@ -162,10 +162,9 @@ pub(crate) fn compute_widget_areas(
     )>,
 ) {
     for (area, target, mut computed, hidden) in &mut widgets {
-        let resolved = target
-            .0
+        let resolved = cameras
+            .of(target.0)
             .filter(|_| !hidden)
-            .and_then(|entity| cameras.of(Some(entity)))
             .map_or(Rect::ZERO, |viewport| resolve_area(*area, viewport));
         computed.set_if_neq(ComputedWidgetArea(resolved));
     }

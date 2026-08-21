@@ -2,11 +2,14 @@
 //!
 //! [`UiArea`] is camera-local - a [`UiArea::Fixed`] rect is offset from the
 //! camera's viewport origin and clipped to it, never a screen rect - and
-//! [`resolve_area`] is what performs that resolution. [`UiCamera`] names the
-//! target camera and falls back to the default one when absent, [`UiOrder`]
-//! sorts widgets within a camera, and [`UiHidden`] takes a widget out of both
-//! drawing and interaction. Crates that place their own widgets go through
-//! [`resolve_camera`] and [`resolve_area`] instead of repeating the rules.
+//! [`resolve_area`] is what performs that resolution, with [`local_area`]
+//! the way back for a crate holding a screen rect. [`UiCamera`] names the
+//! target camera, [`ComputedUiCamera`] is the one a widget actually draws on
+//! once the hierarchy and the default have had their say, [`UiOrder`] sorts
+//! widgets within a camera, and [`UiHidden`] takes a widget out of both
+//! drawing and interaction. Crates that place their own widgets read
+//! [`ComputedUiCamera`] and go through [`resolve_area`] instead of repeating
+//! the rules.
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::hierarchy::ChildOf;
@@ -17,8 +20,13 @@ use crate::camera::DefaultCamera;
 
 /// Where a widget renders, in camera-local cells.
 ///
+/// Requires [`ComputedUiCamera`], because local to what is half of where:
+/// an entity carrying one of these resolves against a camera whether or
+/// not it draws anything itself.
+///
 /// Closed: a widget either takes a rect of its own or fills its camera.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[require(ComputedUiCamera)]
 pub enum UiArea {
     /// The camera's whole viewport.
     #[default]
@@ -75,11 +83,11 @@ pub fn resolve_camera(
 /// [`UiCamera`] of its own to sit on its parent's - forgetting one is
 /// otherwise a silent misplacement onto the default camera.
 ///
-/// The search reads ancestors' [`UiCamera`] components, not their computed
-/// values, so a widget placed against something it is not parented to -
-/// a popover following its anchor - overrides this component directly and
-/// that override reaches the widget alone. Parent such a widget's own
-/// children to it, which is what a menu popup does.
+/// Read it rather than write it: the search reads ancestors' [`UiCamera`]
+/// components, so a widget that must draw somewhere its hierarchy does not
+/// put it - a popover following an anchor it is not parented to - says so
+/// by holding a [`UiCamera`], which is what carries the answer to its own
+/// children too.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ComputedUiCamera(pub Option<Entity>);
 
@@ -87,15 +95,13 @@ pub(crate) fn propagate_cameras(
     default_camera: Res<DefaultCamera>,
     explicit: Query<&UiCamera>,
     parents: Query<&ChildOf>,
-    mut widgets: Query<(Entity, Option<&UiCamera>, &mut ComputedUiCamera)>,
+    mut widgets: Query<(Entity, &mut ComputedUiCamera)>,
 ) {
-    for (entity, own, mut computed) in &mut widgets {
-        let inherited = own.map(|camera| camera.0).or_else(|| {
-            parents
-                .iter_ancestors(entity)
-                .find_map(|ancestor| explicit.get(ancestor).ok().map(|camera| camera.0))
-        });
-        computed.set_if_neq(ComputedUiCamera(inherited.or(default_camera.0)));
+    for (entity, mut computed) in &mut widgets {
+        let named = std::iter::once(entity)
+            .chain(parents.iter_ancestors(entity))
+            .find_map(|entity| explicit.get(entity).ok().map(|camera| camera.0));
+        computed.set_if_neq(ComputedUiCamera(named.or(default_camera.0)));
     }
 }
 
