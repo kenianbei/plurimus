@@ -81,11 +81,11 @@ pub enum PopoverAlign {
 /// Places the widget against `anchor`'s resolved area every frame,
 /// overwriting its [`UiArea`] and its [`UiCamera`].
 ///
-/// The camera is the anchor's, which is what lets a popover follow
-/// something it is not parented to. It is written as a real [`UiCamera`]
-/// rather than a resolved value, so a popover's own children inherit it the
-/// way they inherit any camera - parent them to the popover and nothing
-/// else is needed.
+/// The camera is the anchor's unless [`camera`](Self::camera) names another,
+/// which is what lets a popover follow something it is not parented to. It is
+/// written as a real [`UiCamera`] rather than a resolved value, so a
+/// popover's own children inherit it the way they inherit any camera - parent
+/// them to the popover and nothing else is needed.
 ///
 /// The anchor must not itself be a popover.
 #[derive(Component, Debug, Clone, Copy)]
@@ -103,6 +103,16 @@ pub struct Popover {
     /// whoever set this. A cell scrolled out of the anchor's view places
     /// the popover nowhere, since there is nothing on screen to attach to.
     pub cell: Option<Position>,
+    /// Which camera to draw on; `None` takes the anchor's.
+    ///
+    /// The camera's viewport is also what the popover mirrors and clamps
+    /// into, so naming one is how a popover escapes an anchor with no room
+    /// to open against: a menu anchored to a docked one-row strip has
+    /// nowhere to be within that row, and drawing on a full-terminal camera
+    /// gives it the whole screen to be clamped into instead. The anchor
+    /// still supplies the rect, which is in screen space and so means the
+    /// same on either camera.
+    pub camera: Option<Entity>,
     /// Preferred side of the anchor.
     pub side: PopoverSide,
     /// Alignment along that side.
@@ -119,6 +129,7 @@ impl Popover {
         Self {
             anchor,
             cell: None,
+            camera: None,
             side: PopoverSide::Bottom,
             align: PopoverAlign::Start,
             size,
@@ -132,15 +143,29 @@ impl Popover {
         self.cell = Some(cell);
         self
     }
+
+    /// Draws on `camera`, and is bounded by its viewport, rather than the
+    /// anchor's.
+    #[must_use]
+    pub const fn with_camera(mut self, camera: Entity) -> Self {
+        self.camera = Some(camera);
+        self
+    }
 }
 
-/// Takes each popover onto its anchor's camera.
+/// Takes each popover onto the camera it draws on: the one it names, else
+/// its anchor's.
 ///
 /// Separate from [`place_popovers`] because the rect needs the anchor's
 /// resolved area and so must wait for `UiSystems::Areas`, while the camera
 /// needs only the anchor's own and every reader downstream wants it settled
-/// before then. Writing the resolved value serves this frame; writing a real
-/// [`UiCamera`] beside it is what reaches the popover's own children.
+/// before then - the placement included, which resolves against the viewport
+/// of whichever camera this settled on. Writing the resolved value serves
+/// this frame; writing a real [`UiCamera`] beside it is what reaches the
+/// popover's own children.
+///
+/// A popover whose anchor is gone adopts nothing, a camera it named
+/// included: it is placed against that anchor or not at all.
 pub(crate) fn adopt_anchor_cameras(
     anchors: Query<&ComputedUiCamera, Without<Popover>>,
     mut popovers: Query<(Entity, &Popover, &mut ComputedUiCamera, Option<&UiCamera>)>,
@@ -150,8 +175,9 @@ pub(crate) fn adopt_anchor_cameras(
         let Ok(anchor_camera) = anchors.get(popover.anchor) else {
             continue;
         };
-        target.set_if_neq(*anchor_camera);
-        if let Some(camera) = anchor_camera.0
+        let drawn_on = popover.camera.or(anchor_camera.0);
+        target.set_if_neq(ComputedUiCamera(drawn_on));
+        if let Some(camera) = drawn_on
             && own_camera.map(|own| own.0) != Some(camera)
         {
             commands.entity(entity).insert(UiCamera(camera));
@@ -159,32 +185,28 @@ pub(crate) fn adopt_anchor_cameras(
     }
 }
 
-type Anchors<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static ComputedWidgetArea,
-        &'static ComputedUiCamera,
-        Option<&'static ScrollOffset>,
-    ),
-    Without<Popover>,
->;
+type Anchors<'w, 's> =
+    Query<'w, 's, (&'static ComputedWidgetArea, Option<&'static ScrollOffset>), Without<Popover>>;
 
 pub(crate) fn place_popovers(
     cameras: CameraViewports,
     anchors: Anchors,
     mut popovers: Query<(
         &Popover,
+        &ComputedUiCamera,
         &mut UiArea,
         &mut ComputedWidgetArea,
         Has<UiHidden>,
     )>,
 ) {
-    for (popover, mut area, mut computed, hidden) in &mut popovers {
-        let Ok((anchor_area, anchor_camera, offset)) = anchors.get(popover.anchor) else {
+    for (popover, target, mut area, mut computed, hidden) in &mut popovers {
+        let Ok((anchor_area, offset)) = anchors.get(popover.anchor) else {
             continue;
         };
-        let viewport = cameras.of(anchor_camera.0);
+        // The popover's own camera, which adoption settled before areas
+        // resolved: the anchor's rect is in screen space either way, so
+        // only the bound to mirror and clamp into changes.
+        let viewport = cameras.of(target.0);
         let anchored = anchor_rect(popover, anchor_area.0, offset);
         let rect = viewport
             .zip(anchored)

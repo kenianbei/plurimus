@@ -3,17 +3,21 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::hierarchy::ChildOf;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{
-    Background, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera, UiWidget, Viewport,
+    Background, ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera,
+    UiWidget, Viewport,
 };
 use plurimus_ui::{ComputedWidgetArea, ScrollOffset};
-use plurimus_widgets::{Popover, PopoverAlign, WidgetsPlugin};
+use plurimus_widgets::{Popover, PopoverAlign, PopoverSide, WidgetsPlugin};
 use ratatui_widgets::paragraph::Paragraph;
 
 const FULL: Rect = Rect::new(0, 0, 20, 12);
 const SHORT: Rect = Rect::new(0, 0, 20, 6);
+const STRIP: Rect = Rect::new(0, 11, 20, 1);
 const ANCHOR: Rect = Rect::new(2, 1, 10, 4);
+const ON_STRIP: Rect = Rect::new(0, 0, 6, 1);
 const CELL: Position = Position::new(3, 2);
 
 fn app() -> App {
@@ -52,6 +56,31 @@ fn spawn_popover(app: &mut App, popover: Popover) -> Entity {
 
 fn placed(app: &App, popover: Entity) -> Rect {
     app.world().get::<ComputedWidgetArea>(popover).unwrap().0
+}
+
+fn camera_of(app: &App, entity: Entity) -> Option<Entity> {
+    app.world().get::<ComputedUiCamera>(entity).unwrap().0
+}
+
+// A widget on a docked command strip, with a full-terminal camera to
+// escape onto: everything the escape is for.
+struct Strip {
+    full: Entity,
+    anchor: Entity,
+}
+
+fn strip(app: &mut App) -> Strip {
+    let docked = spawn_camera(app, STRIP, 1);
+    Strip {
+        full: spawn_camera(app, FULL, 0),
+        anchor: spawn_anchor(app, docked, ON_STRIP),
+    }
+}
+
+const fn opening_upward(anchor: Entity) -> Popover {
+    let mut popover = Popover::new(anchor, Size::new(4, 5));
+    popover.side = PopoverSide::Top;
+    popover
 }
 
 // The cell case is the whole-rect case against a 1x1 anchor, which is what
@@ -161,4 +190,85 @@ fn a_whole_rect_anchor_ignores_the_offset() {
     app.update();
 
     assert_eq!(placed(&app, popover), Rect::new(2, 5, 4, 2));
+}
+
+#[test]
+fn a_popover_draws_on_the_camera_it_names() {
+    let mut app = app();
+    let strip = strip(&mut app);
+    let popover = spawn_popover(
+        &mut app,
+        opening_upward(strip.anchor).with_camera(strip.full),
+    );
+    let child = app
+        .world_mut()
+        .spawn((UiWidget::new(Paragraph::new("in")), ChildOf(popover)))
+        .id();
+
+    app.update();
+    app.update();
+
+    assert_eq!(camera_of(&app, popover), Some(strip.full));
+    assert_eq!(camera_of(&app, child), Some(strip.full));
+}
+
+// The whole point of naming a camera: a ten-row box anchored to a one-row
+// strip has nowhere to be within that row, and everywhere to be above it.
+#[test]
+fn a_named_camera_is_the_clamp_bound() {
+    let mut app = app();
+    let strip = strip(&mut app);
+    let escaped = spawn_popover(
+        &mut app,
+        opening_upward(strip.anchor).with_camera(strip.full),
+    );
+    let confined = spawn_popover(&mut app, opening_upward(strip.anchor));
+
+    app.update();
+
+    assert_eq!(placed(&app, escaped), Rect::new(0, 6, 4, 5));
+    assert_eq!(
+        placed(&app, confined),
+        Rect::new(0, 11, 4, 1),
+        "without a camera of its own it is still flattened into the strip"
+    );
+}
+
+// Adoption is the anchor's to grant: a popover with nowhere to be placed
+// takes no camera either, rather than holding a `UiCamera` for a frame that
+// never draws it.
+#[test]
+fn a_popover_with_no_anchor_adopts_nothing() {
+    let mut app = app();
+    let default_camera = spawn_camera(&mut app, FULL, 0);
+    let docked = spawn_camera(&mut app, STRIP, 1);
+    let popover = spawn_popover(
+        &mut app,
+        Popover::new(Entity::PLACEHOLDER, Size::new(4, 2)).with_camera(docked),
+    );
+
+    app.update();
+
+    assert_eq!(camera_of(&app, popover), Some(default_camera));
+}
+
+#[test]
+fn a_named_camera_without_a_viewport_places_nothing() {
+    let mut app = app();
+    let strip = strip(&mut app);
+    let popover = spawn_popover(
+        &mut app,
+        opening_upward(strip.anchor).with_camera(strip.full),
+    );
+    app.update();
+    app.world_mut().entity_mut(strip.full).despawn();
+
+    app.update();
+
+    assert_eq!(placed(&app, popover), Rect::ZERO);
+    assert_eq!(
+        camera_of(&app, popover),
+        Some(strip.full),
+        "the camera it asked for is still what it says it draws on"
+    );
 }

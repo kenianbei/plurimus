@@ -91,6 +91,7 @@ mod tests {
         Popover {
             anchor: Entity::PLACEHOLDER,
             cell: None,
+            camera: None,
             side,
             align,
             size: Size::new(width, height),
