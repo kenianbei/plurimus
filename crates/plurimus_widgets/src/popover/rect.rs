@@ -89,12 +89,9 @@ mod tests {
 
     fn popover(side: PopoverSide, align: PopoverAlign, width: u16, height: u16) -> Popover {
         Popover {
-            anchor: Entity::PLACEHOLDER,
-            cell: None,
-            camera: None,
             side,
             align,
-            size: Size::new(width, height),
+            ..Popover::new(Entity::PLACEHOLDER, Size::new(width, height))
         }
     }
 

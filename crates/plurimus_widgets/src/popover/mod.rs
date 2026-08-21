@@ -151,6 +151,20 @@ impl Popover {
         self.camera = Some(camera);
         self
     }
+
+    /// Opens on `side` of the anchor rather than below it.
+    #[must_use]
+    pub const fn with_side(mut self, side: PopoverSide) -> Self {
+        self.side = side;
+        self
+    }
+
+    /// Aligns along the anchor's edge as `align` says rather than leading.
+    #[must_use]
+    pub const fn with_align(mut self, align: PopoverAlign) -> Self {
+        self.align = align;
+        self
+    }
 }
 
 /// Takes each popover onto the camera it draws on: the one it names, else
@@ -185,12 +199,9 @@ pub(crate) fn adopt_anchor_cameras(
     }
 }
 
-type Anchors<'w, 's> =
-    Query<'w, 's, (&'static ComputedWidgetArea, Option<&'static ScrollOffset>), Without<Popover>>;
-
 pub(crate) fn place_popovers(
     cameras: CameraViewports,
-    anchors: Anchors,
+    anchors: Query<(&ComputedWidgetArea, Option<&ScrollOffset>), Without<Popover>>,
     mut popovers: Query<(
         &Popover,
         &ComputedUiCamera,
@@ -203,16 +214,13 @@ pub(crate) fn place_popovers(
         let Ok((anchor_area, offset)) = anchors.get(popover.anchor) else {
             continue;
         };
-        // The popover's own camera, which adoption settled before areas
-        // resolved: the anchor's rect is in screen space either way, so
-        // only the bound to mirror and clamp into changes.
         let viewport = cameras.of(target.0);
-        let anchored = anchor_rect(popover, anchor_area.0, offset);
         let rect = viewport
-            .zip(anchored)
-            .map_or(Rect::ZERO, |(viewport, anchored)| {
-                popover_rect(anchored, popover, viewport)
-            });
+            .and_then(|viewport| {
+                let anchored = anchor_rect(popover, anchor_area.0, offset)?;
+                Some(popover_rect(anchored, popover, viewport))
+            })
+            .unwrap_or(Rect::ZERO);
         // Hidden popovers track their anchor through UiArea alone;
         // compute_widget_areas keeps input zeroed, so the unhide frame
         // extracts a placed rect, not a stale one.
@@ -231,13 +239,11 @@ pub(crate) fn place_popovers(
 /// scrolled out of its window - which places the popover at [`Rect::ZERO`]
 /// rather than anywhere a guess would put it.
 fn anchor_rect(popover: &Popover, area: Rect, offset: Option<&ScrollOffset>) -> Option<Rect> {
-    if area.is_empty() {
-        return None;
+    match popover.cell {
+        None => (!area.is_empty()).then_some(area),
+        Some(cell) => {
+            let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
+            screen_cell(cell, area, offset).map(|cell| Rect::new(cell.x, cell.y, 1, 1))
+        }
     }
-    let Some(cell) = popover.cell else {
-        return Some(area);
-    };
-    let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
-    let cell = screen_cell(cell, area, offset)?;
-    Some(Rect::new(cell.x, cell.y, 1, 1))
 }

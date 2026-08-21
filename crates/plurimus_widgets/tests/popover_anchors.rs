@@ -62,25 +62,32 @@ fn camera_of(app: &App, entity: Entity) -> Option<Entity> {
     app.world().get::<ComputedUiCamera>(entity).unwrap().0
 }
 
-// A widget on a docked command strip, with a full-terminal camera to
-// escape onto: everything the escape is for.
+// A widget on a docked command strip, with a full-terminal camera above it
+// to escape onto: everything the escape is for.
+//
+// The strip is the lowest-ordered camera and so the default one, which is
+// what lets these tests tell the camera a popover was given from the camera
+// everything falls back to.
 struct Strip {
     full: Entity,
     anchor: Entity,
 }
 
 fn strip(app: &mut App) -> Strip {
-    let docked = spawn_camera(app, STRIP, 1);
+    let docked = spawn_camera(app, STRIP, 0);
     Strip {
-        full: spawn_camera(app, FULL, 0),
+        full: spawn_camera(app, FULL, 1),
         anchor: spawn_anchor(app, docked, ON_STRIP),
     }
 }
 
+fn anchored(app: &mut App, viewport: Rect) -> Entity {
+    let camera = spawn_camera(app, viewport, 0);
+    spawn_anchor(app, camera, ANCHOR)
+}
+
 const fn opening_upward(anchor: Entity) -> Popover {
-    let mut popover = Popover::new(anchor, Size::new(4, 5));
-    popover.side = PopoverSide::Top;
-    popover
+    Popover::new(anchor, Size::new(4, 5)).with_side(PopoverSide::Top)
 }
 
 // The cell case is the whole-rect case against a 1x1 anchor, which is what
@@ -88,8 +95,7 @@ const fn opening_upward(anchor: Entity) -> Popover {
 #[test]
 fn a_cell_anchor_opens_below_the_cell() {
     let mut app = app();
-    let camera = spawn_camera(&mut app, FULL, 0);
-    let anchor = spawn_anchor(&mut app, camera, ANCHOR);
+    let anchor = anchored(&mut app, FULL);
     let popover = spawn_popover(
         &mut app,
         Popover::new(anchor, Size::new(4, 2)).with_cell(CELL),
@@ -103,8 +109,7 @@ fn a_cell_anchor_opens_below_the_cell() {
 #[test]
 fn a_cell_anchor_mirrors_above_when_below_overflows() {
     let mut app = app();
-    let camera = spawn_camera(&mut app, SHORT, 0);
-    let anchor = spawn_anchor(&mut app, camera, ANCHOR);
+    let anchor = anchored(&mut app, SHORT);
     let popover = spawn_popover(
         &mut app,
         Popover::new(anchor, Size::new(4, 3)).with_cell(CELL),
@@ -122,8 +127,7 @@ fn a_cell_anchor_mirrors_above_when_below_overflows() {
 #[test]
 fn a_cell_anchor_follows_the_scroll_offset() {
     let mut app = app();
-    let camera = spawn_camera(&mut app, FULL, 0);
-    let anchor = spawn_anchor(&mut app, camera, ANCHOR);
+    let anchor = anchored(&mut app, FULL);
     app.world_mut()
         .entity_mut(anchor)
         .insert(ScrollOffset(Position::new(0, 1)));
@@ -140,8 +144,7 @@ fn a_cell_anchor_follows_the_scroll_offset() {
 #[test]
 fn a_cell_scrolled_out_of_view_places_nothing() {
     let mut app = app();
-    let camera = spawn_camera(&mut app, FULL, 0);
-    let anchor = spawn_anchor(&mut app, camera, ANCHOR);
+    let anchor = anchored(&mut app, FULL);
     app.world_mut()
         .entity_mut(anchor)
         .insert(ScrollOffset(Position::new(0, 3)));
@@ -158,12 +161,14 @@ fn a_cell_scrolled_out_of_view_places_nothing() {
 #[test]
 fn a_cell_anchor_aligns_on_the_cell() {
     let mut app = app();
-    let camera = spawn_camera(&mut app, FULL, 0);
-    let anchor = spawn_anchor(&mut app, camera, ANCHOR);
+    let anchor = anchored(&mut app, FULL);
     let aligned = |app: &mut App, align| {
-        let mut popover = Popover::new(anchor, Size::new(3, 2)).with_cell(CELL);
-        popover.align = align;
-        let entity = spawn_popover(app, popover);
+        let entity = spawn_popover(
+            app,
+            Popover::new(anchor, Size::new(3, 2))
+                .with_cell(CELL)
+                .with_align(align),
+        );
         app.update();
         placed(app, entity)
     };
@@ -180,8 +185,7 @@ fn a_cell_anchor_aligns_on_the_cell() {
 #[test]
 fn a_whole_rect_anchor_ignores_the_offset() {
     let mut app = app();
-    let camera = spawn_camera(&mut app, FULL, 0);
-    let anchor = spawn_anchor(&mut app, camera, ANCHOR);
+    let anchor = anchored(&mut app, FULL);
     app.world_mut()
         .entity_mut(anchor)
         .insert(ScrollOffset(Position::new(0, 3)));
@@ -205,6 +209,8 @@ fn a_popover_draws_on_the_camera_it_names() {
         .spawn((UiWidget::new(Paragraph::new("in")), ChildOf(popover)))
         .id();
 
+    // Two frames: adoption writes a real `UiCamera`, and the propagation
+    // that carries it to the children ran earlier in the same one.
     app.update();
     app.update();
 
@@ -232,6 +238,26 @@ fn a_named_camera_is_the_clamp_bound() {
         Rect::new(0, 11, 4, 1),
         "without a camera of its own it is still flattened into the strip"
     );
+}
+
+// The two fields compose because the anchor's rect is resolved in screen
+// space before any camera is consulted: a cell means the same thing
+// wherever the popover ends up being drawn.
+#[test]
+fn a_cell_anchor_and_a_named_camera_compose() {
+    let mut app = app();
+    let strip = strip(&mut app);
+    let popover = spawn_popover(
+        &mut app,
+        Popover::new(strip.anchor, Size::new(4, 5))
+            .with_side(PopoverSide::Top)
+            .with_cell(Position::new(2, 0))
+            .with_camera(strip.full),
+    );
+
+    app.update();
+
+    assert_eq!(placed(&app, popover), Rect::new(2, 6, 4, 5));
 }
 
 // Adoption is the anchor's to grant: a popover with nowhere to be placed
