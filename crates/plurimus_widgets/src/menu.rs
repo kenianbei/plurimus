@@ -79,6 +79,7 @@ pub fn menu_popup(anchor: Entity) -> impl Bundle {
         MenuPopup,
         Popover {
             anchor,
+            cell: None,
             side: PopoverSide::Bottom,
             align: PopoverAlign::Start,
             size: Size::ZERO,

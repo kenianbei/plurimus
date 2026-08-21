@@ -7,17 +7,29 @@
 //! side has no room the popover mirrors to the opposite one and, failing
 //! that, is clamped into the viewport, which is why a popover near an edge
 //! stays wholly visible instead of being cut off.
+//!
+//! What it attaches to is either the anchor's whole area or one cell of the
+//! anchor's content, which is what puts a completion list under a caret: the
+//! cell is named in content space and the anchor's own [`ScrollOffset`] maps
+//! it, so an editor says where its caret is exactly once, in the component
+//! it already publishes it in.
+//!
+//! Every side attaches to an *outer* edge, so a box drawn *inside* its
+//! anchor is not a popover at all - it is a child holding a
+//! [`UiArea::Fixed`], placed from the anchor's rect with
+//! [`local_area`]. That case has no side to mirror and no edge to align to,
+//! which is why [`PopoverSide`] has four variants and not five.
 
 mod rect;
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Without};
-use plurimus_core::ratatui_core::layout::{Rect, Size};
+use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 
 use plurimus_core::{
     CameraViewports, ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area,
 };
-use plurimus_ui::ComputedWidgetArea;
+use plurimus_ui::{ComputedWidgetArea, ScrollOffset, screen_cell};
 
 use rect::popover_rect;
 
@@ -82,6 +94,15 @@ pub enum PopoverAlign {
 pub struct Popover {
     /// The widget this popover attaches to.
     pub anchor: Entity,
+    /// Which cell of the anchor to attach to, in the anchor's content
+    /// space; `None` attaches to the whole of its area.
+    ///
+    /// Content space rather than screen space, so a caret is named the way
+    /// [`WidgetCursor`](plurimus_ui::WidgetCursor) names it and the
+    /// anchor's own [`ScrollOffset`] is applied here rather than by
+    /// whoever set this. A cell scrolled out of the anchor's view places
+    /// the popover nowhere, since there is nothing on screen to attach to.
+    pub cell: Option<Position>,
     /// Preferred side of the anchor.
     pub side: PopoverSide,
     /// Alignment along that side.
@@ -97,10 +118,19 @@ impl Popover {
     pub const fn new(anchor: Entity, size: Size) -> Self {
         Self {
             anchor,
+            cell: None,
             side: PopoverSide::Bottom,
             align: PopoverAlign::Start,
             size,
         }
+    }
+
+    /// Attaches to one cell of the anchor's content rather than to the
+    /// whole of its area.
+    #[must_use]
+    pub const fn with_cell(mut self, cell: Position) -> Self {
+        self.cell = Some(cell);
+        self
     }
 }
 
@@ -129,9 +159,20 @@ pub(crate) fn adopt_anchor_cameras(
     }
 }
 
+type Anchors<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static ComputedWidgetArea,
+        &'static ComputedUiCamera,
+        Option<&'static ScrollOffset>,
+    ),
+    Without<Popover>,
+>;
+
 pub(crate) fn place_popovers(
     cameras: CameraViewports,
-    anchors: Query<(&ComputedWidgetArea, &ComputedUiCamera), Without<Popover>>,
+    anchors: Anchors,
     mut popovers: Query<(
         &Popover,
         &mut UiArea,
@@ -140,14 +181,15 @@ pub(crate) fn place_popovers(
     )>,
 ) {
     for (popover, mut area, mut computed, hidden) in &mut popovers {
-        let Ok((anchor_area, anchor_camera)) = anchors.get(popover.anchor) else {
+        let Ok((anchor_area, anchor_camera, offset)) = anchors.get(popover.anchor) else {
             continue;
         };
         let viewport = cameras.of(anchor_camera.0);
+        let anchored = anchor_rect(popover, anchor_area.0, offset);
         let rect = viewport
-            .filter(|_| !anchor_area.0.is_empty())
-            .map_or(Rect::ZERO, |viewport| {
-                popover_rect(anchor_area.0, popover, viewport)
+            .zip(anchored)
+            .map_or(Rect::ZERO, |(viewport, anchored)| {
+                popover_rect(anchored, popover, viewport)
             });
         // Hidden popovers track their anchor through UiArea alone;
         // compute_widget_areas keeps input zeroed, so the unhide frame
@@ -158,4 +200,22 @@ pub(crate) fn place_popovers(
         let local = viewport.map_or(rect, |viewport| local_area(rect, viewport));
         area.set_if_neq(UiArea::Fixed(local));
     }
+}
+
+/// What the popover is placed against: the anchor's whole area, or the one
+/// cell of its content [`Popover::cell`] names.
+///
+/// `None` is "nowhere to attach to" - an anchor drawing nothing, or a cell
+/// scrolled out of its window - which places the popover at [`Rect::ZERO`]
+/// rather than anywhere a guess would put it.
+fn anchor_rect(popover: &Popover, area: Rect, offset: Option<&ScrollOffset>) -> Option<Rect> {
+    if area.is_empty() {
+        return None;
+    }
+    let Some(cell) = popover.cell else {
+        return Some(area);
+    };
+    let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
+    let cell = screen_cell(cell, area, offset)?;
+    Some(Rect::new(cell.x, cell.y, 1, 1))
 }
