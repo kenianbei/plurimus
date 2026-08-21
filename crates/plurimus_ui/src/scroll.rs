@@ -163,6 +163,9 @@ impl ScrollBy {
     }
 }
 
+// Disabled still means fall-through here, unlike the press: consuming a
+// tick is this router's own opt-in, and a disabled widget consuming
+// nothing is the same as an axis it cannot scroll.
 type WheelTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<InteractionDisabled>)>;
 

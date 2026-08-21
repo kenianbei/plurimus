@@ -10,10 +10,14 @@ use plurimus_bui::BuiPlugin;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{press_key, send_mouse};
+use plurimus_ui::{Hovered, InteractionDisabled, PointerPress};
 use plurimus_widgets::{Activate, Button, WidgetsPlugin};
 
 #[derive(Resource, Default)]
 struct Activations(u32);
+
+#[derive(Resource, Default)]
+struct Presses(Vec<Entity>);
 
 fn app() -> App {
     let mut app = App::new();
@@ -208,4 +212,47 @@ fn content_rect_excludes_border_and_padding() {
         rects.content,
         plurimus_core::ratatui_core::layout::Rect::new(2, 2, 6, 1)
     );
+}
+
+// The same absorb rule the widget router applies: a disabled node blocks
+// the press instead of letting it fall to the node beneath it.
+#[test]
+fn a_disabled_node_absorbs_the_press() {
+    let mut app = app();
+    app.init_resource::<Presses>();
+    app.add_observer(|press: On<PointerPress>, mut log: ResMut<Presses>| log.0.push(press.entity));
+
+    let root = app
+        .world_mut()
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..Node::default()
+            },
+            Hovered::default(),
+        ))
+        .id();
+    let cover = app
+        .world_mut()
+        .spawn((
+            Node {
+                width: Val::Px(8.0),
+                height: Val::Px(1.0),
+                ..Node::default()
+            },
+            Hovered::default(),
+            InteractionDisabled,
+            ChildOf(root),
+        ))
+        .id();
+    app.update();
+    app.update();
+
+    send_mouse(&mut app, MouseKind::Moved, 2, 0);
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+
+    let presses = &app.world().resource::<Presses>().0;
+    assert!(!presses.contains(&root), "nothing beneath was pressed");
+    assert!(!presses.contains(&cover), "and the disabled node is inert");
 }
