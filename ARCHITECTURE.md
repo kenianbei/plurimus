@@ -231,12 +231,22 @@ alone - which is the whole of what tells committing an entry from abandoning
 one. Its caret is drawn only while it holds focus, so a screenful of fields
 shows the one the keys reach. Most widgets are stateless controllers emitting
 entity events (`Activate`, `ValueChange`); apps apply them, or attach the stock
-`*_self_update` observers for uncontrolled behavior. A stylist rebuilds a
-widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the state it last drew
-differs from the current one, or when its label changed, not every frame, and
-they run in the `WidgetSystems::Style` set an app orders its own against. Only
-the stylists themselves are the crate's: the cache they gate on, the state they
-read, the label they draw, and the theme vocabulary the app speaks all belong to
+`*_self_update` observers for uncontrolled behavior. Which keys activate one is
+the app's: `Button`, `Checkbox` and `RadioButton` require `ActivateKeys`,
+defaulting to Enter and space, and a key the widget is not bound to activates
+nothing and propagates - so binding space alone is what lets the form around a
+checkbox keep Enter for its submit, and an empty list turns the keyboard path
+off while leaving the click. Consuming the key is what activating does, which is
+why a disabled widget passes its bound keys on too. It holds bare `Key`s rather
+than the `(Key, Action)` pairs a list box or table binds, activation having one
+action to name; a repeat never activates, one intent committing once. A menu
+item's Enter and space are fixed instead of bound, focus sitting inside the
+popup while it is open. A stylist rebuilds a widget's `UiWidget` from
+`plurimus_ui`'s `UiTheme` when the state it last drew differs from the current
+one, or when its label changed, not every frame, and they run in the
+`WidgetSystems::Style` set an app orders its own against. Only the stylists
+themselves are the crate's: the cache they gate on, the state they read, the
+label they draw, and the theme vocabulary the app speaks all belong to
 `plurimus_ui`, which is what lets a widget family outside this workspace be
 written against the same engine. `StylistDisabled` exempts an entity so an app
 takes its look while keeping its behavior, and `UiStyle` patches over the style
