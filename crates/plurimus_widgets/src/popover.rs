@@ -13,7 +13,7 @@ use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Res, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::{DefaultCamera, ResolvedViewport};
 
-use plurimus_core::{UiArea, UiCamera, UiHidden, UiOrder, resolve_camera};
+use plurimus_core::{UiArea, UiCamera, UiHidden, UiOrder, local_area, resolve_camera};
 use plurimus_ui::ComputedWidgetArea;
 
 /// Which side of the anchor the popover opens on; mirrored to the
@@ -126,7 +126,7 @@ pub(crate) fn place_popovers(
         if !hidden {
             computed.set_if_neq(ComputedWidgetArea(rect));
         }
-        let local = viewport.map_or(rect, |viewport| localize(rect, viewport));
+        let local = viewport.map_or(rect, |viewport| local_area(rect, viewport));
         area.set_if_neq(UiArea::Fixed(local));
         if let Some(camera) = camera
             && own_camera.map(|own| own.0) != Some(camera)
@@ -207,15 +207,6 @@ const fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -
     }
 }
 
-const fn localize(rect: Rect, viewport: Rect) -> Rect {
-    Rect::new(
-        rect.x.saturating_sub(viewport.x),
-        rect.y.saturating_sub(viewport.y),
-        rect.width,
-        rect.height,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,14 +284,5 @@ mod tests {
             VIEWPORT,
         );
         assert_eq!(placed, Rect::new(0, 5, 6, 2));
-    }
-
-    #[test]
-    fn localize_offsets_by_viewport_origin() {
-        let viewport = Rect::new(4, 2, 10, 6);
-        assert_eq!(
-            localize(Rect::new(6, 3, 2, 1), viewport),
-            Rect::new(2, 1, 2, 1)
-        );
     }
 }

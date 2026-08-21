@@ -50,7 +50,9 @@ pub use sub_app::{
     TerminalRenderAppExt, TerminalRenderSystems,
 };
 pub use viewport::{CameraSystems, Edge, ResolvedViewport, Viewport};
-pub use widget::placement::{UiArea, UiCamera, UiHidden, UiOrder, resolve_area, resolve_camera};
+pub use widget::placement::{
+    UiArea, UiCamera, UiHidden, UiOrder, local_area, resolve_area, resolve_camera,
+};
 pub use widget::raster::{ExtractedWidget, RasterDeferred, WidgetRasterize};
 pub use widget::{TerminalWidget, UiWidget};
 
