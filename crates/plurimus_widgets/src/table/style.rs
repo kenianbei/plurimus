@@ -11,10 +11,12 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res};
 use bevy_input_focus::InputFocus;
+use plurimus_core::ratatui_core::layout::Constraint;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::table::{Cell, HighlightSpacing, Row, Table as RatatuiTable, TableState};
 
+use super::geometry::{resolved_widths, solve_width};
 use super::{
     ActiveColumn, Table, TableCheckedStyle, TableColumns, TableCursor, TableFooter, TableHeader,
     TableLayout, TableRow, TableSelection, TableStripe,
@@ -23,7 +25,7 @@ use crate::rows::ActiveDescendant;
 use crate::rows::ContentDirty;
 use crate::rows::{cursor_style, cursor_symbol};
 use plurimus_core::UiWidget;
-use plurimus_ui::{Checked, UiStyle, UiTheme};
+use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 pub(crate) type TableRowsChanged = Or<(
@@ -74,6 +76,9 @@ type Cursor<'a> = (
     Option<&'a ActiveColumn>,
 );
 
+// The width the columns are solved against, which is the click path's too.
+type Extent<'a> = (&'a ComputedWidgetArea, Option<&'a ScrollArea>);
+
 type Tables<'w, 's> = Query<
     'w,
     's,
@@ -83,6 +88,7 @@ type Tables<'w, 's> = Query<
         &'static TableColumns,
         Look<'static>,
         Cursor<'static>,
+        Extent<'static>,
         Ref<'static, ContentDirty<Table>>,
         &'static mut StylistCache,
         &'static mut UiWidget,
@@ -96,6 +102,9 @@ struct Bands {
     footer: Option<Row<'static>>,
     body: Vec<Row<'static>>,
     cursor: Option<usize>,
+    // Counted here rather than in a second pass, and over every band, which
+    // is the rule an empty `TableColumns` is divided by.
+    widest: usize,
 }
 
 // The per-row styles a table resolves before its rows' own overrides.
@@ -104,8 +113,8 @@ struct RowStyles {
     checked: Option<Style>,
 }
 
-struct Chrome<'a> {
-    columns: &'a TableColumns,
+struct Chrome {
+    widths: Vec<Constraint>,
     layout: TableLayout,
     base: Style,
 }
@@ -123,15 +132,23 @@ pub(crate) fn style_tables(
     mut tables: Tables,
     rows: TableRows,
 ) {
-    for (state, children, columns, look, cursor, content, mut cache, mut widget) in &mut tables {
+    for (state, children, columns, look, cursor, extent, content, mut cache, mut widget) in
+        &mut tables
+    {
         let (stripe, checked, layout, symbol) = look;
         let (selection, active, column) = cursor;
-        // A `Copy` scalar pair, compared here so the cursor needs no
-        // system ordering against whatever moved it.
+        let (area, scroll) = extent;
+        // `Copy` scalars, compared here so neither the cursor nor a resize
+        // needs system ordering against whatever moved it.
+        let width = solve_width(*area, scroll);
         let next = observed(
             state,
             &focus,
-            hashed_bits((active.map(|active| active.0), column.map(|column| column.0))),
+            hashed_bits((
+                active.map(|active| active.0),
+                column.map(|column| column.0),
+                width,
+            )),
         );
         if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
@@ -142,7 +159,7 @@ pub(crate) fn style_tables(
         };
         let bands = bands(children, &rows, &styles, active.and_then(|active| active.0));
         let chrome = Chrome {
-            columns,
+            widths: resolved_widths(columns, || bands.widest, width),
             layout: layout.copied().unwrap_or_default(),
             base: next.resting_style(&theme),
         };
@@ -171,6 +188,7 @@ fn bands(
         let Ok((row, cells, is_header, is_footer, over, checked)) = rows.get(child) else {
             continue;
         };
+        bands.widest = bands.widest.max(cells.0.len());
         let over = over.map(|style| style.0);
         if is_header {
             bands.header = Some(row_widget(cells, over.unwrap_or_default()));
@@ -199,7 +217,7 @@ fn row_widget(cells: &TableRow, style: Style) -> Row<'static> {
 }
 
 fn table_widget(bands: Bands, chrome: Chrome, highlight: Highlight) -> UiWidget {
-    let mut table = RatatuiTable::new(bands.body, chrome.columns.0.iter().copied())
+    let mut table = RatatuiTable::new(bands.body, chrome.widths)
         .style(chrome.base)
         .column_spacing(chrome.layout.column_spacing)
         .flex(chrome.layout.flex)

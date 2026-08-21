@@ -13,6 +13,14 @@
 //! in view is two tables, an unscrolled header above the scrolled rows,
 //! sharing one [`TableColumns`].
 //!
+//! A cell is therefore not a widget and cannot hold one. Editing one in
+//! place means floating a widget over where it is drawn: ask
+//! [`TableGeometry::cell_rect`] for the cell's screen rect, turn it into a
+//! [`UiArea`](plurimus_core::UiArea) with
+//! [`local_area`](plurimus_core::local_area), and give the floated widget a
+//! higher [`UiOrder`](plurimus_core::UiOrder) than the table. The table
+//! knows nothing about it; what it does is report where its cells are.
+//!
 //! For cells holding arbitrary content rather than text, a `bevy_ui`
 //! `Display::Grid` tree laid out by `plurimus_bui` is the other tool: it
 //! sizes cells with taffy, at the cost of an entity and a layout node each,
@@ -21,6 +29,8 @@
 mod geometry;
 mod input;
 mod style;
+
+pub use geometry::TableGeometry;
 
 pub(crate) use geometry::BodyRow as TableBodyRow;
 pub(crate) use input::{reveal_table_cursor, table_click, table_key};
@@ -51,11 +61,15 @@ pub struct Table;
 
 /// A [`Table`]'s column widths, resolved by ratatui's layout.
 ///
-/// An empty set is ratatui's signal to divide the width equally among as
-/// many columns as the widest row has. Not a required component, so that a
-/// [`Table`] is styled only once the app has said how wide its columns are;
-/// one without it keeps whatever [`UiWidget`](plurimus_core::UiWidget) it
-/// carries.
+/// An empty set divides the table's width equally among as many columns as
+/// the widest of its rows has - a scrolled table's content width, being what
+/// it is drawn into. This crate expands that default itself rather than
+/// leaving it to ratatui, so the columns a click resolves against are the
+/// ones that were drawn.
+///
+/// Not a required component, so that a [`Table`] is styled only once the app
+/// has said how wide its columns are; one without it keeps whatever
+/// [`UiWidget`](plurimus_core::UiWidget) it carries.
 #[derive(Component, Debug, Clone)]
 pub struct TableColumns(pub Vec<Constraint>);
 
