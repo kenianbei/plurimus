@@ -10,7 +10,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, On, Query, Res, With, Without};
+use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
 use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -31,6 +31,30 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Hovered, StylistCache, TextInput)]
 pub struct EditableText;
+
+/// An [`EditableText`] was submitted with Enter, carrying the value at that
+/// moment.
+///
+/// The final [`ValueChange<String>`] fires beside it, and again whenever the
+/// field loses focus, so the two are indistinguishable to a consumer that
+/// reads only that. Listening here is how committing an entry stays separate
+/// from abandoning one.
+#[derive(EntityEvent, Debug, Clone)]
+#[non_exhaustive]
+pub struct Submit {
+    /// The submitted field.
+    pub entity: Entity,
+    /// The field's value at submission.
+    pub value: String,
+}
+
+impl Submit {
+    /// A submission of `entity` carrying `value`.
+    #[must_use]
+    pub const fn new(entity: Entity, value: String) -> Self {
+        Self { entity, value }
+    }
+}
 
 /// Spawn bundle for a single-line text field.
 pub fn editable_text(value: impl Into<String>) -> impl Bundle {
@@ -64,6 +88,7 @@ pub(crate) fn text_input_key(
     input.propagate(false);
     if submitted {
         emit(field, &text, true, &mut commands);
+        commands.trigger(Submit::new(field, text.value().to_owned()));
     } else if text.value().len() != length_before {
         emit(field, &text, false, &mut commands);
     }

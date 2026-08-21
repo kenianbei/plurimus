@@ -6,21 +6,28 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, PasteMessage};
-use plurimus_test::{composed_styled_frame, press_key};
+use plurimus_term::{KeyCode, ModifierKey, PasteMessage};
+use plurimus_test::{composed_styled_frame, press_chord, press_key};
 use plurimus_ui::{UiArea, ValueChange};
-use plurimus_widgets::{TextInput, WidgetsPlugin, editable_text};
+use plurimus_widgets::{Submit, TextInput, WidgetsPlugin, editable_text};
 
 #[derive(Resource, Default)]
 struct Edits(Vec<(String, bool)>);
+
+#[derive(Resource, Default)]
+struct Submits(Vec<String>);
 
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(6, 1));
     app.init_resource::<Edits>();
+    app.init_resource::<Submits>();
     app.add_observer(|change: On<ValueChange<String>>, mut log: ResMut<Edits>| {
         log.0.push((change.value.clone(), change.is_final));
+    });
+    app.add_observer(|submit: On<Submit>, mut log: ResMut<Submits>| {
+        log.0.push(submit.value.clone());
     });
     app.world_mut().spawn(TerminalCamera::default());
     app
@@ -95,6 +102,45 @@ fn enter_and_blur_emit_final() {
         app.world().resource::<Edits>().0[1],
         ("ok".to_owned(), true)
     );
+}
+
+// The pair a form reads: what the value is, and whether the user committed
+// it or just walked away.
+#[test]
+fn enter_submits_and_blur_does_not() {
+    let mut app = app();
+    spawn_field(&mut app, "ok");
+
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(app.world().resource::<Submits>().0, ["ok".to_owned()]);
+
+    let other = app.world_mut().spawn(()).id();
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(other, FocusCause::Pressed);
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<Submits>().0.len(),
+        1,
+        "losing focus commits nothing"
+    );
+    assert_eq!(
+        app.world().resource::<Edits>().0.len(),
+        2,
+        "though both still report a final value"
+    );
+}
+
+#[test]
+fn a_chorded_character_never_reaches_the_value() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "");
+
+    press_key(&mut app, KeyCode::Char('c'));
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+
+    assert_eq!(value_of(&app, field), "c");
 }
 
 #[test]
