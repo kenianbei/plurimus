@@ -53,8 +53,9 @@ pub use self_update::{
 pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
-    TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect, TablePosition,
-    TableRow, TableSelection, TableStripe, table, table_footer, table_header, table_row,
+    TableGeometry, TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect,
+    TablePosition, TableRow, TableSelection, TableStripe, table, table_footer, table_header,
+    table_row,
 };
 pub use text::{
     EditableText, Submit, TextChanged, TextEditor, TextInput, editable_text, text_editor,
