@@ -51,6 +51,15 @@ impl TextInput {
         self.cursor += 1;
     }
 
+    /// Inserts `text` at the cursor in one shift, leaving the cursor after
+    /// it. Kept off the public API because it admits the control characters
+    /// [`paste`](Self::paste) exists to strip.
+    pub(super) fn insert_str(&mut self, text: &str) {
+        let byte = char_to_byte(&self.value, self.cursor);
+        self.value.insert_str(byte, text);
+        self.cursor += text.chars().count();
+    }
+
     /// Moves the cursor to `target`, snapped and clamped.
     pub fn move_to(&mut self, target: usize) {
         self.cursor = self.snapped(target);

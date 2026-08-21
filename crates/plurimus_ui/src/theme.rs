@@ -33,8 +33,8 @@ pub struct InteractionState {
 /// Per-state styles for widgets. Replace the resource to restyle;
 /// `focused` is patched on top of the state style.
 ///
-/// `caret` is the one field that is not a state: it styles a text widget's
-/// own caret rather than the widget, which no state style can reach.
+/// `caret` is the one field that is not a state: it styles a caret a widget
+/// draws inside itself rather than the widget, which no state style reaches.
 #[derive(Resource, Debug, Clone)]
 #[non_exhaustive]
 pub struct UiTheme {
@@ -48,14 +48,15 @@ pub struct UiTheme {
     pub disabled: Style,
     /// Patched over the state style while the widget has input focus.
     pub focused: Style,
-    /// Patched over the character a text caret covers, while the widget
-    /// holding it has focus.
+    /// Patched over the character a caret covers, while the widget holding
+    /// it has focus.
     ///
     /// Reversing the cell is the default because it needs no color from a
-    /// theme to be visible against one. A widget drawing the terminal's own
-    /// caret takes its shape from
-    /// [`TerminalCursorStyle`](plurimus_term::TerminalCursorStyle) instead,
-    /// which is a terminal's to serve and not a style at all.
+    /// theme to stay visible against one. This reaches only a caret the
+    /// widget draws into its own cells: one belonging to a text engine is
+    /// set on that engine, and one that is the terminal's own takes a shape
+    /// from [`TerminalCursorStyle`](plurimus_term::TerminalCursorStyle)
+    /// rather than a style.
     pub caret: Style,
 }
 

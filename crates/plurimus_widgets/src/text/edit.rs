@@ -26,66 +26,53 @@ impl TextInput {
     /// `held` is the modifier state the word chords read;
     /// [`held_modifiers`](plurimus_term::bevy_compat::held_modifiers) is
     /// where a bevy app gets it.
+    ///
+    /// Taking a key is not the same as changing the value - an arrow key
+    /// takes one and edits nothing - so a host notifying on edits compares
+    /// [`value`](Self::value) across the call rather than reading this.
+    /// Showing the caret is the host's too: the stock stylist draws one for
+    /// the focused field alone, which a field driven without focus is not.
     pub fn handle(&mut self, input: &KeyboardInput, held: KeyModifiers) -> bool {
         if input.state != ButtonState::Pressed {
             return false;
         }
-        let key = &input.logical_key;
-        self.edit_word(key, held) || self.move_or_delete(key) || self.insert_character(key, held)
-    }
-
-    /// Inserts `text` at the cursor, dropping the control characters a
-    /// bracketed paste can carry, and reports whether anything was inserted.
-    pub fn paste(&mut self, text: &str) -> bool {
-        let mut edited = false;
-        for pasted in text.chars().filter(|c| !c.is_control()) {
-            self.insert(pasted);
-            edited = true;
-        }
-        edited
-    }
-
-    // Word bindings mirror TextEditor's, whose engine binds ctrl+arrows to
-    // word motion and alt+Backspace/Delete to word deletion.
-    fn edit_word(&mut self, key: &Key, held: KeyModifiers) -> bool {
         let cursor = self.cursor();
-        match key {
+        let chorded = held.ctrl || held.alt || held.super_key || held.hyper || held.meta;
+        match &input.logical_key {
+            // Word bindings mirror TextEditor's, whose engine binds
+            // ctrl+arrows to word motion and alt+Backspace/Delete to word
+            // deletion.
             Key::ArrowLeft if held.ctrl => self.move_to(word_start_backward(self.value(), cursor)),
             Key::ArrowRight if held.ctrl => self.move_to(word_start_forward(self.value(), cursor)),
             Key::Backspace if held.alt => self.delete_to(word_start_backward(self.value(), cursor)),
             Key::Delete if held.alt => self.delete_to(word_end_forward(self.value(), cursor)),
-            _ => return false,
-        }
-        true
-    }
-
-    // A one-past-the-cursor target is a whole cluster step: the snap carries
-    // it the rest of the way across the cluster.
-    fn move_or_delete(&mut self, key: &Key) -> bool {
-        let cursor = self.cursor();
-        match key {
+            // A one-past-the-cursor target is a whole cluster step: the snap
+            // carries it the rest of the way across the cluster.
             Key::ArrowLeft => self.move_to(cursor.saturating_sub(1)),
             Key::ArrowRight => self.move_to(cursor + 1),
             Key::Backspace => self.delete_to(cursor.saturating_sub(1)),
             Key::Delete => self.delete_to(cursor + 1),
             Key::Home => self.move_start(),
             Key::End => self.move_end(),
+            // Shift is not a chord: the kitty protocol reports a shifted
+            // letter with the bit set, so blocking it would stop capitals.
+            Key::Character(characters) if !chorded => {
+                characters.chars().for_each(|c| self.insert(c));
+            }
+            Key::Space if !chorded => self.insert(' '),
             _ => return false,
         }
         true
     }
 
-    // Shift is not a chord: the kitty protocol reports a shifted letter with
-    // the bit set, so blocking it would stop capitals reaching the field.
-    fn insert_character(&mut self, key: &Key, held: KeyModifiers) -> bool {
-        if held.ctrl || held.alt || held.super_key || held.hyper || held.meta {
+    /// Inserts `text` at the cursor, dropping the control characters a
+    /// bracketed paste can carry, and reports whether anything was inserted.
+    pub fn paste(&mut self, text: &str) -> bool {
+        let insertable: String = text.chars().filter(|c| !c.is_control()).collect();
+        if insertable.is_empty() {
             return false;
         }
-        match key {
-            Key::Character(characters) => characters.chars().for_each(|c| self.insert(c)),
-            Key::Space => self.insert(' '),
-            _ => return false,
-        }
+        self.insert_str(&insertable);
         true
     }
 }

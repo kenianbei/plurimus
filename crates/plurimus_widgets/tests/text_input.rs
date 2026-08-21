@@ -7,7 +7,7 @@ use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, ModifierKey, PasteMessage};
-use plurimus_test::{composed_styled_frame, press_chord, press_key};
+use plurimus_test::{composed_styled_frame, press_chord, press_key, repeat_key};
 use plurimus_ui::{UiArea, ValueChange};
 use plurimus_widgets::{Submit, TextInput, WidgetsPlugin, editable_text};
 
@@ -129,6 +129,25 @@ fn enter_submits_and_blur_does_not() {
         app.world().resource::<Edits>().0.len(),
         2,
         "though both still report a final value"
+    );
+}
+
+// A terminal autorepeats a held key many times a second, and committing an
+// entry that many times is never what leaning on Enter meant.
+#[test]
+fn holding_enter_submits_once() {
+    let mut app = app();
+    spawn_field(&mut app, "ok");
+
+    press_key(&mut app, KeyCode::Enter);
+    repeat_key(&mut app, KeyCode::Enter);
+    repeat_key(&mut app, KeyCode::Enter);
+
+    assert_eq!(app.world().resource::<Submits>().0, ["ok".to_owned()]);
+    assert_eq!(
+        app.world().resource::<Edits>().0.len(),
+        1,
+        "and reports one final value, not one per repeat"
     );
 }
 

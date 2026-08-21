@@ -18,6 +18,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   on, without the full `StateQuery` tuple `observed` demands. The seam for a
   stylist that resolves its own interaction state - a painter drawing one
   resting style - which could reach the mechanism no other way.
+- **`TextInput::handle` and `TextInput::paste`** apply a key or pasted text to
+  the single-line field's editing state. Every entry point was a focused-input
+  observer before, so a host that routes its own keys - a command palette typing
+  while a list takes the arrows, a field that is not a tab stop at all - had to
+  reimplement the field to drive one, losing the grapheme-cluster stepping that
+  is the hard part. The stock observers are now callers of the same two methods.
+- **`Submit`**, an entity event carrying the value a field was submitted with.
+  Enter and focus loss both emitted an identical final `ValueChange<String>`, so
+  committing an entry could not be told from abandoning one without inspecting
+  focus state. Both events still fire on Enter; only `Submit` distinguishes it.
+- **`UiTheme::caret`**, the style patched over the character a widget's own
+  caret covers, with a `with_caret` builder. It defaults to the reverse video
+  the text field previously hardcoded, so an unstyled app looks unchanged.
 
 ### Changed
 
@@ -34,6 +47,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Only a focused text field draws its caret.** Every `EditableText` on screen
+  painted a block at its cursor, so a form of eleven rows claimed eleven of them
+  had the keys. The stylist already resolved the focus bit and dropped it on the
+  way to the drawable.
+- **A chorded character no longer types itself into a field.** `EditableText`
+  read `Key::Character` with no modifier guard, so ctrl+c inserted a literal `c`
+  while the same chord copied in the multi-line editor one module over. A
+  character held with anything but shift is now left for whoever binds it -
+  shift excepted, because the kitty protocol reports a shifted letter with the
+  bit set and capitals must still reach the field.
+- **Holding Enter in a field submits once.** A terminal autorepeats a held key
+  many times a second and each repeat emitted a final `ValueChange<String>`,
+  committing one intent as many times over; the activation path already ignored
+  repeats for this reason. The key is still consumed on a repeat, being the
+  field's own.
 - **A widget repaints when its label changes.** The stylist cache compares
   interaction state, which an edited `UiLabel` leaves untouched, so a button,
   checkbox, radio button, menu item, or pane whose text was set after its first

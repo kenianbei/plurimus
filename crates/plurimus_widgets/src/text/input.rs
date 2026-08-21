@@ -79,17 +79,22 @@ pub(crate) fn text_input_key(
     if input.input.state != ButtonState::Pressed {
         return;
     }
+    if input.input.logical_key == Key::Enter {
+        // One intent commits once, however long Enter is held; the key is
+        // consumed either way, being the field's.
+        if !input.input.repeat {
+            emit(field, &text, true, &mut commands);
+            commands.trigger(Submit::new(field, text.value().to_owned()));
+        }
+        input.propagate(false);
+        return;
+    }
     let length_before = text.value().len();
-    let edited = text.handle(&input.input, held_modifiers(&held_keys));
-    let submitted = input.input.logical_key == Key::Enter;
-    if !edited && !submitted {
+    if !text.handle(&input.input, held_modifiers(&held_keys)) {
         return;
     }
     input.propagate(false);
-    if submitted {
-        emit(field, &text, true, &mut commands);
-        commands.trigger(Submit::new(field, text.value().to_owned()));
-    } else if text.value().len() != length_before {
+    if text.value().len() != length_before {
         emit(field, &text, false, &mut commands);
     }
 }
