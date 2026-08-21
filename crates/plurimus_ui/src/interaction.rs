@@ -23,7 +23,7 @@ use plurimus_core::{
 };
 use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 
-use crate::modal::ModalGuard;
+use crate::modal::{ModalGuard, ModalRouting};
 
 /// Whether the cursor is over the widget. Opt-in: spawn it on widgets that
 /// should react to the pointer.
@@ -249,19 +249,7 @@ fn route_message(
 ) -> bool {
     match message.kind {
         MouseKind::Down(MouseButton::Left) => {
-            let target = topmost_at(message.position, &routing.targets, |_| true);
-            if routing.modal.dismiss_outside_press(target, commands) {
-                return true;
-            }
-            if let Some(entity) = target {
-                commands.trigger(PointerPress {
-                    entity,
-                    position: message.position,
-                });
-                press(entity, &routing.focusable, &mut routing.focus, commands);
-                run_pressed.push(entity);
-            }
-            false
+            route_press(message.position, routing, run_pressed, commands)
         }
         MouseKind::Drag(MouseButton::Left) => {
             drag_pressed(&routing.pressed, run_pressed, message.position, commands);
@@ -272,6 +260,39 @@ fn route_message(
         }
         _ => false,
     }
+}
+
+// A press inside an open modal reaches that modal's subtree or nothing:
+// falling through to what the overlay covers is the click-through the
+// wheel path already refuses. Only a press outside them all dismisses,
+// and a toggle out there routes instead - that is how an opener closes
+// the menu it opened.
+fn route_press(
+    position: Position,
+    routing: &mut PointerRouting,
+    run_pressed: &mut Vec<Entity>,
+    commands: &mut Commands,
+) -> bool {
+    let target = match routing.modal.routing(position) {
+        ModalRouting::Unguarded => topmost_at(position, &routing.targets, |_| true),
+        ModalRouting::Confined => topmost_at(position, &routing.targets, |entity| {
+            routing.modal.admits(position, entity)
+        }),
+        ModalRouting::Outside => {
+            let target = topmost_at(position, &routing.targets, |_| true);
+            if !target.is_some_and(|entity| routing.modal.affects_modality(entity)) {
+                routing.modal.dismiss_all(commands);
+                return true;
+            }
+            target
+        }
+    };
+    if let Some(entity) = target {
+        commands.trigger(PointerPress { entity, position });
+        press(entity, &routing.focusable, &mut routing.focus, commands);
+        run_pressed.push(entity);
+    }
+    false
 }
 
 /// The topmost target containing `position` that `accepts` the input, by

@@ -21,7 +21,7 @@ use tui_scrollview::ScrollbarVisibility;
 use crate::interaction::{
     AreaTargetQuery, ComputedWidgetArea, InteractionDisabled, ValueChange, topmost_at,
 };
-use crate::modal::ModalGuard;
+use crate::modal::{ModalGuard, ModalRouting};
 
 /// Declares a widget entity's content to be `content_size` cells,
 /// windowed into the resolved area at render time by its
@@ -177,8 +177,13 @@ pub(crate) fn route_wheel(
         let Some(step) = wheel_step(message.kind) else {
             continue;
         };
-        if modal.intercept_wheel(message.position, &mut commands) {
-            continue;
+        match modal.routing(message.position) {
+            ModalRouting::Unguarded => {}
+            ModalRouting::Confined => continue,
+            ModalRouting::Outside => {
+                modal.dismiss_all(&mut commands);
+                continue;
+            }
         }
         let consumes = |entity| axes.get(entity).is_ok_and(|axes| axes.consumes(step));
         let Some(entity) = topmost_at(message.position, &targets, consumes) else {
