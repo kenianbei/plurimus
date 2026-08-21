@@ -417,7 +417,7 @@ fn the_hit_test_agrees_with_where_the_cells_rendered() {
 }
 
 // Autorepeat moves a cursor but must not re-select, which is the rule
-// `is_activate_key` already applies to every other widget.
+// `is_fresh_press` already applies to every other widget.
 #[test]
 fn a_held_key_repeats_movement_but_not_selection() {
     let (mut app, table, rows) = app(TableSelection::Row);

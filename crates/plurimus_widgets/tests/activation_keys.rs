@@ -42,15 +42,19 @@ fn space() -> Key {
     Key::Character(" ".into())
 }
 
-/// An ancestor standing in for the form a widget sits inside, recording
-/// what propagates past its child.
-fn form(app: &mut App) -> Entity {
-    let form = app.world_mut().spawn_empty().id();
-    app.world_mut().entity_mut(form).observe(
+fn track_unconsumed(app: &mut App, entity: Entity) {
+    app.world_mut().entity_mut(entity).observe(
         |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Unconsumed>| {
             seen.0.push(input.input.logical_key.clone());
         },
     );
+}
+
+/// An ancestor standing in for the form a widget sits inside, recording
+/// what propagates past its child.
+fn form(app: &mut App) -> Entity {
+    let form = app.world_mut().spawn_empty().id();
+    track_unconsumed(app, form);
     form
 }
 
@@ -127,11 +131,7 @@ fn a_narrowed_radio_uses_only_its_bound_key() {
     app.world_mut().entity_mut(group).observe(
         |_on: On<ValueChange<Entity>>, mut activations: ResMut<Activations>| activations.0 += 1,
     );
-    app.world_mut().entity_mut(group).observe(
-        |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Unconsumed>| {
-            seen.0.push(input.input.logical_key.clone());
-        },
-    );
+    track_unconsumed(&mut app, group);
     let option = app
         .world_mut()
         .spawn((radio("one"), ActivateKeys(vec![Key::Enter]), ChildOf(group)))
