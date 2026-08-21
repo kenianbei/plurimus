@@ -8,9 +8,12 @@
 //! not share an implementation.
 //!
 //! `grapheme` and `word` are shared between them so a keybinding stops at
-//! the same place in both, and `field` renders the single-line row. None of
-//! the three is reachable from outside this module.
+//! the same place in both, and `field` renders the single-line row; none of
+//! the three is reachable from outside this module. `edit` is the exception:
+//! it holds [`TextInput`]'s own key and paste entry points, which are public
+//! so a host that routes its own keys drives a field without focusing it.
 
+mod edit;
 mod editor;
 mod field;
 mod grapheme;

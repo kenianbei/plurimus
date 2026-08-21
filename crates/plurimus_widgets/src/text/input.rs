@@ -19,7 +19,6 @@ use plurimus_term::PasteMessage;
 
 use super::field::TextField;
 use super::state::TextInput;
-use super::word::{word_end_forward, word_start_backward, word_start_forward};
 use crate::ValueChange;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::held_modifiers;
@@ -56,59 +55,18 @@ pub(crate) fn text_input_key(
     if input.input.state != ButtonState::Pressed {
         return;
     }
-    let key = &input.input.logical_key;
     let length_before = text.value().len();
-    let handled = word_edit(key, &held_keys, &mut text)
-        || cluster_edit(key, &mut text)
-        || apply_key(key, &mut text, field, &mut commands);
-    if !handled {
+    let edited = text.handle(&input.input, held_modifiers(&held_keys));
+    let submitted = input.input.logical_key == Key::Enter;
+    if !edited && !submitted {
         return;
     }
     input.propagate(false);
-    if text.value().len() != length_before {
+    if submitted {
+        emit(field, &text, true, &mut commands);
+    } else if text.value().len() != length_before {
         emit(field, &text, false, &mut commands);
     }
-}
-
-fn apply_key(key: &Key, text: &mut TextInput, field: Entity, commands: &mut Commands) -> bool {
-    match key {
-        Key::Character(chars) => chars.chars().for_each(|c| text.insert(c)),
-        Key::Space => text.insert(' '),
-        Key::Home => text.move_start(),
-        Key::End => text.move_end(),
-        Key::Enter => emit(field, text, true, commands),
-        _ => return false,
-    }
-    true
-}
-
-// Word bindings mirror TextEditor's, whose engine binds ctrl+arrows to
-// word motion and alt+Backspace/Delete to word deletion.
-fn word_edit(key: &Key, held_keys: &ButtonInput<KeyCode>, text: &mut TextInput) -> bool {
-    let held = held_modifiers(held_keys);
-    let cursor = text.cursor();
-    match key {
-        Key::ArrowLeft if held.ctrl => text.move_to(word_start_backward(text.value(), cursor)),
-        Key::ArrowRight if held.ctrl => text.move_to(word_start_forward(text.value(), cursor)),
-        Key::Backspace if held.alt => text.delete_to(word_start_backward(text.value(), cursor)),
-        Key::Delete if held.alt => text.delete_to(word_end_forward(text.value(), cursor)),
-        _ => return false,
-    }
-    true
-}
-
-// A one-past-the-cursor target is a whole cluster step: the snap carries
-// it the rest of the way across the cluster.
-fn cluster_edit(key: &Key, text: &mut TextInput) -> bool {
-    let cursor = text.cursor();
-    match key {
-        Key::ArrowLeft => text.move_to(cursor.saturating_sub(1)),
-        Key::ArrowRight => text.move_to(cursor + 1),
-        Key::Backspace => text.delete_to(cursor.saturating_sub(1)),
-        Key::Delete => text.delete_to(cursor + 1),
-        _ => return false,
-    }
-    true
 }
 
 fn emit(field: Entity, text: &TextInput, is_final: bool, commands: &mut Commands) {
@@ -125,12 +83,7 @@ pub(crate) fn text_input_paste(
         return;
     };
     input.propagate(false);
-    let mut edited = false;
-    for pasted in input.input.0.chars().filter(|c| !c.is_control()) {
-        text.insert(pasted);
-        edited = true;
-    }
-    if edited {
+    if text.paste(&input.input.0) {
         emit(field, &text, false, &mut commands);
     }
 }
