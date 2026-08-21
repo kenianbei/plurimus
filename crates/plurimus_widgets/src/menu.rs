@@ -28,7 +28,7 @@ use ratatui_widgets::block::Block;
 use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::popover::{Popover, PopoverAlign, PopoverSide};
+use crate::popover::Popover;
 use crate::{Activate, Button, is_activate_key};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
 use plurimus_ui::UiLabel;
@@ -77,12 +77,7 @@ pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
 pub fn menu_popup(anchor: Entity) -> impl Bundle {
     (
         MenuPopup,
-        Popover {
-            anchor,
-            side: PopoverSide::Bottom,
-            align: PopoverAlign::Start,
-            size: Size::ZERO,
-        },
+        Popover::new(anchor, Size::ZERO),
         UiHidden,
         UiWidget::default(),
     )

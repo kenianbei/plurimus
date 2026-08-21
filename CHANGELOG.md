@@ -8,6 +8,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`Popover::cell`**, attaching a popover to one cell of its anchor's content
+  rather than to the whole of its area - a completion list under a caret, a
+  tooltip at a cursor. The cell is named in content space and the anchor's own
+  `ScrollOffset` maps it, so an editor says where its caret is once, in the
+  component it already publishes it in; a cell scrolled out of view places the
+  popover nowhere. Everything else the widget does - the preferred side, the
+  mirror when it will not fit, the alignment, the clamp - applies unchanged,
+  because a cell anchor is the same placement against a one-cell rect.
+- **`Popover::camera`**, the camera a popover draws on and is bounded by, when
+  it should not be its anchor's. A menu anchored to a docked one-row strip has
+  nowhere to open within that row; naming a full-terminal camera gives it the
+  whole screen to be clamped into, while the anchor still supplies the rect. Per
+  popover, so a menu stays where its button is while a palette escapes.
+- **`Popover::with_cell`, `with_camera`, `with_side` and `with_align`**, one
+  `const fn` builder per field, so the type is configured the same way
+  throughout rather than half by builder and half by assignment.
 - **`TableGeometry::cell_rect`**, where a `Table`'s cells are on screen. A cell
   is text in its row rather than an entity, so it cannot hold a widget; a host
   that wants one there - a field editing a cell in place - floats it over the
