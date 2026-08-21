@@ -13,9 +13,11 @@
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, Has, Query, Res, With, Without};
+use bevy_ecs::lifecycle::HookContext;
+use bevy_ecs::prelude::{Component, Has, Query, With, Without};
+use bevy_ecs::world::DeferredWorld;
 use bevy_input_focus::InputFocus;
 use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::style::Style;
@@ -67,6 +69,18 @@ impl StylistCache {
             },
             value_bits: 0,
         }
+    }
+
+    /// Sets what the widget carries beyond interaction state, hashed
+    /// through [`hashed_bits`].
+    ///
+    /// The seam for a stylist that resolves its own state rather than
+    /// reading it through [`observed`] - a painter drawing one resting
+    /// style, say, which has no [`Hovered`] or [`InputFocus`] to hand over.
+    #[must_use]
+    pub const fn with_value(mut self, bits: u64) -> Self {
+        self.value_bits = bits;
+        self
     }
 
     /// Whether the widget was checked when it was last drawn.
@@ -147,12 +161,16 @@ pub type Stylable<M> = (With<M>, Without<StylistDisabled>);
 
 /// The query [`restyle`] drives: every stylable `M` with a label, its
 /// cache, and the widget to rebuild.
+///
+/// The label is a [`Ref`] so [`restyle`] can repaint a widget whose text
+/// changed - the cache compares interaction state, which an edited label
+/// leaves untouched.
 pub type LabeledQuery<'w, 's, 'a, M> = Query<
     'w,
     's,
     (
         StateQuery<'a>,
-        &'a UiLabel,
+        Ref<'a, UiLabel>,
         &'a mut StylistCache,
         &'a mut UiWidget,
     ),
@@ -193,12 +211,15 @@ pub fn observed(
     }
 }
 
-/// Rebuilds every stylable `M` whose drawn state has moved, and skips the
-/// rest.
+/// Rebuilds every stylable `M` whose drawn state or label has moved, and
+/// skips the rest.
 ///
 /// `render` is handed the state, the label, and the resolved style, and
 /// returns the widget to draw. It runs only for entities that need it, or
 /// for all of them when the theme itself changed.
+///
+/// `theme_changed` is [`DetectChanges::is_changed`] on the theme resource,
+/// taken as a `bool` so a caller holding a plain `&UiTheme` can call this.
 ///
 /// For widgets whose look turns on interaction state and the label alone:
 /// the comparison passes no `value_bits`, so a widget that also draws a
@@ -206,14 +227,15 @@ pub fn observed(
 /// value moved. Those call [`observed`] and [`StylistCache::redraws`]
 /// themselves, hashing what they carry through [`hashed_bits`].
 pub fn restyle<M: Component>(
-    theme: &Res<UiTheme>,
+    theme: &UiTheme,
+    theme_changed: bool,
     focus: &InputFocus,
     widgets: &mut LabeledQuery<M>,
     render: impl Fn(&StylistCache, &Line<'static>, Style) -> UiWidget,
 ) {
     for (state, label, mut cache, mut widget) in widgets.iter_mut() {
         let next = observed(state, focus, 0);
-        if !cache.redraws(next, theme.is_changed()) {
+        if !cache.redraws(next, theme_changed || label.is_changed()) {
             continue;
         }
         *widget = render(&next, &label.0, next.style(theme));
@@ -234,6 +256,15 @@ pub fn decorate(
     line
 }
 
+/// Resets the cache of an entity leaving [`StylistDisabled`], so the
+/// stylist taking it back rebuilds on the first frame - see that
+/// component for why.
+pub(crate) fn invalidate_cache(mut world: DeferredWorld, context: HookContext) {
+    if let Some(mut cache) = world.get_mut::<StylistCache>(context.entity) {
+        *cache = StylistCache::default();
+    }
+}
+
 /// Hashes whatever a widget carries beyond its interaction state into the
 /// `value_bits` [`observed`] takes.
 #[must_use]
@@ -241,4 +272,30 @@ pub fn hashed_bits(state: impl Hash) -> u64 {
     let mut hasher = DefaultHasher::new();
     state.hash(&mut hasher);
     hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StylistCache, hashed_bits};
+    use crate::theme::InteractionState;
+
+    fn cache(bits: u64) -> StylistCache {
+        StylistCache::new(InteractionState::default(), None).with_value(bits)
+    }
+
+    #[test]
+    fn a_moved_value_redraws_a_widget_whose_interaction_state_held_still() {
+        let mut drawn = cache(hashed_bits("first"));
+
+        assert!(!drawn.redraws(cache(hashed_bits("first")), false));
+        assert!(drawn.redraws(cache(hashed_bits("second")), false));
+    }
+
+    #[test]
+    fn with_value_is_the_only_difference_from_the_bare_constructor() {
+        let bare = StylistCache::new(InteractionState::default(), None);
+
+        assert_eq!(bare.with_value(0), bare);
+        assert_ne!(bare.with_value(1), bare);
+    }
 }

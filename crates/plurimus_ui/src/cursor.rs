@@ -28,12 +28,17 @@ use crate::scroll::{ScrollOffset, screen_cell};
 ///
 /// An app placing a cursor that belongs to no widget - a prompt on a status
 /// strip - sets [`TerminalCursor`] directly instead, in screen space.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[require(ComputedWidgetArea)]
 #[non_exhaustive]
 pub struct WidgetCursor {
-    /// Cell in the widget's content space.
-    pub cell: Position,
+    /// Cell in the widget's content space; `None` names no cell at all.
+    ///
+    /// A widget whose caret has nowhere to sit - an empty document, a
+    /// selection spanning rather than pointing - says so with `None` rather
+    /// than leaving the last cell standing or removing the component, which
+    /// would discard the shape an app set and never re-insert it.
+    pub cell: Option<Position>,
     /// Shape the terminal draws it with.
     pub style: TerminalCursorStyle,
 }
@@ -43,7 +48,16 @@ impl WidgetCursor {
     #[must_use]
     pub const fn new(cell: Position) -> Self {
         Self {
-            cell,
+            cell: Some(cell),
+            style: TerminalCursorStyle::Default,
+        }
+    }
+
+    /// A cursor naming no cell, which is also [`Default`].
+    #[must_use]
+    pub const fn nowhere() -> Self {
+        Self {
+            cell: None,
             style: TerminalCursorStyle::Default,
         }
     }
@@ -75,7 +89,7 @@ pub(crate) fn sync_terminal_cursor(
         .and_then(|entity| widgets.get(entity).ok())
         .and_then(|(widget, area, offset)| {
             let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
-            Some((screen_cell(widget.cell, area.0, offset)?, widget.style))
+            Some((screen_cell(widget.cell?, area.0, offset)?, widget.style))
         });
     match placed {
         Some((cell, wanted)) => {

@@ -38,6 +38,14 @@ fn cursor(app: &App) -> Option<Position> {
     app.world().resource::<TerminalCursor>().cell
 }
 
+fn set_cell(app: &mut App, entity: Entity, cell: Option<Position>) {
+    app.world_mut()
+        .entity_mut(entity)
+        .get_mut::<WidgetCursor>()
+        .expect("the widget keeps its cursor")
+        .cell = cell;
+}
+
 #[test]
 fn a_focused_widgets_caret_lands_at_its_offset_from_the_area() {
     let mut app = app();
@@ -138,6 +146,50 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
         *app.world().resource::<TerminalCursorStyle>(),
         TerminalCursorStyle::SteadyBar
     );
+}
+
+// A widget whose caret has nowhere to sit says so, rather than leaving the
+// last cell standing or dropping the component and the style with it.
+#[test]
+fn a_cursor_naming_no_cell_is_hidden_and_keeps_its_style() {
+    let mut app = app();
+    let editor = app
+        .world_mut()
+        .spawn((
+            WidgetCursor::new(Position::new(2, 1)).with_style(TerminalCursorStyle::SteadyBar),
+            UiArea::Fixed(AREA),
+        ))
+        .id();
+    focus(&mut app, editor);
+    app.update();
+    assert_eq!(cursor(&app), Some(Position::new(6, 3)));
+
+    set_cell(&mut app, editor, None);
+    app.update();
+
+    assert_eq!(cursor(&app), None, "no cell to name means no cursor");
+    assert_eq!(
+        app.world().get::<WidgetCursor>(editor).map(|c| c.style),
+        Some(TerminalCursorStyle::SteadyBar),
+        "and the style an app set survives for when a cell returns"
+    );
+}
+
+#[test]
+fn naming_a_cell_again_places_the_caret_back() {
+    let mut app = app();
+    let editor = app
+        .world_mut()
+        .spawn((WidgetCursor::nowhere(), UiArea::Fixed(AREA)))
+        .id();
+    focus(&mut app, editor);
+    app.update();
+    assert_eq!(cursor(&app), None);
+
+    set_cell(&mut app, editor, Some(Position::new(2, 1)));
+    app.update();
+
+    assert_eq!(cursor(&app), Some(Position::new(6, 3)));
 }
 
 // A widget's caret must not outlive the focus that placed it.

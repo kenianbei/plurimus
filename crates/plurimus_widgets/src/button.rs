@@ -6,6 +6,7 @@
 //! why `menu_button()` requires it alongside [`crate::MenuButton`].
 
 use bevy_ecs::bundle::Bundle;
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{Component, Res};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -13,7 +14,6 @@ use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::placeholder;
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
@@ -27,7 +27,12 @@ pub struct Button;
 
 /// Spawn bundle for a standard button.
 pub fn button(label: impl Into<Line<'static>>) -> impl Bundle {
-    (Button, UiLabel(label.into()), TabIndex(0), placeholder())
+    (
+        Button,
+        UiLabel(label.into()),
+        TabIndex(0),
+        UiWidget::default(),
+    )
 }
 
 pub(crate) fn style_buttons(
@@ -35,11 +40,17 @@ pub(crate) fn style_buttons(
     focus: Res<InputFocus>,
     mut buttons: LabeledQuery<Button>,
 ) {
-    restyle(&theme, &focus, &mut buttons, |_, label, style| {
-        UiWidget::new(
-            Paragraph::new(decorate("[ ", label, " ]"))
-                .style(style)
-                .alignment(Alignment::Center),
-        )
-    });
+    restyle(
+        &theme,
+        theme.is_changed(),
+        &focus,
+        &mut buttons,
+        |_, label, style| {
+            UiWidget::new(
+                Paragraph::new(decorate("[ ", label, " ]"))
+                    .style(style)
+                    .alignment(Alignment::Center),
+            )
+        },
+    );
 }

@@ -24,7 +24,6 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::widgets::Widget;
 
 use super::ValueChange;
-use crate::placeholder;
 use plurimus_core::UiWidget;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress, PointerRelease,
@@ -97,7 +96,7 @@ pub fn slider(start: f32, end: f32, value: f32) -> impl Bundle {
         SliderRange::new(start, end),
         SliderValue(value),
         TabIndex(0),
-        placeholder(),
+        UiWidget::default(),
     )
 }
 

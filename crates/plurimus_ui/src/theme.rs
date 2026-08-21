@@ -162,7 +162,14 @@ impl UiTheme {
 /// The contract a stylist honors: do not rebuild the widget of an entity
 /// carrying this. Behavior - selection, keys, scrolling, events - is not a
 /// stylist's to touch and is unaffected either way.
+///
+/// Handing the entity back repaints it. Removing this resets the entity's
+/// [`StylistCache`](crate::StylistCache) to its never-drawn value, because
+/// change detection compares against a system's last run: an entity that
+/// sat outside every stylist query missed the theme swaps that landed
+/// meanwhile, and nothing else would mark it.
 #[derive(Component, Debug, Clone, Copy)]
+#[component(on_remove = crate::stylist::invalidate_cache)]
 pub struct StylistDisabled;
 
 /// Patched over the style an entity would otherwise resolve to.
