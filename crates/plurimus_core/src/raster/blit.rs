@@ -101,7 +101,7 @@ impl<'a> PixelGrid<'a> {
     }
 }
 
-fn rgba_color(pixel: &[u8]) -> Option<Color> {
+const fn rgba_color(pixel: &[u8]) -> Option<Color> {
     if pixel[3] == 0 {
         return None;
     }

@@ -150,11 +150,10 @@ fn copy_unpadded_f32(bytes: &[u8], size: UVec2, frame: &mut DepthFrame) {
     frame.depths.clear();
     frame.depths.reserve(size.x as usize * size.y as usize);
     for row in rows {
+        let (pixels, _) = row.as_chunks::<DEPTH_BYTES_PER_PIXEL>();
         frame
             .depths
-            .extend(row.chunks_exact(DEPTH_BYTES_PER_PIXEL).map(|bytes| {
-                f32::from_ne_bytes(bytes.try_into().expect("chunks are exactly one pixel"))
-            }));
+            .extend(pixels.iter().copied().map(f32::from_ne_bytes));
     }
 }
 
