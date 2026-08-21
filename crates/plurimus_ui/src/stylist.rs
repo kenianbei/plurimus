@@ -83,6 +83,21 @@ impl StylistCache {
         self
     }
 
+    /// Sets the focus term, keeping everything else - including any
+    /// [`UiStyle`] already patched in.
+    ///
+    /// The seam for a container that draws one part of itself as the active
+    /// one while keyboard focus sits somewhere else: a list stepped by a
+    /// search field beside it is still the thing being operated, so its
+    /// cursor row resolves focused even though the list does not hold
+    /// focus. Style with the result; keep storing the observed value, which
+    /// is what a redraw compares against.
+    #[must_use]
+    pub const fn with_focused(mut self, focused: bool) -> Self {
+        self.state.focused = focused;
+        self
+    }
+
     /// Whether the widget was checked when it was last drawn.
     #[must_use]
     pub const fn checked(&self) -> bool {

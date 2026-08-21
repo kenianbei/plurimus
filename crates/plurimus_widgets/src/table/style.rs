@@ -148,7 +148,13 @@ pub(crate) fn style_tables(
         };
         let highlight = Highlight {
             selection: selection.copied(),
-            style: next.style(&theme),
+            // Driven from elsewhere is still driven; see the list box's
+            // stylist, which resolves its cursor row the same way.
+            style: next
+                .with_focused(
+                    next.state().focused || active.is_some_and(|active| active.0.is_some()),
+                )
+                .style(&theme),
             symbol: cursor_symbol(symbol.map(|cursor| &cursor.0)),
             column: column.and_then(|column| column.0),
         };

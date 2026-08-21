@@ -109,7 +109,7 @@ pub(crate) fn style_listboxes(
         }
         let styles = RowStyles {
             every: next.resting_style(&theme),
-            cursor: next.style(&theme),
+            cursor: cursor_style(next, active.0.is_some(), &theme),
         };
         let gutters = Gutters {
             marker,
@@ -117,6 +117,15 @@ pub(crate) fn style_listboxes(
         };
         *widget = list_widget((children, &items), active.0, gutters, styles);
     }
+}
+
+// A list driven through `ActiveDescendant` while focus sits on whatever is
+// doing the driving is still the thing being operated, so its cursor row
+// takes the focused patch either way - otherwise the row a search field is
+// stepping resolves to the resting style, an invisible cursor.
+fn cursor_style(next: StylistCache, driven: bool, theme: &UiTheme) -> Style {
+    next.with_focused(next.state().focused || driven)
+        .style(theme)
 }
 
 fn list_widget(
