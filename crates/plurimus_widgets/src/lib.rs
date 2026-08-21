@@ -70,7 +70,7 @@ pub(crate) use menu::{
 };
 pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
 pub(crate) use pane::style_panes;
-pub(crate) use popover::place_popovers;
+pub(crate) use popover::{adopt_anchor_cameras, place_popovers};
 pub(crate) use radio::style_radios;
 pub(crate) use rows::{mark_dirty_content, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
@@ -86,6 +86,7 @@ use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use bevy_input_focus::InputFocusSystems;
 
+use plurimus_core::CameraSystems;
 use plurimus_ui::{UiPlugin, UiSystems};
 
 // Shared track convention: first cell is 0.0, last is 1.0, outside clamps.
@@ -142,6 +143,11 @@ fn add_layout_systems(app: &mut App) {
         PreUpdate,
         (
             install_editor_views.before(UiSystems::Areas),
+            // Before anything reads which camera a widget draws on: the
+            // area resolution in Areas, and extraction after the frame.
+            adopt_anchor_cameras
+                .after(CameraSystems::PropagateCameras)
+                .before(UiSystems::Areas),
             (size_menu_popups, place_popovers, place_menu_items)
                 .chain()
                 .in_set(WidgetSystems::Layout),

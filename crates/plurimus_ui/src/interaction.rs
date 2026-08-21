@@ -19,8 +19,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
-    DefaultCamera, ResolvedViewport, UiArea, UiCamera, UiHidden, UiOrder, UiWidget, resolve_area,
-    resolve_camera,
+    CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
 };
 use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 
@@ -44,7 +43,12 @@ pub struct InteractionDisabled;
 pub struct Checked;
 
 /// Screen-space rect the widget occupies, resolved every frame.
+///
+/// Requires [`ComputedUiCamera`] because a [`UiArea`] is camera-local:
+/// resolving one means knowing which camera it is local to, whether or not
+/// the entity draws anything of its own.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[require(ComputedUiCamera)]
 pub struct ComputedWidgetArea(pub Rect);
 
 /// Pointer click completed on a widget: pressed and released on it.
@@ -149,20 +153,19 @@ pub(crate) fn attach_widget_areas(
 }
 
 pub(crate) fn compute_widget_areas(
-    default_camera: Res<DefaultCamera>,
-    cameras: Query<&ResolvedViewport>,
+    cameras: CameraViewports,
     mut widgets: Query<(
         &UiArea,
-        Option<&UiCamera>,
+        &ComputedUiCamera,
         &mut ComputedWidgetArea,
         Has<UiHidden>,
     )>,
 ) {
     for (area, target, mut computed, hidden) in &mut widgets {
-        let resolved = resolve_camera(target, &default_camera)
+        let resolved = cameras
+            .of(target.0)
             .filter(|_| !hidden)
-            .and_then(|entity| cameras.get(entity).ok())
-            .map_or(Rect::ZERO, |viewport| resolve_area(*area, viewport.0));
+            .map_or(Rect::ZERO, |viewport| resolve_area(*area, viewport));
         computed.set_if_neq(ComputedWidgetArea(resolved));
     }
 }

@@ -9,12 +9,12 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Commands, Query, With, Without};
+use bevy_ecs::prelude::{Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 
 use crate::menu::{MenuAccess, MenuItem, MenuPopup};
 use crate::popover::Popover;
-use plurimus_core::{UiArea, UiCamera};
+use plurimus_core::UiArea;
 use plurimus_ui::ComputedWidgetArea;
 use plurimus_ui::UiLabel;
 
@@ -44,30 +44,24 @@ pub(crate) fn size_menu_popups(
     }
 }
 
+// Items carry no camera of their own: they are children of the popup, and
+// the popup holds the UiCamera its anchor gave it, so the hierarchy already
+// says where they draw.
 pub(crate) fn place_menu_items(
-    popups: Query<
-        (&UiArea, &ComputedWidgetArea, Option<&UiCamera>, &Children),
-        (With<MenuPopup>, Without<MenuItem>),
-    >,
-    mut items: Query<(&mut UiArea, &mut ComputedWidgetArea, Option<&UiCamera>), With<MenuItem>>,
-    mut commands: Commands,
+    popups: Query<(&UiArea, &ComputedWidgetArea, &Children), (With<MenuPopup>, Without<MenuItem>)>,
+    mut items: Query<(&mut UiArea, &mut ComputedWidgetArea), With<MenuItem>>,
 ) {
-    for (popup_area, popup_computed, camera, children) in &popups {
+    for (popup_area, popup_computed, children) in &popups {
         let UiArea::Fixed(local) = *popup_area else {
             continue;
         };
         let mut index = 0;
         for &child in children {
-            let Ok((mut area, mut computed, own_camera)) = items.get_mut(child) else {
+            let Ok((mut area, mut computed)) = items.get_mut(child) else {
                 continue;
             };
             area.set_if_neq(UiArea::Fixed(inner_row(local, index)));
             computed.set_if_neq(ComputedWidgetArea(inner_row(popup_computed.0, index)));
-            if let Some(camera) = camera
-                && own_camera.map(|own| own.0) != Some(camera.0)
-            {
-                commands.entity(child).insert(*camera);
-            }
             index += 1;
         }
     }

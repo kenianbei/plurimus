@@ -16,7 +16,7 @@ use bevy_ui::{
 };
 use plurimus::bui::{ComputedNodeRect, Text};
 use plurimus::core::ratatui_core::layout::Rect;
-use plurimus::core::{ResolvedViewport, UiArea, UiCamera};
+use plurimus::core::{ResolvedViewport, UiArea, UiCamera, local_area};
 use plurimus::ui::{UiLabel, ValueChange};
 use plurimus::widgets::{
     Activate, Button, Checkbox, EditableText, RadioButton, RadioGroup, Slider, SliderRange,
@@ -242,11 +242,6 @@ fn sync_field_areas(
         return;
     };
     for (node, mut area) in &mut fields {
-        area.set_if_neq(UiArea::Fixed(Rect::new(
-            node.rect.x.saturating_sub(viewport.x),
-            node.rect.y.saturating_sub(viewport.y),
-            node.rect.width,
-            node.rect.height,
-        )));
+        area.set_if_neq(UiArea::Fixed(local_area(node.rect, viewport)));
     }
 }

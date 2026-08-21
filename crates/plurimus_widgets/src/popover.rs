@@ -9,11 +9,12 @@
 //! stays wholly visible instead of being cut off.
 
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Res, Without};
+use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
-use plurimus_core::{DefaultCamera, ResolvedViewport};
 
-use plurimus_core::{UiArea, UiCamera, UiHidden, UiOrder, resolve_camera};
+use plurimus_core::{
+    CameraViewports, ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area,
+};
 use plurimus_ui::ComputedWidgetArea;
 
 /// Which side of the anchor the popover opens on; mirrored to the
@@ -62,7 +63,13 @@ pub enum PopoverAlign {
 }
 
 /// Places the widget against `anchor`'s resolved area every frame,
-/// overwriting its [`UiArea`] and [`UiCamera`].
+/// overwriting its [`UiArea`] and its [`UiCamera`].
+///
+/// The camera is the anchor's, which is what lets a popover follow
+/// something it is not parented to. It is written as a real [`UiCamera`]
+/// rather than a resolved value, so a popover's own children inherit it the
+/// way they inherit any camera - parent them to the popover and nothing
+/// else is needed.
 ///
 /// The anchor must not itself be a popover.
 #[derive(Component, Debug, Clone, Copy)]
@@ -93,28 +100,46 @@ impl Popover {
     }
 }
 
+/// Takes each popover onto its anchor's camera.
+///
+/// Separate from [`place_popovers`] because the rect needs the anchor's
+/// resolved area and so must wait for `UiSystems::Areas`, while the camera
+/// needs only the anchor's own and every reader downstream wants it settled
+/// before then. Writing the resolved value serves this frame; writing a real
+/// [`UiCamera`] beside it is what reaches the popover's own children.
+pub(crate) fn adopt_anchor_cameras(
+    anchors: Query<&ComputedUiCamera, Without<Popover>>,
+    mut popovers: Query<(Entity, &Popover, &mut ComputedUiCamera, Option<&UiCamera>)>,
+    mut commands: Commands,
+) {
+    for (entity, popover, mut target, own_camera) in &mut popovers {
+        let Ok(anchor_camera) = anchors.get(popover.anchor) else {
+            continue;
+        };
+        target.set_if_neq(*anchor_camera);
+        if let Some(camera) = anchor_camera.0
+            && own_camera.map(|own| own.0) != Some(camera)
+        {
+            commands.entity(entity).insert(UiCamera(camera));
+        }
+    }
+}
+
 pub(crate) fn place_popovers(
-    default_camera: Res<DefaultCamera>,
-    cameras: Query<&ResolvedViewport>,
-    anchors: Query<(&ComputedWidgetArea, Option<&UiCamera>), Without<Popover>>,
+    cameras: CameraViewports,
+    anchors: Query<(&ComputedWidgetArea, &ComputedUiCamera), Without<Popover>>,
     mut popovers: Query<(
-        Entity,
         &Popover,
         &mut UiArea,
         &mut ComputedWidgetArea,
-        Option<&UiCamera>,
         Has<UiHidden>,
     )>,
-    mut commands: Commands,
 ) {
-    for (entity, popover, mut area, mut computed, own_camera, hidden) in &mut popovers {
+    for (popover, mut area, mut computed, hidden) in &mut popovers {
         let Ok((anchor_area, anchor_camera)) = anchors.get(popover.anchor) else {
             continue;
         };
-        let camera = resolve_camera(anchor_camera, &default_camera);
-        let viewport = camera
-            .and_then(|entity| cameras.get(entity).ok())
-            .map(|resolved| resolved.0);
+        let viewport = cameras.of(anchor_camera.0);
         let rect = viewport
             .filter(|_| !anchor_area.0.is_empty())
             .map_or(Rect::ZERO, |viewport| {
@@ -126,13 +151,8 @@ pub(crate) fn place_popovers(
         if !hidden {
             computed.set_if_neq(ComputedWidgetArea(rect));
         }
-        let local = viewport.map_or(rect, |viewport| localize(rect, viewport));
+        let local = viewport.map_or(rect, |viewport| local_area(rect, viewport));
         area.set_if_neq(UiArea::Fixed(local));
-        if let Some(camera) = camera
-            && own_camera.map(|own| own.0) != Some(camera)
-        {
-            commands.entity(entity).insert(UiCamera(camera));
-        }
     }
 }
 
@@ -205,15 +225,6 @@ const fn aligned(start: i32, anchor_span: i32, span: i32, align: PopoverAlign) -
         PopoverAlign::Center => start + (anchor_span - span) / 2,
         PopoverAlign::End => start + anchor_span - span,
     }
-}
-
-const fn localize(rect: Rect, viewport: Rect) -> Rect {
-    Rect::new(
-        rect.x.saturating_sub(viewport.x),
-        rect.y.saturating_sub(viewport.y),
-        rect.width,
-        rect.height,
-    )
 }
 
 #[cfg(test)]
@@ -293,14 +304,5 @@ mod tests {
             VIEWPORT,
         );
         assert_eq!(placed, Rect::new(0, 5, 6, 2));
-    }
-
-    #[test]
-    fn localize_offsets_by_viewport_origin() {
-        let viewport = Rect::new(4, 2, 10, 6);
-        assert_eq!(
-            localize(Rect::new(6, 3, 2, 1), viewport),
-            Rect::new(2, 1, 2, 1)
-        );
     }
 }

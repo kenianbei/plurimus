@@ -70,13 +70,21 @@ averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
 placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
 pass with no other crate involved. Its `Default` draws nothing, which is what a
 widget holds before its first restyle replaces it, so no widget library needs a
-blank of its own. `PresenterPlugin<B>` diffs the composed frame and writes
-changed cells through any ratatui-core `Backend`, and applies `TerminalCursor` -
-the terminal's own caret, which a screen reader follows and an input method
-anchors to - outside that diff, because a caret crossing a cell changes no
-cell's content and the diff skips a frame where nothing differs. Position and
-visibility go through `Backend`; the shape is a backend's to serve. Re-exports
-`ratatui_core`.
+blank of its own. Which camera a widget draws on, the crates agree on rather
+than each deriving: `ComputedUiCamera` is resolved once a frame in
+`CameraSystems::PropagateCameras` as the widget's own `UiCamera`, else the
+nearest ancestor's, else the default - so a child sits on its parent's camera
+without being told, and forgetting to say stops being a silent misplacement.
+`UiArea` requires it, local to what being half of where; `CameraViewports`
+carries a camera to its viewport with the same default fallback, and
+`local_area` is `resolve_area`'s inverse, for a crate holding a screen rect that
+has to be stored camera-locally. `PresenterPlugin<B>` diffs the composed frame
+and writes changed cells through any ratatui-core `Backend`, and applies
+`TerminalCursor` - the terminal's own caret, which a screen reader follows and
+an input method anchors to - outside that diff, because a caret crossing a cell
+changes no cell's content and the diff skips a frame where nothing differs.
+Position and visibility go through `Backend`; the shape is a backend's to serve.
+Re-exports `ratatui_core`.
 
 ### plurimus_term
 

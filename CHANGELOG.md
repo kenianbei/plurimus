@@ -31,6 +31,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`UiTheme::caret`**, the style patched over the character a widget's own
   caret covers, with a `with_caret` builder. It defaults to the reverse video
   the text field previously hardcoded, so an unstyled app looks unchanged.
+- **`local_area`**, the inverse of `resolve_area`'s offset: a screen rect
+  expressed camera-locally, for storing in a `UiArea::Fixed`. Only the forward
+  direction was public, so every crate computing a screen rect it had to store
+  rewrote the origin subtraction, with nothing keeping the two in step.
+- **`ComputedUiCamera`**, the camera a widget actually draws on, resolved every
+  frame in the new `CameraSystems::PropagateCameras`. Read it rather than
+  pairing `UiCamera` with `DefaultCamera` by hand.
+- **`CameraViewports`**, a system param resolving a camera to its viewport with
+  the default-camera fallback applied, so a system placing its own widgets
+  states that rule by calling it rather than by repeating it.
 
 ### Changed
 
@@ -47,6 +57,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A widget with no camera of its own follows its nearest ancestor's.** It fell
+  straight to the default camera before, so a child of a widget on a dedicated
+  camera drew on the wrong one unless every spawn site remembered to copy the
+  parent's - a silent misplacement, and one that only appears in the
+  multi-camera apps that need cameras at all. A widget carrying its own
+  `UiCamera` is unaffected, and so is one whose ancestors carry none.
 - **Only a focused text field draws its caret.** Every `EditableText` on screen
   painted a block at its cursor, so a form of eleven rows claimed eleven of them
   had the keys. The stylist already resolved the focus bit and dropped it on the
