@@ -62,12 +62,8 @@ fn camera_of(app: &App, entity: Entity) -> Option<Entity> {
     app.world().get::<ComputedUiCamera>(entity).unwrap().0
 }
 
-// A widget on a docked command strip, with a full-terminal camera above it
-// to escape onto: everything the escape is for.
-//
 // The strip is the lowest-ordered camera and so the default one, which is
-// what lets these tests tell the camera a popover was given from the camera
-// everything falls back to.
+// what tells a camera a popover was given from the one it fell back to.
 struct Strip {
     full: Entity,
     anchor: Entity,
@@ -90,8 +86,8 @@ const fn opening_upward(anchor: Entity) -> Popover {
     Popover::new(anchor, Size::new(4, 5)).with_side(PopoverSide::Top)
 }
 
-// The cell case is the whole-rect case against a 1x1 anchor, which is what
-// puts a completion list under a caret rather than under the editor.
+// The cell case is the whole-rect case against a 1x1 anchor: a completion
+// list under the caret rather than under the editor.
 #[test]
 fn a_cell_anchor_opens_below_the_cell() {
     let mut app = app();
@@ -218,8 +214,6 @@ fn a_popover_draws_on_the_camera_it_names() {
     assert_eq!(camera_of(&app, child), Some(strip.full));
 }
 
-// The whole point of naming a camera: a ten-row box anchored to a one-row
-// strip has nowhere to be within that row, and everywhere to be above it.
 #[test]
 fn a_named_camera_is_the_clamp_bound() {
     let mut app = app();
@@ -240,9 +234,8 @@ fn a_named_camera_is_the_clamp_bound() {
     );
 }
 
-// The two fields compose because the anchor's rect is resolved in screen
-// space before any camera is consulted: a cell means the same thing
-// wherever the popover ends up being drawn.
+// The anchor's rect resolves in screen space before any camera is
+// consulted, so a cell means the same wherever the popover is drawn.
 #[test]
 fn a_cell_anchor_and_a_named_camera_compose() {
     let mut app = app();
@@ -260,9 +253,8 @@ fn a_cell_anchor_and_a_named_camera_compose() {
     assert_eq!(placed(&app, popover), Rect::new(2, 6, 4, 5));
 }
 
-// Adoption is the anchor's to grant: a popover with nowhere to be placed
-// takes no camera either, rather than holding a `UiCamera` for a frame that
-// never draws it.
+// Adoption is the anchor's to grant, so a popover with nowhere to be
+// placed holds no `UiCamera` for a frame that never draws it.
 #[test]
 fn a_popover_with_no_anchor_adopts_nothing() {
     let mut app = app();

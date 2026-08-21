@@ -241,16 +241,40 @@ why a disabled widget passes its bound keys on too. It holds bare `Key`s rather
 than the `(Key, Action)` pairs a list box or table binds, activation having one
 action to name; a repeat never activates, one intent committing once. A menu
 item's Enter and space are fixed instead of bound, focus sitting inside the
-popup while it is open. A stylist rebuilds a widget's `UiWidget` from
-`plurimus_ui`'s `UiTheme` when the state it last drew differs from the current
-one, or when its label changed, not every frame, and they run in the
-`WidgetSystems::Style` set an app orders its own against. Only the stylists
-themselves are the crate's: the cache they gate on, the state they read, the
-label they draw, and the theme vocabulary the app speaks all belong to
-`plurimus_ui`, which is what lets a widget family outside this workspace be
-written against the same engine. `StylistDisabled` exempts an entity so an app
-takes its look while keeping its behavior, and `UiStyle` patches over the style
-an entity would otherwise resolve to, on a widget or on one list or table row.
+popup while it is open.
+
+A `Popover` is placed against its anchor's resolved area every frame, so it
+follows a moving anchor without being told, and two fields say what that means:
+`cell` narrows the anchor to one cell of its content - mapped through the
+anchor's own `ScrollOffset` by `plurimus_ui`'s `screen_cell`, so an editor names
+its caret once, in the component it already publishes it in - and `camera` names
+the camera the popover draws on and is bounded by when that should not be its
+anchor's. They compose because the anchor's rect resolves in screen space before
+any camera is consulted, and each is one input to the same placement rather than
+a path of its own: the side, the mirror when it will not fit, the alignment and
+the clamp are the code that was already there, applied to a one-cell rect or
+against a different viewport. Both say "nowhere" the same way, with
+`Rect::ZERO`, for a cell scrolled out of its anchor's window, an anchor drawing
+nothing, and a camera with no viewport this frame alike, because attaching to
+something invisible is what a popover has no answer for. `camera` is a field
+rather than a user-set `UiCamera` because placement writes a real `UiCamera`
+itself, to reach the popover's children, and so could not tell an app's from its
+own; the anchor still gates adoption, so a popover with no anchor to be placed
+against takes no camera either. Every side attaches to an outer edge, which is
+why `PopoverSide` has four variants and not five: a box drawn _inside_ its
+anchor has no side to mirror and no edge to align to, and is a child holding a
+`UiArea::Fixed` placed through `local_area`.
+
+A stylist rebuilds a widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the
+state it last drew differs from the current one, or when its label changed, not
+every frame, and they run in the `WidgetSystems::Style` set an app orders its
+own against. Only the stylists themselves are the crate's: the cache they gate
+on, the state they read, the label they draw, and the theme vocabulary the app
+speaks all belong to `plurimus_ui`, which is what lets a widget family outside
+this workspace be written against the same engine. `StylistDisabled` exempts an
+entity so an app takes its look while keeping its behavior, and `UiStyle`
+patches over the style an entity would otherwise resolve to, on a widget or on
+one list or table row.
 
 The two widgets drawn from row children - the list box and the table - share
 everything a container cannot work out for itself, which is why `rows` holds it
