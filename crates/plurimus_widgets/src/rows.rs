@@ -20,6 +20,7 @@ use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
 use plurimus_core::ratatui_core::text::{Line, Text};
 
+use crate::listbox::ListItemTrailing;
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle};
 
 /// Marks a container whose content changed: a row added, edited, restyled,
@@ -49,6 +50,20 @@ impl<M: Send + Sync + 'static> Default for ContentDirty<M> {
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ActiveDescendant(pub Option<Entity>);
 
+/// Lights a row's marker gutter without claiming it is selected.
+///
+/// [`Checked`] is the selection channel, written by
+/// [`listbox_self_update`](crate::listbox_self_update) and read as "the user
+/// picked this". A row can also be marked for a reason of the app's own -
+/// a command already in force, a file with unsaved edits - and saying that
+/// with `Checked` means any app-wide selection updater silently redefines
+/// it. Nothing in this crate ever writes this one.
+///
+/// Drawn by [`ListBoxSelectionMarker`](crate::ListBoxSelectionMarker),
+/// which lights the gutter for a row that is checked, marked, or both.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Marked;
+
 /// Draws a [`ListItem`](crate::ListItem) as more than one terminal row, in place of its
 /// [`UiLabel`](plurimus_ui::UiLabel).
 ///
@@ -74,6 +89,8 @@ pub(crate) fn row_height(text: Option<&ListItemText>) -> u16 {
 #[derive(SystemParam)]
 pub(crate) struct ClearedRows<'w, 's> {
     checked: RemovedComponents<'w, 's, Checked>,
+    marked: RemovedComponents<'w, 's, Marked>,
+    trailing: RemovedComponents<'w, 's, ListItemTrailing>,
     styled: RemovedComponents<'w, 's, UiStyle>,
     parents: Query<'w, 's, &'static ChildOf>,
 }
@@ -84,11 +101,15 @@ impl ClearedRows<'_, '_> {
     fn parents(&mut self) -> impl Iterator<Item = Entity> + '_ {
         let Self {
             checked,
+            marked,
+            trailing,
             styled,
             parents,
         } = self;
         checked
             .read()
+            .chain(marked.read())
+            .chain(trailing.read())
             .chain(styled.read())
             .filter_map(|row| parents.get(row).ok())
             .map(ChildOf::parent)

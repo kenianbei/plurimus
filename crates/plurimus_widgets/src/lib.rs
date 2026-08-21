@@ -38,13 +38,13 @@ pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
 pub use listbox::{
     ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect, ListBoxSelectionMarker,
-    ListItem, list_item, listbox,
+    ListItem, ListItemTrailing, list_item, listbox,
 };
 pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
 pub use radio::{RadioButton, RadioGroup, radio};
-pub use rows::{ActiveDescendant, ListItemText};
+pub use rows::{ActiveDescendant, ListItemText, Marked};
 pub use scrollbar::{Scrollbar, scrollbar};
 pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,

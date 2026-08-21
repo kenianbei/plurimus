@@ -15,16 +15,17 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
 use bevy_input_focus::InputFocus;
+use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::style::Style;
-use plurimus_core::ratatui_core::text::{Line, Text};
+use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
-use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem};
+use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemTrailing};
 use crate::rows::ContentDirty;
-use crate::rows::{ActiveDescendant, ListItemText, cursor_symbol};
+use crate::rows::{ActiveDescendant, ListItemText, Marked, cursor_symbol};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
-use plurimus_ui::{Checked, UiStyle, UiTheme};
+use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, decorate, hashed_bits, observed};
 
 // `ListItem` catches a child that becomes a row without its label
@@ -33,8 +34,10 @@ pub(crate) type ListRowsChanged = Or<(
     Changed<ListItem>,
     Changed<UiLabel>,
     Changed<ListItemText>,
+    Changed<ListItemTrailing>,
     Changed<UiStyle>,
     Changed<Checked>,
+    Changed<Marked>,
 )>;
 
 // The cursor row is absent by design: it reaches the stylist hashed into
@@ -54,7 +57,8 @@ type RowItems<'w, 's> = Query<
     (
         &'static UiLabel,
         Option<&'static ListItemText>,
-        Has<Checked>,
+        (Has<Checked>, Has<Marked>),
+        Option<&'static ListItemTrailing>,
         Option<&'static UiStyle>,
     ),
     With<ListItem>,
@@ -64,7 +68,8 @@ type RowItems<'w, 's> = Query<
 struct RowContent<'a> {
     label: &'a Line<'static>,
     text: Option<&'a ListItemText>,
-    checked: bool,
+    lit: bool,
+    trailing: Option<&'a ListItemTrailing>,
     over: Option<&'a UiStyle>,
 }
 
@@ -87,6 +92,7 @@ type ListBoxes<'w, 's> = Query<
         &'static Children,
         Has<ListBoxSelectionMarker>,
         Option<&'static ListBoxCursor>,
+        (&'static ComputedWidgetArea, Option<&'static ScrollArea>),
         Ref<'static, ContentDirty<ListBox>>,
         &'static mut StylistCache,
         &'static mut UiWidget,
@@ -100,10 +106,18 @@ pub(crate) fn style_listboxes(
     mut boxes: ListBoxes,
     items: RowItems,
 ) {
-    for (state, active, children, marker, cursor, content, mut cache, mut widget) in &mut boxes {
-        // A `Copy` scalar, so an idle frame reaches the gate below without
-        // touching a row.
-        let next = observed(state, &focus, hashed_bits(active.0));
+    for (state, active, children, marker, cursor, size, content, mut cache, mut widget) in
+        &mut boxes
+    {
+        let gutters = Gutters {
+            marker,
+            cursor: cursor_symbol(cursor.map(|cursor| &cursor.0)),
+        };
+        let width = row_width(size, &gutters, active.0.is_some());
+        // Copy scalars, so an idle frame reaches the gate below without
+        // touching a row. The width joins them because a resize re-aligns
+        // every trailing slot without any row having changed.
+        let next = observed(state, &focus, hashed_bits((active.0, width)));
         if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
         }
@@ -111,12 +125,33 @@ pub(crate) fn style_listboxes(
             every: next.resting_style(&theme),
             cursor: cursor_style(next, active.0.is_some(), &theme),
         };
-        let gutters = Gutters {
-            marker,
-            cursor: cursor_symbol(cursor.map(|cursor| &cursor.0)),
-        };
-        *widget = list_widget((children, &items), active.0, gutters, styles);
+        *widget = list_widget((children, &items), active.0, (gutters, width), styles);
     }
+}
+
+/// The width a row's content is drawn into: what a scrolled list windows,
+/// else the area it occupies, less the gutters the list puts on first.
+///
+/// The cursor gutter counts only while a row is current, because that is
+/// when ratatui reserves it - which is also why the cursor joins the redraw
+/// comparison: gaining one shifts every row.
+fn row_width(
+    (area, scroll): (&ComputedWidgetArea, Option<&ScrollArea>),
+    gutters: &Gutters,
+    cursored: bool,
+) -> u16 {
+    let drawn = scroll.map_or(area.0.width, |scroll| scroll.content_width(area.0.width));
+    let marker = if gutters.marker {
+        u16::try_from(UNCHECKED_MARKER.chars().count()).unwrap_or(u16::MAX)
+    } else {
+        0
+    };
+    let cursor = if cursored {
+        u16::try_from(gutters.cursor.width()).unwrap_or(u16::MAX)
+    } else {
+        0
+    };
+    drawn.saturating_sub(marker).saturating_sub(cursor)
 }
 
 // A list driven through `ActiveDescendant` while focus sits on whatever is
@@ -131,13 +166,13 @@ fn cursor_style(next: StylistCache, driven: bool, theme: &UiTheme) -> Style {
 fn list_widget(
     (children, items): (&Children, &RowItems),
     active: Option<Entity>,
-    gutters: Gutters,
+    (gutters, width): (Gutters, u16),
     styles: RowStyles,
 ) -> UiWidget {
     let mut rows = Vec::new();
     let mut selected = None;
     for &child in children {
-        let Ok((label, text, checked, over)) = items.get(child) else {
+        let Ok((label, text, (checked, marked), trailing, over)) = items.get(child) else {
             continue;
         };
         if active == Some(child) {
@@ -147,10 +182,11 @@ fn list_widget(
             &RowContent {
                 label: &label.0,
                 text,
-                checked,
+                lit: checked || marked,
+                trailing,
                 over,
             },
-            gutters.marker,
+            (gutters.marker, width),
         ));
     }
     let mut highlight = ListState::default();
@@ -164,15 +200,47 @@ fn list_widget(
     )
 }
 
-fn list_row(content: &RowContent, marker: bool) -> ListRow<'static> {
-    let mark = if content.checked {
+/// `label` with `trailing` pushed to `width`'s right edge, keeping at least
+/// one space between them so a list too narrow for both truncates rather
+/// than running the two together.
+fn aligned_line(label: &Line<'static>, trailing: &Line<'static>, width: u16) -> Line<'static> {
+    let used = label.width().saturating_add(trailing.width());
+    let gap = usize::from(width).saturating_sub(used).max(1);
+    let mut spans = label.spans.clone();
+    spans.push(Span::raw(" ".repeat(gap)));
+    spans.extend(trailing.spans.iter().cloned());
+    Line::from(spans)
+        .style(label.style)
+        .alignment(label.alignment.unwrap_or(Alignment::Left))
+}
+
+fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'static> {
+    let mark = if content.lit {
         CHECKED_MARKER
     } else {
         UNCHECKED_MARKER
     };
+    let first = content.trailing.map(|trailing| {
+        aligned_line(
+            content.text.map_or(content.label, |text| {
+                text.0.lines.first().unwrap_or(content.label)
+            }),
+            &trailing.0,
+            width,
+        )
+    });
     let source = content.text.map_or(slice::from_ref(content.label), |text| {
         text.0.lines.as_slice()
     });
+    let source = match (&first, source.split_first()) {
+        (Some(first), Some((_, rest))) => {
+            let mut lines = vec![first.clone()];
+            lines.extend_from_slice(rest);
+            std::borrow::Cow::Owned(lines)
+        }
+        _ => std::borrow::Cow::Borrowed(source),
+    };
+    let source = source.as_ref();
     // Ratatui blanks the cursor gutter below a row's first line; the
     // marker column is ours, so its continuation blanks are drawn here.
     let mut drawn = Text::from(

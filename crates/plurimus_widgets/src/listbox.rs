@@ -70,6 +70,17 @@ pub struct ListBoxCursor(pub Line<'static>);
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListItem;
 
+/// Trailing content the list right-aligns against its own drawn width - a
+/// shortcut hint beside a command name, a count beside a group.
+///
+/// The width a row is drawn at exists only inside the list, after placement
+/// and after any scrollbar gutter, so a row built by an app can never hold
+/// the number to align against. Only the row's first line carries it; a
+/// list too narrow for both keeps one space between them and lets the text
+/// truncate.
+#[derive(Component, Debug, Clone)]
+pub struct ListItemTrailing(pub Line<'static>);
+
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
 #[must_use]
 pub fn listbox() -> impl Bundle {
