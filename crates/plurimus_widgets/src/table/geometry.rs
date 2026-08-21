@@ -140,24 +140,24 @@ pub(super) fn solve_width(area: ComputedWidgetArea, scroll: Option<&ScrollArea>)
 // An empty width set is expanded here rather than by ratatui, which reads
 // one as "never called" and applies this same rule to its own render area.
 // The stylist and the click path both take the result, so a table's columns
-// cannot be solved from two different widths. `widest` is ignored when the
-// app stated its widths, and is what each caller's own pass over the rows
-// already found.
+// cannot be solved from two different widths. `widest` is only called for
+// such a set, a stated one costing no pass over the rows at all.
 pub(super) fn resolved_widths(
     columns: &TableColumns,
-    widest: usize,
+    widest: impl FnOnce() -> usize,
     width: u16,
 ) -> Vec<Constraint> {
     if !columns.0.is_empty() {
         return columns.0.clone();
     }
+    let widest = widest();
     let each = width / u16::try_from(widest.max(1)).unwrap_or(u16::MAX);
     vec![Constraint::Length(each); widest]
 }
 
-pub(super) const fn column_count(columns: &TableColumns, widest: usize) -> usize {
+pub(super) fn column_count(columns: &TableColumns, widest: impl FnOnce() -> usize) -> usize {
     if columns.0.is_empty() {
-        widest
+        widest()
     } else {
         columns.0.len()
     }
@@ -219,7 +219,7 @@ impl TableGeometry<'_, '_> {
             offset,
         };
         let line = row_line(row, children, &self.rows, &placed)?;
-        let widths = resolved_widths(columns, widest_row(children, &self.rows), placed.width());
+        let widths = resolved_widths(columns, || widest_row(children, &self.rows), placed.width());
         let gutter = selection.map_or(0, |selection| {
             cursor_gutter(*selection, active.and_then(|active| active.0), cursor)
         });

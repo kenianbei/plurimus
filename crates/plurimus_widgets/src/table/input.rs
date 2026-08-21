@@ -69,7 +69,7 @@ pub(crate) fn table_key(
         return;
     }
     if action.moves_column() && selection.tracks_column() {
-        let count = column_count(columns, widest_row(children, &rows));
+        let count = column_count(columns, || widest_row(children, &rows));
         column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)));
         return;
     }
@@ -153,7 +153,7 @@ impl Geometry<'_> {
         let cell = placed.content_cell(cell)?;
         let widths = resolved_widths(
             self.columns,
-            widest_row(self.children, rows),
+            || widest_row(self.children, rows),
             placed.width(),
         );
         let gutter = cursor_gutter(self.selection, self.active, cursor);

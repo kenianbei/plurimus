@@ -160,7 +160,7 @@ pub(crate) fn style_tables(
         };
         let bands = bands(children, &rows, &styles, active.and_then(|active| active.0));
         let chrome = Chrome {
-            widths: resolved_widths(columns, bands.widest, width),
+            widths: resolved_widths(columns, || bands.widest, width),
             layout: layout.copied().unwrap_or_default(),
             base: next.resting_style(&theme),
         };
