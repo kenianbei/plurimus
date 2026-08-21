@@ -32,6 +32,9 @@ pub struct InteractionState {
 
 /// Per-state styles for widgets. Replace the resource to restyle;
 /// `focused` is patched on top of the state style.
+///
+/// `caret` is the one field that is not a state: it styles a text widget's
+/// own caret rather than the widget, which no state style can reach.
 #[derive(Resource, Debug, Clone)]
 #[non_exhaustive]
 pub struct UiTheme {
@@ -45,6 +48,15 @@ pub struct UiTheme {
     pub disabled: Style,
     /// Patched over the state style while the widget has input focus.
     pub focused: Style,
+    /// Patched over the character a text caret covers, while the widget
+    /// holding it has focus.
+    ///
+    /// Reversing the cell is the default because it needs no color from a
+    /// theme to be visible against one. A widget drawing the terminal's own
+    /// caret takes its shape from
+    /// [`TerminalCursorStyle`](plurimus_term::TerminalCursorStyle) instead,
+    /// which is a terminal's to serve and not a style at all.
+    pub caret: Style,
 }
 
 impl Default for UiTheme {
@@ -95,6 +107,7 @@ impl UiTheme {
             pressed: Style::new().fg(Color::Black).bg(Color::Cyan),
             disabled: Style::new().fg(Color::DarkGray),
             focused: Style::new().add_modifier(Modifier::BOLD).fg(Color::Yellow),
+            caret: Style::new().add_modifier(Modifier::REVERSED),
         }
     }
 
@@ -131,6 +144,13 @@ impl UiTheme {
     #[must_use]
     pub const fn with_focused(mut self, focused: Style) -> Self {
         self.focused = focused;
+        self
+    }
+
+    /// Sets the patch applied over the character a text caret covers.
+    #[must_use]
+    pub const fn with_caret(mut self, caret: Style) -> Self {
+        self.caret = caret;
         self
     }
 

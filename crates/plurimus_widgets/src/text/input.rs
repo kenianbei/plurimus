@@ -140,6 +140,7 @@ pub(crate) fn style_text_inputs(
             value: text.value().to_owned(),
             cursor: text.cursor(),
             style: next.style(&theme),
+            caret: next.state().focused.then_some(theme.caret),
         });
     }
 }

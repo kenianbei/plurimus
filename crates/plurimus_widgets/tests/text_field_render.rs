@@ -5,11 +5,11 @@ use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::ratatui_core::style::Modifier;
+use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
 use plurimus_term::KeyCode;
 use plurimus_test::press_key;
-use plurimus_ui::UiArea;
+use plurimus_ui::{UiArea, UiTheme};
 use plurimus_widgets::{WidgetsPlugin, editable_text};
 
 const ACCENT: &str = "e\u{301}";
@@ -111,4 +111,36 @@ fn a_cursor_past_the_end_highlights_one_blank() {
     spawn_field(&mut app, FAMILY);
     let buffer = frame(&mut app);
     assert_eq!(reversed_columns(&buffer), vec![2]);
+}
+
+// A screenful of fields each drawing a block would claim each of them has
+// the keys, when only one of them does.
+#[test]
+fn only_a_focused_field_draws_its_caret() {
+    let mut app = app();
+    spawn_field(&mut app, "ab");
+    press_key(&mut app, KeyCode::Home);
+    assert_eq!(reversed_columns(&frame(&mut app)), vec![0]);
+
+    app.world_mut().resource_mut::<InputFocus>().clear();
+    let buffer = frame(&mut app);
+
+    assert!(reversed_columns(&buffer).is_empty());
+    assert_eq!(symbols(&buffer)[0], "a", "though the value stays drawn");
+}
+
+#[test]
+fn the_theme_styles_the_caret() {
+    let mut app = app();
+    spawn_field(&mut app, "ab");
+    press_key(&mut app, KeyCode::Home);
+
+    app.insert_resource(UiTheme::new().with_caret(Style::new().fg(Color::Red)));
+    let buffer = frame(&mut app);
+
+    assert_eq!(buffer.cell((0, 0)).unwrap().style().fg, Some(Color::Red));
+    assert!(
+        reversed_columns(&buffer).is_empty(),
+        "the theme replaces the default rather than adding to it"
+    );
 }
