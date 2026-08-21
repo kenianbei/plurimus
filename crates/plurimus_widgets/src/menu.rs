@@ -47,7 +47,7 @@ pub struct MenuButton;
 /// The popup container; a child of its [`MenuButton`], auto-sized around
 /// its [`MenuItem`] children.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(StylistCache, ModalityToggle)]
+#[require(StylistCache)]
 pub struct MenuPopup;
 
 /// Present on a [`MenuPopup`] while it is open.

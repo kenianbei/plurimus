@@ -26,10 +26,11 @@ use crate::interaction::ComputedWidgetArea;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ModalOpen;
 
-/// Marks an entity whose activation changes modal state (an opener, a row
-/// inside an overlay, the overlay itself). A press on one outside every
-/// open modal routes instead of dismissing, which is how an opener closes
-/// what it opened, and a click on one defers the rest of the pointer batch.
+/// Marks an entity whose activation changes modal state. It answers two
+/// questions, and a widget usually wants one of them: a press on one
+/// outside every open modal routes instead of dismissing, which is how an
+/// opener closes what it opened, and a click on one defers the rest of the
+/// pointer batch, which is what a row inside an overlay needs.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct ModalityToggle;
 
@@ -41,16 +42,6 @@ pub struct ModalDismiss {
     pub entity: Entity,
 }
 
-/// Where a pointer at one position may route.
-pub(crate) enum ModalRouting {
-    /// Nothing is modal: every widget under the pointer is a candidate.
-    Unguarded,
-    /// Inside at least one open modal: only their subtrees are candidates.
-    Confined,
-    /// Outside every open modal.
-    Outside,
-}
-
 /// The open-modal state the input routers consult.
 #[derive(SystemParam)]
 pub(crate) struct ModalGuard<'w, 's> {
@@ -60,25 +51,21 @@ pub(crate) struct ModalGuard<'w, 's> {
 }
 
 impl ModalGuard<'_, '_> {
-    pub(crate) fn routing(&self, position: Position) -> ModalRouting {
-        if self.open.is_empty() {
-            return ModalRouting::Unguarded;
-        }
-        if self.open.iter().any(|(_, area)| area.0.contains(position)) {
-            ModalRouting::Confined
-        } else {
-            ModalRouting::Outside
-        }
+    /// Whether a pointer at `position` may reach `entity`: everything,
+    /// where no overlay covers the position, else the subtrees of the
+    /// overlays that do. Taking their union is what admits a submenu
+    /// inside its parent, and needs no ordering among open modals.
+    pub(crate) fn admits(&self, position: Position, entity: Entity) -> bool {
+        !self.confines(position)
+            || iter::once(entity)
+                .chain(self.parents.iter_ancestors(entity))
+                .any(|ancestor| self.contains(position, ancestor))
     }
 
-    /// Whether `entity` belongs to an open modal containing `position`: the
-    /// root itself, or anything under it. Walking the entity's ancestors
-    /// asks this once per candidate however many modals are open, and the
-    /// union of them is what admits a submenu inside its parent.
-    pub(crate) fn admits(&self, position: Position, entity: Entity) -> bool {
-        iter::once(entity)
-            .chain(self.parents.iter_ancestors(entity))
-            .any(|ancestor| self.contains(ancestor, position))
+    /// Whether a pointer at `position` closes what is open: there is an
+    /// open modal, and none of them covers the position.
+    pub(crate) fn dismisses(&self, position: Position) -> bool {
+        !self.open.is_empty() && !self.confines(position)
     }
 
     pub(crate) fn affects_modality(&self, target: Entity) -> bool {
@@ -91,7 +78,11 @@ impl ModalGuard<'_, '_> {
         }
     }
 
-    fn contains(&self, entity: Entity, position: Position) -> bool {
+    fn confines(&self, position: Position) -> bool {
+        self.open.iter().any(|(_, area)| area.0.contains(position))
+    }
+
+    fn contains(&self, position: Position, entity: Entity) -> bool {
         self.open
             .get(entity)
             .is_ok_and(|(_, area)| area.0.contains(position))

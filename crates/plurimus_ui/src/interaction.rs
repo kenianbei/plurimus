@@ -23,7 +23,7 @@ use plurimus_core::{
 };
 use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 
-use crate::modal::{ModalGuard, ModalRouting};
+use crate::modal::ModalGuard;
 
 /// Whether the cursor is over the widget. Opt-in: spawn it on widgets that
 /// should react to the pointer.
@@ -262,31 +262,23 @@ fn route_message(
     }
 }
 
-// A press inside an open modal reaches that modal's subtree or nothing:
-// falling through to what the overlay covers is the click-through the
-// wheel path already refuses. Only a press outside them all dismisses,
-// and a toggle out there routes instead - that is how an opener closes
-// the menu it opened.
+// A toggle outside the overlays is exempt from dismissal so that pressing
+// an opener closes what it opened, rather than the dismissal swallowing
+// the press that would have toggled it.
 fn route_press(
     position: Position,
     routing: &mut PointerRouting,
     run_pressed: &mut Vec<Entity>,
     commands: &mut Commands,
 ) -> bool {
-    let target = match routing.modal.routing(position) {
-        ModalRouting::Unguarded => topmost_at(position, &routing.targets, |_| true),
-        ModalRouting::Confined => topmost_at(position, &routing.targets, |entity| {
-            routing.modal.admits(position, entity)
-        }),
-        ModalRouting::Outside => {
-            let target = topmost_at(position, &routing.targets, |_| true);
-            if !target.is_some_and(|entity| routing.modal.affects_modality(entity)) {
-                routing.modal.dismiss_all(commands);
-                return true;
-            }
-            target
-        }
-    };
+    let target = topmost_at(position, &routing.targets, |entity| {
+        routing.modal.admits(position, entity)
+    });
+    let opener = target.is_some_and(|entity| routing.modal.affects_modality(entity));
+    if routing.modal.dismisses(position) && !opener {
+        routing.modal.dismiss_all(commands);
+        return true;
+    }
     if let Some(entity) = target {
         commands.trigger(PointerPress { entity, position });
         press(entity, &routing.focusable, &mut routing.focus, commands);

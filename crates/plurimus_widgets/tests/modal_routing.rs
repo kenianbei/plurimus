@@ -44,8 +44,6 @@ fn spawn_menu_at(app: &mut App, button_area: Rect) -> Entity {
     popup
 }
 
-// Everything the popup covers, so a press falling through the overlay has
-// somewhere to land.
 fn spawn_pressable(app: &mut App, area: Rect, parent: Option<Entity>) -> Entity {
     let mut pressable = app.world_mut().spawn((
         UiWidget::new(Paragraph::new("row")),
@@ -58,19 +56,17 @@ fn spawn_pressable(app: &mut App, area: Rect, parent: Option<Entity>) -> Entity 
     pressable.id()
 }
 
+// Everything the popup covers, so a press falling through the overlay has
+// somewhere to land.
 fn spawn_beneath(app: &mut App) -> Entity {
-    app.world_mut()
-        .spawn((
-            UiWidget::new(Paragraph::new("beneath")),
-            UiArea::Fixed(Rect::new(0, 1, 20, 7)),
-            Hovered::default(),
-        ))
-        .id()
+    spawn_pressable(app, COVERED, None)
 }
 
 fn is_open(app: &App, popup: Entity) -> bool {
     app.world().entity(popup).contains::<MenuOpen>()
 }
+
+const COVERED: Rect = Rect::new(0, 1, 20, 7);
 
 // The overlay's bottom border row: inside the popup, and never a row an
 // item was placed on.
@@ -86,9 +82,9 @@ fn was_pressed(app: &App, entity: Entity) -> bool {
     app.world().resource::<Presses>().0.contains(&entity)
 }
 
-// The popup carries `ModalityToggle` but no `Hovered`, so it never wins
-// press arbitration: before the guard hit-tested geometry, a press on its
-// own border resolved to whatever sat beneath and dismissed the menu.
+// The popup has no `Hovered`, so it never wins press arbitration: before
+// the guard hit-tested geometry, a press on its own border resolved to
+// whatever sat beneath and dismissed the menu.
 #[test]
 fn a_press_on_the_popup_frame_keeps_the_menu_open() {
     let mut app = app();
@@ -151,11 +147,13 @@ fn offset_of(app: &App, scroller: Entity) -> Position {
 fn a_wheel_tick_inside_a_modal_scrolls_that_modal_and_nothing_under_it() {
     let mut app = app();
     let popup = spawn_menu(&mut app);
-    let beneath = spawn_scroller(&mut app, Rect::new(0, 1, 20, 7), None);
+    let beneath = spawn_scroller(&mut app, COVERED, None);
     click(&mut app, 2, 0);
     app.update();
     let frame = popup_area(&app, popup);
-    let inside = spawn_scroller(&mut app, frame, Some(popup));
+    // Deliberately wider than the widget it covers: z-order gives the tick
+    // to the smaller rect, so only confinement can put it here.
+    let inside = spawn_scroller(&mut app, Rect::new(0, 0, 20, 8), Some(popup));
     app.update();
 
     send_mouse(&mut app, MouseKind::ScrollDown, frame.x + 1, frame.y + 1);
@@ -171,7 +169,7 @@ fn a_wheel_tick_inside_a_modal_scrolls_that_modal_and_nothing_under_it() {
 fn a_wheel_tick_inside_a_modal_with_nothing_to_scroll_dies() {
     let mut app = app();
     let popup = spawn_menu(&mut app);
-    let beneath = spawn_scroller(&mut app, Rect::new(0, 1, 20, 7), None);
+    let beneath = spawn_scroller(&mut app, COVERED, None);
     click(&mut app, 2, 0);
     app.update();
     let frame = popup_area(&app, popup);

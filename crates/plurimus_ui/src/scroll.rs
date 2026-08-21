@@ -21,7 +21,7 @@ use tui_scrollview::ScrollbarVisibility;
 use crate::interaction::{
     AreaTargetQuery, ComputedWidgetArea, InteractionDisabled, ValueChange, topmost_at,
 };
-use crate::modal::{ModalGuard, ModalRouting};
+use crate::modal::ModalGuard;
 
 /// Declares a widget entity's content to be `content_size` cells,
 /// windowed into the resolved area at render time by its
@@ -178,20 +178,14 @@ pub(crate) fn route_wheel(
             continue;
         };
         let position = message.position;
-        let confined = match modal.routing(position) {
-            ModalRouting::Unguarded => false,
-            ModalRouting::Confined => true,
-            ModalRouting::Outside => {
-                modal.dismiss_all(&mut commands);
-                continue;
-            }
-        };
-        // A tick an open overlay covers scrolls inside that overlay or
-        // scrolls nothing: letting it through would move what the overlay
-        // is drawn on top of.
+        if modal.dismisses(position) {
+            modal.dismiss_all(&mut commands);
+            continue;
+        }
+        // Letting a covered tick through would scroll what the overlay is
+        // drawn on top of.
         let consumes = |entity| {
-            axes.get(entity).is_ok_and(|axes| axes.consumes(step))
-                && (!confined || modal.admits(position, entity))
+            axes.get(entity).is_ok_and(|axes| axes.consumes(step)) && modal.admits(position, entity)
         };
         let Some(entity) = topmost_at(position, &targets, consumes) else {
             continue;
