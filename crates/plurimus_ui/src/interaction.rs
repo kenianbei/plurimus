@@ -21,7 +21,7 @@ use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
     CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
 };
-use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
+use plurimus_term::{ClickCounter, CursorCell, MouseButton, MouseKind, MouseMessage};
 
 use crate::modal::ModalGuard;
 
@@ -33,6 +33,14 @@ pub struct Hovered(pub bool);
 /// Present while the pointer is pressed on the widget.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Pressed;
+
+/// What [`Pressed`] cannot carry: the click count of the press that set it,
+/// kept until the release that reads it onto the [`Click`].
+///
+/// Beside [`Pressed`] rather than inside it, that being a public unit marker
+/// a field cannot be added to without breaking every consumer of it.
+#[derive(Component, Debug, Clone, Copy)]
+pub(crate) struct PressCount(pub(crate) u8);
 
 /// Disables all interaction with the widget.
 ///
@@ -87,13 +95,28 @@ pub struct Click {
     pub entity: Entity,
     /// Cursor cell at release time, inside the widget's area.
     pub position: Position,
+    /// Click count of the press this completes; see
+    /// [`PointerPress::count`].
+    pub count: u8,
 }
 
 impl Click {
-    /// A click completed on `entity`, released at `position`.
+    /// A click completed on `entity`, released at `position`, the first of
+    /// its run.
     #[must_use]
     pub const fn new(entity: Entity, position: Position) -> Self {
-        Self { entity, position }
+        Self {
+            entity,
+            position,
+            count: 1,
+        }
+    }
+
+    /// The same click, counted as the `count`th of its run.
+    #[must_use]
+    pub const fn with_count(mut self, count: u8) -> Self {
+        self.count = count;
+        self
     }
 }
 
@@ -106,13 +129,34 @@ pub struct PointerPress {
     pub entity: Entity,
     /// Cursor cell at press time.
     pub position: Position,
+    /// How many presses have run together here: 1 for a lone press, 2 for a
+    /// double click, and up.
+    ///
+    /// Synthesized, since no terminal reports one, from
+    /// [`plurimus_term::ClickRun`] and the app-wide
+    /// [`MultiClickWindow`](plurimus_term::MultiClickWindow). A run is this
+    /// widget's and this cell's: a press elsewhere, on another widget, or on
+    /// none at all starts the next press over at 1. It saturates rather than
+    /// wrapping, so what a long run means is this widget's to decide.
+    pub count: u8,
 }
 
 impl PointerPress {
-    /// A press on `entity` at `position`.
+    /// A press on `entity` at `position`, the first of its run.
     #[must_use]
     pub const fn new(entity: Entity, position: Position) -> Self {
-        Self { entity, position }
+        Self {
+            entity,
+            position,
+            count: 1,
+        }
+    }
+
+    /// The same press, counted as the `count`th of its run.
+    #[must_use]
+    pub const fn with_count(mut self, count: u8) -> Self {
+        self.count = count;
+        self
     }
 }
 
@@ -228,7 +272,18 @@ pub(crate) type AreaTargetQuery<'w, 's, F> = Query<
 type PointerTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<Hovered>, Without<PressPassThrough>)>;
 
-type PressedQuery<'w, 's> = Query<'w, 's, (Entity, Has<InteractionDisabled>), With<Pressed>>;
+// The count is optional because `Pressed` is public: a gesture something
+// other than this router started still routes, as a lone press.
+type PressedQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        Option<&'static PressCount>,
+        Has<InteractionDisabled>,
+    ),
+    With<Pressed>,
+>;
 
 type FocusableQuery<'w, 's> = Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>;
 
@@ -241,6 +296,7 @@ pub(crate) struct PointerRouting<'w, 's> {
     disabled: Query<'w, 's, (), With<InteractionDisabled>>,
     modal: ModalGuard<'w, 's>,
     focus: ResMut<'w, InputFocus>,
+    counter: ClickCounter<'w>,
 }
 
 pub(crate) fn pointer_interaction(
@@ -251,8 +307,9 @@ pub(crate) fn pointer_interaction(
 ) {
     let mut pending = std::mem::take(&mut *carryover);
     pending.extend(mouse.read().copied());
-    // Entities pressed during this run: Pressed lands at command flush,
-    // so a same-batch release consults this alongside the query.
+    // Entities pressed during this run, with their counts: Pressed lands at
+    // command flush, so a same-batch release consults this alongside the
+    // query.
     let mut run_pressed = Vec::new();
     let mut messages = pending.into_iter();
     while let Some(message) = messages.next() {
@@ -269,7 +326,7 @@ pub(crate) fn pointer_interaction(
 fn route_message(
     message: MouseMessage,
     routing: &mut PointerRouting,
-    run_pressed: &mut Vec<Entity>,
+    run_pressed: &mut Vec<(Entity, u8)>,
     commands: &mut Commands,
 ) -> bool {
     match message.kind {
@@ -293,7 +350,7 @@ fn route_message(
 fn route_press(
     position: Position,
     routing: &mut PointerRouting,
-    run_pressed: &mut Vec<Entity>,
+    run_pressed: &mut Vec<(Entity, u8)>,
     commands: &mut Commands,
 ) -> bool {
     let target = topmost_at(position, &routing.targets, |entity| {
@@ -305,16 +362,30 @@ fn route_press(
     let opener = !inert && target.is_some_and(|entity| routing.modal.affects_modality(entity));
     if routing.modal.dismisses(position) && !opener {
         routing.modal.dismiss_all(commands);
+        routing.counter.reset();
         return true;
     }
-    if inert {
+    // A press that reaches no widget ends the run rather than counting
+    // towards one: what it dismissed or what absorbed it is not what the
+    // next press will land on.
+    let Some(entity) = target.filter(|_| !inert) else {
+        routing.counter.reset();
         return false;
-    }
-    if let Some(entity) = target {
-        commands.trigger(PointerPress { entity, position });
-        press(entity, &routing.focusable, &mut routing.focus, commands);
-        run_pressed.push(entity);
-    }
+    };
+    let count = routing.counter.count(entity, position);
+    commands.trigger(PointerPress {
+        entity,
+        position,
+        count,
+    });
+    press(
+        entity,
+        count,
+        &routing.focusable,
+        &mut routing.focus,
+        commands,
+    );
+    run_pressed.push((entity, count));
     false
 }
 
@@ -334,27 +405,28 @@ pub(crate) fn topmost_at<F: QueryFilter>(
 
 fn drag_pressed(
     pressed: &PressedQuery,
-    run_pressed: &[Entity],
+    run_pressed: &[(Entity, u8)],
     position: Position,
     commands: &mut Commands,
 ) {
-    for (entity, disabled) in pressed {
+    for (entity, _, disabled) in pressed {
         if !disabled {
             commands.trigger(PointerDrag { entity, position });
         }
     }
-    for &entity in run_pressed {
+    for &(entity, _) in run_pressed {
         commands.trigger(PointerDrag { entity, position });
     }
 }
 
 fn press(
     target: Entity,
+    count: u8,
     focusable: &FocusableQuery,
     focus: &mut ResMut<InputFocus>,
     commands: &mut Commands,
 ) {
-    commands.entity(target).insert(Pressed);
+    commands.entity(target).insert((Pressed, PressCount(count)));
     if focusable.contains(target) {
         focus.set(target, FocusCause::Pressed);
     }
@@ -362,18 +434,22 @@ fn press(
 
 fn release_all(
     routing: &PointerRouting,
-    run_pressed: &mut Vec<Entity>,
+    run_pressed: &mut Vec<(Entity, u8)>,
     position: Position,
     commands: &mut Commands,
 ) -> bool {
+    let held = routing
+        .pressed
+        .iter()
+        .map(|(entity, count, disabled)| (entity, count.map_or(1, |count| count.0), disabled));
     // Run-pressed entities cannot be disabled: an absorbed press never
     // reaches `run_pressed`, and nothing disables them mid-run.
     let fresh = run_pressed
         .drain(..)
-        .filter(|&entity| !routing.pressed.contains(entity))
-        .map(|entity| (entity, false));
+        .filter(|&(entity, _)| !routing.pressed.contains(entity))
+        .map(|(entity, count)| (entity, count, false));
     let mut menu_clicked = false;
-    for (entity, disabled) in routing.pressed.iter().chain(fresh) {
+    for (entity, count, disabled) in held.chain(fresh) {
         if !disabled {
             commands.trigger(PointerRelease { entity, position });
         }
@@ -385,10 +461,14 @@ fn release_all(
                 .get(entity)
                 .is_ok_and(|(_, area, _)| area.0.contains(position));
         if released_on {
-            commands.trigger(Click { entity, position });
+            commands.trigger(Click {
+                entity,
+                position,
+                count,
+            });
             menu_clicked |= routing.modal.affects_modality(entity);
         }
-        commands.entity(entity).remove::<Pressed>();
+        commands.entity(entity).remove::<(Pressed, PressCount)>();
     }
     menu_clicked
 }
