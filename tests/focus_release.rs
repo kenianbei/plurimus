@@ -3,6 +3,10 @@
 //! is an ordering claim only an assembled app can prove: the release covers
 //! keys pressed in the losing frame too, since alt-tab's own keys arrive in
 //! that batch.
+//!
+//! With no backend attached the app claims every capability, so these run on
+//! the tier that expires nothing - the one where the held-key registry has
+//! only this path to be drained by.
 
 use bevy_app::App;
 use bevy_input::ButtonInput;
@@ -27,7 +31,6 @@ fn losing_focus_ends_a_hold_the_terminal_never_will() {
     assert!(is_held(&app, KeyCode::Char('w')));
 
     send_focus(&mut app, false);
-    app.update();
     assert!(
         !is_held(&app, KeyCode::Char('w')),
         "the key is still down after the terminal stopped reporting it"
@@ -35,13 +38,13 @@ fn losing_focus_ends_a_hold_the_terminal_never_will() {
 }
 
 // The press and the focus loss in one frame is the alt-tab a key triggers:
-// the release must still win, since it is written after the press arrives.
+// the release must still win, since it is written after the press is
+// recorded - and in that same frame.
 #[test]
 fn a_key_pressed_in_the_losing_frame_does_not_survive_it() {
     let mut app = app();
     write_key(&mut app, KeyCode::Char('w'));
     write_focus(&mut app, false);
-    app.update();
     app.update();
 
     assert!(!is_held(&app, KeyCode::Char('w')));

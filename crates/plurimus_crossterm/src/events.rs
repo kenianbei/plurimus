@@ -188,7 +188,9 @@ fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
 /// it came from.
 ///
 /// Uppercase in the same sense crossterm's own legacy path uses, so the two
-/// tiers agree beyond ASCII as well.
+/// tiers agree beyond ASCII as well - and in the same sense
+/// [`KeyCode::held_as`] folds by, which is what lets a hold shifted midway
+/// still be released by the press it ends.
 const fn is_shifted_letter(code: KeyCode) -> bool {
     matches!(code, KeyCode::Char(c) if c.is_uppercase())
 }

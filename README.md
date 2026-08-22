@@ -236,6 +236,11 @@ fn move_player(keys: Res<ButtonInput<KeyCode>>) {
 }
 ```
 
+Polled keys are keyed by `KeyCode::held_as`, the key a character is _held_ as:
+`Char('w')` stays held whether it was struck or released as `w` or `W`, so shift
+pressed midway through a hold does not strand it. Poll for the lowercase key -
+`pressed(KeyCode::Char('W'))` is never true.
+
 ### Exiting
 
 No plurimus crate writes `AppExit`; exit policy belongs to the app. Write it

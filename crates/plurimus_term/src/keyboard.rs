@@ -91,6 +91,33 @@ pub enum KeyCode {
     Modifier(ModifierKey),
 }
 
+impl KeyCode {
+    /// The key this one is held as, which is what polled
+    /// [`ButtonInput<KeyCode>`](crate::ButtonInput) is keyed on.
+    ///
+    /// A character folds to its lowercase; every other key is its own
+    /// identity. A terminal reports the character produced rather than the
+    /// key struck, so pressing shift while `w` is held makes its release
+    /// arrive as `W` - and a release has to name the press it ends, or the
+    /// press is held forever.
+    ///
+    /// Only a case difference survives that round trip. A shifted symbol
+    /// carries no trace of the key it came from, `!` and `1` being unrelated
+    /// characters, and a character whose lowercase is more than one character
+    /// is left alone rather than guessed at.
+    #[must_use]
+    pub fn held_as(self) -> Self {
+        let Self::Char(character) = self else {
+            return self;
+        };
+        let mut folded = character.to_lowercase();
+        match (folded.next(), folded.next()) {
+            (Some(lowercase), None) => Self::Char(lowercase),
+            _ => self,
+        }
+    }
+}
+
 /// Modifier keys reported as keys, with left/right distinguished.
 ///
 /// [`KeyModifiers`] does not keep that distinction: both sides drive one
@@ -248,5 +275,35 @@ impl From<ModifierKey> for KeyModifiers {
         let mut modifiers = Self::default();
         *modifiers.slot(key) = true;
         modifiers
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::KeyCode;
+
+    #[test]
+    fn a_shifted_letter_is_held_as_its_unshifted_self() {
+        assert_eq!(KeyCode::Char('W').held_as(), KeyCode::Char('w'));
+        assert_eq!(KeyCode::Char('w').held_as(), KeyCode::Char('w'));
+    }
+
+    // The pump restores the shift bit by `is_uppercase` rather than by its
+    // ascii sibling, so the fold reaches as far as the substitution does.
+    #[test]
+    fn the_fold_reaches_past_ascii() {
+        assert_eq!(KeyCode::Char('Ф').held_as(), KeyCode::Char('ф'));
+    }
+
+    #[test]
+    fn a_letter_lowercasing_to_two_is_left_alone() {
+        assert_eq!(KeyCode::Char('İ').held_as(), KeyCode::Char('İ'));
+    }
+
+    #[test]
+    fn a_symbol_and_a_named_key_are_their_own_identity() {
+        assert_eq!(KeyCode::Char(':').held_as(), KeyCode::Char(':'));
+        assert_eq!(KeyCode::Enter.held_as(), KeyCode::Enter);
+        assert_eq!(KeyCode::F(5).held_as(), KeyCode::F(5));
     }
 }

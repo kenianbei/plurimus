@@ -21,6 +21,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   origin, which every caller of `content_cell` and `screen_cell` had to know and
   state for itself; the rule now comes from the crate that owns the component,
   so a widget family written elsewhere asks rather than assumes.
+- **`KeyCode::held_as`**, the key a character is held as. A terminal reports the
+  character produced rather than the key struck, so a fold to lowercase is what
+  lets a hold be matched to the release that ends it; every other key is its own
+  identity. Public because an app keeping its own held set needs the same rule
+  the crate applies, and because it names what polled state is now keyed on.
 - **`HeldModifiers`**, the system parameter every key observer reads the held
   modifiers through, and **`KeyModifiers::none`**, nothing held in a `const`
   context so a binding table can be built at compile time.
@@ -131,6 +136,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Polled keys are keyed by identity, not by the character typed.**
+  `ButtonInput<KeyCode>` holds `Char('w')` however the key was struck or
+  released, so pressing shift midway through a hold no longer strands it down
+  for the life of the app - the release arrives as `W`, and now cancels the `w`
+  it ends. `pressed(KeyCode::Char('W'))` still compiles and is never true; poll
+  for the lowercase key, or ask `KeyCode::held_as` for it. The message stream is
+  unchanged and still reports what was typed.
+- **A key held across a focus loss is released in the frame focus was lost**,
+  rather than the frame after. The synthesized releases now go through one
+  held-key registry that both synthesis paths share, written before polled state
+  is derived instead of read back out of it; a release synthesized for a key no
+  terminal will report names the key as held and carries no modifiers, which is
+  the only pairing a backend could have sent.
 - **`Pressed` carries the click count of the press that set it**, rather than
   being a unit marker. A widget that only asks whether it is pressed is
   unaffected - `Has<Pressed>` and `contains::<Pressed>()` read the same - while

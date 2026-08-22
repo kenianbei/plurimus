@@ -4,6 +4,12 @@
 //! wants to know what is held right now. Both views are kept from the same
 //! source here, so a widget can read discrete presses while a movement system
 //! polls [`ButtonInput`](bevy_input::ButtonInput) for the same keys.
+//!
+//! The two views are keyed differently, and deliberately. A message reports
+//! the character the terminal produced, while held state is keyed on
+//! [`KeyCode::held_as`] - so a key is held as `Char('w')` whatever case it
+//! was struck or released in, and `pressed(Char('W'))` is never true. Poll
+//! for the identity, not for what was typed.
 
 use bevy_ecs::prelude::{MessageReader, ResMut};
 use bevy_ecs::schedule::SystemSet;
@@ -34,8 +40,8 @@ pub(crate) fn update_button_input(
             // A repeat means the key is down, so it presses like one, and a
             // hold whose press never arrived is put back by the next one.
             // `press` sets `just_pressed` only on a transition.
-            KeyKind::Press | KeyKind::Repeat => key_state.press(key.code),
-            KeyKind::Release => key_state.release(key.code),
+            KeyKind::Press | KeyKind::Repeat => key_state.press(key.code.held_as()),
+            KeyKind::Release => key_state.release(key.code.held_as()),
         }
     }
     for event in mouse.read() {
@@ -74,11 +80,11 @@ mod tests {
     }
 
     fn key(kind: KeyKind) -> KeyMessage {
-        KeyMessage {
-            code: KeyCode::Char('w'),
-            modifiers: KeyModifiers::default(),
-            kind,
-        }
+        typed(KeyCode::Char('w'), kind)
+    }
+
+    fn typed(code: KeyCode, kind: KeyKind) -> KeyMessage {
+        KeyMessage::new(code, KeyModifiers::none(), kind)
     }
 
     #[test]
@@ -123,6 +129,43 @@ mod tests {
         let state = app.world().resource::<ButtonInput<KeyCode>>();
         assert!(state.pressed(KeyCode::Char('w')));
         assert!(state.just_pressed(KeyCode::Char('w')));
+    }
+
+    // The gesture a raw-byte probe caught: hold `w`, press shift, release
+    // `w`. Kitty substitutes the shifted character, so the release arrives
+    // as `W`.
+    #[test]
+    fn a_hold_shifted_before_it_ends_is_still_released() {
+        let mut app = app();
+        app.world_mut().write_message(key(KeyKind::Press));
+        app.update();
+
+        app.world_mut()
+            .write_message(typed(KeyCode::Char('W'), KeyKind::Release));
+        app.update();
+
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(!state.pressed(KeyCode::Char('w')));
+        assert!(state.just_released(KeyCode::Char('w')));
+    }
+
+    #[test]
+    fn shifting_a_hold_does_not_press_a_second_key() {
+        let mut app = app();
+        app.world_mut().write_message(key(KeyKind::Press));
+        app.update();
+
+        app.world_mut()
+            .write_message(typed(KeyCode::Char('W'), KeyKind::Repeat));
+        app.update();
+
+        let state = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(state.pressed(KeyCode::Char('w')), "one hold, uninterrupted");
+        assert!(!state.just_pressed(KeyCode::Char('w')));
+        assert!(
+            !state.pressed(KeyCode::Char('W')),
+            "the case a key was struck in is the message's, not the state's"
+        );
     }
 
     #[test]

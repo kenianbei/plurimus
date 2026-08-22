@@ -40,7 +40,10 @@ pub use synthesis::ReleaseTimeout;
 
 pub(crate) use request::echo_clipboard_writes;
 pub(crate) use state::{track_cursor_cell, update_button_input};
-pub(crate) use synthesis::{release_keys_on_focus_loss, synthesize_releases};
+pub(crate) use synthesis::{
+    HeldKeys, expire_held_keys, record_held_keys, release_keys_on_focus_loss,
+    releases_are_synthesized,
+};
 
 use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::message::Message;
@@ -142,6 +145,7 @@ impl Plugin for TermPlugin {
         app.init_resource::<InputCapabilities>();
         app.init_resource::<ReleaseTimeout>();
         app.init_resource::<MultiClickWindow>();
+        app.init_resource::<HeldKeys>();
         app.init_resource::<ButtonInput<KeyCode>>();
         app.init_resource::<ButtonInput<MouseButton>>();
         app.init_resource::<LastCopied>();
@@ -157,13 +161,14 @@ impl Plugin for TermPlugin {
         );
         app.add_systems(
             PreUpdate,
-            // Focus-loss releases go after the state they read: a key
-            // pressed in the losing frame is only held once
-            // `update_button_input` has applied it.
+            // Both synthesis paths go before the polled state they feed:
+            // recording this frame's presses, then writing the releases no
+            // terminal will, leaves `update_button_input` one batch to apply.
             (
-                synthesize_releases,
-                update_button_input,
+                record_held_keys,
+                expire_held_keys.run_if(releases_are_synthesized),
                 release_keys_on_focus_loss,
+                update_button_input,
                 track_cursor_cell,
             )
                 .chain()
