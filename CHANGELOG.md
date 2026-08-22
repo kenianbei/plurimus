@@ -16,6 +16,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Ctrl+Enter` and keep plain Enter for itself. A menu's table lives on its
   popup, one per menu rather than one per row. Every widget in the crate now
   takes its keys from a component.
+- **`ScrollOffset::resolve`**, what a widget is scrolled by given whether it
+  carries an offset at all. A widget with no `ScrollOffset` is scrolled to the
+  origin, which every caller of `content_cell` and `screen_cell` had to know and
+  state for itself; the rule now comes from the crate that owns the component,
+  so a widget family written elsewhere asks rather than assumes.
 - **`HeldModifiers`**, the system parameter every key observer reads the held
   modifiers through, and **`KeyModifiers::none`**, nothing held in a `const`
   context so a binding table can be built at compile time.

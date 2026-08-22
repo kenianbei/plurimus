@@ -209,7 +209,10 @@ captured drag past an edge keeps addressing the nearest one; `screen_cell` is
 the way back, refusing rather than clamping, and it is what places the focused
 widget's `WidgetCursor` on the terminal - a cursor whose cell is `None` names
 none, which is how a widget with nowhere to put its caret says so without
-discarding the shape an app gave it.
+discarding the shape an app gave it. Both take that offset as a bare `Position`,
+and `ScrollOffset::resolve` is where a caller holding the component gets one: a
+widget carrying no `ScrollOffset` is scrolled to the origin, which is the
+crate's rule to state rather than every caller's to know.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
