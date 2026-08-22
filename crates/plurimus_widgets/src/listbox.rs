@@ -241,7 +241,7 @@ fn row_at(
     (area, offset, children): (&ComputedWidgetArea, Option<&ScrollOffset>, &Children),
     items: &RowTexts,
 ) -> Option<Entity> {
-    let cell = content_cell(position, area.0, ScrollOffset::position(offset))?;
+    let cell = content_cell(position, area.0, ScrollOffset::resolve(offset))?;
     Some(
         row_spans(children, items)
             .find(|span| span.contains(cell.y))?

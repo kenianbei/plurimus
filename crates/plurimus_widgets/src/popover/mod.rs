@@ -241,7 +241,7 @@ pub(crate) fn place_popovers(
 fn anchor_rect(popover: &Popover, area: Rect, offset: Option<&ScrollOffset>) -> Option<Rect> {
     match popover.cell {
         None => (!area.is_empty()).then_some(area),
-        Some(cell) => screen_cell(cell, area, ScrollOffset::position(offset))
+        Some(cell) => screen_cell(cell, area, ScrollOffset::resolve(offset))
             .map(|cell| Rect::new(cell.x, cell.y, 1, 1)),
     }
 }

@@ -76,12 +76,8 @@ pub struct ScrollOffset(pub Position);
 impl ScrollOffset {
     /// What a widget is scrolled by, given whether it carries an offset at
     /// all: a widget without a [`ScrollOffset`] is not scrolled.
-    ///
-    /// Takes the `Option` a query yields rather than `&self`, because
-    /// stating what its absence means is the whole of what this is for -
-    /// carrying the component unscrolled and not carrying it map alike.
     #[must_use]
-    pub const fn position(offset: Option<&Self>) -> Position {
+    pub const fn resolve(offset: Option<&Self>) -> Position {
         match offset {
             Some(offset) => offset.0,
             None => Position::ORIGIN,
@@ -376,14 +372,14 @@ mod tests {
 
     #[test]
     fn a_widget_carrying_no_offset_is_scrolled_to_the_origin() {
-        assert_eq!(ScrollOffset::position(None), Position::ORIGIN);
+        assert_eq!(ScrollOffset::resolve(None), Position::ORIGIN);
     }
 
     #[test]
     fn a_widget_carrying_one_is_scrolled_by_it() {
         let offset = ScrollOffset(Position::new(3, 7));
 
-        assert_eq!(ScrollOffset::position(Some(&offset)), Position::new(3, 7));
+        assert_eq!(ScrollOffset::resolve(Some(&offset)), Position::new(3, 7));
     }
 
     #[test]

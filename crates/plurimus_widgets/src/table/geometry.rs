@@ -65,13 +65,13 @@ impl Placed<'_> {
     // Both axes: a scrolled table's columns are laid out against its
     // content width, not the area they show through.
     pub(super) fn content_cell(&self, at: Position) -> Option<Position> {
-        content_cell(at, self.area.0, ScrollOffset::position(self.offset))
+        content_cell(at, self.area.0, ScrollOffset::resolve(self.offset))
     }
 
     // Refuses rather than clamps: a cell scrolled out of view is not at the
     // nearest visible one.
     pub(super) fn screen_cell(&self, at: Position) -> Option<Position> {
-        screen_cell(at, self.area.0, ScrollOffset::position(self.offset))
+        screen_cell(at, self.area.0, ScrollOffset::resolve(self.offset))
     }
 
     // Only an unscrolled table needs bounding; see `clicked_row`.
