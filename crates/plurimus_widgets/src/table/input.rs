@@ -8,6 +8,7 @@ use bevy_ecs::prelude::{Changed, Commands, On, Query, With, Without};
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
+use plurimus_term::bevy_compat::HeldModifiers;
 
 use super::geometry::{
     Placed, Placement, Rows, bands, body_height, body_rows, clicked_column, clicked_row,
@@ -45,6 +46,7 @@ type Interactive = (With<Table>, Without<InteractionDisabled>);
 
 pub(crate) fn table_key(
     mut input: On<FocusedInput<KeyboardInput>>,
+    held: HeldModifiers,
     mut tables: Query<Navigable, Interactive>,
     rows: Rows,
     mut commands: Commands,
@@ -55,7 +57,7 @@ pub(crate) fn table_key(
     else {
         return;
     };
-    let Some(action) = first_bound(&keys.0, &input.input) else {
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
     input.propagate(false);

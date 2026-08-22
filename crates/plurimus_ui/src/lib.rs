@@ -39,7 +39,7 @@ pub use interaction::{
     Checked, Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
     PointerRelease, PressFocusDisabled, PressPassThrough, Pressed,
 };
-pub use keys::first_bound;
+pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
 pub use nav::NavigationConfig;
 pub use plurimus_core::{TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};

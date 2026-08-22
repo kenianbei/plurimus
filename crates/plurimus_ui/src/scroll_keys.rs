@@ -9,9 +9,10 @@ use bevy_ecs::prelude::{Commands, Component, On, Query, Without};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
+use plurimus_term::bevy_compat::HeldModifiers;
 
 use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
-use crate::keys::first_bound;
+use crate::keys::{KeyBinding, first_bound};
 use crate::scroll::ScrollBy;
 
 /// What a bound key does to a scrolled widget.
@@ -58,23 +59,24 @@ pub enum ScrollAction {
 /// right arrows that move focus between widgets.
 #[derive(Component, Debug, Clone)]
 #[require(TabIndex, ComputedWidgetArea)]
-pub struct ScrollKeys(pub Vec<(Key, ScrollAction)>);
+pub struct ScrollKeys(pub Vec<(KeyBinding, ScrollAction)>);
 
 impl Default for ScrollKeys {
     fn default() -> Self {
         Self(vec![
-            (Key::PageUp, ScrollAction::PageUp),
-            (Key::PageDown, ScrollAction::PageDown),
-            (Key::Home, ScrollAction::Top),
-            (Key::End, ScrollAction::Bottom),
-            (Key::ArrowUp, ScrollAction::LineUp),
-            (Key::ArrowDown, ScrollAction::LineDown),
+            (Key::PageUp.into(), ScrollAction::PageUp),
+            (Key::PageDown.into(), ScrollAction::PageDown),
+            (Key::Home.into(), ScrollAction::Top),
+            (Key::End.into(), ScrollAction::Bottom),
+            (Key::ArrowUp.into(), ScrollAction::LineUp),
+            (Key::ArrowDown.into(), ScrollAction::LineDown),
         ])
     }
 }
 
 pub(crate) fn scroll_key(
     mut input: On<FocusedInput<KeyboardInput>>,
+    held: HeldModifiers,
     areas: Query<(&ScrollKeys, &ComputedWidgetArea), Without<InteractionDisabled>>,
     mut commands: Commands,
 ) {
@@ -82,7 +84,7 @@ pub(crate) fn scroll_key(
     let Ok((keys, area)) = areas.get(entity) else {
         return;
     };
-    let Some(action) = first_bound(&keys.0, &input.input) else {
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
     // Consumed even at an extreme, so a bound key never reaches

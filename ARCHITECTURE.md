@@ -121,7 +121,9 @@ half the key, and only a pointer router knows that - so the run is derived where
 the release synthesis is configured rather than where it is performed, and
 `MultiClickWindow` sits beside `ReleaseTimeout` as the second knob an app sets
 once for every widget. The `bevy_compat` module forwards messages into
-`bevy_input` event types for crates built on them, such as the focus stack.
+`bevy_input` event types for crates built on them, such as the focus stack, and
+`HeldModifiers` is the way back for what that seam drops: bevy's `KeyboardInput`
+carries no modifiers, so a key observer polls the ones held through it.
 
 ### plurimus_crossterm
 
@@ -188,15 +190,20 @@ whoever stores the scroll consumes - this crate's `ScrollOffset`, a bevy_ui
 node's own position, a text editor's engine viewport - each clamping the step
 against its own extent. `ScrollKeys` is the whole opt-in for the keyboard,
 carrying the `TabIndex` without which nothing can be sent a key, and it is one
-of three `(Key, Action)` bindings components sharing `first_bound`, the scan
-this crate owns so a widget family written elsewhere states "first match wins"
-by calling it rather than by copying it. `content_cell` is where a pointer cell
-becomes a content cell for any of it, clamping into the area so a captured drag
-past an edge keeps addressing the nearest one; `screen_cell` is the way back,
-refusing rather than clamping, and it is what places the focused widget's
-`WidgetCursor` on the terminal - a cursor whose cell is `None` names none, which
-is how a widget with nowhere to put its caret says so without discarding the
-shape an app gave it.
+of three `(KeyBinding, Action)` bindings components sharing `first_bound`, the
+scan this crate owns so a widget family written elsewhere states "first match
+wins" by calling it rather than by copying it. A `KeyBinding` is a `Key` and the
+`KeyModifiers` it must be pressed under, and `KeyBinding::matches` is the one
+rule: every modifier but shift exactly, and shift exactly for a named key but
+only when asked for on a character, since a shifted symbol carries the bit on
+some terminals and not others. The modifiers it is checked against are polled
+through `plurimus_term`'s `HeldModifiers`, bevy's `KeyboardInput` carrying none
+of its own. `content_cell` is where a pointer cell becomes a content cell for
+any of it, clamping into the area so a captured drag past an edge keeps
+addressing the nearest one; `screen_cell` is the way back, refusing rather than
+clamping, and it is what places the focused widget's `WidgetCursor` on the
+terminal - a cursor whose cell is `None` names none, which is how a widget with
+nowhere to put its caret says so without discarding the shape an app gave it.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
@@ -250,11 +257,11 @@ defaulting to Enter and space, and a key the widget is not bound to activates
 nothing and propagates - so binding space alone is what lets the form around a
 checkbox keep Enter for its submit, and an empty list turns the keyboard path
 off while leaving the click. Consuming the key is what activating does, which is
-why a disabled widget passes its bound keys on too. It holds bare `Key`s rather
-than the `(Key, Action)` pairs a list box or table binds, activation having one
-action to name; a repeat never activates, one intent committing once. A menu
-item's Enter and space are fixed instead of bound, focus sitting inside the
-popup while it is open.
+why a disabled widget passes its bound keys on too. It holds bare `KeyBinding`s
+rather than the `(KeyBinding, Action)` pairs a list box or table binds,
+activation having one action to name; a repeat never activates, one intent
+committing once. A menu item's Enter and space are fixed instead of bound, focus
+sitting inside the popup while it is open.
 
 A `Popover` is placed against its anchor's resolved area every frame, so it
 follows a moving anchor without being told, and two fields say what that means:
@@ -317,12 +324,12 @@ against a width only the list has, a row being built before the box is placed.
 Whichever container holds the cursor, the row it names is styled as focused even
 when focus sits elsewhere - being driven is what `ActiveDescendant` is for, and
 a cursor nobody can see is that pattern contradicting itself. Both containers
-also take their movement keys from a component of `(Key, Action)` bindings -
-`ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim keys
-without reimplementing movement beside the widget. Only the bindings are the
-crate's: the scan itself is `plurimus_ui`'s `first_bound`, the same one a
-focused scroll area's keys go through. The sliders, menus, and text widgets
-still match keys inline.
+also take their movement keys from a component of `(KeyBinding, Action)`
+bindings - `ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim
+keys, `Ctrl+D` included, without reimplementing movement beside the widget. Only
+the bindings are the crate's: the scan itself is `plurimus_ui`'s `first_bound`,
+the same one a focused scroll area's keys go through. The sliders, menus, and
+text widgets still match keys inline.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is

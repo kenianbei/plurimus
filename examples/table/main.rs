@@ -1,9 +1,9 @@
 //! A sortable, scrollable `Table`: a striped body under a bold header, a
 //! footer of totals, and columns the app sorts by clicking their header.
 //!
-//! Up/Down or `j`/`k` move the cursor, Enter selects the row, the wheel
-//! scrolls, and clicking a header cell sorts by that column - descending
-//! the second time. `q` or ctrl-c quits.
+//! Up/Down or `j`/`k` move the cursor, ctrl-d/ctrl-u page, Enter selects
+//! the row, the wheel scrolls, and clicking a header cell sorts by that
+//! column - descending the second time. `q` or ctrl-c quits.
 //!
 //! Sorting lives here rather than in the widget on purpose. The crate
 //! reports which column was clicked; how a column compares - text here,
@@ -33,7 +33,7 @@ use plurimus::core::ratatui_core::text::Line;
 use plurimus::core::{CorePlugin, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::term::{KeyCode, KeyKind, KeyMessage};
-use plurimus::ui::{ScrollArea, UiStyle, ValueChange};
+use plurimus::ui::{KeyBinding, ScrollArea, UiStyle, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
     Key, TableAction, TableCheckedStyle, TableHeaderClick, TableKeys, TablePosition, TableRow,
@@ -165,13 +165,22 @@ fn spawn_demo(mut commands: Commands) {
     commands.insert_resource(InputFocus::from_entity(table));
 }
 
-// The stock bindings plus `j`/`k`, which is the whole cost of remapping.
+// The stock bindings plus `j`/`k` and vim's half-page chords, which is the
+// whole cost of remapping: a bare key converts, a chord names its modifier.
 fn vim_keys() -> TableKeys {
     let mut keys = TableKeys::default();
-    keys.0
-        .push((Key::Character("j".into()), TableAction::RowNext));
-    keys.0
-        .push((Key::Character("k".into()), TableAction::RowPrev));
+    keys.0.extend([
+        (Key::Character("j".into()).into(), TableAction::RowNext),
+        (Key::Character("k".into()).into(), TableAction::RowPrev),
+        (
+            KeyBinding::new(Key::Character("d".into())).with_ctrl(),
+            TableAction::PageDown,
+        ),
+        (
+            KeyBinding::new(Key::Character("u".into())).with_ctrl(),
+            TableAction::PageUp,
+        ),
+    ]);
     keys
 }
 

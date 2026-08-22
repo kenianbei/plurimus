@@ -136,7 +136,7 @@ pub enum ModifierKey {
 /// on whether the terminal reports the unshifted key alongside it. Match the
 /// character for those, and compare the fields a binding cares about rather
 /// than whole values, since an unexpected flag makes an equality test fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 #[expect(
     clippy::struct_excessive_bools,
@@ -157,7 +157,27 @@ pub struct KeyModifiers {
     pub meta: bool,
 }
 
+impl Default for KeyModifiers {
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
 impl KeyModifiers {
+    /// Nothing held: [`Default`] in a `const` context, so a binding table can
+    /// be built from the `with_*` builders at compile time.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            ctrl: false,
+            alt: false,
+            shift: false,
+            super_key: false,
+            hyper: false,
+            meta: false,
+        }
+    }
+
     /// Whether the flag `key` drives is held.
     ///
     /// Sides collapse: `ShiftLeft` and `ShiftRight` both read `shift`.

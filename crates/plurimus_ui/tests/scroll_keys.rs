@@ -6,10 +6,11 @@ use bevy_ecs::entity::Entity;
 use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
-use plurimus_test::press_key;
+use plurimus_term::{KeyCode, ModifierKey};
+use plurimus_test::{press_chord, press_key};
 use plurimus_ui::{
-    InteractionDisabled, Key, ScrollAction, ScrollArea, ScrollKeys, ScrollOffset, UiArea, UiPlugin,
+    InteractionDisabled, Key, KeyBinding, ScrollAction, ScrollArea, ScrollKeys, ScrollOffset,
+    UiArea, UiPlugin,
 };
 
 const AREA: Rect = Rect::new(0, 0, 10, 4);
@@ -188,8 +189,8 @@ fn a_remapped_binding_replaces_the_default_one() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
     app.world_mut().entity_mut(pane).insert(ScrollKeys(vec![
-        (Key::Character("j".into()), ScrollAction::LineDown),
-        (Key::Character("G".into()), ScrollAction::Bottom),
+        (Key::Character("j".into()).into(), ScrollAction::LineDown),
+        (Key::Character("G".into()).into(), ScrollAction::Bottom),
     ]));
     focus(&mut app, pane);
 
@@ -200,13 +201,35 @@ fn a_remapped_binding_replaces_the_default_one() {
     assert_eq!(row(&app, pane), 1);
 }
 
+// Through the real path: the modifier is a key of its own, polled as held
+// when the chord's character arrives.
+#[test]
+fn a_chord_binds_apart_from_its_bare_key() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    app.world_mut().entity_mut(pane).insert(ScrollKeys(vec![
+        (
+            KeyBinding::new(Key::Character("d".into())).with_ctrl(),
+            ScrollAction::PageDown,
+        ),
+        (Key::Character("d".into()).into(), ScrollAction::LineDown),
+    ]));
+    focus(&mut app, pane);
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('d'));
+    assert_eq!(row(&app, pane), 4, "ctrl-d pages");
+
+    press_key(&mut app, KeyCode::Char('d'));
+    assert_eq!(row(&app, pane), 5, "a bare d steps one line");
+}
+
 #[test]
 fn the_horizontal_actions_move_the_column() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
     app.world_mut().entity_mut(pane).insert(ScrollKeys(vec![
-        (Key::ArrowRight, ScrollAction::LineRight),
-        (Key::ArrowLeft, ScrollAction::LineLeft),
+        (Key::ArrowRight.into(), ScrollAction::LineRight),
+        (Key::ArrowLeft.into(), ScrollAction::LineLeft),
     ]));
     focus(&mut app, pane);
 

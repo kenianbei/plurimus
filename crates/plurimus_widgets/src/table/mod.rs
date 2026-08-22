@@ -50,6 +50,7 @@ use crate::rows::CURSOR_SYMBOL;
 use crate::rows::ContentDirty;
 use plurimus_core::UiWidget;
 use plurimus_ui::Hovered;
+use plurimus_ui::KeyBinding;
 use plurimus_ui::StylistCache;
 
 /// A table of [`TableRow`] children, drawn as one ratatui `Table`.
@@ -249,21 +250,21 @@ impl TableAction {
 /// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
 /// `Enter` and space to select.
 #[derive(Component, Debug, Clone)]
-pub struct TableKeys(pub Vec<(Key, TableAction)>);
+pub struct TableKeys(pub Vec<(KeyBinding, TableAction)>);
 
 impl Default for TableKeys {
     fn default() -> Self {
         Self(vec![
-            (Key::ArrowUp, TableAction::RowPrev),
-            (Key::ArrowDown, TableAction::RowNext),
-            (Key::ArrowLeft, TableAction::ColumnPrev),
-            (Key::ArrowRight, TableAction::ColumnNext),
-            (Key::Home, TableAction::RowFirst),
-            (Key::End, TableAction::RowLast),
-            (Key::PageUp, TableAction::PageUp),
-            (Key::PageDown, TableAction::PageDown),
-            (Key::Enter, TableAction::Select),
-            (Key::Character(" ".into()), TableAction::Select),
+            (Key::ArrowUp.into(), TableAction::RowPrev),
+            (Key::ArrowDown.into(), TableAction::RowNext),
+            (Key::ArrowLeft.into(), TableAction::ColumnPrev),
+            (Key::ArrowRight.into(), TableAction::ColumnNext),
+            (Key::Home.into(), TableAction::RowFirst),
+            (Key::End.into(), TableAction::RowLast),
+            (Key::PageUp.into(), TableAction::PageUp),
+            (Key::PageDown.into(), TableAction::PageDown),
+            (Key::Enter.into(), TableAction::Select),
+            (Key::Character(" ".into()).into(), TableAction::Select),
         ])
     }
 }
