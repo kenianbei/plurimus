@@ -9,9 +9,12 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{press_key, send_mouse, write_mouse};
+use plurimus_ui::Key;
 use plurimus_ui::{Click, FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{Slider, SliderRange, SliderValue, WidgetsPlugin, slider_self_update};
+use plurimus_widgets::{
+    Slider, SliderAction, SliderKeys, SliderRange, SliderValue, WidgetsPlugin, slider_self_update,
+};
 
 fn app() -> App {
     let mut app = App::new();
@@ -68,7 +71,7 @@ fn press_lands_when_the_cursor_leaves_in_the_same_frame() {
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_some());
-    let value = app.world().get::<SliderValue>(slider).unwrap().0;
+    let value = value(&app, slider);
     assert!(
         (value - 100.0).abs() < f32::EPSILON,
         "seeks to the press cell"
@@ -86,7 +89,7 @@ fn press_outside_is_not_delivered_when_the_cursor_arrives_later() {
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_none());
-    let value = app.world().get::<SliderValue>(slider).unwrap().0;
+    let value = value(&app, slider);
     assert!(
         (value - 50.0).abs() < f32::EPSILON,
         "untouched by an outside press"
@@ -202,4 +205,40 @@ fn focus_within_tracks_the_ancestor_chain() {
     app.world_mut().resource_mut::<InputFocus>().clear();
     app.update();
     assert!(app.world().get::<FocusWithin>(pane_b).is_none());
+}
+
+#[test]
+fn a_remapped_slider_steps_on_its_own_keys() {
+    let mut app = app();
+    app.world_mut().spawn(TerminalCamera::default());
+    let slider = spawn_slider(&mut app);
+    app.world_mut().entity_mut(slider).insert((
+        TabIndex(0),
+        SliderKeys(vec![
+            (Key::Character("h".into()).into(), SliderAction::Decrease),
+            (Key::Character("l".into()).into(), SliderAction::Increase),
+        ]),
+    ));
+    app.update();
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(slider, FocusCause::Navigated);
+
+    press_key(&mut app, KeyCode::Char('l'));
+    assert!(value(&app, slider) > 50.0, "the bound key steps");
+
+    let stepped = value(&app, slider);
+    press_key(&mut app, KeyCode::Right);
+    assert_eq!(
+        value(&app, slider),
+        stepped,
+        "and the key it replaced does nothing"
+    );
+
+    press_key(&mut app, KeyCode::Char('h'));
+    assert_eq!(value(&app, slider), 50.0);
+}
+
+fn value(app: &App, slider: Entity) -> f32 {
+    app.world().get::<SliderValue>(slider).unwrap().0
 }

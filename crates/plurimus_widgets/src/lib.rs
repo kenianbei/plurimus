@@ -40,7 +40,10 @@ pub use listbox::{
     ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect, ListBoxSelectionMarker,
     ListItem, list_item, listbox,
 };
-pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
+pub use menu::{
+    MenuAction, MenuButton, MenuItem, MenuKeys, MenuOpen, MenuPopup, menu_button, menu_item,
+    menu_popup,
+};
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
 pub use radio::{RadioButton, RadioGroup, radio};
@@ -50,7 +53,7 @@ pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
     table_self_update,
 };
-pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
+pub use slider::{Slider, SliderAction, SliderKeys, SliderRange, SliderStep, SliderValue, slider};
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
     TableGeometry, TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect,
@@ -58,10 +61,11 @@ pub use table::{
     table_row,
 };
 pub use text::{
-    EditableText, Submit, TextChanged, TextEditor, TextInput, editable_text, text_editor,
+    EditableText, Submit, TextChanged, TextEditor, TextInput, TextInputAction, TextInputKeys,
+    editable_text, text_editor,
 };
 
-pub(crate) use activate::{is_activate_key, widget_click, widget_key};
+pub(crate) use activate::{widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{

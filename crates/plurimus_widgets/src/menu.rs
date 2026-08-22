@@ -13,9 +13,8 @@ use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::Res;
-use bevy_ecs::prelude::{Commands, Component, On, Query, ResMut, With, Without};
+use bevy_ecs::prelude::{Commands, Component, Has, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
-use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
@@ -29,13 +28,15 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::Popover;
-use crate::{Activate, Button, is_activate_key};
+use crate::{Activate, Button};
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
+use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{
     Click, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
 };
 use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
+use plurimus_ui::{KeyBinding, first_bound};
 
 /// Items render above the popup frame.
 const ITEM_ORDER: UiOrder = UiOrder(UiOrder::OVERLAY.0 + 1);
@@ -47,8 +48,49 @@ pub struct MenuButton;
 /// The popup container; a child of its [`MenuButton`], auto-sized around
 /// its [`MenuItem`] children.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(StylistCache)]
+#[require(StylistCache, MenuKeys)]
 pub struct MenuPopup;
+
+/// What a [`MenuKeys`] binding does to the open menu.
+///
+/// Closed: an open menu moves its highlight, commits, or gives up, and a
+/// fourth thing is not something a menu does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuAction {
+    /// Move focus to the item above, wrapping.
+    Previous,
+    /// Move focus to the item below, wrapping.
+    Next,
+    /// Activate the focused item and close.
+    Activate,
+    /// Close without activating.
+    Close,
+}
+
+/// An open [`MenuPopup`]'s key bindings, scanned in order so the first
+/// match wins.
+///
+/// One table per menu rather than one per row, and read from the popup the
+/// focused item sits in. Defaults to the up and down arrows, `Escape` to
+/// close, and `Enter` and space to activate. That last pair is what
+/// [`ActivateKeys`](crate::ActivateKeys) defaults to as well, and the two
+/// stay independent deliberately - a menu's Enter is not a form's, focus
+/// sitting inside the popup while it is open - but a menu's copy is now data
+/// an app replaces rather than a literal it cannot reach.
+#[derive(Component, Debug, Clone)]
+pub struct MenuKeys(pub Vec<(KeyBinding, MenuAction)>);
+
+impl Default for MenuKeys {
+    fn default() -> Self {
+        Self(vec![
+            (Key::ArrowUp.into(), MenuAction::Previous),
+            (Key::ArrowDown.into(), MenuAction::Next),
+            (Key::Escape.into(), MenuAction::Close),
+            (Key::Enter.into(), MenuAction::Activate),
+            (Key::Character(" ".into()).into(), MenuAction::Activate),
+        ])
+    }
+}
 
 /// Present on a [`MenuPopup`] while it is open.
 #[derive(Component, Debug, Clone, Copy)]
@@ -101,13 +143,32 @@ pub(crate) struct MenuAccess<'w, 's> {
     parents: Query<'w, 's, &'static ChildOf>,
     popups: Query<'w, 's, Entity, With<MenuPopup>>,
     open: Query<'w, 's, Entity, With<MenuOpen>>,
-    items: Query<'w, 's, Entity, With<MenuItem>>,
+    items: Query<'w, 's, Has<InteractionDisabled>, With<MenuItem>>,
+    keys: Query<'w, 's, &'static MenuKeys>,
 }
 
 impl MenuAccess<'_, '_> {
     fn popup_of(&self, button: Entity) -> Option<Entity> {
         let children = self.children.get(button).ok()?;
         children.iter().copied().find(|&c| self.popups.contains(c))
+    }
+
+    /// The bindings an item takes its keys from: the menu's rather than its
+    /// own, since they live on the popup rather than on every row of it.
+    ///
+    /// `None` for anything that is not a live menu item, which is what keeps
+    /// a disabled row from acting on a key.
+    fn item_keys(&self, item: Entity) -> Option<&MenuKeys> {
+        if !self.is_live_item(item) {
+            return None;
+        }
+        let popup = self.parents.get(item).ok()?.parent();
+        self.keys.get(popup).ok()
+    }
+
+    /// Whether `entity` is a menu item that may act on input at all.
+    pub(crate) fn is_live_item(&self, entity: Entity) -> bool {
+        self.items.get(entity).is_ok_and(|disabled| !disabled)
     }
 
     pub(crate) fn item_rows(&self, popup: Entity) -> Vec<Entity> {
@@ -190,12 +251,11 @@ pub(crate) fn menu_button_activate(
 
 pub(crate) fn menu_item_click(
     click: On<Click>,
-    items: Query<(), (With<MenuItem>, Without<InteractionDisabled>)>,
     menus: MenuAccess,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
-    if !items.contains(click.entity) {
+    if !menus.is_live_item(click.entity) {
         return;
     }
     commands.trigger(Activate {
@@ -206,24 +266,29 @@ pub(crate) fn menu_item_click(
 
 pub(crate) fn menu_key(
     mut input: On<FocusedInput<KeyboardInput>>,
-    items: Query<(), (With<MenuItem>, Without<InteractionDisabled>)>,
+    held: HeldModifiers,
     menus: MenuAccess,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
     let item = input.focused_entity;
-    if !items.contains(item) || input.input.state != ButtonState::Pressed {
+    let Some(bindings) = menus.item_keys(item) else {
         return;
-    }
-    match &input.input.logical_key {
-        Key::ArrowUp => step_focus(item, -1, &menus, &mut focus),
-        Key::ArrowDown => step_focus(item, 1, &menus, &mut focus),
-        Key::Escape => menus.close_item_menu(item, &mut focus, &mut commands),
-        _ if is_activate_key(&input.input) => {
-            commands.trigger(Activate { entity: item });
-            menus.close_item_menu(item, &mut focus, &mut commands);
+    };
+    let Some(action) = first_bound(&bindings.0, &input.input, held.get()) else {
+        return;
+    };
+    match action {
+        MenuAction::Previous => step_focus(item, -1, &menus, &mut focus),
+        MenuAction::Next => step_focus(item, 1, &menus, &mut focus),
+        MenuAction::Close => menus.close_item_menu(item, &mut focus, &mut commands),
+        MenuAction::Activate => {
+            // A repeat commits once, the way every other activation does.
+            if !input.input.repeat {
+                commands.trigger(Activate { entity: item });
+                menus.close_item_menu(item, &mut focus, &mut commands);
+            }
         }
-        _ => return,
     }
     input.propagate(false);
 }

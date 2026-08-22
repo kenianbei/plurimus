@@ -190,9 +190,10 @@ whoever stores the scroll consumes - this crate's `ScrollOffset`, a bevy_ui
 node's own position, a text editor's engine viewport - each clamping the step
 against its own extent. `ScrollKeys` is the whole opt-in for the keyboard,
 carrying the `TabIndex` without which nothing can be sent a key, and it is one
-of three `(KeyBinding, Action)` bindings components sharing `first_bound`, the
+of the `(KeyBinding, Action)` bindings components sharing `first_bound`, the
 scan this crate owns so a widget family written elsewhere states "first match
-wins" by calling it rather than by copying it. A `KeyBinding` is a `Key` and the
+wins" by calling it rather than by copying it - six of them across the
+workspace, one per widget that takes keys. A `KeyBinding` is a `Key` and the
 `KeyModifiers` it must be pressed under, and `KeyBinding::matches` is the one
 rule: every modifier but shift exactly, and shift exactly for a named key but
 only when asked for on a character, since a shifted symbol carries the bit on
@@ -260,8 +261,10 @@ off while leaving the click. Consuming the key is what activating does, which is
 why a disabled widget passes its bound keys on too. It holds bare `KeyBinding`s
 rather than the `(KeyBinding, Action)` pairs a list box or table binds,
 activation having one action to name; a repeat never activates, one intent
-committing once. A menu item's Enter and space are fixed instead of bound, focus
-sitting inside the popup while it is open.
+committing once. A menu binds its own Enter and space through `MenuKeys`, which
+sits on the popup rather than on every row of it: one table per menu, agreeing
+with `ActivateKeys`'s default and independent of it deliberately, since a menu's
+Enter is not a form's.
 
 A `Popover` is placed against its anchor's resolved area every frame, so it
 follows a moving anchor without being told, and two fields say what that means:
@@ -328,8 +331,15 @@ also take their movement keys from a component of `(KeyBinding, Action)`
 bindings - `ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim
 keys, `Ctrl+D` included, without reimplementing movement beside the widget. Only
 the bindings are the crate's: the scan itself is `plurimus_ui`'s `first_bound`,
-the same one a focused scroll area's keys go through. The sliders, menus, and
-text widgets still match keys inline.
+the same one a focused scroll area's keys go through. Every widget here takes
+its keys that way now: `SliderKeys`, `MenuKeys` and the single-line field's
+`TextInputKeys` were the last inline matchers. The field's table is the one that
+binds editing rather than movement, so an unbound unchorded character still
+types itself, and `TextInputAction::Submit` is the one action
+`TextInput::handle` refuses to apply - what committing means is the
+dispatcher's, so `handle` leaves it and whoever routes the key acts on it. The
+multi-line editor is the exception and stays inline, its keymap belonging to the
+ratatui-textarea engine rather than to this crate.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is

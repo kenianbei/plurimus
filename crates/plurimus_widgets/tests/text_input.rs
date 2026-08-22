@@ -8,8 +8,10 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, ModifierKey, PasteMessage};
 use plurimus_test::{composed_styled_frame, press_chord, press_key, repeat_key};
-use plurimus_ui::{UiArea, ValueChange};
-use plurimus_widgets::{Submit, TextInput, WidgetsPlugin, editable_text};
+use plurimus_ui::{Key, KeyBinding, UiArea, ValueChange};
+use plurimus_widgets::{
+    Submit, TextInput, TextInputAction, TextInputKeys, WidgetsPlugin, editable_text,
+};
 
 #[derive(Resource, Default)]
 struct Edits(Vec<(String, bool)>);
@@ -244,4 +246,53 @@ fn wide_chars_place_the_cursor_by_column() {
     app.update();
 
     insta::assert_snapshot!("wide_char_cursor", composed_styled_frame(&app));
+}
+
+// The whole table is one component, submit included, so a form that wants
+// Enter for itself moves the field's submit to a chord.
+#[test]
+fn a_field_submitting_on_a_chord_leaves_enter_alone() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hi");
+    app.world_mut()
+        .entity_mut(field)
+        .insert(TextInputKeys(vec![(
+            KeyBinding::new(Key::Enter).with_ctrl(),
+            TextInputAction::Submit,
+        )]));
+
+    press_key(&mut app, KeyCode::Enter);
+    assert!(
+        app.world().resource::<Submits>().0.is_empty(),
+        "bare Enter no longer submits"
+    );
+    assert_eq!(value_of(&app, field), "hi", "and types nothing");
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Enter);
+    assert_eq!(app.world().resource::<Submits>().0, vec!["hi".to_owned()]);
+}
+
+// An editing action rebound to a chord, and the key it replaced left to
+// type itself.
+#[test]
+fn a_field_binds_an_edit_to_a_chord() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "abc");
+    app.world_mut()
+        .entity_mut(field)
+        .insert(TextInputKeys(vec![(
+            KeyBinding::new(Key::Character("a".into())).with_ctrl(),
+            TextInputAction::Home,
+        )]));
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('a'));
+    assert_eq!(cursor(&app, field), 0, "ctrl+a moves to the start");
+    assert_eq!(value_of(&app, field), "abc", "and types nothing");
+
+    press_key(&mut app, KeyCode::Char('a'));
+    assert_eq!(value_of(&app, field), "aabc", "a bare a still types");
+}
+
+fn cursor(app: &App, field: Entity) -> usize {
+    app.world().get::<TextInput>(field).unwrap().cursor()
 }
