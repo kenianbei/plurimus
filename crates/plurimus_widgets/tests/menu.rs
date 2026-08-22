@@ -46,6 +46,35 @@ fn spawn_menu(app: &mut App) -> Menu {
     }
 }
 
+/// A three-row menu, for the assertions a two-row one cannot make: with two
+/// rows, stepping either way lands on the same place.
+struct WideMenu {
+    popup: Entity,
+    rows: [Entity; 3],
+}
+
+fn spawn_wide_menu(app: &mut App) -> WideMenu {
+    let world = app.world_mut();
+    let button = world
+        .spawn((menu_button("File"), UiArea::Fixed(Rect::new(1, 0, 8, 1))))
+        .id();
+    let popup = world.spawn((menu_popup(button), ChildOf(button))).id();
+    let rows = [
+        world.spawn((menu_item("Open"), ChildOf(popup))).id(),
+        world.spawn((menu_item("Save"), ChildOf(popup))).id(),
+        world.spawn((menu_item("Quit"), ChildOf(popup))).id(),
+    ];
+    WideMenu { popup, rows }
+}
+
+fn focused(app: &App) -> Option<Entity> {
+    app.world().resource::<InputFocus>().get()
+}
+
+fn is_open_popup(app: &App, popup: Entity) -> bool {
+    app.world().get::<MenuOpen>(popup).is_some()
+}
+
 fn is_open(app: &App, menu: &Menu) -> bool {
     app.world().get::<MenuOpen>(menu.popup).is_some()
 }
@@ -182,34 +211,57 @@ fn arrows_wrap_enter_activates_escape_closes() {
 }
 
 // The table lives on the popup, so one component remaps the whole menu.
+// Three rows, because a two-row menu steps to the same place either way and
+// so cannot tell Previous from Next.
 #[test]
 fn a_remapped_menu_moves_and_closes_on_its_own_keys() {
     let mut app = app();
-    let menu = spawn_menu(&mut app);
+    let menu = spawn_wide_menu(&mut app);
     app.world_mut().entity_mut(menu.popup).insert(MenuKeys(vec![
         (Key::Character("j".into()).into(), MenuAction::Next),
+        (Key::Character("k".into()).into(), MenuAction::Previous),
         (Key::Character("q".into()).into(), MenuAction::Close),
     ]));
     click(&mut app, 2, 0);
+    assert_eq!(focused(&app), Some(menu.rows[0]));
 
     press_key(&mut app, KeyCode::Char('j'));
-    assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(menu.items[1]),
-        "the bound key moves the highlight"
-    );
+    assert_eq!(focused(&app), Some(menu.rows[1]), "j steps down");
+    press_key(&mut app, KeyCode::Char('j'));
+    assert_eq!(focused(&app), Some(menu.rows[2]));
+    press_key(&mut app, KeyCode::Char('k'));
+    assert_eq!(focused(&app), Some(menu.rows[1]), "k steps back up");
 
     press_key(&mut app, KeyCode::Down);
     assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(menu.items[1]),
-        "and the arrow it replaced does nothing"
+        focused(&app),
+        Some(menu.rows[1]),
+        "and the arrow each replaced does nothing"
     );
 
     press_key(&mut app, KeyCode::Esc);
-    assert!(is_open(&app, &menu), "Escape is unbound now");
+    assert!(is_open_popup(&app, menu.popup), "Escape is unbound now");
     press_key(&mut app, KeyCode::Char('q'));
-    assert!(!is_open(&app, &menu));
+    assert!(!is_open_popup(&app, menu.popup));
+}
+
+// The stock arrows, on a menu long enough for the two directions to differ.
+#[test]
+fn the_default_arrows_step_each_way() {
+    let mut app = app();
+    let menu = spawn_wide_menu(&mut app);
+    click(&mut app, 2, 0);
+
+    press_key(&mut app, KeyCode::Down);
+    assert_eq!(focused(&app), Some(menu.rows[1]));
+    press_key(&mut app, KeyCode::Up);
+    assert_eq!(focused(&app), Some(menu.rows[0]));
+    press_key(&mut app, KeyCode::Up);
+    assert_eq!(
+        focused(&app),
+        Some(menu.rows[2]),
+        "and up from the top wraps"
+    );
 }
 
 #[test]
