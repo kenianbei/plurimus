@@ -112,7 +112,15 @@ reports nothing at all while unfocused: every held key is released when a
 corrects held state while a pointer release would complete a click nobody made.
 Both paths write a release carrying no modifiers, which is what a terminal does
 too - an event reports the state it leaves behind, so a release is matched to
-its press by key alone. The `bevy_compat` module forwards messages into
+its press by key alone. A click count is the other fact no terminal reports, and
+the one no capability governs, since no tier reports it: `ClickRun` holds the
+run of presses that landed on the same target at the same cell inside
+`MultiClickWindow` of one another, and `ClickCounter` is the parameter that
+steps it against `Time<Real>`. Nothing here steps it - what a press reached is
+half the key, and only a pointer router knows that - so the run is derived where
+the release synthesis is configured rather than where it is performed, and
+`MultiClickWindow` sits beside `ReleaseTimeout` as the second knob an app sets
+once for every widget. The `bevy_compat` module forwards messages into
 `bevy_input` event types for crates built on them, such as the focus stack.
 
 ### plurimus_crossterm
@@ -150,40 +158,45 @@ being that router's own opt-in; `PressPassThrough` is press transparency, the
 widget keeping its area for everything but the press; and `PressFocusDisabled`
 suppresses only the focus a press would move, so a toolbar control is
 tab-reachable without a click on it taking the keyboard - focus otherwise
-follows a press to any `TabIndex` carrier. It installs focus via
-`bevy_input_focus` and pins the dispatch into that sequence - after
-`bevy_input`'s own update and between `Areas` and `Hover` - so a focused-input
-observer reads this frame's areas and settled key state rather than whatever the
-schedule happened to resolve; work that must see what one did is ordered after
-the dispatch, which is what `plurimus_widgets` does with
-`WidgetSystems::Layout`. It also builds the directional navigation map, and
-provides scrolling (`ScrollArea`, `ScrollOffset`, `ScrollIntoView`) with cached
-extraction of scrolled content, plus the generic modal-overlay primitives
-(`ModalOpen`, `ModalDismiss`) that menus and popovers are built from. What
-"inside a modal" means is the overlay's own rect, for the pointer and the wheel
-alike: a position an open overlay covers admits that overlay's subtree and
-nothing else, so an overlay confines input rather than depending on every child
-of it being marked, and a position outside every open overlay dismisses them -
-except on a `ModalityToggle`, the marker that survives where geometry cannot
-answer, since an opener sits outside the menu it closes. Taking the union of the
-overlays covering a position is what admits a submenu inside its parent without
-ordering modal roots against each other. Every scroll converges on one event: a
-wheel tick, arbitrated by z-order among the `WheelReceptive` widgets under the
-cursor whose `WheelAxes` can still use that axis and which an open overlay
-admits, and a key bound through `ScrollKeys` on whichever widget holds focus
-both become a `ScrollBy`, which whoever stores the scroll consumes - this
-crate's `ScrollOffset`, a bevy_ui node's own position, a text editor's engine
-viewport - each clamping the step against its own extent. `ScrollKeys` is the
-whole opt-in for the keyboard, carrying the `TabIndex` without which nothing can
-be sent a key, and it is one of three `(Key, Action)` bindings components
-sharing `first_bound`, the scan this crate owns so a widget family written
-elsewhere states "first match wins" by calling it rather than by copying it.
-`content_cell` is where a pointer cell becomes a content cell for any of it,
-clamping into the area so a captured drag past an edge keeps addressing the
-nearest one; `screen_cell` is the way back, refusing rather than clamping, and
-it is what places the focused widget's `WidgetCursor` on the terminal - a cursor
-whose cell is `None` names none, which is how a widget with nowhere to put its
-caret says so without discarding the shape an app gave it.
+follows a press to any `TabIndex` carrier. Every press also carries how many
+have run together on it, `PointerPress` and the `Click` completing it reporting
+the same number: this router is what steps `plurimus_term`'s run, and what ends
+it when a press reaches no widget at all, so a press that dismissed an overlay
+or that a disabled widget absorbed leaves the next one starting over rather than
+counting as its second. It installs focus via `bevy_input_focus` and pins the
+dispatch into that sequence - after `bevy_input`'s own update and between
+`Areas` and `Hover` - so a focused-input observer reads this frame's areas and
+settled key state rather than whatever the schedule happened to resolve; work
+that must see what one did is ordered after the dispatch, which is what
+`plurimus_widgets` does with `WidgetSystems::Layout`. It also builds the
+directional navigation map, and provides scrolling (`ScrollArea`,
+`ScrollOffset`, `ScrollIntoView`) with cached extraction of scrolled content,
+plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
+menus and popovers are built from. What "inside a modal" means is the overlay's
+own rect, for the pointer and the wheel alike: a position an open overlay covers
+admits that overlay's subtree and nothing else, so an overlay confines input
+rather than depending on every child of it being marked, and a position outside
+every open overlay dismisses them - except on a `ModalityToggle`, the marker
+that survives where geometry cannot answer, since an opener sits outside the
+menu it closes. Taking the union of the overlays covering a position is what
+admits a submenu inside its parent without ordering modal roots against each
+other. Every scroll converges on one event: a wheel tick, arbitrated by z-order
+among the `WheelReceptive` widgets under the cursor whose `WheelAxes` can still
+use that axis and which an open overlay admits, and a key bound through
+`ScrollKeys` on whichever widget holds focus both become a `ScrollBy`, which
+whoever stores the scroll consumes - this crate's `ScrollOffset`, a bevy_ui
+node's own position, a text editor's engine viewport - each clamping the step
+against its own extent. `ScrollKeys` is the whole opt-in for the keyboard,
+carrying the `TabIndex` without which nothing can be sent a key, and it is one
+of three `(Key, Action)` bindings components sharing `first_bound`, the scan
+this crate owns so a widget family written elsewhere states "first match wins"
+by calling it rather than by copying it. `content_cell` is where a pointer cell
+becomes a content cell for any of it, clamping into the area so a captured drag
+past an edge keeps addressing the nearest one; `screen_cell` is the way back,
+refusing rather than clamping, and it is what places the focused widget's
+`WidgetCursor` on the terminal - a cursor whose cell is `None` names none, which
+is how a widget with nowhere to put its caret says so without discarding the
+shape an app gave it.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`

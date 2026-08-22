@@ -8,6 +8,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A click count on `PointerPress` and `Click`**, so a widget with a
+  double-click gesture reads a number instead of keeping its own clock. No
+  terminal reports one, so it is synthesized against the same real clock key
+  releases are: presses run together while they land on the same widget at the
+  same cell within `MultiClickWindow` (500 ms by default, and `Duration::ZERO`
+  turns runs off) of one another. A press that reaches no widget - one that
+  dismissed an overlay, one a disabled widget absorbed, one over nothing - ends
+  the run rather than counting towards it, so the press after it starts at 1.
+  The count saturates rather than wrapping, what a long run means being the
+  widget's to decide, and `with_count` sets it on either event.
 - **`Popover::cell`**, attaching a popover to one cell of its anchor's content
   rather than to the whole of its area - a completion list under a caret, a
   tooltip at a cursor. The cell is named in content space and the anchor's own

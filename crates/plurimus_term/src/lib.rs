@@ -5,15 +5,18 @@
 //! [`PasteMessage`], [`FocusMessage`] and [`TerminalResized`], and
 //! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
 //! [`InputCapabilities`] records which of it the terminal can actually
-//! manage. Outbound, [`TerminalRequest`] is what an app asks of the
-//! terminal and [`TerminalCursorStyle`] is the shape it asks the caret to
-//! take.
+//! manage. What no terminal reports at all is synthesized against the real
+//! clock: key releases below the kitty tier, and the [`ClickRun`] a
+//! double-click gesture is counted by. Outbound, [`TerminalRequest`] is what
+//! an app asks of the terminal and [`TerminalCursorStyle`] is the shape it
+//! asks the caret to take.
 //!
 //! What is here is what needs a terminal to mean anything. Rendering to a
 //! cell grid does not: `plurimus_core` drives any ratatui `Backend`,
 //! terminal or otherwise, and never depends on this crate.
 
 pub mod bevy_compat;
+mod click;
 mod cursor;
 mod keyboard;
 mod mouse;
@@ -22,6 +25,7 @@ mod resize;
 mod state;
 mod synthesis;
 
+pub use click::{ClickCounter, ClickRun, MultiClickWindow};
 pub use cursor::TerminalCursorStyle;
 
 pub use bevy_input::ButtonInput;
@@ -136,6 +140,8 @@ impl Plugin for TermPlugin {
         app.init_resource::<TerminalCursorStyle>();
         app.init_resource::<InputCapabilities>();
         app.init_resource::<ReleaseTimeout>();
+        app.init_resource::<MultiClickWindow>();
+        app.init_resource::<ClickRun>();
         app.init_resource::<ButtonInput<KeyCode>>();
         app.init_resource::<ButtonInput<MouseButton>>();
         app.init_resource::<LastCopied>();
