@@ -19,7 +19,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`HeldModifiers`**, the system parameter every key observer reads the held
   modifiers through, and **`KeyModifiers::none`**, nothing held in a `const`
   context so a binding table can be built at compile time.
-- **A click count on `PointerPress` and `Click`**, so a widget with a
+- **A click count on `PointerPress`, `Click` and `Pressed`**, so a widget with a
   double-click gesture reads a number instead of keeping its own clock. No
   terminal reports one, so it is synthesized against the same real clock key
   releases are: presses run together while they land on the same widget at the
@@ -28,7 +28,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   dismissed an overlay, one a disabled widget absorbed, one over nothing - ends
   the run rather than counting towards it, so the press after it starts at 1.
   The count saturates rather than wrapping, what a long run means being the
-  widget's to decide, and `with_count` sets it on either event.
+  widget's to decide, and `with_count` sets it on either event. It also rides
+  the `Pressed` component for the length of the gesture, which is what lets a
+  `PointerDrag` observer tell a drag through the second press of a run from one
+  through the first - the gesture no event carries a count for. The run itself
+  is `plurimus_ui`'s and private: `MultiClickWindow` is the whole of what an app
+  sets, and it stays in `plurimus_term` beside `ReleaseTimeout`, read against
+  the same clock.
 - **`Popover::cell`**, attaching a popover to one cell of its anchor's content
   rather than to the whole of its area - a completion list under a caret, a
   tooltip at a cursor. The cell is named in content space and the anchor's own
@@ -120,6 +126,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`Pressed` carries the click count of the press that set it**, rather than
+  being a unit marker. A widget that only asks whether it is pressed is
+  unaffected - `Has<Pressed>` and `contains::<Pressed>()` read the same - while
+  one inserting it by hand writes `Pressed(1)` or `Pressed::default()`, which is
+  the lone press the router used to assume for a gesture it did not start.
 - **A key binding carries its modifiers.** `ScrollKeys`, `ListBoxKeys` and
   `TableKeys` hold `KeyBinding`s - a `Key` and the `KeyModifiers` it must be
   pressed under - rather than bare `Key`s, so a list can be bound to `Ctrl+D`

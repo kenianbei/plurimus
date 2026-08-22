@@ -299,14 +299,6 @@ pub(crate) struct PointerRouting<'w, 's> {
     time: Res<'w, Time<Real>>,
 }
 
-impl PointerRouting<'_, '_> {
-    /// Counts a press landing on `target` at `cell` now.
-    fn count_press(&mut self, target: Entity, cell: Position) -> u8 {
-        self.run
-            .step(target, cell, self.time.elapsed(), self.window.0)
-    }
-}
-
 pub(crate) fn pointer_interaction(
     mut mouse: MessageReader<MouseMessage>,
     mut carryover: Local<Vec<MouseMessage>>,
@@ -379,7 +371,9 @@ fn route_press(
         routing.run.reset();
         return false;
     };
-    let count = routing.count_press(entity, position);
+    let count = routing
+        .run
+        .step(entity, position, routing.time.elapsed(), routing.window.0);
     commands.trigger(PointerPress {
         entity,
         position,

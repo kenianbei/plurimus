@@ -9,11 +9,12 @@
 //! [`MultiClickWindow`](plurimus_term::MultiClickWindow) of zero is how an app
 //! turns it off instead.
 //!
-//! The run lives beside the pointer router because every input to its key is
-//! that router's: which widget the press reached, whether an overlay swallowed
-//! it, whether a disabled widget absorbed it. It is stepped inline rather than
-//! by a system of its own, because two presses can arrive in one drained
-//! batch, which state derived once a frame would report one count for.
+//! The run lives beside the pointer router because that router is the only
+//! thing that knows what a press reached, which is half of what keys it - and
+//! the only thing that knows a press reached nothing at all, which ends it. It
+//! is stepped inline rather than by a system of its own, because two presses
+//! can arrive in one drained batch, which state derived once a frame would
+//! report one count for.
 
 use std::time::Duration;
 

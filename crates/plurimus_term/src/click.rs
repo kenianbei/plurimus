@@ -14,8 +14,7 @@ use bevy_ecs::prelude::Resource;
 /// being no time apart at all.
 ///
 /// The run this bounds is kept by whoever routes presses, since what a press
-/// reached is half of what keys it, and no terminal reports a count for this
-/// crate to relay.
+/// reached is half of what keys it.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MultiClickWindow(pub Duration);
 

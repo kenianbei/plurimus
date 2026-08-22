@@ -239,6 +239,22 @@ fn a_drag_reads_the_count_of_the_press_holding_it() {
     assert_eq!(drags(&app), vec![2], "the drag is through the second press");
 }
 
+// `Pressed` is public, so a gesture something other than this router started
+// still releases and still clicks - as the lone press its default says it is.
+#[test]
+fn a_hand_pressed_widget_clicks_as_a_lone_press() {
+    let mut app = app();
+    let target = spawn_target(&mut app, AREA);
+    send_at(&mut app, MouseKind::Moved, CELL);
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Pressed::default());
+
+    send_at(&mut app, MouseKind::Up(MouseButton::Left), CELL);
+
+    assert_eq!(clicks(&app), vec![1], "the click reports a lone press");
+}
+
 #[test]
 fn a_lone_press_is_the_first_of_its_run() {
     assert_eq!(
