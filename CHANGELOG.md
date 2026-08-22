@@ -8,6 +8,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`HeldModifiers`**, the system parameter every key observer reads the held
+  modifiers through, and **`KeyModifiers::none`**, nothing held in a `const`
+  context so a binding table can be built at compile time.
 - **A click count on `PointerPress` and `Click`**, so a widget with a
   double-click gesture reads a number instead of keeping its own clock. No
   terminal reports one, so it is synthesized against the same real clock key
@@ -106,6 +109,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **A key binding carries its modifiers.** `ScrollKeys`, `ListBoxKeys`,
+  `TableKeys` and `ActivateKeys` hold `KeyBinding`s - a `Key` and the
+  `KeyModifiers` it must be pressed under - rather than bare `Key`s, so a list
+  can be bound to `Ctrl+D` and a form's submit to `Ctrl+Enter` while the button
+  under it keeps plain Enter. Every modifier but shift is matched exactly, the
+  "chorded" a text field already refuses to type under; shift is matched exactly
+  for a named key and only when asked for on a character, because a shifted
+  symbol carries the bit on some terminals and not others - so `G` and `:` are
+  spelled as themselves, and `with_shift` is for `Shift+Tab`, the shifted arrows
+  and `Shift+Space`. A bare `Key` converts with `.into()`, and every stock
+  default binds what it bound before. `first_bound` takes the held modifiers
+  beside the input, and `KeyBinding::matches` is the same test for a host
+  routing its own keys. The modifiers are the ones held when the key arrived,
+  polled - bevy's `KeyboardInput` carries none - which is right for every case
+  but a chord landing in the frame its modifier is released.
 - **A `Table` with no stated column widths divides its own width**, rather than
   leaving ratatui to divide the area it renders into. The two rules agreed, so
   nothing is drawn differently; what changes is that one solve now feeds both
