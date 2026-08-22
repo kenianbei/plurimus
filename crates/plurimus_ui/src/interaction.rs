@@ -17,12 +17,14 @@ use bevy_ecs::query::QueryFilter;
 use bevy_ecs::system::SystemParam;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusCause, InputFocus};
+use bevy_time::{Real, Time};
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
     CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
 };
-use plurimus_term::{ClickCounter, CursorCell, MouseButton, MouseKind, MouseMessage};
+use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage, MultiClickWindow};
 
+use crate::click::ClickRun;
 use crate::modal::ModalGuard;
 
 /// Whether the cursor is over the widget. Opt-in: spawn it on widgets that
@@ -292,7 +294,17 @@ pub(crate) struct PointerRouting<'w, 's> {
     disabled: Query<'w, 's, (), With<InteractionDisabled>>,
     modal: ModalGuard<'w, 's>,
     focus: ResMut<'w, InputFocus>,
-    counter: ClickCounter<'w>,
+    run: ResMut<'w, ClickRun>,
+    window: Res<'w, MultiClickWindow>,
+    time: Res<'w, Time<Real>>,
+}
+
+impl PointerRouting<'_, '_> {
+    /// Counts a press landing on `target` at `cell` now.
+    fn count_press(&mut self, target: Entity, cell: Position) -> u8 {
+        self.run
+            .step(target, cell, self.time.elapsed(), self.window.0)
+    }
 }
 
 pub(crate) fn pointer_interaction(
@@ -358,16 +370,16 @@ fn route_press(
     let opener = !inert && target.is_some_and(|entity| routing.modal.affects_modality(entity));
     if routing.modal.dismisses(position) && !opener {
         routing.modal.dismiss_all(commands);
-        routing.counter.reset();
+        routing.run.reset();
         return true;
     }
     // A press that reaches no widget ends the run: what it dismissed or
     // what absorbed it is not what the next press will land on.
     let Some(entity) = target.filter(|_| !inert) else {
-        routing.counter.reset();
+        routing.run.reset();
         return false;
     };
-    let count = routing.counter.count(entity, position);
+    let count = routing.count_press(entity, position);
     commands.trigger(PointerPress {
         entity,
         position,

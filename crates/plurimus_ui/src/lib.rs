@@ -17,6 +17,7 @@
 //! its look from the app's theme rather than owning one, so widgets from
 //! different crates restyle together.
 
+mod click;
 mod cursor;
 mod focus;
 mod interaction;
@@ -96,6 +97,7 @@ impl Plugin for UiPlugin {
         }
         focus::install(app);
         app.init_resource::<UiTheme>();
+        app.init_resource::<click::ClickRun>();
         app.configure_sets(
             PreUpdate,
             (UiSystems::Areas, UiSystems::Hover, UiSystems::Route)
