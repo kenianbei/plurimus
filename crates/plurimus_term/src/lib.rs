@@ -40,7 +40,10 @@ pub use synthesis::ReleaseTimeout;
 
 pub(crate) use request::echo_clipboard_writes;
 pub(crate) use state::{track_cursor_cell, update_button_input};
-pub(crate) use synthesis::{HeldKeys, release_keys_on_focus_loss, synthesize_releases};
+pub(crate) use synthesis::{
+    HeldKeys, expire_held_keys, record_held_keys, release_keys_on_focus_loss,
+    releases_are_synthesized,
+};
 
 use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::message::Message;
@@ -159,10 +162,11 @@ impl Plugin for TermPlugin {
         app.add_systems(
             PreUpdate,
             // Both synthesis paths go before the polled state they feed:
-            // recording this frame's presses, then draining what a focus
-            // loss ended, leaves `update_button_input` one batch to apply.
+            // recording this frame's presses, then writing the releases no
+            // terminal will, leaves `update_button_input` one batch to apply.
             (
-                synthesize_releases,
+                record_held_keys,
+                expire_held_keys.run_if(releases_are_synthesized),
                 release_keys_on_focus_loss,
                 update_button_input,
                 track_cursor_cell,

@@ -84,11 +84,7 @@ mod tests {
     }
 
     fn typed(code: KeyCode, kind: KeyKind) -> KeyMessage {
-        KeyMessage {
-            code,
-            modifiers: KeyModifiers::default(),
-            kind,
-        }
+        KeyMessage::new(code, KeyModifiers::none(), kind)
     }
 
     #[test]
@@ -137,7 +133,7 @@ mod tests {
 
     // The gesture a raw-byte probe caught: hold `w`, press shift, release
     // `w`. Kitty substitutes the shifted character, so the release arrives
-    // as `W` and would once have left the press held forever.
+    // as `W`.
     #[test]
     fn a_hold_shifted_before_it_ends_is_still_released() {
         let mut app = app();
