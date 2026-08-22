@@ -12,16 +12,19 @@
 //! terminals have no timely release events.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{ChildOf, Commands, Component, EntityEvent, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{
+    ChildOf, Commands, Component, EntityEvent, Has, On, Query, Res, With, Without,
+};
 use bevy_ecs::system::SystemParam;
-use bevy_input::ButtonState;
-use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy_input::{ButtonInput, ButtonState};
 use bevy_input_focus::FocusedInput;
+use plurimus_term::bevy_compat::held_modifiers;
 
 use crate::button::Button;
 use crate::checkbox::Checkbox;
 use crate::radio::{RadioButton, RadioGroup};
-use plurimus_ui::{Checked, Click, InteractionDisabled, ValueChange};
+use plurimus_ui::{Checked, Click, InteractionDisabled, KeyBinding, ValueChange};
 
 /// The widget was activated (a click, or a key in [`ActivateKeys`]).
 #[derive(EntityEvent, Debug, Clone, Copy)]
@@ -42,11 +45,11 @@ pub struct Activate {
 /// A repeat never activates - one intent commits once - so a held key is
 /// not the way to toggle a checkbox repeatedly.
 #[derive(Component, Debug, Clone)]
-pub struct ActivateKeys(pub Vec<Key>);
+pub struct ActivateKeys(pub Vec<KeyBinding>);
 
 impl Default for ActivateKeys {
     fn default() -> Self {
-        Self(vec![Key::Enter, Key::Character(" ".into())])
+        Self(vec![Key::Enter.into(), Key::Character(" ".into()).into()])
     }
 }
 
@@ -68,17 +71,19 @@ pub(crate) struct ActivationTargets<'w, 's> {
     checkboxes: Query<'w, 's, Has<Checked>, (With<Checkbox>, Without<InteractionDisabled>)>,
     radios: Query<'w, 's, (), (With<RadioButton>, Without<InteractionDisabled>)>,
     keys: Query<'w, 's, &'static ActivateKeys>,
+    held_keys: Res<'w, ButtonInput<KeyCode>>,
     parents: Query<'w, 's, &'static ChildOf>,
     groups: Query<'w, 's, (), With<RadioGroup>>,
 }
 
 impl ActivationTargets<'_, '_> {
     fn binds(&self, entity: Entity, input: &KeyboardInput) -> bool {
+        let held = held_modifiers(&self.held_keys);
         is_fresh_press(input)
             && self
                 .keys
                 .get(entity)
-                .is_ok_and(|keys| keys.0.contains(&input.logical_key))
+                .is_ok_and(|keys| keys.0.iter().any(|binding| binding.matches(input, held)))
     }
 }
 

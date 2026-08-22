@@ -7,9 +7,9 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
-use plurimus_test::{press_key, repeat_key};
-use plurimus_ui::{InteractionDisabled, ValueChange};
+use plurimus_term::{KeyCode, ModifierKey};
+use plurimus_test::{press_chord, press_key, repeat_key};
+use plurimus_ui::{InteractionDisabled, KeyBinding, ValueChange};
 use plurimus_widgets::{
     Activate, ActivateKeys, RadioGroup, WidgetsPlugin, button, checkbox, radio,
 };
@@ -98,7 +98,7 @@ fn a_narrowed_checkbox_leaves_enter_to_the_form() {
         .world_mut()
         .spawn((
             checkbox("agree"),
-            ActivateKeys(vec![space()]),
+            ActivateKeys(vec![space().into()]),
             ChildOf(form),
         ))
         .id();
@@ -124,6 +124,46 @@ fn a_narrowed_checkbox_leaves_enter_to_the_form() {
     assert_eq!(seen(&app), [Key::Enter], "the bound key is consumed");
 }
 
+// Ctrl+Enter is the submit a form binds while its button keeps plain
+// Enter, so the two have to tell apart in both directions.
+#[test]
+fn a_chord_activates_apart_from_its_bare_key() {
+    let mut app = app();
+    let form = form(&mut app);
+    let ok = app
+        .world_mut()
+        .spawn((
+            button("ok"),
+            ActivateKeys(vec![KeyBinding::new(Key::Enter).with_ctrl()]),
+            ChildOf(form),
+        ))
+        .id();
+    app.world_mut()
+        .entity_mut(ok)
+        .observe(|_on: On<Activate>, mut activations: ResMut<Activations>| activations.0 += 1);
+    focus(&mut app, ok);
+
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        app.world().resource::<Activations>().0,
+        0,
+        "bare Enter is unbound"
+    );
+    assert_eq!(seen(&app), [Key::Enter], "and so reaches the form");
+
+    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Enter);
+    assert_eq!(
+        app.world().resource::<Activations>().0,
+        1,
+        "ctrl+Enter activates"
+    );
+    let enters = seen(&app).iter().filter(|key| **key == Key::Enter).count();
+    assert_eq!(
+        enters, 2,
+        "the chord's press is consumed; only its release joins the bare Enter"
+    );
+}
+
 #[test]
 fn a_narrowed_radio_uses_only_its_bound_key() {
     let mut app = app();
@@ -134,7 +174,11 @@ fn a_narrowed_radio_uses_only_its_bound_key() {
     track_unconsumed(&mut app, group);
     let option = app
         .world_mut()
-        .spawn((radio("one"), ActivateKeys(vec![Key::Enter]), ChildOf(group)))
+        .spawn((
+            radio("one"),
+            ActivateKeys(vec![Key::Enter.into()]),
+            ChildOf(group),
+        ))
         .id();
     focus(&mut app, option);
 
