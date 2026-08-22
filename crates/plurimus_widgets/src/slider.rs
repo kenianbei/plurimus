@@ -13,7 +13,6 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Component, On, Query, Res, With, Without};
-use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::InputFocus;
@@ -25,16 +24,25 @@ use plurimus_core::ratatui_core::widgets::Widget;
 
 use super::ValueChange;
 use plurimus_core::UiWidget;
+use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress, PointerRelease,
     UiTheme,
 };
+use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A horizontal slider. Emits [`ValueChange<f32>`]; attach
 /// [`super::slider_self_update`] for uncontrolled behavior.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(SliderValue, SliderRange, SliderStep, Hovered, StylistCache)]
+#[require(
+    SliderValue,
+    SliderRange,
+    SliderStep,
+    SliderKeys,
+    Hovered,
+    StylistCache
+)]
 pub struct Slider;
 
 /// The slider's current value.
@@ -75,6 +83,34 @@ impl SliderRange {
 impl Default for SliderRange {
     fn default() -> Self {
         Self::new(0.0, 1.0)
+    }
+}
+
+/// What a [`SliderKeys`] binding does to the value.
+///
+/// Closed: a slider's keyboard moves the value one step either way, and a
+/// third direction is not a thing a slider has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SliderAction {
+    /// One [`SliderStep`] towards the range's start.
+    Decrease,
+    /// One [`SliderStep`] towards the range's end.
+    Increase,
+}
+
+/// A [`Slider`]'s key bindings, scanned in order so the first match wins.
+///
+/// Replace it to remap: two keys may share an action by appearing twice.
+/// Defaults to the left and right arrows.
+#[derive(Component, Debug, Clone)]
+pub struct SliderKeys(pub Vec<(KeyBinding, SliderAction)>);
+
+impl Default for SliderKeys {
+    fn default() -> Self {
+        Self(vec![
+            (Key::ArrowLeft.into(), SliderAction::Decrease),
+            (Key::ArrowRight.into(), SliderAction::Increase),
+        ])
     }
 }
 
@@ -157,22 +193,22 @@ fn seek(
 
 pub(crate) fn slider_key(
     mut input: On<FocusedInput<KeyboardInput>>,
+    held: HeldModifiers,
     sliders: Query<
-        (&SliderValue, &SliderRange, &SliderStep),
+        (&SliderValue, &SliderRange, &SliderStep, &SliderKeys),
         (With<Slider>, Without<InteractionDisabled>),
     >,
     mut commands: Commands,
 ) {
-    let Ok((value, range, step)) = sliders.get(input.focused_entity) else {
+    let Ok((value, range, step, keys)) = sliders.get(input.focused_entity) else {
         return;
     };
-    if input.input.state != ButtonState::Pressed {
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
-    }
-    let delta = match input.input.logical_key {
-        Key::ArrowLeft => -step.0,
-        Key::ArrowRight => step.0,
-        _ => return,
+    };
+    let delta = match action {
+        SliderAction::Decrease => -step.0,
+        SliderAction::Increase => step.0,
     };
     input.propagate(false);
     let target = range.clamp(value.0 + delta);

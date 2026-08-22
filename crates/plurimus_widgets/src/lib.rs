@@ -50,7 +50,7 @@ pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
     table_self_update,
 };
-pub use slider::{Slider, SliderRange, SliderStep, SliderValue, slider};
+pub use slider::{Slider, SliderAction, SliderKeys, SliderRange, SliderStep, SliderValue, slider};
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
     TableGeometry, TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect,
