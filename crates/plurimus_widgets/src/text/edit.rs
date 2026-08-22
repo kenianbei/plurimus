@@ -9,7 +9,9 @@
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus_term::KeyModifiers;
+use plurimus_ui::first_bound;
 
+use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use super::word::{word_end_forward, word_start_backward, word_start_forward};
 
@@ -23,43 +25,74 @@ impl TextInput {
     /// untaken too, which is what lets ctrl+c reach whoever binds it instead
     /// of typing a `c`.
     ///
-    /// `held` is the modifier state the word chords read;
-    /// [`held_modifiers`](plurimus_term::bevy_compat::held_modifiers) is
-    /// where a bevy app gets it.
+    /// `keys` is the table scanned first; an unbound unchorded character
+    /// inserts itself, and [`TextInputAction::Submit`] is left untaken along
+    /// with everything unbound, since committing is the dispatcher's. `held`
+    /// is the modifier state a chord is matched against;
+    /// [`HeldModifiers`](plurimus_term::bevy_compat::HeldModifiers) is where
+    /// a bevy app gets it.
     ///
     /// Taking a key is not the same as changing the value - an arrow key
     /// takes one and edits nothing - so a host notifying on edits compares
     /// [`value`](Self::value) across the call rather than reading this.
     /// Showing the caret is the host's too: the stock stylist draws one for
     /// the focused field alone, which a field driven without focus is not.
-    pub fn handle(&mut self, input: &KeyboardInput, held: KeyModifiers) -> bool {
+    pub fn handle(
+        &mut self,
+        keys: &TextInputKeys,
+        input: &KeyboardInput,
+        held: KeyModifiers,
+    ) -> bool {
         if input.state != ButtonState::Pressed {
             return false;
         }
+        match first_bound(&keys.0, input, held) {
+            Some(TextInputAction::Submit) => return false,
+            Some(action) => self.apply(action),
+            None => return self.insert_unbound(&input.logical_key, held),
+        }
+        true
+    }
+
+    /// Applies one [`TextInputAction`], for a host that resolved the key
+    /// itself. [`Submit`](TextInputAction::Submit) edits nothing.
+    pub fn apply(&mut self, action: TextInputAction) {
         let cursor = self.cursor();
-        let chorded = held.ctrl || held.alt || held.super_key || held.hyper || held.meta;
-        match &input.logical_key {
+        match action {
             // Word bindings mirror TextEditor's, whose engine binds
             // ctrl+arrows to word motion and alt+Backspace/Delete to word
             // deletion.
-            Key::ArrowLeft if held.ctrl => self.move_to(word_start_backward(self.value(), cursor)),
-            Key::ArrowRight if held.ctrl => self.move_to(word_start_forward(self.value(), cursor)),
-            Key::Backspace if held.alt => self.delete_to(word_start_backward(self.value(), cursor)),
-            Key::Delete if held.alt => self.delete_to(word_end_forward(self.value(), cursor)),
+            TextInputAction::WordLeft => self.move_to(word_start_backward(self.value(), cursor)),
+            TextInputAction::WordRight => self.move_to(word_start_forward(self.value(), cursor)),
+            TextInputAction::WordBackspace => {
+                self.delete_to(word_start_backward(self.value(), cursor));
+            }
+            TextInputAction::WordDelete => self.delete_to(word_end_forward(self.value(), cursor)),
             // A one-past-the-cursor target is a whole cluster step: the snap
             // carries it the rest of the way across the cluster.
-            Key::ArrowLeft => self.move_to(cursor.saturating_sub(1)),
-            Key::ArrowRight => self.move_to(cursor + 1),
-            Key::Backspace => self.delete_to(cursor.saturating_sub(1)),
-            Key::Delete => self.delete_to(cursor + 1),
-            Key::Home => self.move_start(),
-            Key::End => self.move_end(),
-            // Shift is not a chord: the kitty protocol reports a shifted
-            // letter with the bit set, so blocking it would stop capitals.
-            Key::Character(characters) if !chorded => {
-                characters.chars().for_each(|c| self.insert(c));
-            }
-            Key::Space if !chorded => self.insert(' '),
+            TextInputAction::Left => self.move_to(cursor.saturating_sub(1)),
+            TextInputAction::Right => self.move_to(cursor + 1),
+            TextInputAction::Backspace => self.delete_to(cursor.saturating_sub(1)),
+            TextInputAction::Delete => self.delete_to(cursor + 1),
+            TextInputAction::Home => self.move_start(),
+            TextInputAction::End => self.move_end(),
+            TextInputAction::Submit => {}
+        }
+    }
+
+    /// What an unbound key types, which is nothing unless it is an unchorded
+    /// character.
+    ///
+    /// Shift is not a chord: the kitty protocol reports a shifted letter with
+    /// the bit set, so blocking it would stop capitals.
+    fn insert_unbound(&mut self, key: &Key, held: KeyModifiers) -> bool {
+        let chorded = held.ctrl || held.alt || held.super_key || held.hyper || held.meta;
+        if chorded {
+            return false;
+        }
+        match key {
+            Key::Character(characters) => characters.chars().for_each(|c| self.insert(c)),
+            Key::Space => self.insert(' '),
             _ => return false,
         }
         true
@@ -85,6 +118,11 @@ mod tests {
     use plurimus_term::KeyModifiers;
 
     use super::TextInput;
+    use crate::text::keys::TextInputKeys;
+
+    fn keys() -> TextInputKeys {
+        TextInputKeys::default()
+    }
 
     fn ctrl() -> KeyModifiers {
         KeyModifiers::default().with_ctrl(true)
@@ -110,10 +148,10 @@ mod tests {
     fn a_press_types_and_a_release_does_not() {
         let mut text = TextInput::new("");
 
-        assert!(text.handle(&pressed(character("a")), KeyModifiers::default()));
+        assert!(text.handle(&keys(), &pressed(character("a")), KeyModifiers::default()));
         let mut release = pressed(character("b"));
         release.state = ButtonState::Released;
-        assert!(!text.handle(&release, KeyModifiers::default()));
+        assert!(!text.handle(&keys(), &release, KeyModifiers::default()));
 
         assert_eq!(text.value(), "a");
     }
@@ -124,7 +162,7 @@ mod tests {
         let mut repeat = pressed(Key::Backspace);
         repeat.repeat = true;
 
-        assert!(text.handle(&repeat, KeyModifiers::default()));
+        assert!(text.handle(&keys(), &repeat, KeyModifiers::default()));
 
         assert_eq!(text.value(), "a", "holding backspace keeps deleting");
     }
@@ -133,7 +171,7 @@ mod tests {
     fn a_chorded_character_is_left_for_whoever_binds_it() {
         let mut text = TextInput::new("");
 
-        assert!(!text.handle(&pressed(character("c")), ctrl()));
+        assert!(!text.handle(&keys(), &pressed(character("c")), ctrl()));
 
         assert_eq!(text.value(), "", "ctrl+c copies somewhere, it never types");
     }
@@ -143,7 +181,7 @@ mod tests {
         let mut text = TextInput::new("");
         let shift = KeyModifiers::default().with_shift(true);
 
-        assert!(text.handle(&pressed(character("A")), shift));
+        assert!(text.handle(&keys(), &pressed(character("A")), shift));
 
         assert_eq!(text.value(), "A");
     }
@@ -152,7 +190,7 @@ mod tests {
     fn enter_is_left_to_the_dispatcher() {
         let mut text = TextInput::new("done");
 
-        assert!(!text.handle(&pressed(Key::Enter), KeyModifiers::default()));
+        assert!(!text.handle(&keys(), &pressed(Key::Enter), KeyModifiers::default()));
 
         assert_eq!(text.value(), "done");
     }
@@ -162,10 +200,10 @@ mod tests {
         const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
         let mut text = TextInput::new(format!("one {FAMILY}"));
 
-        assert!(text.handle(&pressed(Key::Backspace), KeyModifiers::default()));
+        assert!(text.handle(&keys(), &pressed(Key::Backspace), KeyModifiers::default()));
         assert_eq!(text.value(), "one ", "one press clears the whole cluster");
 
-        assert!(text.handle(&pressed(Key::ArrowLeft), ctrl()));
+        assert!(text.handle(&keys(), &pressed(Key::ArrowLeft), ctrl()));
         assert_eq!(text.cursor(), 0, "ctrl+left crosses the word");
     }
 

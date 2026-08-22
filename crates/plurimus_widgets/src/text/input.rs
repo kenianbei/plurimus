@@ -12,24 +12,28 @@ use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
 use bevy_input::ButtonState;
-use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::PasteMessage;
 
 use super::field::TextField;
+use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{Hovered, InteractionDisabled, UiTheme};
+use plurimus_ui::{Hovered, InteractionDisabled, UiTheme, first_bound};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A single-line editable text field. Edits mutate [`TextInput`] directly
 /// and emit [`ValueChange<String>`]: `is_final: false` per edit, `true`
-/// on Enter and on focus loss.
+/// on submit and on focus loss.
+///
+/// Which keys edit and which submits is [`TextInputKeys`], required here and
+/// defaulting to what the field always bound.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, TextInput)]
+#[require(Hovered, StylistCache, TextInput, TextInputKeys)]
 pub struct EditableText;
 
 /// An [`EditableText`] was submitted with Enter, carrying the value at that
@@ -69,18 +73,22 @@ pub fn editable_text(value: impl Into<String>) -> impl Bundle {
 pub(crate) fn text_input_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    mut fields: Query<&mut TextInput, (With<EditableText>, Without<InteractionDisabled>)>,
+    mut fields: Query<
+        (&mut TextInput, &TextInputKeys),
+        (With<EditableText>, Without<InteractionDisabled>),
+    >,
     mut commands: Commands,
 ) {
     let field = input.focused_entity;
-    let Ok(mut text) = fields.get_mut(field) else {
+    let Ok((mut text, keys)) = fields.get_mut(field) else {
         return;
     };
     if input.input.state != ButtonState::Pressed {
         return;
     }
-    if input.input.logical_key == Key::Enter {
-        // One intent commits once, however long Enter is held; the key is
+    let held = held.get();
+    if first_bound(&keys.0, &input.input, held) == Some(TextInputAction::Submit) {
+        // One intent commits once, however long the key is held; it is
         // consumed either way, being the field's.
         if !input.input.repeat {
             emit(field, &text, true, &mut commands);
@@ -90,7 +98,7 @@ pub(crate) fn text_input_key(
         return;
     }
     let length_before = text.value().len();
-    if !text.handle(&input.input, held.get()) {
+    if !text.handle(keys, &input.input, held) {
         return;
     }
     input.propagate(false);

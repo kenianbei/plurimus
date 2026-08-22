@@ -18,11 +18,13 @@ mod editor;
 mod field;
 mod grapheme;
 mod input;
+mod keys;
 mod state;
 mod word;
 
 pub use editor::{TextChanged, TextEditor, text_editor};
 pub use input::{EditableText, Submit, editable_text};
+pub use keys::{TextInputAction, TextInputKeys};
 pub use state::TextInput;
 
 pub(crate) use editor::{
