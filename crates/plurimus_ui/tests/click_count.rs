@@ -19,11 +19,11 @@ const AREA: Rect = Rect::new(2, 1, 6, 3);
 const NEIGHBOUR: Rect = Rect::new(10, 1, 6, 3);
 /// Inside [`AREA`], and away from its origin so a run keyed by the wrong
 /// cell would still be keyed by a real one.
-const CELL: (u16, u16) = (4, 2);
-const OTHER_CELL: (u16, u16) = (5, 2);
-const ON_NEIGHBOUR: (u16, u16) = (12, 2);
+const CELL: Position = Position::new(4, 2);
+const OTHER_CELL: Position = Position::new(5, 2);
+const ON_NEIGHBOUR: Position = Position::new(12, 2);
 /// Outside every widget spawned here.
-const NOWHERE: (u16, u16) = (18, 6);
+const NOWHERE: Position = Position::new(18, 6);
 
 /// Every count reported, in the order the events arrived.
 #[derive(Resource, Default)]
@@ -65,8 +65,12 @@ fn clicks(app: &App) -> Vec<u8> {
     app.world().resource::<Counts>().clicks.clone()
 }
 
-fn click_at(app: &mut App, (x, y): (u16, u16)) {
-    click(app, x, y);
+fn click_at(app: &mut App, cell: Position) {
+    click(app, cell.x, cell.y);
+}
+
+fn send_at(app: &mut App, kind: MouseKind, cell: Position) {
+    send_mouse(app, kind, cell.x, cell.y);
 }
 
 #[test]
@@ -182,9 +186,9 @@ fn a_click_completed_in_one_batch_carries_its_count() {
     spawn_target(&mut app, AREA);
 
     click_at(&mut app, CELL);
-    send_mouse(&mut app, MouseKind::Moved, CELL.0, CELL.1);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.0, CELL.1);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), CELL.0, CELL.1);
+    send_at(&mut app, MouseKind::Moved, CELL);
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.x, CELL.y);
+    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), CELL.x, CELL.y);
     app.update();
 
     assert_eq!(presses(&app), vec![1, 2]);
@@ -199,8 +203,8 @@ fn a_click_released_a_frame_later_carries_its_count() {
     spawn_target(&mut app, AREA);
 
     click_at(&mut app, CELL);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.0, CELL.1);
-    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), CELL.0, CELL.1);
+    send_at(&mut app, MouseKind::Down(MouseButton::Left), CELL);
+    send_at(&mut app, MouseKind::Up(MouseButton::Left), CELL);
 
     assert_eq!(presses(&app), vec![1, 2]);
     assert_eq!(clicks(&app), vec![1, 2]);

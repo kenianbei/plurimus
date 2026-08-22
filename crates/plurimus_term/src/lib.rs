@@ -5,11 +5,11 @@
 //! [`PasteMessage`], [`FocusMessage`] and [`TerminalResized`], and
 //! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
 //! [`InputCapabilities`] records which of it the terminal can actually
-//! manage. What no terminal reports at all is synthesized from the real
+//! manage. What no terminal reports at all is synthesized against the real
 //! clock: key releases below the kitty tier, and the [`ClickRun`] a
-//! double-click gesture counts against. Outbound, [`TerminalRequest`] is what an app asks of the
-//! terminal and [`TerminalCursorStyle`] is the shape it asks the caret to
-//! take.
+//! double-click gesture is counted by. Outbound, [`TerminalRequest`] is what
+//! an app asks of the terminal and [`TerminalCursorStyle`] is the shape it
+//! asks the caret to take.
 //!
 //! What is here is what needs a terminal to mean anything. Rendering to a
 //! cell grid does not: `plurimus_core` drives any ratatui `Backend`,

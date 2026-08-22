@@ -38,10 +38,11 @@ impl Default for MultiClickWindow {
 
 /// The run of presses the pointer is on.
 ///
-/// Stepped once per press that reaches a widget and [`reset`](Self::reset) by
-/// one that reaches none, so a press that dismissed an overlay and the press
-/// after it on what was underneath are two lone presses rather than a double
-/// click on a widget that has seen one.
+/// One run for one pointer, counting whichever button whoever routes presses
+/// routes gestures for, through [`ClickCounter`]: stepped once per press that
+/// reaches a widget, and ended by one that reaches none, so a press that
+/// dismissed an overlay and the press after it on what was underneath are two
+/// lone presses rather than a double click on a widget that has seen one.
 #[derive(Resource, Debug, Default)]
 pub struct ClickRun(Option<CountedPress>);
 
@@ -64,7 +65,13 @@ impl ClickRun {
     /// [`u8::MAX`]: what a run that long means is the widget's to decide, and
     /// wrapping back to zero would answer it with a lie.
     #[must_use]
-    pub fn step(&mut self, target: Entity, cell: Position, now: Duration, window: Duration) -> u8 {
+    pub(crate) fn step(
+        &mut self,
+        target: Entity,
+        cell: Position,
+        now: Duration,
+        window: Duration,
+    ) -> u8 {
         let count = self
             .0
             .as_ref()
@@ -82,7 +89,7 @@ impl ClickRun {
     }
 
     /// Ends the run, so the next press counts from one.
-    pub const fn reset(&mut self) {
+    pub(crate) const fn reset(&mut self) {
         self.0 = None;
     }
 }
@@ -197,10 +204,17 @@ mod tests {
     #[test]
     fn a_long_run_saturates() {
         let mut run = ClickRun::default();
-        for press in 0..u32::from(u8::MAX) + 2 {
-            let counted = run.step(target(1), CELL, at(u64::from(press)), WINDOW);
-            assert_eq!(counted, u8::try_from(press + 1).unwrap_or(u8::MAX));
+        let mut counted = 0;
+        for press in 0..u16::from(u8::MAX) {
+            counted = run.step(target(1), CELL, at(u64::from(press)), WINDOW);
         }
+
+        assert_eq!(counted, u8::MAX, "255 presses reach the ceiling");
+        assert_eq!(
+            run.step(target(1), CELL, at(u64::from(u8::MAX)), WINDOW),
+            u8::MAX,
+            "and the next stays there rather than wrapping to nothing"
+        );
     }
 
     #[test]

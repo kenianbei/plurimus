@@ -365,9 +365,8 @@ fn route_press(
         routing.counter.reset();
         return true;
     }
-    // A press that reaches no widget ends the run rather than counting
-    // towards one: what it dismissed or what absorbed it is not what the
-    // next press will land on.
+    // A press that reaches no widget ends the run: what it dismissed or
+    // what absorbed it is not what the next press will land on.
     let Some(entity) = target.filter(|_| !inert) else {
         routing.counter.reset();
         return false;
@@ -378,13 +377,7 @@ fn route_press(
         position,
         count,
     });
-    press(
-        entity,
-        count,
-        &routing.focusable,
-        &mut routing.focus,
-        commands,
-    );
+    press(entity, count, routing, commands);
     run_pressed.push((entity, count));
     false
 }
@@ -419,16 +412,10 @@ fn drag_pressed(
     }
 }
 
-fn press(
-    target: Entity,
-    count: u8,
-    focusable: &FocusableQuery,
-    focus: &mut ResMut<InputFocus>,
-    commands: &mut Commands,
-) {
+fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut Commands) {
     commands.entity(target).insert((Pressed, PressCount(count)));
-    if focusable.contains(target) {
-        focus.set(target, FocusCause::Pressed);
+    if routing.focusable.contains(target) {
+        routing.focus.set(target, FocusCause::Pressed);
     }
 }
 
