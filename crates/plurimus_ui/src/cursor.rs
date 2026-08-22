@@ -88,7 +88,7 @@ pub(crate) fn sync_terminal_cursor(
         .get()
         .and_then(|entity| widgets.get(entity).ok())
         .and_then(|(widget, area, offset)| {
-            let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
+            let offset = ScrollOffset::position(offset);
             Some((screen_cell(widget.cell?, area.0, offset)?, widget.style))
         });
     match placed {

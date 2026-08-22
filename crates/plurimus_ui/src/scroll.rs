@@ -73,6 +73,22 @@ impl ScrollArea {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollOffset(pub Position);
 
+impl ScrollOffset {
+    /// What a widget is scrolled by, given whether it carries an offset at
+    /// all: a widget without a [`ScrollOffset`] is not scrolled.
+    ///
+    /// Takes the `Option` a query yields rather than `&self`, because
+    /// stating what its absence means is the whole of what this is for -
+    /// carrying the component unscrolled and not carrying it map alike.
+    #[must_use]
+    pub const fn position(offset: Option<&Self>) -> Position {
+        match offset {
+            Some(offset) => offset.0,
+            None => Position::ORIGIN,
+        }
+    }
+}
+
 /// Reveals a content-space rect by minimally adjusting the entity's
 /// [`ScrollOffset`]. Emits [`ValueChange<Position>`] when it moves.
 #[derive(EntityEvent, Debug, Clone, Copy)]
@@ -352,11 +368,23 @@ fn reveal_axis(offset: u16, start: u16, length: u16, window: u16) -> u16 {
 
 #[cfg(test)]
 mod tests {
-    use super::{content_cell, screen_cell, stepped_offset};
+    use super::{ScrollOffset, content_cell, screen_cell, stepped_offset};
     use plurimus_core::ratatui_core::layout::{Position, Rect};
 
     const AREA: Rect = Rect::new(4, 2, 10, 5);
     const UNSCROLLED: Position = Position::new(0, 0);
+
+    #[test]
+    fn a_widget_carrying_no_offset_is_scrolled_to_the_origin() {
+        assert_eq!(ScrollOffset::position(None), Position::ORIGIN);
+    }
+
+    #[test]
+    fn a_widget_carrying_one_is_scrolled_by_it() {
+        let offset = ScrollOffset(Position::new(3, 7));
+
+        assert_eq!(ScrollOffset::position(Some(&offset)), Position::new(3, 7));
+    }
 
     #[test]
     fn a_step_moves_the_offset_and_stops_at_either_bound() {
