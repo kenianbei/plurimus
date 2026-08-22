@@ -6,8 +6,9 @@
 //! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
 //! [`InputCapabilities`] records which of it the terminal can actually
 //! manage. What no terminal reports at all is synthesized against the real
-//! clock: key releases below the kitty tier, and the [`ClickRun`] a
-//! double-click gesture is counted by. Outbound, [`TerminalRequest`] is what
+//! clock: key releases below the kitty tier, and - by whoever routes the
+//! presses, bounded by the [`MultiClickWindow`] set here - the click count a
+//! double-click gesture needs. Outbound, [`TerminalRequest`] is what
 //! an app asks of the terminal and [`TerminalCursorStyle`] is the shape it
 //! asks the caret to take.
 //!
@@ -25,7 +26,7 @@ mod resize;
 mod state;
 mod synthesis;
 
-pub use click::{ClickCounter, ClickRun, MultiClickWindow};
+pub use click::MultiClickWindow;
 pub use cursor::TerminalCursorStyle;
 
 pub use bevy_input::ButtonInput;
@@ -141,7 +142,6 @@ impl Plugin for TermPlugin {
         app.init_resource::<InputCapabilities>();
         app.init_resource::<ReleaseTimeout>();
         app.init_resource::<MultiClickWindow>();
-        app.init_resource::<ClickRun>();
         app.init_resource::<ButtonInput<KeyCode>>();
         app.init_resource::<ButtonInput<MouseButton>>();
         app.init_resource::<LastCopied>();
