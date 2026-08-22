@@ -63,7 +63,10 @@ title. Best-effort, because nothing a terminal is asked can be confirmed.
 `InputCapabilities` records what the terminal reports. Terminals implementing
 the kitty keyboard protocol give real press, repeat, and release; elsewhere
 releases are synthesized on a `ReleaseTimeout`, which is degraded but documented
-rather than silent.
+rather than silent. Losing focus releases every held key on any tier, since a
+terminal reports nothing while unfocused. `MultiClickWindow` is the other knob
+set once for every widget: how soon a second press has to land to count as a
+double-click, which no terminal reports either.
 
 ### Crossterm (`plurimus_crossterm`)
 
@@ -83,7 +86,12 @@ and wheel events. Focus runs over `bevy_input_focus`, with a directional
 navigation map for arrow-key movement, scrolling through `ScrollArea`,
 `ScrollIntoView` and `ScrollKeys` - a wheel tick and a bound key both arriving
 as one `ScrollBy` - and the modal-overlay primitives menus and popovers are
-built from.
+built from. A press carries how many have run together on it, so a double-click
+is the second `Click` reporting `2`.
+
+Keys are bound as data: a `KeyBinding` is a `Key` and the modifiers it must be
+pressed under, and `first_bound` is the scan every bindings component shares, so
+a widget written outside this workspace remaps the same way the stock ones do.
 
 It also owns the styling contract a widget library builds on, rather than
 inventing its own: the `UiTheme` resource, `UiStyle` to patch one entity's
@@ -98,15 +106,18 @@ is hoverable, clickable, and focusable.
 
 ### Widgets (`plurimus_widgets`)
 
-Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
-menus, popovers, single-line text input, and a multi-line text editor. What is
-this crate's own is the stylists themselves - one per widget, resolving the
-`UiTheme` and driving the cache that `plurimus_ui` owns.
+Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tables,
+panes, menus, popovers, single-line text input, and a multi-line text editor.
+What is this crate's own is the stylists themselves - one per widget, resolving
+the `UiTheme` and driving the cache that `plurimus_ui` owns.
 
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
-uncontrolled.
+uncontrolled. Every widget takes its keys from a bindings component -
+`ActivateKeys`, `ListBoxKeys`, `TableKeys`, `SliderKeys`, `MenuKeys`,
+`TextInputKeys` - each defaulting to what it always bound, so remapping a list
+to vim keys is a component swap rather than a rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
 
@@ -121,11 +132,11 @@ and scroll like other widgets.
 
 ### 2d Rendering (`plurimus_2d`)
 
-`Glyph`, `GlyphBlock`, and `Pixel` entities positioned by `Transform`s,
-projected per camera, so panning and zooming are camera properties.
-`RenderLayers` masks which cameras see which entities, and `SubcellMode` renders
-in halfblocks or braille for two or eight times the vertical resolution of a
-cell.
+`Glyph`, `GlyphBlock`, `Pixel`, and `PixelBlock` entities positioned by
+`Transform`s, projected per camera, so panning and zooming are camera
+properties. `RenderLayers` masks which cameras see which entities, and
+`SubcellMode` renders in halfblocks or braille for two or eight times the
+vertical resolution of a cell.
 
 ### 3d Rendering (`plurimus_3d`)
 
@@ -146,7 +157,7 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.6"
+plurimus = "0.7"
 bevy_app = "0.19"
 bevy_ecs = "0.19"
 ratatui-widgets = "0.3"
@@ -333,7 +344,7 @@ seconds while GPU pipelines compile.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.6      | 0.19 | 0.1          |
+| 0.7      | 0.19 | 0.1          |
 
 - **Rust 1.95** or newer, edition 2024.
 - **Bevy 0.19** for any bevy crates added alongside.
