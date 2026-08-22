@@ -8,9 +8,12 @@ use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{click, composed_frame, press_key, send_mouse};
+use plurimus_ui::Key;
 use plurimus_ui::{Hovered, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{Activate, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
+use plurimus_widgets::{
+    Activate, MenuAction, MenuKeys, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup,
+};
 
 fn app() -> App {
     let mut app = App::new();
@@ -176,6 +179,37 @@ fn arrows_wrap_enter_activates_escape_closes() {
         app.world().resource::<InputFocus>().get(),
         Some(menu.button)
     );
+}
+
+// The table lives on the popup, so one component remaps the whole menu.
+#[test]
+fn a_remapped_menu_moves_and_closes_on_its_own_keys() {
+    let mut app = app();
+    let menu = spawn_menu(&mut app);
+    app.world_mut().entity_mut(menu.popup).insert(MenuKeys(vec![
+        (Key::Character("j".into()).into(), MenuAction::Next),
+        (Key::Character("q".into()).into(), MenuAction::Close),
+    ]));
+    click(&mut app, 2, 0);
+
+    press_key(&mut app, KeyCode::Char('j'));
+    assert_eq!(
+        app.world().resource::<InputFocus>().get(),
+        Some(menu.items[1]),
+        "the bound key moves the highlight"
+    );
+
+    press_key(&mut app, KeyCode::Down);
+    assert_eq!(
+        app.world().resource::<InputFocus>().get(),
+        Some(menu.items[1]),
+        "and the arrow it replaced does nothing"
+    );
+
+    press_key(&mut app, KeyCode::Esc);
+    assert!(is_open(&app, &menu), "Escape is unbound now");
+    press_key(&mut app, KeyCode::Char('q'));
+    assert!(!is_open(&app, &menu));
 }
 
 #[test]

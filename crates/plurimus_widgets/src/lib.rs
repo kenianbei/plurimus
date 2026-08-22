@@ -40,7 +40,10 @@ pub use listbox::{
     ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect, ListBoxSelectionMarker,
     ListItem, list_item, listbox,
 };
-pub use menu::{MenuButton, MenuItem, MenuOpen, MenuPopup, menu_button, menu_item, menu_popup};
+pub use menu::{
+    MenuAction, MenuButton, MenuItem, MenuKeys, MenuOpen, MenuPopup, menu_button, menu_item,
+    menu_popup,
+};
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
 pub use radio::{RadioButton, RadioGroup, radio};
@@ -61,7 +64,7 @@ pub use text::{
     EditableText, Submit, TextChanged, TextEditor, TextInput, editable_text, text_editor,
 };
 
-pub(crate) use activate::{is_activate_key, widget_click, widget_key};
+pub(crate) use activate::{widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{

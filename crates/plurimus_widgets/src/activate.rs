@@ -55,14 +55,6 @@ fn is_fresh_press(input: &KeyboardInput) -> bool {
     input.state == ButtonState::Pressed && !input.repeat
 }
 
-// A menu's keys are fixed rather than bound, so this set is independent of
-// `ActivateKeys::default` and does not follow it.
-pub(crate) fn is_activate_key(input: &KeyboardInput) -> bool {
-    let key = &input.logical_key;
-    let activates = *key == Key::Enter || matches!(key, Key::Character(c) if c == " ");
-    is_fresh_press(input) && activates
-}
-
 #[derive(SystemParam)]
 pub(crate) struct ActivationTargets<'w, 's> {
     buttons: Query<'w, 's, (), (With<Button>, Without<InteractionDisabled>)>,
