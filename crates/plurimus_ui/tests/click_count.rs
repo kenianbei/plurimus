@@ -5,14 +5,14 @@ use core::time::Duration;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, On, ResMut, Resource};
+use bevy_ecs::prelude::{Commands, On, Query, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder};
 use plurimus_term::{MouseButton, MouseKind, MultiClickWindow};
 use plurimus_test::{click, send_mouse, write_mouse};
 use plurimus_ui::{
-    Click, ComputedWidgetArea, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, PointerPress,
-    UiArea, UiPlugin,
+    Click, ComputedWidgetArea, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, PointerDrag,
+    PointerPress, Pressed, UiArea, UiPlugin,
 };
 
 const AREA: Rect = Rect::new(2, 1, 6, 3);
@@ -30,6 +30,7 @@ const NOWHERE: Position = Position::new(18, 6);
 struct Counts {
     presses: Vec<u8>,
     clicks: Vec<u8>,
+    drags: Vec<u8>,
 }
 
 fn app() -> App {
@@ -63,6 +64,10 @@ fn presses(app: &App) -> Vec<u8> {
 
 fn clicks(app: &App) -> Vec<u8> {
     app.world().resource::<Counts>().clicks.clone()
+}
+
+fn drags(app: &App) -> Vec<u8> {
+    app.world().resource::<Counts>().drags.clone()
 }
 
 fn click_at(app: &mut App, cell: Position) {
@@ -208,6 +213,30 @@ fn a_click_released_a_frame_later_carries_its_count() {
 
     assert_eq!(presses(&app), vec![1, 2]);
     assert_eq!(clicks(&app), vec![1, 2]);
+}
+
+// The count rests on the entity, so a drag captured to a widget can tell a
+// drag through the second press of a run from one through the first - the
+// gesture no event carries a count for.
+#[test]
+fn a_drag_reads_the_count_of_the_press_holding_it() {
+    let mut app = app();
+    spawn_target(&mut app, AREA);
+    app.add_observer(
+        |drag: On<PointerDrag>, pressed: Query<&Pressed>, mut counts: ResMut<Counts>| {
+            let held = pressed
+                .get(drag.entity)
+                .expect("a drag is captured to a pressed widget");
+            counts.drags.push(held.0);
+        },
+    );
+
+    click_at(&mut app, CELL);
+    send_at(&mut app, MouseKind::Down(MouseButton::Left), CELL);
+    send_at(&mut app, MouseKind::Drag(MouseButton::Left), CELL);
+
+    assert_eq!(presses(&app), vec![1, 2]);
+    assert_eq!(drags(&app), vec![2], "the drag is through the second press");
 }
 
 #[test]

@@ -30,17 +30,24 @@ use crate::modal::ModalGuard;
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Hovered(pub bool);
 
-/// Present while the pointer is pressed on the widget.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct Pressed;
-
-/// What [`Pressed`] cannot carry: the click count of the press that set it,
-/// kept until the release that reads it onto the [`Click`].
+/// Present while the pointer is pressed on the widget, carrying the click
+/// count of the press that set it - see [`PointerPress::count`].
 ///
-/// Beside [`Pressed`] rather than inside it, that being a public unit marker
-/// a field cannot be added to without breaking every consumer of it.
-#[derive(Component, Debug, Clone, Copy)]
-pub(crate) struct PressCount(pub(crate) u8);
+/// The count lives here because a gesture outlives the message that started
+/// it: the [`Click`] a release completes reports the same number the press
+/// did, and a [`PointerDrag`] observer reads it off the entity, a drag
+/// through the second press of a run being a different gesture from a drag
+/// through the first.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pressed(pub u8);
+
+impl Default for Pressed {
+    /// A lone press: what a gesture something other than this router started
+    /// counts as.
+    fn default() -> Self {
+        Self(1)
+    }
+}
 
 /// Disables all interaction with the widget.
 ///
@@ -132,8 +139,8 @@ pub struct PointerPress {
     /// How many presses have run together here: 1 for a lone press, 2 for a
     /// double click, and up.
     ///
-    /// Synthesized, since no terminal reports one, from
-    /// [`plurimus_term::ClickRun`] and the app-wide
+    /// Synthesized, since no terminal reports one, from the run of presses
+    /// this crate keeps against the app-wide
     /// [`MultiClickWindow`](plurimus_term::MultiClickWindow). A run is this
     /// widget's and this cell's: a press elsewhere, on another widget, or on
     /// none at all starts the next press over at 1. It saturates rather than
@@ -272,18 +279,7 @@ pub(crate) type AreaTargetQuery<'w, 's, F> = Query<
 type PointerTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<Hovered>, Without<PressPassThrough>)>;
 
-// The count is optional because `Pressed` is public: a gesture something
-// other than this router started still routes, as a lone press.
-type PressedQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        Option<&'static PressCount>,
-        Has<InteractionDisabled>,
-    ),
-    With<Pressed>,
->;
+type PressedQuery<'w, 's> = Query<'w, 's, (Entity, &'static Pressed, Has<InteractionDisabled>)>;
 
 type FocusableQuery<'w, 's> = Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>;
 
@@ -413,7 +409,7 @@ fn drag_pressed(
 }
 
 fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut Commands) {
-    commands.entity(target).insert((Pressed, PressCount(count)));
+    commands.entity(target).insert(Pressed(count));
     if routing.focusable.contains(target) {
         routing.focus.set(target, FocusCause::Pressed);
     }
@@ -428,7 +424,7 @@ fn release_all(
     let held = routing
         .pressed
         .iter()
-        .map(|(entity, count, disabled)| (entity, count.map_or(1, |count| count.0), disabled));
+        .map(|(entity, pressed, disabled)| (entity, pressed.0, disabled));
     // Run-pressed entities cannot be disabled: an absorbed press never
     // reaches `run_pressed`, and nothing disables them mid-run.
     let fresh = run_pressed
@@ -455,7 +451,7 @@ fn release_all(
             });
             menu_clicked |= routing.modal.affects_modality(entity);
         }
-        commands.entity(entity).remove::<(Pressed, PressCount)>();
+        commands.entity(entity).remove::<Pressed>();
     }
     menu_clicked
 }
