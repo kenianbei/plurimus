@@ -202,8 +202,7 @@ fn a_remapped_binding_replaces_the_default_one() {
 }
 
 // Through the real path: the modifier is a key of its own, polled as held
-// when the chord's character arrives, and a binding on the bare key must
-// not fire under it.
+// when the chord's character arrives.
 #[test]
 fn a_chord_binds_apart_from_its_bare_key() {
     let mut app = app();
