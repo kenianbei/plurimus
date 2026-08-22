@@ -71,7 +71,7 @@ fn press_lands_when_the_cursor_leaves_in_the_same_frame() {
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_some());
-    let value = app.world().get::<SliderValue>(slider).unwrap().0;
+    let value = value(&app, slider);
     assert!(
         (value - 100.0).abs() < f32::EPSILON,
         "seeks to the press cell"
@@ -89,7 +89,7 @@ fn press_outside_is_not_delivered_when_the_cursor_arrives_later() {
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_none());
-    let value = app.world().get::<SliderValue>(slider).unwrap().0;
+    let value = value(&app, slider);
     assert!(
         (value - 50.0).abs() < f32::EPSILON,
         "untouched by an outside press"

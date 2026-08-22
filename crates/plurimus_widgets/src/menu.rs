@@ -13,7 +13,7 @@ use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::Res;
-use bevy_ecs::prelude::{Commands, Component, On, Query, ResMut, With, Without};
+use bevy_ecs::prelude::{Commands, Component, Has, On, Query, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -72,9 +72,11 @@ pub enum MenuAction {
 ///
 /// One table per menu rather than one per row, and read from the popup the
 /// focused item sits in. Defaults to the up and down arrows, `Escape` to
-/// close, and `Enter` and space to activate - the same pair
-/// [`ActivateKeys`](crate::ActivateKeys) defaults to, and now for the same
-/// reason rather than as a second literal beside it.
+/// close, and `Enter` and space to activate. That last pair is what
+/// [`ActivateKeys`](crate::ActivateKeys) defaults to as well, and the two
+/// stay independent deliberately - a menu's Enter is not a form's, focus
+/// sitting inside the popup while it is open - but a menu's copy is now data
+/// an app replaces rather than a literal it cannot reach.
 #[derive(Component, Debug, Clone)]
 pub struct MenuKeys(pub Vec<(KeyBinding, MenuAction)>);
 
@@ -141,9 +143,8 @@ pub(crate) struct MenuAccess<'w, 's> {
     parents: Query<'w, 's, &'static ChildOf>,
     popups: Query<'w, 's, Entity, With<MenuPopup>>,
     open: Query<'w, 's, Entity, With<MenuOpen>>,
-    items: Query<'w, 's, Entity, With<MenuItem>>,
+    items: Query<'w, 's, Has<InteractionDisabled>, With<MenuItem>>,
     keys: Query<'w, 's, &'static MenuKeys>,
-    live_items: Query<'w, 's, (), (With<MenuItem>, Without<InteractionDisabled>)>,
 }
 
 impl MenuAccess<'_, '_> {
@@ -158,9 +159,16 @@ impl MenuAccess<'_, '_> {
     /// `None` for anything that is not a live menu item, which is what keeps
     /// a disabled row from acting on a key.
     fn item_keys(&self, item: Entity) -> Option<&MenuKeys> {
-        self.live_items.get(item).ok()?;
+        if !self.is_live_item(item) {
+            return None;
+        }
         let popup = self.parents.get(item).ok()?.parent();
         self.keys.get(popup).ok()
+    }
+
+    /// Whether `entity` is a menu item that may act on input at all.
+    pub(crate) fn is_live_item(&self, entity: Entity) -> bool {
+        self.items.get(entity).is_ok_and(|disabled| !disabled)
     }
 
     pub(crate) fn item_rows(&self, popup: Entity) -> Vec<Entity> {
@@ -243,12 +251,11 @@ pub(crate) fn menu_button_activate(
 
 pub(crate) fn menu_item_click(
     click: On<Click>,
-    items: Query<(), (With<MenuItem>, Without<InteractionDisabled>)>,
     menus: MenuAccess,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
-    if !items.contains(click.entity) {
+    if !menus.is_live_item(click.entity) {
         return;
     }
     commands.trigger(Activate {
@@ -275,12 +282,13 @@ pub(crate) fn menu_key(
         MenuAction::Previous => step_focus(item, -1, &menus, &mut focus),
         MenuAction::Next => step_focus(item, 1, &menus, &mut focus),
         MenuAction::Close => menus.close_item_menu(item, &mut focus, &mut commands),
-        // A repeat commits once, the way every other activation does.
-        MenuAction::Activate if !input.input.repeat => {
-            commands.trigger(Activate { entity: item });
-            menus.close_item_menu(item, &mut focus, &mut commands);
+        MenuAction::Activate => {
+            // A repeat commits once, the way every other activation does.
+            if !input.input.repeat {
+                commands.trigger(Activate { entity: item });
+                menus.close_item_menu(item, &mut focus, &mut commands);
+            }
         }
-        MenuAction::Activate => {}
     }
     input.propagate(false);
 }

@@ -1,8 +1,8 @@
 //! The slider widget: keyboard steps, track seek, and drag scrubbing.
 //!
-//! Three input routes converge on one value: arrow keys step by the slider's
-//! step size, a press on the track jumps to that position, and a drag scrubs
-//! continuously. All three go through the same track-ratio conversion, so a
+//! Three input routes converge on one value: a key bound through
+//! [`SliderKeys`] steps by the slider's step size, a press on the track jumps
+//! to that position, and a drag scrubs continuously. All three go through the same track-ratio conversion, so a
 //! click and a drag that end on the same cell produce the same value. The
 //! slider emits [`ValueChange`] and does not move itself unless the stock
 //! observer is attached.

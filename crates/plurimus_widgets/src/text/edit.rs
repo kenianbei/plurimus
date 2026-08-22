@@ -54,9 +54,12 @@ impl TextInput {
         true
     }
 
-    /// Applies one [`TextInputAction`], for a host that resolved the key
-    /// itself. [`Submit`](TextInputAction::Submit) edits nothing.
-    pub fn apply(&mut self, action: TextInputAction) {
+    /// Applies one [`TextInputAction`].
+    ///
+    /// Kept off the public API: rebuilding [`handle`](Self::handle) out of it
+    /// would also need the unbound-character path beside it, which is
+    /// private, so a host given this could not finish the job it implies.
+    pub(crate) fn apply(&mut self, action: TextInputAction) {
         let cursor = self.cursor();
         match action {
             // Word bindings mirror TextEditor's, whose engine binds

@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`SliderKeys`, `MenuKeys` and `TextInputKeys`**, the last three widgets' keys
+  as data. Sliders, menus and the single-line field matched their keys inline,
+  so an app could not remap them at all; each now holds a bindings component of
+  its own with a `Default` binding what it always bound - and `TextInputKeys`
+  carries `Submit` among its actions, so a form can move the field's commit to
+  `Ctrl+Enter` and keep plain Enter for itself. A menu's table lives on its
+  popup, one per menu rather than one per row. Every widget in the crate now
+  takes its keys from a component.
 - **`HeldModifiers`**, the system parameter every key observer reads the held
   modifiers through, and **`KeyModifiers::none`**, nothing held in a `const`
   context so a binding table can be built at compile time.
@@ -45,14 +53,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and is `None` for a cell scrolled out of view or a row with no line left. It
   is the same column solve the click router uses, so what it names is what the
   pointer reaches.
-- **`ActivateKeys`**, the keys that activate a focused `Button`, `Checkbox`, or
-  `RadioButton`. All three require it, defaulting to Enter and space, so nothing
-  changes until an app replaces it - and replacing it is the whole of remapping.
-  Binding space alone is what lets a form keep Enter for its submit: a key the
-  widget is not bound to activates nothing and propagates, the way one on a
-  disabled widget already did. An empty list turns the keyboard path off without
-  disabling the widget, which a click still activates. Menu items keep their
-  fixed Enter and space.
+- **`ActivateKeys`**, the `KeyBinding`s that activate a focused `Button`,
+  `Checkbox`, or `RadioButton`. All three require it, defaulting to Enter and
+  space, so nothing changes until an app replaces it - and replacing it is the
+  whole of remapping. Binding space alone is what lets a form keep Enter for its
+  submit: a key the widget is not bound to activates nothing and propagates, the
+  way one on a disabled widget already did. An empty list turns the keyboard
+  path off without disabling the widget, which a click still activates. Menu
+  items keep their fixed Enter and space.
 - **`PressPassThrough`**, press transparency: a widget carrying it is invisible
   to press hit-testing, so a press lands on whatever it covers. Presses only -
   hover, the wheel, and navigation still see the widget. On a disabled widget it
@@ -72,12 +80,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   on, without the full `StateQuery` tuple `observed` demands. The seam for a
   stylist that resolves its own interaction state - a painter drawing one
   resting style - which could reach the mechanism no other way.
-- **`TextInput::handle` and `TextInput::paste`** apply a key or pasted text to
-  the single-line field's editing state. Every entry point was a focused-input
-  observer before, so a host that routes its own keys - a command palette typing
-  while a list takes the arrows, a field that is not a tab stop at all - had to
-  reimplement the field to drive one, losing the grapheme-cluster stepping that
-  is the hard part. The stock observers are now callers of the same two methods.
+- **`TextInput::handle`, `TextInput::apply` and `TextInput::paste`** apply a
+  key, an action, or pasted text to the single-line field's editing state. Every
+  entry point was a focused-input observer before, so a host that routes its own
+  keys - a command palette typing while a list takes the arrows, a field that is
+  not a tab stop at all - had to reimplement the field to drive one, losing the
+  grapheme-cluster stepping that is the hard part. `handle` takes the field's
+  own `TextInputKeys` beside the key, so a host and the stock observer resolve
+  it the same way; `apply` is the step for a host that resolved the action
+  itself. The stock observers are callers of the same methods.
 - **`Submit`**, an entity event carrying the value a field was submitted with.
   Enter and focus loss both emitted an identical final `ValueChange<String>`, so
   committing an entry could not be told from abandoning one without inspecting
@@ -109,21 +120,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **A key binding carries its modifiers.** `ScrollKeys`, `ListBoxKeys`,
-  `TableKeys` and `ActivateKeys` hold `KeyBinding`s - a `Key` and the
-  `KeyModifiers` it must be pressed under - rather than bare `Key`s, so a list
-  can be bound to `Ctrl+D` and a form's submit to `Ctrl+Enter` while the button
-  under it keeps plain Enter. Every modifier but shift is matched exactly, the
-  "chorded" a text field already refuses to type under; shift is matched exactly
-  for a named key and only when asked for on a character, because a shifted
-  symbol carries the bit on some terminals and not others - so `G` and `:` are
-  spelled as themselves, and `with_shift` is for `Shift+Tab`, the shifted arrows
-  and `Shift+Space`. A bare `Key` converts with `.into()`, and every stock
-  default binds what it bound before. `first_bound` takes the held modifiers
-  beside the input, and `KeyBinding::matches` is the same test for a host
-  routing its own keys. The modifiers are the ones held when the key arrived,
-  polled - bevy's `KeyboardInput` carries none - which is right for every case
-  but a chord landing in the frame its modifier is released.
+- **A key binding carries its modifiers.** `ScrollKeys`, `ListBoxKeys` and
+  `TableKeys` hold `KeyBinding`s - a `Key` and the `KeyModifiers` it must be
+  pressed under - rather than bare `Key`s, so a list can be bound to `Ctrl+D`
+  and a form's submit to `Ctrl+Enter` while the button under it keeps plain
+  Enter. Every modifier but shift is matched exactly, the "chorded" a text field
+  already refuses to type under; shift is matched exactly for a named key and
+  only when asked for on a character, because a shifted symbol carries the bit
+  on some terminals and not others - so `G` and `:` are spelled as themselves,
+  and `with_shift` is for `Shift+Tab`, the shifted arrows and `Shift+Space`. A
+  bare `Key` converts with `.into()`, and every stock default binds what it
+  bound before. `first_bound` takes the held modifiers beside the input, and
+  `KeyBinding::matches` is the same test for a host routing its own keys. The
+  modifiers are the ones held when the key arrived, polled - bevy's
+  `KeyboardInput` carries none - which is right for every case but a chord
+  landing in the frame its modifier is released.
 - **A `Table` with no stated column widths divides its own width**, rather than
   leaving ratatui to divide the area it renders into. The two rules agreed, so
   nothing is drawn differently; what changes is that one solve now feeds both

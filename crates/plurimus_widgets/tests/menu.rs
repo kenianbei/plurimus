@@ -6,10 +6,12 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
+use plurimus_term::{KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton, MouseKind};
 use plurimus_test::{click, composed_frame, press_key, send_mouse};
 use plurimus_ui::Key;
-use plurimus_ui::{Hovered, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget};
+use plurimus_ui::{
+    Hovered, InteractionDisabled, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget,
+};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
     Activate, MenuAction, MenuKeys, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup,
@@ -26,19 +28,26 @@ fn app() -> App {
 struct Menu {
     button: Entity,
     popup: Entity,
-    items: [Entity; 2],
+    items: Vec<Entity>,
 }
 
 fn spawn_menu(app: &mut App) -> Menu {
+    spawn_menu_of(app, &["Open", "Save"])
+}
+
+/// A menu of `labels`. Two rows is the ordinary fixture; three is what the
+/// direction assertions need, since with two, stepping either way lands on
+/// the same row.
+fn spawn_menu_of(app: &mut App, labels: &[&'static str]) -> Menu {
     let world = app.world_mut();
     let button = world
         .spawn((menu_button("File"), UiArea::Fixed(Rect::new(1, 0, 8, 1))))
         .id();
     let popup = world.spawn((menu_popup(button), ChildOf(button))).id();
-    let items = [
-        world.spawn((menu_item("Open"), ChildOf(popup))).id(),
-        world.spawn((menu_item("Save"), ChildOf(popup))).id(),
-    ];
+    let items = labels
+        .iter()
+        .map(|label| world.spawn((menu_item(*label), ChildOf(popup))).id())
+        .collect();
     Menu {
         button,
         popup,
@@ -46,33 +55,8 @@ fn spawn_menu(app: &mut App) -> Menu {
     }
 }
 
-/// A three-row menu, for the assertions a two-row one cannot make: with two
-/// rows, stepping either way lands on the same place.
-struct WideMenu {
-    popup: Entity,
-    rows: [Entity; 3],
-}
-
-fn spawn_wide_menu(app: &mut App) -> WideMenu {
-    let world = app.world_mut();
-    let button = world
-        .spawn((menu_button("File"), UiArea::Fixed(Rect::new(1, 0, 8, 1))))
-        .id();
-    let popup = world.spawn((menu_popup(button), ChildOf(button))).id();
-    let rows = [
-        world.spawn((menu_item("Open"), ChildOf(popup))).id(),
-        world.spawn((menu_item("Save"), ChildOf(popup))).id(),
-        world.spawn((menu_item("Quit"), ChildOf(popup))).id(),
-    ];
-    WideMenu { popup, rows }
-}
-
 fn focused(app: &App) -> Option<Entity> {
     app.world().resource::<InputFocus>().get()
-}
-
-fn is_open_popup(app: &App, popup: Entity) -> bool {
-    app.world().get::<MenuOpen>(popup).is_some()
 }
 
 fn is_open(app: &App, menu: &Menu) -> bool {
@@ -140,17 +124,11 @@ fn click_toggles_menu_and_focuses_first_item() {
 
     click(&mut app, 2, 0);
     assert!(is_open(&app, &menu));
-    assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(menu.items[0])
-    );
+    assert_eq!(focused(&app), Some(menu.items[0]));
 
     click(&mut app, 2, 0);
     assert!(!is_open(&app, &menu));
-    assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(menu.button)
-    );
+    assert_eq!(focused(&app), Some(menu.button));
 }
 
 #[derive(Resource, Default)]
@@ -161,7 +139,7 @@ fn item_click_emits_activate_and_closes() {
     let mut app = app();
     app.init_resource::<Activated>();
     let menu = spawn_menu(&mut app);
-    for item in menu.items {
+    for &item in &menu.items {
         app.world_mut().entity_mut(item).observe(
             |activate: On<Activate>, mut activated: ResMut<Activated>| {
                 activated.0.push(activate.entity);
@@ -181,7 +159,7 @@ fn arrows_wrap_enter_activates_escape_closes() {
     let mut app = app();
     app.init_resource::<Activated>();
     let menu = spawn_menu(&mut app);
-    let items = menu.items;
+    let items = &menu.items;
     app.world_mut().entity_mut(items[1]).observe(
         |activate: On<Activate>, mut activated: ResMut<Activated>| {
             activated.0.push(activate.entity);
@@ -190,11 +168,11 @@ fn arrows_wrap_enter_activates_escape_closes() {
     click(&mut app, 2, 0);
 
     press_key(&mut app, KeyCode::Down);
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(items[1]));
+    assert_eq!(focused(&app), Some(items[1]));
     press_key(&mut app, KeyCode::Down);
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(items[0]));
+    assert_eq!(focused(&app), Some(items[0]));
     press_key(&mut app, KeyCode::Up);
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(items[1]));
+    assert_eq!(focused(&app), Some(items[1]));
 
     press_key(&mut app, KeyCode::Enter);
     assert_eq!(app.world().resource::<Activated>().0, vec![items[1]]);
@@ -204,10 +182,7 @@ fn arrows_wrap_enter_activates_escape_closes() {
     assert!(is_open(&app, &menu));
     press_key(&mut app, KeyCode::Esc);
     assert!(!is_open(&app, &menu));
-    assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(menu.button)
-    );
+    assert_eq!(focused(&app), Some(menu.button));
 }
 
 // The table lives on the popup, so one component remaps the whole menu.
@@ -216,50 +191,121 @@ fn arrows_wrap_enter_activates_escape_closes() {
 #[test]
 fn a_remapped_menu_moves_and_closes_on_its_own_keys() {
     let mut app = app();
-    let menu = spawn_wide_menu(&mut app);
+    let menu = spawn_menu_of(&mut app, &["Open", "Save", "Quit"]);
     app.world_mut().entity_mut(menu.popup).insert(MenuKeys(vec![
         (Key::Character("j".into()).into(), MenuAction::Next),
         (Key::Character("k".into()).into(), MenuAction::Previous),
         (Key::Character("q".into()).into(), MenuAction::Close),
     ]));
     click(&mut app, 2, 0);
-    assert_eq!(focused(&app), Some(menu.rows[0]));
+    assert_eq!(focused(&app), Some(menu.items[0]));
 
     press_key(&mut app, KeyCode::Char('j'));
-    assert_eq!(focused(&app), Some(menu.rows[1]), "j steps down");
+    assert_eq!(focused(&app), Some(menu.items[1]), "j steps down");
     press_key(&mut app, KeyCode::Char('j'));
-    assert_eq!(focused(&app), Some(menu.rows[2]));
+    assert_eq!(focused(&app), Some(menu.items[2]));
     press_key(&mut app, KeyCode::Char('k'));
-    assert_eq!(focused(&app), Some(menu.rows[1]), "k steps back up");
+    assert_eq!(focused(&app), Some(menu.items[1]), "k steps back up");
 
     press_key(&mut app, KeyCode::Down);
     assert_eq!(
         focused(&app),
-        Some(menu.rows[1]),
+        Some(menu.items[1]),
         "and the arrow each replaced does nothing"
     );
 
     press_key(&mut app, KeyCode::Esc);
-    assert!(is_open_popup(&app, menu.popup), "Escape is unbound now");
+    assert!(is_open(&app, &menu), "Escape is unbound now");
     press_key(&mut app, KeyCode::Char('q'));
-    assert!(!is_open_popup(&app, menu.popup));
+    assert!(!is_open(&app, &menu));
+}
+
+// Both guards the menu's key path carries, neither of which any test saw
+// before: a disabled row is inert, and a held Enter commits once.
+//
+// Inert means this crate does nothing with the key, not that the key stops:
+// it propagates, and what it reaches next is the menu button, whose own
+// Enter toggles the menu shut. So the row activates nothing, and the menu
+// closes around it.
+#[test]
+fn a_disabled_item_activates_nothing_and_moves_nothing() {
+    let mut app = app();
+    app.init_resource::<Activated>();
+    let menu = spawn_menu(&mut app);
+    for &item in &menu.items {
+        app.world_mut().entity_mut(item).observe(
+            |activate: On<Activate>, mut activated: ResMut<Activated>| {
+                activated.0.push(activate.entity);
+            },
+        );
+    }
+    click(&mut app, 2, 0);
+    app.world_mut()
+        .entity_mut(menu.items[0])
+        .insert(InteractionDisabled);
+    app.update();
+
+    press_key(&mut app, KeyCode::Down);
+    assert_eq!(
+        focused(&app),
+        Some(menu.items[0]),
+        "the row's movement keys move nothing"
+    );
+
+    press_key(&mut app, KeyCode::Enter);
+    assert!(
+        app.world().resource::<Activated>().0.is_empty(),
+        "and it activates nothing"
+    );
+}
+
+// A press and its autorepeat in one drained batch, which is the only way a
+// repeat reaches a menu item at all: activating closes the menu, and the
+// close lands at the command flush after every observer in the batch has
+// run. One intent commits once, so the second must not.
+#[test]
+fn holding_the_activation_key_commits_once() {
+    let mut app = app();
+    app.init_resource::<Activated>();
+    let menu = spawn_menu(&mut app);
+    app.world_mut().entity_mut(menu.items[0]).observe(
+        |activate: On<Activate>, mut activated: ResMut<Activated>| {
+            activated.0.push(activate.entity);
+        },
+    );
+    click(&mut app, 2, 0);
+
+    let world = app.world_mut();
+    world.write_message(KeyMessage::new(
+        KeyCode::Enter,
+        KeyModifiers::default(),
+        KeyKind::Press,
+    ));
+    world.write_message(KeyMessage::new(
+        KeyCode::Enter,
+        KeyModifiers::default(),
+        KeyKind::Repeat,
+    ));
+    app.update();
+
+    assert_eq!(app.world().resource::<Activated>().0, vec![menu.items[0]]);
 }
 
 // The stock arrows, on a menu long enough for the two directions to differ.
 #[test]
 fn the_default_arrows_step_each_way() {
     let mut app = app();
-    let menu = spawn_wide_menu(&mut app);
+    let menu = spawn_menu_of(&mut app, &["Open", "Save", "Quit"]);
     click(&mut app, 2, 0);
 
     press_key(&mut app, KeyCode::Down);
-    assert_eq!(focused(&app), Some(menu.rows[1]));
+    assert_eq!(focused(&app), Some(menu.items[1]));
     press_key(&mut app, KeyCode::Up);
-    assert_eq!(focused(&app), Some(menu.rows[0]));
+    assert_eq!(focused(&app), Some(menu.items[0]));
     press_key(&mut app, KeyCode::Up);
     assert_eq!(
         focused(&app),
-        Some(menu.rows[2]),
+        Some(menu.items[2]),
         "and up from the top wraps"
     );
 }
