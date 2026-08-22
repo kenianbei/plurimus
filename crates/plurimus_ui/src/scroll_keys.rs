@@ -5,12 +5,11 @@
 //! same [`ScrollBy`], which is what lets a `bevy_ui` node or an app's own
 //! scroll consumer page without knowing a key was pressed.
 
-use bevy_ecs::prelude::{Commands, Component, On, Query, Res, Without};
-use bevy_input::ButtonInput;
-use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy_ecs::prelude::{Commands, Component, On, Query, Without};
+use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
-use plurimus_term::bevy_compat::held_modifiers;
+use plurimus_term::bevy_compat::HeldModifiers;
 
 use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
 use crate::keys::{KeyBinding, first_bound};
@@ -77,7 +76,7 @@ impl Default for ScrollKeys {
 
 pub(crate) fn scroll_key(
     mut input: On<FocusedInput<KeyboardInput>>,
-    held_keys: Res<ButtonInput<KeyCode>>,
+    held: HeldModifiers,
     areas: Query<(&ScrollKeys, &ComputedWidgetArea), Without<InteractionDisabled>>,
     mut commands: Commands,
 ) {
@@ -85,7 +84,7 @@ pub(crate) fn scroll_key(
     let Ok((keys, area)) = areas.get(entity) else {
         return;
     };
-    let Some(action) = first_bound(&keys.0, &input.input, held_modifiers(&held_keys)) else {
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
     // Consumed even at an extreme, so a bound key never reaches

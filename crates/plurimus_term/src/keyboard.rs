@@ -136,7 +136,7 @@ pub enum ModifierKey {
 /// on whether the terminal reports the unshifted key alongside it. Match the
 /// character for those, and compare the fields a binding cares about rather
 /// than whole values, since an unexpected flag makes an equality test fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 #[expect(
     clippy::struct_excessive_bools,
@@ -155,6 +155,12 @@ pub struct KeyModifiers {
     pub hyper: bool,
     /// Meta held.
     pub meta: bool,
+}
+
+impl Default for KeyModifiers {
+    fn default() -> Self {
+        Self::none()
+    }
 }
 
 impl KeyModifiers {

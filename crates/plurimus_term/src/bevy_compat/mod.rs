@@ -12,6 +12,7 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Local, MessageReader, MessageWriter, Res};
+use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::{KeyCode as BevyKeyCode, KeyboardInput};
 use bevy_input::{ButtonInput, ButtonState};
 
@@ -67,6 +68,21 @@ pub fn held_modifiers(keys: &ButtonInput<BevyKeyCode>) -> KeyModifiers {
         *held.slot(left) = keys.any_pressed([modifier_physical(left), modifier_physical(right)]);
     }
     held
+}
+
+/// [`held_modifiers`] as a system parameter, for an observer that wants
+/// the one answer without naming the resource it comes from.
+#[derive(SystemParam)]
+pub struct HeldModifiers<'w> {
+    keys: Res<'w, ButtonInput<BevyKeyCode>>,
+}
+
+impl HeldModifiers<'_> {
+    /// The modifiers held now; see [`held_modifiers`] for what "now" means.
+    #[must_use]
+    pub fn get(&self) -> KeyModifiers {
+        held_modifiers(&self.keys)
+    }
 }
 
 /// Both sides of every [`KeyModifiers`] flag, one pair per flag.

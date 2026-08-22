@@ -12,14 +12,16 @@ use plurimus_term::KeyModifiers;
 
 /// A key and the modifiers it must be pressed under.
 ///
-/// `ctrl` and `alt` are matched exactly, so a binding for `Ctrl+D` does not
-/// fire on `Ctrl+Alt+D` or on a bare `D`. `shift` is matched exactly for every
-/// key but a [`Key::Character`], where it is ignored: a character already
-/// says whether it was shifted, and the modifier beside it is not dependable -
-/// a shifted symbol carries it on some terminals and not others. So a binding
-/// on `G` or `:` is spelled as that character with no `with_shift`, and
-/// `with_shift` is for the keys that have no shifted spelling, `Shift+Tab` and
-/// the shifted arrows.
+/// Every modifier but shift is matched exactly, so a binding for `Ctrl+D`
+/// does not fire on `Ctrl+Alt+D`, on `Super+D`, or on a bare `D` - the same
+/// "chorded" a text field refuses to type under. `shift` is matched exactly
+/// for a named key, and for a [`Key::Character`] only when the binding asks
+/// for it: a character already says whether it was shifted, and the modifier
+/// beside it is not dependable - a shifted symbol carries it on some terminals
+/// and not others. So `G` and `:` are spelled as themselves with no
+/// `with_shift` and match however the terminal reported the key, while
+/// `with_shift` is for what has no shifted spelling: `Shift+Tab`, the shifted
+/// arrows, and `Shift+Space`.
 ///
 /// The modifiers a binding is checked against are the ones held when the key
 /// arrived, as polled state - bevy's [`KeyboardInput`] carries none of its
@@ -73,11 +75,18 @@ impl KeyBinding {
     /// binds a release to nothing.
     #[must_use]
     pub fn matches(&self, input: &KeyboardInput, held: KeyModifiers) -> bool {
-        let shift_agrees =
-            matches!(self.key, Key::Character(_)) || self.modifiers.shift == held.shift;
+        let wanted = self.modifiers;
+        let shift_agrees = if matches!(self.key, Key::Character(_)) {
+            !wanted.shift || held.shift
+        } else {
+            wanted.shift == held.shift
+        };
         self.key == input.logical_key
-            && self.modifiers.ctrl == held.ctrl
-            && self.modifiers.alt == held.alt
+            && wanted.ctrl == held.ctrl
+            && wanted.alt == held.alt
+            && wanted.super_key == held.super_key
+            && wanted.hyper == held.hyper
+            && wanted.meta == held.meta
             && shift_agrees
     }
 }
@@ -168,6 +177,28 @@ mod tests {
         assert!(
             KeyBinding::new(character("G")).matches(&pressed(character("G")), SHIFT),
             "a capital is spelled as itself, never with_shift"
+        );
+    }
+
+    #[test]
+    fn a_chord_on_another_modifier_is_not_the_bare_key() {
+        let bare = KeyBinding::new(character("d"));
+
+        assert!(!bare.matches(&pressed(character("d")), BARE.with_super_key(true)));
+        assert!(!bare.matches(&pressed(character("d")), BARE.with_meta(true)));
+    }
+
+    // Space is a character with no shifted spelling, so it is the one
+    // character binding `with_shift` means something on.
+    #[test]
+    fn a_character_binding_asking_for_shift_requires_it() {
+        let shift_space = KeyBinding::new(character(" ")).with_shift();
+
+        assert!(shift_space.matches(&pressed(character(" ")), SHIFT));
+        assert!(!shift_space.matches(&pressed(character(" ")), BARE));
+        assert!(
+            KeyBinding::new(character(" ")).matches(&pressed(character(" ")), SHIFT),
+            "and the bare binding still takes the shifted press"
         );
     }
 

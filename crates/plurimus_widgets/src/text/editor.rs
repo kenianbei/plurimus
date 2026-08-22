@@ -16,8 +16,8 @@ use bevy_ecs::prelude::{
     Added, Commands, Component, EntityEvent, MessageWriter, On, Query, Res, Without,
 };
 use bevy_ecs::system::SystemParam;
-use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
-use bevy_input::{ButtonInput, ButtonState};
+use bevy_input::ButtonState;
+use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
@@ -28,7 +28,7 @@ use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 
 use super::grapheme::{cluster_len_after, cluster_len_before};
 use plurimus_core::UiWidget;
-use plurimus_term::bevy_compat::held_modifiers;
+use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{Hovered, InteractionDisabled};
 use plurimus_ui::{ScrollBy, WheelReceptive};
 
@@ -112,7 +112,7 @@ pub(crate) struct Clipboard<'w> {
 
 pub(crate) fn text_editor_key(
     mut input: On<FocusedInput<KeyboardInput>>,
-    held_keys: Res<ButtonInput<KeyCode>>,
+    held: HeldModifiers,
     editors: Query<&TextEditor, Without<InteractionDisabled>>,
     mut clipboard: Clipboard,
     mut commands: Commands,
@@ -124,7 +124,7 @@ pub(crate) fn text_editor_key(
     if input.input.state != ButtonState::Pressed {
         return;
     }
-    let held = held_modifiers(&held_keys);
+    let held = held.get();
     if let Some(action) = clipboard_action(&input.input.logical_key, held) {
         input.propagate(false);
         if apply_clipboard(&mut editor.lock(), action, &mut clipboard) {

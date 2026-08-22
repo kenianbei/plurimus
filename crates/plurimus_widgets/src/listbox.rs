@@ -11,14 +11,13 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, Res, With, Without};
-use bevy_input::ButtonInput;
-use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, With, Without};
+use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::text::Line;
-use plurimus_term::bevy_compat::held_modifiers;
+use plurimus_term::bevy_compat::HeldModifiers;
 
 use super::ValueChange;
 use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, row_height};
@@ -130,7 +129,7 @@ impl Default for ListBoxKeys {
 
 pub(crate) fn listbox_key(
     mut input: On<FocusedInput<KeyboardInput>>,
-    held_keys: Res<ButtonInput<KeyCode>>,
+    held: HeldModifiers,
     mut boxes: Query<
         (
             &Children,
@@ -147,7 +146,7 @@ pub(crate) fn listbox_key(
     let Ok((children, keys, area, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let Some(action) = first_bound(&keys.0, &input.input, held_modifiers(&held_keys)) else {
+    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
     input.propagate(false);

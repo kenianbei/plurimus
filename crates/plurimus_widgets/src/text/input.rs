@@ -11,8 +11,8 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
-use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
-use bevy_input::{ButtonInput, ButtonState};
+use bevy_input::ButtonState;
+use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::PasteMessage;
@@ -21,7 +21,7 @@ use super::field::TextField;
 use super::state::TextInput;
 use crate::ValueChange;
 use plurimus_core::UiWidget;
-use plurimus_term::bevy_compat::held_modifiers;
+use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{Hovered, InteractionDisabled, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
@@ -68,7 +68,7 @@ pub fn editable_text(value: impl Into<String>) -> impl Bundle {
 
 pub(crate) fn text_input_key(
     mut input: On<FocusedInput<KeyboardInput>>,
-    held_keys: Res<ButtonInput<KeyCode>>,
+    held: HeldModifiers,
     mut fields: Query<&mut TextInput, (With<EditableText>, Without<InteractionDisabled>)>,
     mut commands: Commands,
 ) {
@@ -90,7 +90,7 @@ pub(crate) fn text_input_key(
         return;
     }
     let length_before = text.value().len();
-    if !text.handle(&input.input, held_modifiers(&held_keys)) {
+    if !text.handle(&input.input, held.get()) {
         return;
     }
     input.propagate(false);
