@@ -158,6 +158,20 @@ pub struct KeyModifiers {
 }
 
 impl KeyModifiers {
+    /// Nothing held: [`Default`] in a `const` context, so a binding table can
+    /// be built from the `with_*` builders at compile time.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            ctrl: false,
+            alt: false,
+            shift: false,
+            super_key: false,
+            hyper: false,
+            meta: false,
+        }
+    }
+
     /// Whether the flag `key` drives is held.
     ///
     /// Sides collapse: `ShiftLeft` and `ShiftRight` both read `shift`.

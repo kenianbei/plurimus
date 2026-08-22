@@ -105,8 +105,8 @@ fn the_bindings_are_the_apps_to_replace() {
     app.world_mut()
         .entity_mut(container)
         .insert(ListBoxKeys(vec![
-            (Key::Character("j".into()), ListBoxAction::Down),
-            (Key::Character("k".into()), ListBoxAction::Up),
+            (Key::Character("j".into()).into(), ListBoxAction::Down),
+            (Key::Character("k".into()).into(), ListBoxAction::Up),
         ]));
 
     press_key(&mut app, KeyCode::Char('j'));
@@ -130,8 +130,8 @@ fn the_first_binding_for_a_key_is_the_one_that_wins() {
     app.world_mut()
         .entity_mut(container)
         .insert(ListBoxKeys(vec![
-            (Key::End, ListBoxAction::Down),
-            (Key::End, ListBoxAction::Last),
+            (Key::End.into(), ListBoxAction::Down),
+            (Key::End.into(), ListBoxAction::Last),
         ]));
 
     press_key(&mut app, KeyCode::End);

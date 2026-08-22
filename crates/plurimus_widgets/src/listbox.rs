@@ -11,22 +11,24 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, With, Without};
-use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, Res, With, Without};
+use bevy_input::ButtonInput;
+use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::text::Line;
+use plurimus_term::bevy_compat::held_modifiers;
 
 use super::ValueChange;
 use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, row_height};
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
-use plurimus_ui::first_bound;
 use plurimus_ui::{
     Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
 };
+use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
 /// A focusable list of [`ListItem`] children. Selection emits
@@ -109,25 +111,26 @@ pub enum ListBoxAction {
 /// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
 /// `Enter` and space to select.
 #[derive(Component, Debug, Clone)]
-pub struct ListBoxKeys(pub Vec<(Key, ListBoxAction)>);
+pub struct ListBoxKeys(pub Vec<(KeyBinding, ListBoxAction)>);
 
 impl Default for ListBoxKeys {
     fn default() -> Self {
         Self(vec![
-            (Key::ArrowUp, ListBoxAction::Up),
-            (Key::ArrowDown, ListBoxAction::Down),
-            (Key::Home, ListBoxAction::First),
-            (Key::End, ListBoxAction::Last),
-            (Key::PageUp, ListBoxAction::PageUp),
-            (Key::PageDown, ListBoxAction::PageDown),
-            (Key::Enter, ListBoxAction::Select),
-            (Key::Character(" ".into()), ListBoxAction::Select),
+            (Key::ArrowUp.into(), ListBoxAction::Up),
+            (Key::ArrowDown.into(), ListBoxAction::Down),
+            (Key::Home.into(), ListBoxAction::First),
+            (Key::End.into(), ListBoxAction::Last),
+            (Key::PageUp.into(), ListBoxAction::PageUp),
+            (Key::PageDown.into(), ListBoxAction::PageDown),
+            (Key::Enter.into(), ListBoxAction::Select),
+            (Key::Character(" ".into()).into(), ListBoxAction::Select),
         ])
     }
 }
 
 pub(crate) fn listbox_key(
     mut input: On<FocusedInput<KeyboardInput>>,
+    held_keys: Res<ButtonInput<KeyCode>>,
     mut boxes: Query<
         (
             &Children,
@@ -144,7 +147,7 @@ pub(crate) fn listbox_key(
     let Ok((children, keys, area, mut active)) = boxes.get_mut(listbox) else {
         return;
     };
-    let Some(action) = first_bound(&keys.0, &input.input) else {
+    let Some(action) = first_bound(&keys.0, &input.input, held_modifiers(&held_keys)) else {
         return;
     };
     input.propagate(false);

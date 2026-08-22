@@ -134,8 +134,8 @@ fn a_page_key_moves_by_the_visible_body_height() {
 fn the_bindings_are_the_apps_to_replace() {
     let (mut app, table, rows) = app(TableSelection::Row);
     app.world_mut().entity_mut(table).insert(TableKeys(vec![
-        (Key::Character("j".into()), TableAction::RowNext),
-        (Key::Character("k".into()), TableAction::RowPrev),
+        (Key::Character("j".into()).into(), TableAction::RowNext),
+        (Key::Character("k".into()).into(), TableAction::RowPrev),
     ]));
 
     press_key(&mut app, KeyCode::Char('j'));
