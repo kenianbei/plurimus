@@ -8,6 +8,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`ListBoxStripe`** bands a list box the way `TableStripe` bands a table: a
+  `Style` patched over every second row counting from the second, in child order
+  so stripes do not crawl as the list scrolls, with a multi-line `ListItemText`
+  row counting once. It sits beneath a row's own `UiStyle` and beneath the
+  cursor's highlight, so an app keeps its per-row override and its cursor over a
+  banded list. Editing the stripe repaints; removing it waits for the next
+  repaint, as removing `ListBoxSelectionMarker` does. The widgets example
+  stripes its themed list.
 - **`TabBar`**, a focusable strip of `TabItem` children. The bar is the one tab
   stop; its items are child entities labelled by `UiLabel`, placed by the bar
   every frame and drawn by themselves, so each hovers, presses, disables and

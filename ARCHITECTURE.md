@@ -376,22 +376,27 @@ all measure by height rather than by count. A row's marker gutter lights for
 stock updater writes and an app marking a row for a reason of its own must not
 have that redefined under it; `ListItemTrailing` is right-aligned by the list
 against a width only the list has, a row being built before the box is placed.
-Whichever container holds the cursor, the row it names is styled as focused even
-when focus sits elsewhere - being driven is what `ActiveDescendant` is for, and
-a cursor nobody can see is that pattern contradicting itself. Both containers
-also take their movement keys from a component of `(KeyBinding, Action)`
-bindings - `ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim
-keys, `Ctrl+D` included, without reimplementing movement beside the widget. Only
-the bindings are the crate's: the scan itself is `plurimus_ui`'s `first_bound`,
-the same one a focused scroll area's keys go through. Every widget here takes
-its keys that way now: `SliderKeys`, `MenuKeys` and the single-line field's
-`TextInputKeys` were the last inline matchers. The field's table is the one that
-binds editing rather than movement, so an unbound unchorded character still
-types itself, and `TextInputAction::Submit` is the one action
-`TextInput::handle` refuses to apply - what committing means is the
-dispatcher's, so `handle` leaves it and whoever routes the key acts on it. The
-multi-line editor is the exception and stays inline, its keymap belonging to the
-ratatui-textarea engine rather than to this crate.
+Both containers band their rows the same way - `ListBoxStripe`, `TableStripe` -
+patched over every second row counting in child order, so stripes do not crawl
+on scroll and a multi-line row counts once, beneath the row's own `UiStyle` and
+the cursor's highlight; the two stylists share the rule and not a type, their
+rows resolving in different shapes. Whichever container holds the cursor, the
+row it names is styled as focused even when focus sits elsewhere - being driven
+is what `ActiveDescendant` is for, and a cursor nobody can see is that pattern
+contradicting itself. Both containers also take their movement keys from a
+component of `(KeyBinding, Action)` bindings - `ListBoxKeys`, `TableKeys` -
+which is how an app remaps a list to vim keys, `Ctrl+D` included, without
+reimplementing movement beside the widget. Only the bindings are the crate's:
+the scan itself is `plurimus_ui`'s `first_bound`, the same one a focused scroll
+area's keys go through. Every widget here takes its keys that way now:
+`SliderKeys`, `MenuKeys` and the single-line field's `TextInputKeys` were the
+last inline matchers. The field's table is the one that binds editing rather
+than movement, so an unbound unchorded character still types itself, and
+`TextInputAction::Submit` is the one action `TextInput::handle` refuses to
+apply - what committing means is the dispatcher's, so `handle` leaves it and
+whoever routes the key acts on it. The multi-line editor is the exception and
+stays inline, its keymap belonging to the ratatui-textarea engine rather than to
+this crate.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
