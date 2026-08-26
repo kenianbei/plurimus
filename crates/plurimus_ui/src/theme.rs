@@ -105,7 +105,7 @@ impl UiTheme {
         Self {
             normal: Style::new(),
             hovered: Style::new().fg(Color::Cyan),
-            pressed: Style::new().fg(Color::Black).bg(Color::Cyan),
+            pressed: Style::new().fg(Color::Cyan).add_modifier(Modifier::DIM),
             disabled: Style::new().fg(Color::DarkGray),
             focused: Style::new().add_modifier(Modifier::BOLD).fg(Color::Yellow),
             caret: Style::new().add_modifier(Modifier::REVERSED),
@@ -202,3 +202,29 @@ pub struct StylistDisabled;
 /// row's.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct UiStyle(pub Style);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A press focuses what it lands on, and `focused` names a foreground,
+    // so the stock pressed style has to carry something the focus patch
+    // keeps - and it must not be a background.
+    #[test]
+    fn the_stock_pressed_style_survives_focus_without_a_background() {
+        let theme = UiTheme::new();
+        let pressed = theme.resolve(
+            InteractionState::default()
+                .with_pressed(true)
+                .with_hovered(true)
+                .with_focused(true),
+        );
+        let hovered = theme.resolve(
+            InteractionState::default()
+                .with_hovered(true)
+                .with_focused(true),
+        );
+        assert_eq!(pressed.bg, None);
+        assert_ne!(pressed, hovered);
+    }
+}

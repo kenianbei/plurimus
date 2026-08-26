@@ -39,6 +39,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`examples/tabs`**, a joined top bar switching panels under remapped keys,
   with a vertical bar on its Settings panel that restyles it.
 
+### Changed
+
+- The stock `UiTheme`'s `pressed` style is `fg Cyan` with `DIM`, where it was
+  `fg Black` on a `bg Cyan` fill. A press focuses what it lands on, and
+  `focused` names its own foreground, so the old foreground was overwritten on
+  every press and the cell fill was all that told pressed from hovered - a solid
+  block, out of scale with a theme that otherwise colours foregrounds only.
+  Under focus the new style resolves to `Yellow BOLD | DIM`, distinguishable
+  from hovered-and-focused without painting a background. Apps with a `pressed`
+  of their own see no change.
+
 ## [0.7.0] - 2026-08-21
 
 ### Added
