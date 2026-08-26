@@ -81,8 +81,6 @@ pub(crate) fn style_tab_bars(
     }
 }
 
-// The cell between each placed item and the next, on the label line of a
-// boxed item.
 fn gaps(look: &TabBarLook, placed: &[Rect]) -> Vec<Rect> {
     placed
         .windows(2)
@@ -214,9 +212,6 @@ pub(crate) fn style_tab_items(
     }
 }
 
-// The active item is focused while its bar is, and carries the bar's
-// active style beneath its own override; every other item is what the
-// theme says it is.
 fn item_style(
     next: StylistCache,
     bar_focused: bool,

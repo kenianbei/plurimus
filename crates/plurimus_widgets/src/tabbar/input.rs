@@ -31,7 +31,6 @@ pub(crate) struct TabAccess<'w, 's> {
 }
 
 impl TabAccess<'_, '_> {
-    // The items a key can reach, in child order.
     fn live<'a>(&'a self, children: &'a Children) -> impl Iterator<Item = Entity> + 'a {
         children
             .iter()
@@ -40,9 +39,6 @@ impl TabAccess<'_, '_> {
     }
 }
 
-// Stepping stops at the ends, a bar with nothing active steps into its
-// first item, and a key bound to a tab that is not there activates nothing
-// and propagates, as an unbound key would.
 pub(crate) fn tab_bar_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,

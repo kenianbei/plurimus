@@ -150,8 +150,6 @@ impl TabBarLook {
         if self.border.is_some() { FRAME } else { 0 }
     }
 
-    // The join this look can draw: an edge across its axis, in a border
-    // that has junction glyphs.
     pub(crate) fn joint(&self) -> Option<boxed::Joint> {
         let edge = self.joined?;
         let across = match self.orientation {
