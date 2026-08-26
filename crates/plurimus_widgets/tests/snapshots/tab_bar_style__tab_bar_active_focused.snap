@@ -1,0 +1,9 @@
+---
+source: crates/plurimus_widgets/tests/tab_bar_style.rs
+expression: composed_styled_frame(&app)
+---
+ Diary  Plan        
+--
+aaaaaaabbbbbbaaaaaaa
+a: fg:Some(Reset) bg:Some(Reset) mods:NONE
+b: fg:Some(Yellow) bg:Some(Reset) mods:BOLD | REVERSED

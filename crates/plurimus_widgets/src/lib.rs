@@ -25,6 +25,7 @@ mod rows;
 mod scrollbar;
 mod self_update;
 mod slider;
+mod tabbar;
 mod table;
 mod text;
 
@@ -54,6 +55,9 @@ pub use self_update::{
     table_self_update,
 };
 pub use slider::{Slider, SliderAction, SliderKeys, SliderRange, SliderStep, SliderValue, slider};
+pub use tabbar::{
+    TabBar, TabBarActiveStyle, TabBarLook, TabBarOrientation, TabItem, tab_bar, tab_item,
+};
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
     TableGeometry, TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect,
@@ -83,6 +87,7 @@ pub(crate) use radio::style_radios;
 pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
+pub(crate) use tabbar::{place_tab_items, style_tab_bars, style_tab_items};
 pub(crate) use table::{
     TableBodyRow, TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables,
     table_click, table_key,
@@ -161,7 +166,12 @@ fn add_layout_systems(app: &mut App) {
             adopt_anchor_cameras
                 .after(CameraSystems::PropagateCameras)
                 .before(UiSystems::Areas),
-            (size_menu_popups, place_popovers, place_menu_items)
+            (
+                size_menu_popups,
+                place_popovers,
+                place_menu_items,
+                place_tab_items,
+            )
                 .chain()
                 .in_set(WidgetSystems::Layout),
             // The scroll extent reads the dirty mark, so a row's edit
@@ -203,6 +213,8 @@ fn add_stylists(app: &mut App) {
             style_text_inputs,
             style_menu_items,
             style_menu_popups,
+            style_tab_bars,
+            style_tab_items,
         )
             .in_set(WidgetSystems::Style),
     );
