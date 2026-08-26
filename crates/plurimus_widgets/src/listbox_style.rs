@@ -19,7 +19,7 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
-use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListItem};
+use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem};
 use crate::rows::ContentDirty;
 use crate::rows::{
     ActiveDescendant, CURSOR_SYMBOL, ListItemText, ListItemTrailing, Marked, cursor_style,
@@ -48,6 +48,7 @@ pub(crate) type ListSelfChanged = Or<(
     Changed<Children>,
     Changed<ListBoxCursor>,
     Changed<ListBoxSelectionMarker>,
+    Changed<ListBoxStripe>,
 )>;
 
 const CHECKED_MARKER: &str = "▪ ";
@@ -76,11 +77,13 @@ struct RowContent<'a> {
     lit: bool,
     trailing: Option<&'a ListItemTrailing>,
     over: Option<&'a UiStyle>,
+    banded: Option<Style>,
 }
 
 struct RowStyles {
     every: Style,
     cursor: Style,
+    stripe: Option<Style>,
 }
 
 struct Gutters {
@@ -96,7 +99,10 @@ type ListBoxes<'w, 's> = Query<
         &'static ActiveDescendant,
         &'static Children,
         Has<ListBoxSelectionMarker>,
-        Option<&'static ListBoxCursor>,
+        (
+            Option<&'static ListBoxCursor>,
+            Option<&'static ListBoxStripe>,
+        ),
         (&'static ComputedWidgetArea, Option<&'static ScrollArea>),
         Ref<'static, ContentDirty<ListBox>>,
         &'static mut StylistCache,
@@ -111,7 +117,7 @@ pub(crate) fn style_listboxes(
     mut boxes: ListBoxes,
     items: RowItems,
 ) {
-    for (state, active, children, marker, cursor, size, content, mut cache, mut widget) in
+    for (state, active, children, marker, (cursor, stripe), size, content, mut cache, mut widget) in
         &mut boxes
     {
         let cursored = active.0.is_some();
@@ -125,6 +131,7 @@ pub(crate) fn style_listboxes(
         let styles = RowStyles {
             every: next.resting_style(&theme),
             cursor: cursor_style(next, cursored, &theme),
+            stripe: stripe.map(|stripe| stripe.0),
         };
         let gutters = Gutters {
             marker,
@@ -173,6 +180,7 @@ fn list_widget(
         if active == Some(child) {
             selected = Some(rows.len());
         }
+        let banded = styles.stripe.filter(|_| rows.len() % 2 == 1);
         rows.push(list_row(
             &RowContent {
                 label: &label.0,
@@ -180,6 +188,7 @@ fn list_widget(
                 lit: checked || marked,
                 trailing,
                 over,
+                banded,
             },
             (gutters.marker, width),
         ));
@@ -242,11 +251,12 @@ fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'stat
         drawn.style = text.0.style;
         drawn.alignment = text.0.alignment;
     }
-    let row = ListRow::new(drawn);
     // Applied over the whole row rather than the label's own cells, which
-    // is what reaches the cursor gutter.
-    match content.over {
-        Some(over) => row.style(over.0),
-        None => row,
-    }
+    // is what reaches the cursor gutter. An unset `Style` patches as the
+    // identity, so an absent stripe or override drops out of the chain.
+    let style = content
+        .banded
+        .unwrap_or_default()
+        .patch(content.over.map_or_else(Style::default, |over| over.0));
+    ListRow::new(drawn).style(style)
 }

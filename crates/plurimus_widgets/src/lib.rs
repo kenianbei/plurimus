@@ -39,7 +39,7 @@ pub use button::{Button, button};
 pub use checkbox::{Checkbox, checkbox};
 pub use listbox::{
     ListBox, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect, ListBoxSelectionMarker,
-    ListItem, list_item, listbox,
+    ListBoxStripe, ListItem, list_item, listbox,
 };
 pub use menu::{
     MenuAction, MenuButton, MenuItem, MenuKeys, MenuOpen, MenuPopup, menu_button, menu_item,
