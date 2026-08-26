@@ -89,7 +89,8 @@ pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_sc
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use tabbar::{
-    place_tab_items, style_tab_bars, style_tab_items, tab_bar_key, tab_item_click,
+    TabBarSelfChanged, TabItemsChanged, place_tab_items, style_tab_bars, style_tab_items,
+    tab_bar_key, tab_item_click,
 };
 pub(crate) use table::{
     TableBodyRow, TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables,
@@ -174,6 +175,7 @@ fn add_layout_systems(app: &mut App) {
                 place_popovers,
                 place_menu_items,
                 place_tab_items,
+                mark_dirty_content::<TabBar, TabItem, TabItemsChanged, TabBarSelfChanged>,
             )
                 .chain()
                 .in_set(WidgetSystems::Layout),

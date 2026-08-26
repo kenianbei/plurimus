@@ -32,19 +32,17 @@ pub(crate) struct TabAccess<'w, 's> {
 
 impl TabAccess<'_, '_> {
     // The items a key can reach, in child order.
-    fn live_items(&self, children: &Children) -> Vec<Entity> {
+    fn live<'a>(&'a self, children: &'a Children) -> impl Iterator<Item = Entity> + 'a {
         children
             .iter()
             .copied()
             .filter(|&child| self.items.contains(child))
-            .collect()
-    }
-
-    fn is_active(&self, item: Entity) -> bool {
-        self.items.get(item).is_ok_and(|checked| checked)
     }
 }
 
+// Stepping stops at the ends, a bar with nothing active steps into its
+// first item, and a key bound to a tab that is not there activates nothing
+// and propagates, as an unbound key would.
 pub(crate) fn tab_bar_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
@@ -58,40 +56,28 @@ pub(crate) fn tab_bar_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    let live = tabs.live_items(children);
-    let current = live.iter().position(|&item| tabs.is_active(item));
+    let count = tabs.live(children).count();
+    let current = tabs
+        .live(children)
+        .position(|item| tabs.items.get(item).is_ok_and(|checked| checked));
     let target = match action {
         TabBarAction::Select(index) => {
-            // A key bound to a tab that is not there activates nothing
-            // and propagates, as an unbound key would; one that is there
-            // commits once per press.
-            let Some(&item) = live.get(index) else {
+            if index >= count {
                 return;
-            };
-            (!input.input.repeat).then_some(item)
+            }
+            (!input.input.repeat).then_some(index)
         }
-        _ => stepped(action, current, live.len())
-            .filter(|&index| Some(index) != current)
-            .map(|index| live[index]),
-    };
-    input.propagate(false);
-    if let Some(item) = target {
-        commands.trigger(ValueChange::new(bar, item, true));
-    }
-}
-
-// Stepping stops at the ends, and a bar with nothing active steps into
-// its first item.
-fn stepped(action: TabBarAction, current: Option<usize>, count: usize) -> Option<usize> {
-    match action {
         TabBarAction::Previous => current.and_then(|index| index.checked_sub(1)),
         TabBarAction::Next => match current {
             None => (count > 0).then_some(0),
             Some(index) => (index + 1 < count).then_some(index + 1),
         },
-        TabBarAction::First => (count > 0).then_some(0),
-        TabBarAction::Last => count.checked_sub(1),
-        TabBarAction::Select(index) => Some(index),
+        TabBarAction::First => (count > 0).then_some(0).filter(|_| current != Some(0)),
+        TabBarAction::Last => count.checked_sub(1).filter(|&last| current != Some(last)),
+    };
+    input.propagate(false);
+    if let Some(item) = target.and_then(|index| tabs.live(children).nth(index)) {
+        commands.trigger(ValueChange::new(bar, item, true));
     }
 }
 

@@ -21,7 +21,7 @@ mod style;
 
 pub(crate) use input::{tab_bar_key, tab_item_click};
 pub(crate) use layout::place_tab_items;
-pub(crate) use style::{style_tab_bars, style_tab_items};
+pub(crate) use style::{TabBarSelfChanged, TabItemsChanged, style_tab_bars, style_tab_items};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::prelude::Component;
@@ -32,6 +32,7 @@ use plurimus_core::ratatui_core::style::{Modifier, Style};
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::borders::BorderType;
 
+use crate::rows::ContentDirty;
 use plurimus_core::{UiOrder, UiWidget};
 use plurimus_ui::{ComputedWidgetArea, Hovered, KeyBinding, StylistCache, UiLabel};
 
@@ -52,7 +53,8 @@ pub(crate) const FRAME: u16 = 1;
     TabBarKeys,
     TabBarLook,
     TabBarActiveStyle,
-    ComputedWidgetArea
+    ComputedWidgetArea,
+    ContentDirty<Self>
 )]
 pub struct TabBar;
 
@@ -141,11 +143,7 @@ impl TabBarLook {
     /// for boxed ones.
     #[must_use]
     pub const fn thickness(&self) -> u16 {
-        if self.border.is_some() {
-            1 + 2 * FRAME
-        } else {
-            1
-        }
+        1 + 2 * self.frame()
     }
 
     pub(crate) const fn frame(&self) -> u16 {

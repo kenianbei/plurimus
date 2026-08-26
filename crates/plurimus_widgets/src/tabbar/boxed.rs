@@ -13,10 +13,8 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::symbols::line;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::ratatui_core::widgets::Widget;
-use ratatui_widgets::block::Block;
-use ratatui_widgets::borders::{BorderType, Borders};
-
-use super::FRAME;
+use ratatui_widgets::block::{Block, Padding};
+use ratatui_widgets::borders::BorderType;
 
 pub(crate) const fn border_lines(border: BorderType) -> Option<line::Set<'static>> {
     match border {
@@ -41,19 +39,10 @@ pub(crate) struct Joint {
     pub(crate) lines: line::Set<'static>,
 }
 
-impl Joint {
-    /// The glyph the bar's baseline is drawn in.
-    pub(crate) const fn baseline(&self) -> &'static str {
-        match self.edge {
-            Edge::Top | Edge::Bottom => self.lines.horizontal,
-            Edge::Left | Edge::Right => self.lines.vertical,
-        }
-    }
-}
-
 pub(crate) struct Boxed {
     pub(crate) label: Line<'static>,
     pub(crate) border: BorderType,
+    pub(crate) padding: u16,
     pub(crate) style: Style,
     pub(crate) joint: Option<Joint>,
     pub(crate) active: bool,
@@ -61,29 +50,15 @@ pub(crate) struct Boxed {
 
 impl Widget for &Boxed {
     fn render(self, area: Rect, buffer: &mut Buffer) {
-        let open = self.joint.filter(|_| self.active).map(|joint| joint.edge);
-        let borders = match open {
-            Some(Edge::Top) => Borders::ALL.difference(Borders::TOP),
-            Some(Edge::Bottom) => Borders::ALL.difference(Borders::BOTTOM),
-            Some(Edge::Left) => Borders::ALL.difference(Borders::LEFT),
-            Some(Edge::Right) => Borders::ALL.difference(Borders::RIGHT),
-            None => Borders::ALL,
+        let block = Block::bordered()
+            .border_type(self.border)
+            .padding(Padding::horizontal(self.padding))
+            .style(self.style);
+        let label = Rect {
+            height: 1,
+            ..block.inner(area)
         };
-        Widget::render(
-            Block::new()
-                .borders(borders)
-                .border_type(self.border)
-                .style(self.style),
-            area,
-            buffer,
-        );
-        let label = Rect::new(
-            area.x.saturating_add(FRAME),
-            area.y.saturating_add(FRAME),
-            area.width.saturating_sub(2 * FRAME),
-            1,
-        )
-        .intersection(area);
+        Widget::render(block, area, buffer);
         Widget::render(&self.label, label, buffer);
         if let Some(joint) = self.joint {
             join(area, joint, self.active, self.style, buffer);
@@ -102,48 +77,41 @@ fn join(area: Rect, joint: Joint, active: bool, style: Style, buffer: &mut Buffe
         area.bottom().saturating_sub(1),
     );
     let lines = joint.lines;
-    let (corners, glyphs) = match (joint.edge, active) {
-        (Edge::Bottom, true) => (
+    let (corners, open, tee) = match joint.edge {
+        Edge::Bottom => (
             [(left, bottom), (right, bottom)],
             [lines.bottom_right, lines.bottom_left],
+            lines.horizontal_up,
         ),
-        (Edge::Bottom, false) => ([(left, bottom), (right, bottom)], [lines.horizontal_up; 2]),
-        (Edge::Top, true) => (
+        Edge::Top => (
             [(left, top), (right, top)],
             [lines.top_right, lines.top_left],
+            lines.horizontal_down,
         ),
-        (Edge::Top, false) => ([(left, top), (right, top)], [lines.horizontal_down; 2]),
-        (Edge::Right, true) => (
+        Edge::Right => (
             [(right, top), (right, bottom)],
             [lines.bottom_right, lines.top_right],
+            lines.vertical_left,
         ),
-        (Edge::Right, false) => ([(right, top), (right, bottom)], [lines.vertical_left; 2]),
-        (Edge::Left, true) => (
+        Edge::Left => (
             [(left, top), (left, bottom)],
             [lines.bottom_left, lines.top_left],
+            lines.vertical_right,
         ),
-        (Edge::Left, false) => ([(left, top), (left, bottom)], [lines.vertical_right; 2]),
     };
     if active {
-        clear_edge(area, joint.edge, style, buffer);
+        let [(x, y), (far_x, far_y)] = corners;
+        let edge = Rect::new(x, y, far_x - x + 1, far_y - y + 1);
+        for position in edge.positions() {
+            if let Some(cell) = buffer.cell_mut(position) {
+                cell.set_symbol(" ").set_style(style);
+            }
+        }
     }
+    let glyphs = if active { open } else { [tee; 2] };
     for ((x, y), glyph) in corners.into_iter().zip(glyphs) {
         if let Some(cell) = buffer.cell_mut((x, y)) {
             cell.set_symbol(glyph).set_style(style);
-        }
-    }
-}
-
-fn clear_edge(area: Rect, edge: Edge, style: Style, buffer: &mut Buffer) {
-    let strip = match edge {
-        Edge::Top => Rect::new(area.x, area.y, area.width, 1),
-        Edge::Bottom => Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1),
-        Edge::Left => Rect::new(area.x, area.y, 1, area.height),
-        Edge::Right => Rect::new(area.right().saturating_sub(1), area.y, 1, area.height),
-    };
-    for position in strip.intersection(area).positions() {
-        if let Some(cell) = buffer.cell_mut(position) {
-            cell.set_symbol(" ").set_style(style);
         }
     }
 }

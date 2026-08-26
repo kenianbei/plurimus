@@ -54,7 +54,22 @@ const PANELS: [(&str, &str); 4] = [
 ];
 const SETTINGS: usize = 3;
 
-const LOOKS: [&str; 5] = ["joined", "boxed", "divided", "plain", "padded"];
+/// The looks the top bar can take, by name.
+const LOOKS: [(&str, fn() -> TabBarLook); 5] = [
+    ("joined", || {
+        TabBarLook::default()
+            .with_border(Some(BorderType::Rounded))
+            .with_joined(Some(Edge::Bottom))
+    }),
+    ("boxed", || {
+        TabBarLook::default().with_border(Some(BorderType::Plain))
+    }),
+    ("divided", || {
+        TabBarLook::default().with_divider(Some("\u{2502}".into()))
+    }),
+    ("plain", TabBarLook::default),
+    ("padded", || TabBarLook::default().with_padding(3)),
+];
 
 const TOP_BAR: Rect = Rect::new(0, 0, 60, 3);
 const PANEL_PANE: Rect = Rect::new(0, 3, 60, 10);
@@ -110,7 +125,7 @@ fn spawn_demo(mut commands: Commands) {
         .spawn((
             tab_bar(),
             TopBar,
-            look_named(LOOKS[0]),
+            LOOKS[0].1(),
             TabBarActiveStyle(Style::new().bg(ACTIVE_BG)),
             panel_keys(),
             UiArea::Fixed(TOP_BAR),
@@ -140,7 +155,7 @@ fn spawn_demo(mut commands: Commands) {
             UiArea::Fixed(LOOKS_BAR),
         ))
         .id();
-    for (index, name) in LOOKS.iter().enumerate() {
+    for (index, (name, _)) in LOOKS.iter().enumerate() {
         let item = commands
             .spawn((tab_item(*name), Look(index), ChildOf(looks)))
             .id();
@@ -170,18 +185,6 @@ fn panel_keys() -> TabBarKeys {
         (digit.into(), TabBarAction::Select(index))
     }));
     keys
-}
-
-fn look_named(name: &str) -> TabBarLook {
-    match name {
-        "boxed" => TabBarLook::default().with_border(Some(BorderType::Plain)),
-        "divided" => TabBarLook::default().with_divider(Some("\u{2502}".into())),
-        "plain" => TabBarLook::default(),
-        "padded" => TabBarLook::default().with_padding(3),
-        _ => TabBarLook::default()
-            .with_border(Some(BorderType::Rounded))
-            .with_joined(Some(Edge::Bottom)),
-    }
 }
 
 #[derive(SystemParam)]
@@ -237,7 +240,7 @@ fn apply_look(
         return;
     };
     for mut current in &mut top {
-        *current = look_named(LOOKS[look.0]);
+        *current = LOOKS[look.0].1();
     }
 }
 
@@ -249,13 +252,13 @@ fn swap_focus_on_tab(
     looks: Query<Entity, (With<LooksBar>, Without<UiHidden>)>,
     mut focus: ResMut<InputFocus>,
 ) {
-    let (Ok(top), Ok(looks)) = (top.single(), looks.single()) else {
-        return;
-    };
     for key in keys.read() {
         if key.kind != KeyKind::Press || key.code != KeyCode::Tab {
             continue;
         }
+        let (Ok(top), Ok(looks)) = (top.single(), looks.single()) else {
+            return;
+        };
         let next = if focus.get() == Some(top) { looks } else { top };
         focus.set(next, FocusCause::Navigated);
     }
