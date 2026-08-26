@@ -12,7 +12,8 @@ use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{composed_styled_frame, widget_content};
 use plurimus_ui::{Checked, InteractionDisabled, StylistDisabled, UiArea, UiStyle};
-use plurimus_widgets::{TabBarActiveStyle, WidgetsPlugin, tab_bar, tab_item};
+use plurimus_widgets::ratatui_widgets::borders::BorderType;
+use plurimus_widgets::{TabBarActiveStyle, TabBarLook, WidgetsPlugin, tab_bar, tab_item};
 
 fn app() -> App {
     let mut app = App::new();
@@ -133,4 +134,18 @@ fn moving_the_active_item_repaints_both_items() {
 
     assert!(!Arc::ptr_eq(&before.0, &widget_content(&app, bar.items[0])));
     assert!(!Arc::ptr_eq(&before.1, &widget_content(&app, bar.items[1])));
+}
+
+#[test]
+fn a_boxed_active_item_styles_its_label_and_not_its_frame() {
+    let mut app = app();
+    app.insert_resource(TerminalSize::new(20, 3));
+    let bar = spawn_bar(&mut app);
+    app.world_mut().entity_mut(bar.bar).insert((
+        TabBarLook::default().with_border(Some(BorderType::Plain)),
+        UiArea::Fixed(Rect::new(0, 0, 20, 3)),
+    ));
+    app.update();
+
+    insta::assert_snapshot!("tab_bar_boxed_active", composed_styled_frame(&app));
 }

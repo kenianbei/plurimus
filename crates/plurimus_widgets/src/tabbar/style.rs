@@ -207,35 +207,46 @@ pub(crate) fn style_tab_items(
         if !cache.redraws(next, dirty) {
             continue;
         }
-        let style = item_style(next, bar_focused, active.0, over, &theme);
-        *widget = item_widget(&look, &label.0, style, next.checked());
+        let (frame, style) = item_style(next, bar_focused, active.0, over, &theme);
+        *widget = item_widget(&look, &label.0, (frame, style), next.checked());
     }
 }
 
+// The active item is focused while its bar is; its label carries the bar's
+// active style beneath the item's own override, and its frame only the
+// theme's.
 fn item_style(
     next: StylistCache,
     bar_focused: bool,
     active: Style,
     over: Option<&UiStyle>,
     theme: &UiTheme,
-) -> Style {
+) -> (Style, Style) {
     if !next.checked() {
-        return next.style(theme);
+        let style = next.style(theme);
+        return (style, style);
     }
     let driven = next.with_focused(next.state().focused || bar_focused);
-    theme
-        .resolve(driven.state())
-        .patch(active)
-        .patch(over.map_or_else(Style::default, |over| over.0))
+    let over = over.map_or_else(Style::default, |over| over.0);
+    let frame = theme.resolve(driven.state()).patch(over);
+    (
+        frame,
+        theme.resolve(driven.state()).patch(active).patch(over),
+    )
 }
 
-fn item_widget(look: &TabBarLook, label: &Line<'static>, style: Style, active: bool) -> UiWidget {
+fn item_widget(
+    look: &TabBarLook,
+    label: &Line<'static>,
+    (frame, style): (Style, Style),
+    active: bool,
+) -> UiWidget {
     match look.border {
         Some(border) => UiWidget::new(Boxed {
             label: label.clone().style(style),
             border,
             padding: look.padding,
-            style,
+            style: frame,
             joint: look.joint(),
             active,
         }),
