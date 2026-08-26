@@ -334,12 +334,11 @@ by `mark_dirty_content` when an item's rect, the children or the look change. An
 item's stylist reads the parent's look and active style and hashes the bar's
 focus into its cache, since an item never holds focus itself, and resolves the
 active item as focused while the bar is, patching `TabBarActiveStyle` over the
-theme and beneath the item's own `UiStyle` on the label alone, so a boxed item's
-frame takes only the theme's style. A boxed item is a `Block` with ratatui's
-padding; on a joined look the active box clears its joined edge and turns its
-two corners outward while every closed box tees its corners into the baseline,
-glyphs taken from the `line::Set` matching the `BorderType`, which is why the
-quadrant borders draw closed.
+theme and beneath the item's own `UiStyle`, frame and label alike. A boxed item
+is a `Block` with ratatui's padding; on a joined look the active box clears its
+joined edge and turns its two corners outward while every closed box tees its
+corners into the baseline, glyphs taken from the `line::Set` matching the
+`BorderType`, which is why the quadrant borders draw closed.
 
 A stylist rebuilds a widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the
 state it last drew differs from the current one, or when its label changed, not
