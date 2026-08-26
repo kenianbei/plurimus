@@ -1,0 +1,13 @@
+---
+source: crates/plurimus_widgets/tests/tab_bar_looks.rs
+expression: "render(9, 9, vertical().with_border(Some(BorderType::Plain)))"
+---
+┌───────┐
+│ Diary │
+└───────┘
+┌───────┐
+│ Plan  │
+└───────┘
+┌───────┐
+│ Foods │
+└───────┘

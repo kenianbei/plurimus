@@ -13,6 +13,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Has, Query, Res, With};
 use bevy_input_focus::InputFocus;
+use plurimus_core::Edge;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Style;
@@ -21,6 +22,7 @@ use plurimus_core::ratatui_core::widgets::Widget;
 use ratatui_widgets::block::Block;
 use ratatui_widgets::paragraph::Paragraph;
 
+use super::boxed::{Boxed, Joint};
 use super::{TabBar, TabBarActiveStyle, TabBarLook, TabBarOrientation, TabItem};
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, ComputedWidgetArea, InteractionDisabled, UiLabel, UiStyle, UiTheme};
@@ -69,6 +71,7 @@ pub(crate) fn style_tab_bars(
             style: next.resting_style(&theme),
             divider: look.divider.clone(),
             gaps: gaps(&look, area.0, &placed),
+            baseline: look.joint().map(|joint| baseline(&look, area.0, joint)),
         });
     }
 }
@@ -108,29 +111,53 @@ fn gaps(look: &TabBarLook, bar: Rect, placed: &[Rect]) -> Vec<Rect> {
         .collect()
 }
 
+// The baseline runs the bar's whole length along the items' joined edge,
+// in the bar's own coordinates.
+const fn baseline(look: &TabBarLook, bar: Rect, joint: Joint) -> (Rect, &'static str) {
+    let last = look.thickness().saturating_sub(1);
+    let strip = match joint.edge {
+        Edge::Top => Rect::new(0, 0, bar.width, 1),
+        Edge::Bottom => Rect::new(0, last, bar.width, 1),
+        Edge::Left => Rect::new(0, 0, 1, bar.height),
+        Edge::Right => Rect::new(bar.width.saturating_sub(1), 0, 1, bar.height),
+    };
+    (strip, joint.baseline())
+}
+
 struct Chrome {
     style: Style,
     divider: Option<Line<'static>>,
     gaps: Vec<Rect>,
+    baseline: Option<(Rect, &'static str)>,
 }
 
 impl Widget for &Chrome {
     fn render(self, area: Rect, buffer: &mut Buffer) {
         Widget::render(Block::new().style(self.style), area, buffer);
+        if let Some((strip, glyph)) = self.baseline {
+            for position in offset(strip, area).positions() {
+                if let Some(cell) = buffer.cell_mut(position) {
+                    cell.set_symbol(glyph);
+                }
+            }
+        }
         let Some(divider) = &self.divider else {
             return;
         };
-        for gap in &self.gaps {
-            let cell = Rect::new(
-                area.x.saturating_add(gap.x),
-                area.y.saturating_add(gap.y),
-                gap.width,
-                gap.height,
-            )
-            .intersection(area);
-            Widget::render(divider, cell, buffer);
+        for &gap in &self.gaps {
+            Widget::render(divider, offset(gap, area), buffer);
         }
     }
+}
+
+fn offset(rect: Rect, area: Rect) -> Rect {
+    Rect::new(
+        area.x.saturating_add(rect.x),
+        area.y.saturating_add(rect.y),
+        rect.width,
+        rect.height,
+    )
+    .intersection(area)
 }
 
 type Items<'w, 's> = Query<
@@ -190,7 +217,7 @@ pub(crate) fn style_tab_items(
             continue;
         }
         let style = item_style(next, bar_focused, active.0, over, &theme);
-        *widget = item_widget(&look, &label.0, style);
+        *widget = item_widget(&look, &label.0, style, next.checked());
     }
 }
 
@@ -216,16 +243,19 @@ fn item_style(
         .patch(over.map_or_else(Style::default, |over| over.0))
 }
 
-fn item_widget(look: &TabBarLook, label: &Line<'static>, style: Style) -> UiWidget {
+fn item_widget(look: &TabBarLook, label: &Line<'static>, style: Style, active: bool) -> UiWidget {
     let pad = " ".repeat(usize::from(look.padding));
     let mut line = label.clone();
     line.spans.insert(0, Span::raw(pad.clone()));
     line.spans.push(Span::raw(pad));
-    let paragraph = Paragraph::new(line).style(style);
     match look.border {
-        Some(border) => {
-            UiWidget::new(paragraph.block(Block::bordered().border_type(border).style(style)))
-        }
-        None => UiWidget::new(paragraph),
+        Some(border) => UiWidget::new(Boxed {
+            label: line.style(style),
+            border,
+            style,
+            joint: look.joint(),
+            active,
+        }),
+        None => UiWidget::new(Paragraph::new(line).style(style)),
     }
 }

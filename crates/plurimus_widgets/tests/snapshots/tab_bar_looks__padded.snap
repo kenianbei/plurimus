@@ -1,0 +1,5 @@
+---
+source: crates/plurimus_widgets/tests/tab_bar_looks.rs
+expression: "render(30, 1, TabBarLook::default().with_padding(2))"
+---
+  Diary    Plan    Foods

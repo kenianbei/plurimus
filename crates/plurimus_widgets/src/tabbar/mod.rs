@@ -14,6 +14,7 @@
 //! label in the bar's [`TabBarLook`], so hover, press, disabled and a
 //! per-item [`UiStyle`](plurimus_ui::UiStyle) cost nothing on an idle frame.
 
+mod boxed;
 mod input;
 mod layout;
 mod style;
@@ -149,6 +150,21 @@ impl TabBarLook {
 
     pub(crate) const fn frame(&self) -> u16 {
         if self.border.is_some() { FRAME } else { 0 }
+    }
+
+    // The join this look can draw: an edge across its axis, in a border
+    // that has junction glyphs.
+    pub(crate) fn joint(&self) -> Option<boxed::Joint> {
+        let edge = self.joined?;
+        let across = match self.orientation {
+            TabBarOrientation::Horizontal => matches!(edge, Edge::Top | Edge::Bottom),
+            TabBarOrientation::Vertical => matches!(edge, Edge::Left | Edge::Right),
+        };
+        if !across {
+            return None;
+        }
+        let lines = boxed::border_lines(self.border?)?;
+        Some(boxed::Joint { edge, lines })
     }
 }
 
