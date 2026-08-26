@@ -176,17 +176,17 @@ impl Default for TabBarLook {
     }
 }
 
-/// Styles a [`TabBar`]'s active item's label, patched over the theme's
-/// style and beneath the item's own [`UiStyle`](plurimus_ui::UiStyle), so
-/// the active tab reads while the bar does not hold focus. A boxed item's
-/// border keeps the theme's style. Defaults to bold and underlined - a
-/// foreground change, so it reads in any palette without a block of color.
+/// Styles a [`TabBar`]'s active item - its label and, when boxed, its
+/// border - patched over the theme's style and beneath the item's own
+/// [`UiStyle`](plurimus_ui::UiStyle), so the active tab reads while the bar
+/// does not hold focus. Defaults to bold alone; an app naming a color here
+/// should name a foreground, since a background fills the whole box.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TabBarActiveStyle(pub Style);
 
 impl Default for TabBarActiveStyle {
     fn default() -> Self {
-        Self(Style::new().add_modifier(Modifier::BOLD | Modifier::UNDERLINED))
+        Self(Style::new().add_modifier(Modifier::BOLD))
     }
 }
 

@@ -26,11 +26,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   along it with the closed boxes teed into it. A quadrant border, or an edge
   along the bar's axis, draws closed boxes. `thickness()` tells an app how thick
   to make the bar's area. Items past the bar's extent draw nothing.
-- **`TabBarActiveStyle`**, patched over the theme's style for the active item's
-  label and beneath the item's own `UiStyle`, so the active tab reads while the
-  bar does not hold focus; a boxed item's border keeps the theme's style.
-  Defaults to bold and underlined, a foreground change rather than a block of
-  colour. While the bar holds focus the theme's `focused` patch lands on top.
+- **`TabBarActiveStyle`**, patched over the theme's style for the active item
+  - label and border alike - and beneath the item's own `UiStyle`, so the active
+    tab reads while the bar does not hold focus. Defaults to bold alone; an app
+    naming a colour names a foreground, a background filling the whole box.
+    While the bar holds focus the theme's `focused` patch lands on top.
 - **`TabBarKeys` and `TabBarAction`** - `Previous`, `Next`, `First`, `Last`, and
   `Select(index)` over the enabled items - defaulting to the arrows on both
   axes, `Home` and `End`, and no printable key; `[`/`]` and digits are an app's

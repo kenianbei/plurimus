@@ -137,7 +137,7 @@ fn moving_the_active_item_repaints_both_items() {
 }
 
 #[test]
-fn a_boxed_active_item_styles_its_label_and_not_its_frame() {
+fn a_boxed_active_item_styles_its_frame_with_its_label() {
     let mut app = app();
     app.insert_resource(TerminalSize::new(20, 3));
     let bar = spawn_bar(&mut app);

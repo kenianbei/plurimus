@@ -207,46 +207,38 @@ pub(crate) fn style_tab_items(
         if !cache.redraws(next, dirty) {
             continue;
         }
-        let (frame, style) = item_style(next, bar_focused, active.0, over, &theme);
-        *widget = item_widget(&look, &label.0, (frame, style), next.checked());
+        let style = item_style(next, bar_focused, active.0, over, &theme);
+        *widget = item_widget(&look, &label.0, style, next.checked());
     }
 }
 
-// The active item is focused while its bar is; its label carries the bar's
-// active style beneath the item's own override, and its frame only the
-// theme's.
+// The active item is focused while its bar is, and carries the bar's
+// active style beneath its own override; every other item is what the
+// theme says it is.
 fn item_style(
     next: StylistCache,
     bar_focused: bool,
     active: Style,
     over: Option<&UiStyle>,
     theme: &UiTheme,
-) -> (Style, Style) {
+) -> Style {
     if !next.checked() {
-        let style = next.style(theme);
-        return (style, style);
+        return next.style(theme);
     }
     let driven = next.with_focused(next.state().focused || bar_focused);
-    let over = over.map_or_else(Style::default, |over| over.0);
-    let frame = theme.resolve(driven.state()).patch(over);
-    (
-        frame,
-        theme.resolve(driven.state()).patch(active).patch(over),
-    )
+    theme
+        .resolve(driven.state())
+        .patch(active)
+        .patch(over.map_or_else(Style::default, |over| over.0))
 }
 
-fn item_widget(
-    look: &TabBarLook,
-    label: &Line<'static>,
-    (frame, style): (Style, Style),
-    active: bool,
-) -> UiWidget {
+fn item_widget(look: &TabBarLook, label: &Line<'static>, style: Style, active: bool) -> UiWidget {
     match look.border {
         Some(border) => UiWidget::new(Boxed {
             label: label.clone().style(style),
             border,
             padding: look.padding,
-            style: frame,
+            style,
             joint: look.joint(),
             active,
         }),

@@ -6,4 +6,4 @@ expression: composed_styled_frame(&app)
 --
 aaaaaaabbbbbbaaaaaaa
 a: fg:Some(Reset) bg:Some(Reset) mods:NONE
-b: fg:Some(Reset) bg:Some(Reset) mods:BOLD | UNDERLINED
+b: fg:Some(Reset) bg:Some(Reset) mods:BOLD

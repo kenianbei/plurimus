@@ -77,7 +77,7 @@ const PANEL_LINE: Rect = Rect::new(2, 4, 56, 1);
 const LOOKS_BAR: Rect = Rect::new(2, 6, 14, 5);
 const STATUS: Rect = Rect::new(0, 13, 60, 1);
 
-const ACTIVE_BG: Color = Color::Rgb(40, 72, 96);
+const ACTIVE_FG: Color = Color::Rgb(122, 194, 255);
 
 #[derive(Component)]
 struct TopBar;
@@ -126,7 +126,7 @@ fn spawn_demo(mut commands: Commands) {
             tab_bar(),
             TopBar,
             LOOKS[0].1(),
-            TabBarActiveStyle(Style::new().bg(ACTIVE_BG)),
+            TabBarActiveStyle(Style::new().fg(ACTIVE_FG)),
             panel_keys(),
             UiArea::Fixed(TOP_BAR),
         ))
@@ -150,7 +150,7 @@ fn spawn_demo(mut commands: Commands) {
             tab_bar(),
             LooksBar,
             TabBarLook::default().with_orientation(TabBarOrientation::Vertical),
-            TabBarActiveStyle(Style::new().bg(ACTIVE_BG)),
+            TabBarActiveStyle(Style::new().fg(ACTIVE_FG)),
             UiHidden,
             UiArea::Fixed(LOOKS_BAR),
         ))
