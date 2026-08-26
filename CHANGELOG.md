@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`TabBar`**, a focusable strip of `TabItem` children. The bar is the one tab
+  stop; its items are child entities labelled by `UiLabel`, placed by the bar
+  every frame and drawn by themselves, so each hovers, presses, disables and
+  takes a `UiStyle` on its own. The active item is the one carrying `Checked`,
+  as a radio group's selected option is: stepping activates rather than moving a
+  cursor, every activation is `ValueChange<Entity>` on the bar, and
+  `tab_bar_self_update` moves `Checked` for an uncontrolled bar. A click on an
+  item activates it and hands focus to the bar, unless the bar carries
+  `PressFocusDisabled`; a disabled item is stepped over and a disabled bar
+  consumes nothing.
+- **`TabBarLook`**, the bar's look as composable fields rather than variants:
+  `orientation` (horizontal, or vertical with every item at the bar's width),
+  `border` (any ratatui `BorderType`, making the bar three cells thick),
+  `divider` (a `Line` drawn in the one cell between items), `padding`, and
+  `joined` - the edge of the bar the active box opens onto, drawing a baseline
+  along it with the closed boxes teed into it. A quadrant border, or an edge
+  along the bar's axis, draws closed boxes. `thickness()` tells an app how thick
+  to make the bar's area. Items past the bar's extent draw nothing.
+- **`TabBarActiveStyle`**, patched over the theme's style for the active item
+  and beneath the item's own `UiStyle`, so the active tab reads while the bar
+  does not hold focus; defaults to reversed. While the bar holds focus the
+  theme's `focused` patch lands on top.
+- **`TabBarKeys` and `TabBarAction`** - `Previous`, `Next`, `First`, `Last`, and
+  `Select(index)` over the enabled items - defaulting to the arrows on both
+  axes, `Home` and `End`, and no printable key; `[`/`]` and digits are an app's
+  remap. Stepping stops at the ends, a held arrow keeps stepping, and a `Select`
+  past the last item activates nothing and propagates.
+- **`examples/tabs`**, a joined top bar switching panels under remapped keys,
+  with a vertical bar on its Settings panel that restyles it.
+
 ## [0.7.0] - 2026-08-21
 
 ### Added

@@ -106,19 +106,18 @@ is hoverable, clickable, and focusable.
 
 ### Widgets (`plurimus_widgets`)
 
-Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tables,
-tab bars, panes, menus, popovers, single-line text input, and a multi-line text
-editor.
-What is this crate's own is the stylists themselves - one per widget, resolving
-the `UiTheme` and driving the cache that `plurimus_ui` owns.
+Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tables, tab
+bars, panes, menus, popovers, single-line text input, and a multi-line text
+editor. What is this crate's own is the stylists themselves - one per widget,
+resolving the `UiTheme` and driving the cache that `plurimus_ui` owns.
 
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
 uncontrolled. Every widget takes its keys from a bindings component -
 `ActivateKeys`, `ListBoxKeys`, `TableKeys`, `TabBarKeys`, `SliderKeys`,
-`MenuKeys`, `TextInputKeys` - each defaulting to what it always bound, so remapping a list
-to vim keys is a component swap rather than a rewrite.
+`MenuKeys`, `TextInputKeys` - each defaulting to what it always bound, so
+remapping a list to vim keys is a component swap rather than a rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
 
