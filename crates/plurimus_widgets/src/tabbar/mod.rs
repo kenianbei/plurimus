@@ -7,21 +7,24 @@
 //! selected option is: the bar holds no cursor, so stepping activates,
 //! emitting [`ValueChange<Entity>`](crate::ValueChange) on the bar, and a
 //! controlled app applies it while an uncontrolled one attaches
-//! `tab_bar_self_update`.
+//! [`tab_bar_self_update`](crate::tab_bar_self_update).
 //!
 //! What the bar draws is chrome - its fill, the dividers, and the baseline
 //! a joined look opens the active box onto. What an item draws is its own
 //! label in the bar's [`TabBarLook`], so hover, press, disabled and a
 //! per-item [`UiStyle`](plurimus_ui::UiStyle) cost nothing on an idle frame.
 
+mod input;
 mod layout;
 mod style;
 
+pub(crate) use input::{tab_bar_key, tab_item_click};
 pub(crate) use layout::place_tab_items;
 pub(crate) use style::{style_tab_bars, style_tab_items};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::prelude::Component;
+use bevy_input::keyboard::Key;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::Edge;
 use plurimus_core::ratatui_core::style::{Modifier, Style};
@@ -29,7 +32,7 @@ use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::borders::BorderType;
 
 use plurimus_core::{UiOrder, UiWidget};
-use plurimus_ui::{ComputedWidgetArea, Hovered, StylistCache, UiLabel};
+use plurimus_ui::{ComputedWidgetArea, Hovered, KeyBinding, StylistCache, UiLabel};
 
 /// Cells a border takes on each side of a boxed item.
 pub(crate) const FRAME: u16 = 1;
@@ -39,12 +42,13 @@ pub(crate) const FRAME: u16 = 1;
 /// The one tab stop of the strip: keys are observed here and the active
 /// item is drawn as focused while the bar holds focus. Activation emits
 /// [`ValueChange<Entity>`](crate::ValueChange) naming the item; attach
-/// `tab_bar_self_update` for uncontrolled
+/// [`tab_bar_self_update`](crate::tab_bar_self_update) for uncontrolled
 /// behavior.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(
     StylistCache,
     TabIndex,
+    TabBarKeys,
     TabBarLook,
     TabBarActiveStyle,
     ComputedWidgetArea
@@ -169,6 +173,47 @@ pub struct TabBarActiveStyle(pub Style);
 impl Default for TabBarActiveStyle {
     fn default() -> Self {
         Self(Style::new().add_modifier(Modifier::REVERSED))
+    }
+}
+
+/// What a key does to a [`TabBar`]. Stepping activates: there is no cursor
+/// to move first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TabBarAction {
+    /// Activate the item before the active one; nothing on the first.
+    Previous,
+    /// Activate the item after the active one; nothing on the last, and
+    /// the first when none is active.
+    Next,
+    /// Activate the first item.
+    First,
+    /// Activate the last item.
+    Last,
+    /// Activate the item at this index among the enabled ones. An index
+    /// past the last activates nothing and lets the key propagate.
+    Select(usize),
+}
+
+/// A [`TabBar`]'s key bindings, scanned in order so the first match wins.
+///
+/// Replace it to remap: `[` and `]`, or digits through
+/// [`TabBarAction::Select`], are an app's to bind. Defaults to the arrows
+/// on both axes, whatever the orientation, and `Home` and `End`; no
+/// printable key is bound.
+#[derive(Component, Debug, Clone)]
+pub struct TabBarKeys(pub Vec<(KeyBinding, TabBarAction)>);
+
+impl Default for TabBarKeys {
+    fn default() -> Self {
+        Self(vec![
+            (Key::ArrowLeft.into(), TabBarAction::Previous),
+            (Key::ArrowUp.into(), TabBarAction::Previous),
+            (Key::ArrowRight.into(), TabBarAction::Next),
+            (Key::ArrowDown.into(), TabBarAction::Next),
+            (Key::Home.into(), TabBarAction::First),
+            (Key::End.into(), TabBarAction::Last),
+        ])
     }
 }
 

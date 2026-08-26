@@ -52,11 +52,12 @@ pub use rows::{ActiveDescendant, ListItemText, ListItemTrailing, Marked};
 pub use scrollbar::{Scrollbar, scrollbar};
 pub use self_update::{
     checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
-    table_self_update,
+    tab_bar_self_update, table_self_update,
 };
 pub use slider::{Slider, SliderAction, SliderKeys, SliderRange, SliderStep, SliderValue, slider};
 pub use tabbar::{
-    TabBar, TabBarActiveStyle, TabBarLook, TabBarOrientation, TabItem, tab_bar, tab_item,
+    TabBar, TabBarAction, TabBarActiveStyle, TabBarKeys, TabBarLook, TabBarOrientation, TabItem,
+    tab_bar, tab_item,
 };
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
@@ -87,7 +88,9 @@ pub(crate) use radio::style_radios;
 pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
-pub(crate) use tabbar::{place_tab_items, style_tab_bars, style_tab_items};
+pub(crate) use tabbar::{
+    place_tab_items, style_tab_bars, style_tab_items, tab_bar_key, tab_item_click,
+};
 pub(crate) use table::{
     TableBodyRow, TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables,
     table_click, table_key,
@@ -236,6 +239,8 @@ fn add_observers(app: &mut App) {
     app.add_observer(listbox_key);
     app.add_observer(table_click);
     app.add_observer(table_key);
+    app.add_observer(tab_bar_key);
+    app.add_observer(tab_item_click);
     app.add_observer(text_input_key);
     app.add_observer(text_input_paste);
     app.add_observer(text_input_blur);

@@ -13,8 +13,8 @@ use bevy_ecs::prelude::{Children, Commands, Has, On, Query, With};
 use bevy_ecs::query::QueryData;
 
 use super::{
-    ListBox, ListBoxMultiSelect, ListItem, RadioButton, SliderRange, SliderValue, Table,
-    TableMultiSelect, TablePosition, TableRow, ValueChange,
+    ListBox, ListBoxMultiSelect, ListItem, RadioButton, SliderRange, SliderValue, TabBar, TabItem,
+    Table, TableMultiSelect, TablePosition, TableRow, ValueChange,
 };
 use plurimus_ui::Checked;
 
@@ -34,6 +34,19 @@ pub fn radio_self_update(
         return;
     };
     move_checked_among(group_children, &radios, change.value, &mut commands);
+}
+
+/// Moves [`Checked`] to the activated tab among a [`TabBar`]'s items.
+pub fn tab_bar_self_update(
+    change: On<ValueChange<Entity>>,
+    bars: Query<&Children, With<TabBar>>,
+    items: Query<(), With<TabItem>>,
+    mut commands: Commands,
+) {
+    let Ok(children) = bars.get(change.source) else {
+        return;
+    };
+    move_checked_among(children, &items, change.value, &mut commands);
 }
 
 /// Applies list selection to [`Checked`]: single-select moves it among
