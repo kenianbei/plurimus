@@ -27,9 +27,9 @@ use plurimus::widgets::ratatui_textarea::TextArea;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
 use plurimus::widgets::{
-    Activate, ListBoxSelectionMarker, ListItemText, RadioGroup, SliderStep, SliderValue,
-    TextEditor, TextInput, button, checkbox, checkbox_self_update, editable_text, list_item,
-    listbox, listbox_self_update, menu_button, menu_item, menu_popup, pane, radio,
+    Activate, ListBoxSelectionMarker, ListBoxStripe, ListItemText, RadioGroup, SliderStep,
+    SliderValue, TextEditor, TextInput, button, checkbox, checkbox_self_update, editable_text,
+    list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup, pane, radio,
     radio_self_update, scrollbar, slider, slider_self_update, text_editor,
 };
 
@@ -44,6 +44,7 @@ const EDITOR_TEXT: &str = "a multi-line editor:\nenter splits, arrows roam.";
 /// One step up from the terminal's default background, enough to mark a
 /// focused input without recoloring its text.
 const FOCUS_BG: Color = Color::Rgb(48, 48, 64);
+const STRIPE_BG: Color = Color::Rgb(28, 28, 36);
 
 const SLIDER_TAB_INDEX: i32 = 1;
 const CHECKBOX_TAB_INDEX: i32 = 2;
@@ -281,6 +282,7 @@ fn spawn_listbox(commands: &mut Commands, parent: Entity) {
             // Selection is worth two cells here: the demo shows a checked
             // row and a cursor row at once.
             ListBoxSelectionMarker,
+            ListBoxStripe(Style::new().bg(STRIPE_BG)),
             UiArea::Fixed(LISTBOX),
             Stretched::Inset(LISTBOX),
             ChildOf(parent),

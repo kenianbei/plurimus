@@ -14,8 +14,8 @@ use plurimus_term::KeyCode;
 use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_content, write_key};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiLabel, UiStyle, UiTheme};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListItem, ListItemText, WidgetsPlugin,
-    list_item, listbox, listbox_self_update,
+    ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem, ListItemText,
+    WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -488,4 +488,118 @@ fn a_tall_rows_continuation_lines_keep_the_gutter_width() {
         "the detail line clears both gutters: {frame}"
     );
     assert_eq!(lines[2], "    after   ", "{frame}");
+}
+
+// The stripe's own letter per row, with a legend line for it.
+fn stripe_rows(app: &App) -> Vec<String> {
+    let frame = composed_styled_frame(app);
+    let tint = frame
+        .lines()
+        .find(|line| line.contains("Indexed(236)"))
+        .and_then(|line| line.chars().next())
+        .expect("a striped cell in the legend");
+    style_grid(app)
+        .iter()
+        .map(|row| {
+            if row.chars().any(|cell| cell == tint) {
+                "striped".to_owned()
+            } else {
+                "plain".to_owned()
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn every_second_row_is_striped_from_the_second() {
+    let mut app = app();
+    let (container, _) = spawn_listbox(&mut app);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ListBoxStripe(Style::new().bg(TINT)));
+    app.update();
+
+    assert_eq!(stripe_rows(&app)[..3], ["plain", "striped", "plain"]);
+}
+
+#[test]
+fn a_row_style_patches_over_the_stripe() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    let world = app.world_mut();
+    world
+        .entity_mut(container)
+        .insert(ListBoxStripe(Style::new().bg(TINT)));
+    world
+        .entity_mut(items[1])
+        .insert(UiStyle(Style::new().fg(Color::Green)));
+    app.update();
+
+    let frame = composed_styled_frame(&app);
+    assert!(
+        frame.contains("fg:Some(Green) bg:Some(Indexed(236))"),
+        "the banded row keeps its background under the color the app chose:\n{frame}"
+    );
+}
+
+#[test]
+fn the_cursor_highlight_patches_over_a_striped_row() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    app.world_mut().entity_mut(container).insert((
+        ListBoxStripe(Style::new().bg(TINT)),
+        ActiveDescendant(Some(items[1])),
+    ));
+    app.update();
+
+    let frame = composed_styled_frame(&app);
+    let focused = UiTheme::new().focused;
+    assert!(
+        frame.contains(&format!(
+            "fg:Some({:?}) bg:Some(Indexed(236))",
+            focused.fg.unwrap()
+        )),
+        "the cursor row is highlighted over its stripe:\n{frame}"
+    );
+}
+
+#[test]
+fn a_multi_line_row_counts_once_for_striping() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    let world = app.world_mut();
+    world
+        .entity_mut(container)
+        .insert(ListBoxStripe(Style::new().bg(TINT)));
+    world
+        .entity_mut(items[0])
+        .insert(ListItemText(Text::from("alpha\nmore")));
+    app.update();
+
+    assert_eq!(
+        stripe_rows(&app)[..4],
+        ["plain", "plain", "striped", "plain"],
+        "the two-line first row is one unstriped row"
+    );
+}
+
+#[test]
+fn editing_the_stripe_redraws_the_list() {
+    let mut app = app();
+    let (container, _) = spawn_listbox(&mut app);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ListBoxStripe(Style::new().bg(TINT)));
+    app.update();
+    let striped = widget_content(&app, container);
+    app.world_mut()
+        .entity_mut(container)
+        .insert(ListBoxStripe(Style::new().bg(Color::Red)));
+    app.update();
+
+    assert!(
+        !Arc::ptr_eq(&striped, &widget_content(&app, container)),
+        "the list redraws with its new stripe"
+    );
+    assert!(!composed_styled_frame(&app).contains("Indexed(236)"));
 }

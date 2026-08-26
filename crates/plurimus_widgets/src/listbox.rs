@@ -16,6 +16,7 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
+use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_term::bevy_compat::HeldModifiers;
 
@@ -67,6 +68,20 @@ pub struct ListBoxSelectionMarker;
 /// restores the default symbol only once something else repaints.
 #[derive(Component, Debug, Clone)]
 pub struct ListBoxCursor(pub Line<'static>);
+
+/// Bands a [`ListBox`], patched over every second row counting from the
+/// second, so the first row is unstriped.
+///
+/// Counted in child order rather than from the scroll offset, so stripes do
+/// not crawl as a list scrolls, and a multi-line [`ListItemText`] row counts
+/// once. A row's own [`UiStyle`](plurimus_ui::UiStyle) patches on top,
+/// keeping the banding beneath a color the app chose, and the cursor's
+/// highlight patches over both.
+///
+/// Carries the same caveat as [`ListBoxSelectionMarker`]: a stripe removed
+/// from a live list stays drawn until something else repaints it.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ListBoxStripe(pub Style);
 
 /// One row of a [`ListBox`]: a child entity carrying its
 /// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
