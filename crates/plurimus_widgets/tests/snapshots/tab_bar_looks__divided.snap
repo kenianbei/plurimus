@@ -1,0 +1,5 @@
+---
+source: crates/plurimus_widgets/tests/tab_bar_looks.rs
+expression: "render(24, 1, TabBarLook::default().with_divider(Some(\"│\".into())))"
+---
+ Diary │ Plan │ Foods

@@ -1,0 +1,15 @@
+---
+source: crates/plurimus_widgets/tests/tab_bar_looks.rs
+expression: "render(9, 11, look)"
+---
+├───────╮
+│ Diary │
+├───────╯
+╰───────╮
+  Plan  │
+╭───────╯
+├───────╮
+│ Foods │
+├───────╯
+│        
+│

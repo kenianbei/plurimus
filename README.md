@@ -106,18 +106,18 @@ is hoverable, clickable, and focusable.
 
 ### Widgets (`plurimus_widgets`)
 
-Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tables,
-panes, menus, popovers, single-line text input, and a multi-line text editor.
-What is this crate's own is the stylists themselves - one per widget, resolving
-the `UiTheme` and driving the cache that `plurimus_ui` owns.
+Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tables, tab
+bars, panes, menus, popovers, single-line text input, and a multi-line text
+editor. What is this crate's own is the stylists themselves - one per widget,
+resolving the `UiTheme` and driving the cache that `plurimus_ui` owns.
 
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
 uncontrolled. Every widget takes its keys from a bindings component -
-`ActivateKeys`, `ListBoxKeys`, `TableKeys`, `SliderKeys`, `MenuKeys`,
-`TextInputKeys` - each defaulting to what it always bound, so remapping a list
-to vim keys is a component swap rather than a rewrite.
+`ActivateKeys`, `ListBoxKeys`, `TableKeys`, `TabBarKeys`, `SliderKeys`,
+`MenuKeys`, `TextInputKeys` - each defaulting to what it always bound, so
+remapping a list to vim keys is a component swap rather than a rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
 
@@ -304,6 +304,8 @@ Input is injected the same way the backend delivers it - write a `KeyMessage` or
 cargo run --example basic
 cargo run --example headless --no-default-features
 cargo run --example widgets --features widgets,bevy-ui
+cargo run --example table --features widgets
+cargo run --example tabs --features widgets
 cargo run --example pong --features widgets,2d
 cargo run --example ratman --features widgets,2d
 cargo run --example lander --features widgets,3d
@@ -325,6 +327,15 @@ right. Tab and Shift-Tab move focus, arrows navigate and adjust the focused
 slider, Enter or Space activates, the mouse hovers, clicks, and drags, and a
 menu resets or disables every widget. Esc unfocuses; `q` with nothing focused
 quits. Wants roughly 80x30 or larger.
+
+**table** is a sortable, scrollable process table: a striped body under a bold
+header and a footer of totals, sorted by clicking a header cell, with vim keys
+bound through `TableKeys`.
+
+**tabs** switches panels from a `TabBar` drawn in the joined look, driven by the
+arrows, `[`/`]`, and digits through a remapped `TabBarKeys`; its Settings panel
+holds a vertical bar that picks the top bar's look - plain, divided, boxed,
+joined, padded. Tab moves between the two bars while Settings is open.
 
 **pong** puts the 2d and ui pipelines in one camera: a halfblock ball and
 paddles in world space under a widget score line. W/S steps the left paddle,

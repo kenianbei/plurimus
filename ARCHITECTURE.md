@@ -209,8 +209,8 @@ whole opt-in for the keyboard, carrying the `TabIndex` without which nothing can
 be sent a key, and it is one of the `(KeyBinding, Action)` bindings components
 sharing `first_bound`, the scan this crate owns so a widget family written
 elsewhere states "first match wins" by calling it rather than by copying it -
-six of them across the workspace, one per widget that takes keys. A `KeyBinding`
-is a `Key` and the `KeyModifiers` it must be pressed under, and
+seven of them across the workspace, one per widget that takes keys. A
+`KeyBinding` is a `Key` and the `KeyModifiers` it must be pressed under, and
 `KeyBinding::matches` is the one rule: every modifier but shift exactly, and
 shift exactly for a named key but only when asked for on a character, since a
 shifted symbol carries the bit on some terminals and not others. The modifiers
@@ -252,15 +252,15 @@ in.
 
 The widget library, mirroring bevy_ui_widgets where upstream has a counterpart:
 its component vocabulary and event contract over terminal-native engines.
-Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, panes,
-menus, popovers, a single-line `EditableText`, and a multi-line `TextEditor`
-built on ratatui-textarea; `Table` is past the parity list, upstream having no
-table to mirror. The editor is the one widget that talks to the clipboard, being
-the one with a selection to copy: ctrl+c and ctrl+x offer the text to the
-terminal as well as to the engine, and ctrl+v inserts `plurimus_term`'s
-`LastCopied`, read at the press so the engine's own kill ring stays whatever
-ctrl+k last put there. The single-line field is the one whose engine is
-published instead: `TextInput` owns its value and a cursor resting on
+Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tab bars,
+panes, menus, popovers, a single-line `EditableText`, and a multi-line
+`TextEditor` built on ratatui-textarea; `Table` and `TabBar` are past the parity
+list, upstream having neither to mirror. The editor is the one widget that talks
+to the clipboard, being the one with a selection to copy: ctrl+c and ctrl+x
+offer the text to the terminal as well as to the engine, and ctrl+v inserts
+`plurimus_term`'s `LastCopied`, read at the press so the engine's own kill ring
+stays whatever ctrl+k last put there. The single-line field is the one whose
+engine is published instead: `TextInput` owns its value and a cursor resting on
 grapheme-cluster boundaries, and `TextInput::handle` and `TextInput::paste`
 apply a key or pasted text to it, so a host routing its own keys drives a field
 it never focuses rather than rewriting the cluster stepping that is the hard
@@ -307,6 +307,38 @@ against takes no camera either. Every side attaches to an outer edge, which is
 why `PopoverSide` has four variants and not five: a box drawn _inside_ its
 anchor has no side to mirror and no edge to align to, and is a child holding a
 `UiArea::Fixed` placed through `local_area`.
+
+A `TabBar` is a strip of `TabItem` children and the one tab stop among them: the
+bar carries the `TabIndex` and the `TabBarKeys`, and the items are placed by it,
+one rect each along its axis in child order, written to their `UiArea` and
+`ComputedWidgetArea` in `WidgetSystems::Layout` the way menu rows are, with an
+`UiOrder` one above the bar's so a label is never under the chrome. That pass
+runs only when the bar's area, look, children or order changed or a label did,
+and a hidden bar's area is already zero, which places its items nowhere. The
+active item is the child carrying `Checked`, exactly as a radio group's selected
+option is, and there is no cursor: a key steps straight to the next enabled
+item, stopping at the ends, and every activation - a key, a `Select(index)` over
+the enabled items, or a `Click` on an item - is one `ValueChange<Entity>` on the
+bar, which `tab_bar_self_update` answers by moving `Checked` through the same
+`move_checked_among` a radio group uses. A `Select` past the last item and a key
+on a disabled bar propagate; a disabled item is stepped over and drawn disabled,
+as every item of a disabled bar is. A click hands focus to the bar itself,
+because a press focuses only the entity it lands on and an item has no
+`TabIndex`; `PressFocusDisabled` on the bar keeps it. `TabBarLook` is composable
+fields rather than variants - `orientation`, `border`, `divider`, `padding`,
+`joined` - and `thickness()` is one cell or three. The bar draws chrome and each
+item draws itself: the bar's stylist fills its area, draws the divider in each
+gap and, when `joined` names an edge across the bar's axis in a border that has
+a `line::Set`, a baseline along that edge; it redraws on `ContentDirty`, marked
+by `mark_dirty_content` when an item's rect, the children or the look change. An
+item's stylist reads the parent's look and active style and hashes the bar's
+focus into its cache, since an item never holds focus itself, and resolves the
+active item as focused while the bar is, patching `TabBarActiveStyle` over the
+theme and beneath the item's own `UiStyle`, frame and label alike. A boxed item
+is a `Block` with ratatui's padding; on a joined look the active box clears its
+joined edge and turns its two corners outward while every closed box tees its
+corners into the baseline, glyphs taken from the `line::Set` matching the
+`BorderType`, which is why the quadrant borders draw closed.
 
 A stylist rebuilds a widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the
 state it last drew differs from the current one, or when its label changed, not
