@@ -182,6 +182,11 @@ required-features = ["widgets"]
 test = true
 
 [[example]]
+name = "tabs"
+required-features = ["widgets"]
+test = true
+
+[[example]]
 name = "pong"
 required-features = ["widgets", "2d"]
 test = true
