@@ -176,6 +176,11 @@ bevy_transform = { workspace = true }
 bevy_ui = { workspace = true }
 bevy_world_serialization = { workspace = true }
 
+# The lander's headless render stack has no surface, and wgpu's WebGL2 needs
+# one to create an adapter.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+bevy_render = { workspace = true, features = ["webgpu"] }
+
 [[example]]
 name = "basic"
 required-features = ["crossterm"]

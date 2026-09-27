@@ -4,42 +4,28 @@
 //! braille), `e` cycles the sobel edge overlay (off, luminance, depth,
 //! both), `r` resets, `q` or
 //! ctrl-c quits. The first frames take a few seconds while GPU pipelines
-//! compile.
+//! compile. It also builds for the browser, where it needs WebGPU; the
+//! README's Examples section has the steps.
 
 mod effects;
 mod game;
 mod hud;
 mod scene;
 
-use std::time::Duration;
-
-use bevy_app::{App, AppExit, ScheduleRunnerPlugin, Startup};
+use bevy_app::{App, AppExit, Startup};
 use bevy_asset::AssetPlugin;
 use bevy_gltf::GltfPlugin;
 use bevy_gltf::extensions::GltfExtensionHandlers;
 use bevy_pbr::PbrPlugin;
 use bevy_world_serialization::WorldSerializationPlugin;
 use plurimus::core::CorePlugin;
-use plurimus::crossterm::CrosstermPlugin;
 use plurimus::render3d::{Plugin3d, Render3dPlugins};
 use plurimus::widgets::WidgetsPlugin;
 
-const FRAME_INTERVAL: Duration = Duration::from_millis(16);
-const ASSET_ROOT: &str = "examples/lander/assets";
-
 fn main() -> AppExit {
     let mut app = App::new();
-    app.add_plugins((
-        ScheduleRunnerPlugin::run_loop(FRAME_INTERVAL),
-        CorePlugin,
-        CrosstermPlugin::default(),
-        WidgetsPlugin,
-        AssetPlugin {
-            file_path: ASSET_ROOT.into(),
-            ..AssetPlugin::default()
-        },
-        Render3dPlugins,
-    ));
+    add_backend(&mut app);
+    app.add_plugins((WidgetsPlugin, asset_plugin(), Render3dPlugins));
     // The material system and glTF loading are the app's to assemble:
     // PbrPlugin's build registers a glTF material handler, so the
     // registry has to exist before it, and GltfPlugin's finish reads
@@ -54,8 +40,53 @@ fn main() -> AppExit {
     app.run()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn add_backend(app: &mut App) {
+    use std::time::Duration;
+
+    use bevy_app::ScheduleRunnerPlugin;
+    use plurimus::crossterm::CrosstermPlugin;
+
+    const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+    app.add_plugins((
+        ScheduleRunnerPlugin::run_loop(FRAME_INTERVAL),
+        CorePlugin,
+        CrosstermPlugin::default(),
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn add_backend(app: &mut App) {
+    use plurimus::web::{GridFit, WebPlugin};
+
+    const COLUMNS: u16 = 160;
+
+    app.add_plugins((CorePlugin, WebPlugin::new().fit(GridFit::Columns(COLUMNS))));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn asset_plugin() -> AssetPlugin {
+    AssetPlugin {
+        file_path: "examples/lander/assets".into(),
+        ..AssetPlugin::default()
+    }
+}
+
+/// Assets are fetched relative to the page, which ships no `.meta` files.
+#[cfg(target_arch = "wasm32")]
+fn asset_plugin() -> AssetPlugin {
+    AssetPlugin {
+        file_path: "assets".into(),
+        meta_check: bevy_asset::AssetMetaCheck::Never,
+        ..AssetPlugin::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bevy_ecs::prelude::With;
     use bevy_math::Vec2;
     use bevy_time::TimeUpdateStrategy;
