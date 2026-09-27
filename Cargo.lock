@@ -3112,7 +3112,6 @@ dependencies = [
  "bevy_ecs",
  "console_error_panic_hook",
  "critical-section",
- "js-sys",
  "plurimus_core",
  "plurimus_term",
  "ratatui-core",

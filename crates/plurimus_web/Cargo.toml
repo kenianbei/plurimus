@@ -21,24 +21,32 @@ plurimus_term = { workspace = true }
 bevy_app = { workspace = true, features = ["web"] }
 console_error_panic_hook = { workspace = true }
 critical-section = { workspace = true, features = ["std"] }
-js-sys = { workspace = true }
 ratatui-core = { workspace = true }
 ratzilla = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 web-sys = { workspace = true, features = [
+  "AddEventListenerOptions",
   "CanvasRenderingContext2d",
+  "ClipboardEvent",
   "Clipboard",
   "CustomEvent",
   "CssStyleDeclaration",
   "CustomEventInit",
+  "DataTransfer",
   "Document",
   "Element",
+  "Event",
+  "EventTarget",
   "FontFaceSet",
   "HtmlCanvasElement",
   "HtmlElement",
   "ImageData",
+  "KeyboardEvent",
+  "MouseEvent",
   "Navigator",
+  "PointerEvent",
+  "WheelEvent",
   "Window",
   "console",
 ] }

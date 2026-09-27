@@ -17,9 +17,15 @@ mod browser;
     allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
 )]
 mod fit;
-#[allow(dead_code, reason = "wired up by the browser runtime")]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
+)]
 mod keys;
-#[allow(dead_code, reason = "wired up by the browser runtime")]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
+)]
 mod pointer;
 
 #[cfg(target_arch = "wasm32")]

@@ -3,10 +3,12 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use bevy_app::{App, Plugin};
+use bevy_app::{App, Plugin, PreUpdate};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use plurimus_core::ratatui_core::backend::Backend;
-use plurimus_core::{PresenterPlugin, TerminalRenderAppExt, TerminalSize};
-use plurimus_term::{InputCapabilities, TermPlugin};
+use plurimus_core::ratatui_core::layout::Size;
+use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderAppExt, TerminalSize};
+use plurimus_term::{InputCapabilities, InputSystems, KeyCode, KeyModifiers, TermPlugin};
 use ratzilla::WebGl2Backend;
 use ratzilla::backend::webgl2::{FontAtlasConfig, WebGl2BackendOptions};
 use wasm_bindgen::JsCast;
@@ -15,16 +17,35 @@ use web_sys::{HtmlCanvasElement, HtmlElement};
 
 use super::backend::WebBackend;
 use super::extract::{serve_requests, sync_size};
+use super::input::{listen, pump_browser_events};
 use super::measure::CellMeter;
 use super::runner::{ExitTarget, run_on_animation_frames};
 use super::{document, warn, window};
 use crate::fit::{GridFit, Surface, font_px};
+use crate::keys::DEFAULT_PASSTHROUGH;
 
 /// The font family used when none is named.
 const DEFAULT_FONT: &str = "monospace";
 
 /// Any size loads a web font's face; this one is only asked for.
 const FONT_PROBE_PX: u32 = 16;
+
+/// CSS generic families: always available, and with no face to load.
+const GENERIC_FAMILIES: [&str; 13] = [
+    "serif",
+    "sans-serif",
+    "monospace",
+    "cursive",
+    "fantasy",
+    "system-ui",
+    "ui-serif",
+    "ui-sans-serif",
+    "ui-monospace",
+    "ui-rounded",
+    "math",
+    "emoji",
+    "fangsong",
+];
 
 /// Presents a plurimus app on a WebGL2 canvas in the page, with the
 /// browser's keyboard, pointer, wheel, paste and focus as its input.
@@ -40,6 +61,7 @@ pub struct WebPlugin {
     font: String,
     fit: GridFit,
     parent: Option<String>,
+    passthrough: Vec<(KeyCode, KeyModifiers)>,
     font_loaded: Arc<AtomicBool>,
 }
 
@@ -51,13 +73,15 @@ impl WebPlugin {
             font: DEFAULT_FONT.to_owned(),
             fit: GridFit::default(),
             parent: None,
+            passthrough: DEFAULT_PASSTHROUGH.to_vec(),
             font_loaded: Arc::default(),
         }
     }
 
     /// Draws with the CSS font `family`, which the page provides - a web
-    /// font it declares, or one installed locally. A family that does not
-    /// load falls back to monospace with a console warning.
+    /// font it declares with `@font-face`, or one installed locally. The
+    /// first update waits for a declared face to load; a family the browser
+    /// cannot find falls back to monospace, as CSS itself would.
     #[must_use]
     pub fn font(mut self, family: impl Into<String>) -> Self {
         self.font = family.into();
@@ -75,6 +99,16 @@ impl WebPlugin {
     #[must_use]
     pub fn parent(mut self, element_id: impl Into<String>) -> Self {
         self.parent = Some(element_id.into());
+        self
+    }
+
+    /// Leaves these keys to the browser as well as the default reload and
+    /// devtools keys. Every other key pressed while the canvas has focus is
+    /// kept from the browser, so Tab, arrows, Space and Ctrl chords reach
+    /// the app. A key matches only with exactly these modifiers held.
+    #[must_use]
+    pub fn passthrough(mut self, keys: impl IntoIterator<Item = (KeyCode, KeyModifiers)>) -> Self {
+        self.passthrough.extend(keys);
         self
     }
 }
@@ -116,29 +150,53 @@ impl Plugin for WebPlugin {
         let (inner, canvas) =
             mount_backend(&parent, self.parent.as_deref(), &self.font, px, surface);
         let size = inner.size().unwrap_or_default();
+        let cell_css = meter
+            .and_then(|meter| meter.measure(px * surface.pixel_ratio as f32))
+            .map_or_else(
+                || spread_over(surface, size),
+                |(width, height)| {
+                    (
+                        f64::from(width) / surface.pixel_ratio,
+                        f64::from(height) / surface.pixel_ratio,
+                    )
+                },
+            );
         app.insert_resource(TerminalSize::new(size.width, size.height));
+        app.insert_non_send(listen(&canvas, self.passthrough.clone(), cell_css));
+        app.add_systems(
+            PreUpdate,
+            pump_browser_events
+                .in_set(InputSystems::Pump)
+                .before(CameraSystems::SyncSize),
+        );
         app.insert_non_send(ExitTarget {
             canvas: canvas.clone(),
             title: document().title(),
         });
+        let _ = canvas.focus();
         app.add_plugins(PresenterPlugin::new(WebBackend { inner, canvas }));
         app.add_extract_systems((sync_size, serve_requests));
     }
 }
 
-/// Starts loading the font's face, flagging `loaded` when the attempt ends
-/// either way.
+/// Starts loading the font's declared face, flagging `loaded` when the
+/// attempt ends either way.
+///
+/// Only a failed load is reported: a family the page does not declare with
+/// `@font-face` resolves with no faces whether it is installed or missing,
+/// and a missing one falls back to monospace as CSS itself would.
 fn load_font(family: &str, loaded: Arc<AtomicBool>) {
+    if GENERIC_FAMILIES.contains(&family) {
+        loaded.store(true, Ordering::Release);
+        return;
+    }
     let request = format!("{FONT_PROBE_PX}px '{family}'");
     let pending = JsFuture::from(document().fonts().load(&request));
     let family = family.to_owned();
     wasm_bindgen_futures::spawn_local(async move {
-        let has_face = pending
-            .await
-            .is_ok_and(|faces| js_sys::Array::from(&faces).length() > 0);
-        if !has_face {
+        if let Err(error) = pending.await {
             warn(&format!(
-                "plurimus_web: the font '{family}' did not load; drawing in the default monospace"
+                "plurimus_web: the font '{family}' failed to load ({error:?}); drawing in monospace"
             ));
         }
         loaded.store(true, Ordering::Release);
@@ -155,6 +213,15 @@ fn parent_element(id: Option<&str>) -> HtmlElement {
         .get_element_by_id(id)
         .and_then(|element| element.dyn_into().ok())
         .unwrap_or_else(|| panic!("plurimus_web: no element with id {id:?} to mount the canvas in"))
+}
+
+/// A cell's size when it could not be measured: the surface spread over the
+/// grid, which is off by the renderer's unused edge at most.
+fn spread_over(surface: Surface, grid: Size) -> (f64, f64) {
+    (
+        surface.width / f64::from(grid.width.max(1)),
+        surface.height / f64::from(grid.height.max(1)),
+    )
 }
 
 fn surface_of(parent: &HtmlElement) -> Surface {
@@ -188,6 +255,7 @@ fn mount_backend(
         .last_element_child()
         .and_then(|element| element.dyn_into().ok())
         .expect("plurimus_web: the renderer mounted no canvas");
+    let _ = canvas.set_attribute("tabindex", "0");
     let style = canvas.style();
     for (property, value) in [
         ("display", "block"),

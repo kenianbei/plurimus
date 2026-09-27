@@ -2,6 +2,7 @@
 
 mod backend;
 mod extract;
+mod input;
 mod measure;
 mod plugin;
 mod runner;
