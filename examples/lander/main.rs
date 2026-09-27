@@ -4,38 +4,39 @@
 //! braille), `e` cycles the sobel edge overlay (off, luminance, depth,
 //! both), `r` resets, `q` or
 //! ctrl-c quits. The first frames take a few seconds while GPU pipelines
-//! compile.
+//! compile. It also builds for the browser, where it needs WebGPU; the
+//! README's Examples section has the steps.
 
 mod effects;
 mod game;
 mod hud;
 mod scene;
 
-use std::time::Duration;
-
-use bevy_app::{App, AppExit, ScheduleRunnerPlugin, Startup};
-use bevy_asset::AssetPlugin;
+use bevy_app::{App, AppExit, Startup};
+use bevy_asset::{AssetMetaCheck, AssetPlugin};
 use bevy_gltf::GltfPlugin;
 use bevy_gltf::extensions::GltfExtensionHandlers;
 use bevy_pbr::PbrPlugin;
 use bevy_world_serialization::WorldSerializationPlugin;
 use plurimus::core::CorePlugin;
-use plurimus::crossterm::CrosstermPlugin;
 use plurimus::render3d::{Plugin3d, Render3dPlugins};
 use plurimus::widgets::WidgetsPlugin;
 
-const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+#[cfg(not(target_arch = "wasm32"))]
 const ASSET_ROOT: &str = "examples/lander/assets";
+/// Relative to the page, so the site works under any path prefix.
+#[cfg(target_arch = "wasm32")]
+const ASSET_ROOT: &str = "assets";
 
 fn main() -> AppExit {
     let mut app = App::new();
+    app.add_plugins(CorePlugin);
+    add_backend(&mut app);
     app.add_plugins((
-        ScheduleRunnerPlugin::run_loop(FRAME_INTERVAL),
-        CorePlugin,
-        CrosstermPlugin::default(),
         WidgetsPlugin,
         AssetPlugin {
             file_path: ASSET_ROOT.into(),
+            meta_check: AssetMetaCheck::Never,
             ..AssetPlugin::default()
         },
         Render3dPlugins,
@@ -54,8 +55,34 @@ fn main() -> AppExit {
     app.run()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn add_backend(app: &mut App) {
+    use std::time::Duration;
+
+    use bevy_app::ScheduleRunnerPlugin;
+    use plurimus::crossterm::CrosstermPlugin;
+
+    const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+    app.add_plugins((
+        ScheduleRunnerPlugin::run_loop(FRAME_INTERVAL),
+        CrosstermPlugin::default(),
+    ));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn add_backend(app: &mut App) {
+    use plurimus::web::{GridFit, WebPlugin};
+
+    const COLUMNS: u16 = 160;
+
+    app.add_plugins(WebPlugin::new().fit(GridFit::Columns(COLUMNS)));
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bevy_ecs::prelude::With;
     use bevy_math::Vec2;
     use bevy_time::TimeUpdateStrategy;

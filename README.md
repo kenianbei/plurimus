@@ -9,6 +9,8 @@ terminal cells.
 ![The ratman example: a yellow ratatui rat and four colored bevy birds chasing
 it through a blue maze studded with cheese][Ratman Screenshot]
 
+[Try ratman and the lander in the browser.][Demos]
+
 Plurimus renders a Bevy world to the terminal the way `bevy_render` renders one
 to a window. The program is an ordinary Bevy `App`, and plurimus adds a render
 sub-app that turns that world into cells and presents them.
@@ -382,6 +384,23 @@ python -m http.server -d examples/web
 The `wasm-release` profile optimizes for size and strips symbol names, which
 takes the page from about 23 MB to 6.
 
+**ratman** and **lander** build for the browser the same way, adding `web` to
+their features, and `examples/` serves them under a landing page exactly as the
+[live demos][Demos] do:
+
+```sh
+cargo build --profile wasm-release --example ratman \
+  --target wasm32-unknown-unknown --no-default-features --features web,widgets,2d
+wasm-bindgen --target web --out-dir examples/ratman/pkg \
+  target/wasm32-unknown-unknown/wasm-release/examples/ratman.wasm
+python -m http.server -d examples
+```
+
+The lander is the same with `web,widgets,3d`, and needs hardware WebGPU: Chrome
+on Linux falls back to software unless started with
+`--enable-unsafe-webgpu --enable-features=Vulkan`, and the page says so rather
+than crawl.
+
 ## Requirements
 
 | plurimus | bevy | ratatui-core |
@@ -395,7 +414,8 @@ takes the page from about 23 MB to 6.
   and composited down.
 - **A browser with WebGL2**, for the `web` tier instead: built for
   `wasm32-unknown-unknown` without wasm threads.
-- **A GPU adapter**, for the `3d` tier only. Every other tier is CPU-only.
+- **A GPU adapter**, for the `3d` tier only - in a browser, hardware WebGPU.
+  Every other tier is CPU-only.
 
 ## Status
 
@@ -424,6 +444,7 @@ for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
 [Crate]: https://crates.io/crates/plurimus
+[Demos]: https://kenianbei.github.io/plurimus/
 [Crate Badge]:
   https://img.shields.io/crates/v/plurimus?logo=rust&style=flat-square&color=E05D44
 [Docs]: https://docs.rs/plurimus

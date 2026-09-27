@@ -1,6 +1,8 @@
 //! Headless coverage: the maze parses and connects, the rules hold,
 //! and every layer of the scene reaches the composed frame.
 
+use std::time::Duration;
+
 use bevy_math::IVec2;
 use bevy_time::TimeUpdateStrategy;
 use plurimus::core::TerminalSize;

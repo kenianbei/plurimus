@@ -110,6 +110,11 @@ jobs:
           cargo clippy --example web --target wasm32-unknown-unknown
           --no-default-features --features web,widgets -- -D warnings
 
+      - name: Clippy the browser demos
+        run: >-
+          cargo clippy --example ratman --example lander --target wasm32-unknown-unknown
+          --no-default-features --features web,widgets,2d,3d -- -D warnings
+
   markdown:
     runs-on: ubuntu-latest
 
