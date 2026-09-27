@@ -32,29 +32,6 @@ pub(crate) const DEFAULT_PASSTHROUGH: [(KeyCode, KeyModifiers); 7] = [
     ),
 ];
 
-/// The modifier flags a browser event carries.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "one flag per property the DOM event exposes"
-)]
-pub(crate) struct ModifierFlags {
-    pub(crate) ctrl: bool,
-    pub(crate) alt: bool,
-    pub(crate) shift: bool,
-    pub(crate) meta: bool,
-}
-
-/// The browser's meta key is the OS key - command on a Mac, the Windows key
-/// elsewhere - which is what `super_key` names.
-pub(crate) const fn modifiers(flags: ModifierFlags) -> KeyModifiers {
-    KeyModifiers::none()
-        .with_ctrl(flags.ctrl)
-        .with_alt(flags.alt)
-        .with_shift(flags.shift)
-        .with_super_key(flags.meta)
-}
-
 /// Maps `KeyboardEvent.key` to a key, or `None` for what the contract has no
 /// word for: dead keys, IME composition, `AltGraph`, media keys.
 ///
@@ -107,18 +84,6 @@ fn function_key(key: &str) -> Option<KeyCode> {
     (1..=MAX_FUNCTION_KEY)
         .contains(&number)
         .then_some(KeyCode::F(number))
-}
-
-/// Whether the browser keeps this key rather than the app: an exact match
-/// of key and modifiers against `passthrough`.
-pub(crate) fn passes_through(
-    passthrough: &[(KeyCode, KeyModifiers)],
-    code: KeyCode,
-    modifiers: KeyModifiers,
-) -> bool {
-    passthrough
-        .iter()
-        .any(|&(listed, listed_modifiers)| listed == code && listed_modifiers == modifiers)
 }
 
 #[cfg(test)]
@@ -181,45 +146,13 @@ mod tests {
     }
 
     #[test]
-    fn meta_is_the_super_key() {
-        let flags = ModifierFlags {
-            meta: true,
-            shift: true,
-            ..ModifierFlags::default()
-        };
-        assert_eq!(
-            modifiers(flags),
-            KeyModifiers::none().with_super_key(true).with_shift(true)
-        );
-    }
-
-    #[test]
-    fn passthrough_matches_key_and_modifiers_exactly() {
-        let reload = KeyModifiers::none().with_ctrl(true);
-        assert!(passes_through(
-            &DEFAULT_PASSTHROUGH,
-            KeyCode::Char('r'),
-            reload
-        ));
-        assert!(passes_through(
-            &DEFAULT_PASSTHROUGH,
-            KeyCode::F(5),
-            KeyModifiers::none()
-        ));
-        assert!(!passes_through(
-            &DEFAULT_PASSTHROUGH,
-            KeyCode::Char('r'),
-            KeyModifiers::none()
-        ));
-        assert!(!passes_through(
-            &DEFAULT_PASSTHROUGH,
-            KeyCode::Char('r'),
-            reload.with_alt(true)
-        ));
-        assert!(!passes_through(
-            &DEFAULT_PASSTHROUGH,
-            KeyCode::Tab,
-            KeyModifiers::none()
-        ));
+    fn default_passthrough_is_reload_and_devtools_exactly() {
+        let ctrl = KeyModifiers::none().with_ctrl(true);
+        let passes = |code, held| DEFAULT_PASSTHROUGH.contains(&(code, held));
+        assert!(passes(KeyCode::Char('r'), ctrl));
+        assert!(passes(KeyCode::F(5), KeyModifiers::none()));
+        assert!(!passes(KeyCode::Char('r'), KeyModifiers::none()));
+        assert!(!passes(KeyCode::Char('r'), ctrl.with_alt(true)));
+        assert!(!passes(KeyCode::Tab, KeyModifiers::none()));
     }
 }

@@ -6,9 +6,18 @@ const DEFAULT_FONT_PX: f32 = 16.0;
 /// The smallest font size a fit will choose, in CSS pixels.
 const MIN_FONT_PX: u16 = 4;
 
-/// The largest font size the renderer can measure, in physical pixels: it
-/// sizes a cell by drawing `█` 16 pixels into a 128-pixel scratch canvas,
-/// so a taller glyph would be cut off and mismeasured.
+/// The renderer sizes a cell by drawing `█` this far into a square scratch
+/// canvas this many pixels across and measuring what inked, counting a pixel
+/// at or above this alpha.
+pub(crate) const SCRATCH_SIDE: u32 = 128;
+pub(crate) const DRAW_OFFSET: f64 = 16.0;
+const INK_ALPHA: u8 = 128;
+
+/// Bytes per pixel in canvas image data.
+const RGBA: usize = 4;
+
+/// The largest font size the scratch canvas can measure, in physical
+/// pixels: a taller glyph would run off it and be mismeasured.
 const MAX_MEASURABLE_PX: f32 = 90.0;
 
 /// How the font size is chosen, and so how many cells the canvas holds.
@@ -57,15 +66,15 @@ pub(crate) fn font_px(
         GridFit::Cells(columns, rows) => (columns, rows),
         GridFit::Columns(columns) => (columns, 0),
     };
-    let fits = |px: u16, measure: &mut dyn FnMut(f32) -> Option<(u32, u32)>| {
-        grid_at(px, surface, measure)
+    let mut fits = |px: u16| {
+        grid_at(px, surface, &mut measure)
             .is_some_and(|(columns, rows)| columns >= needed.0 && rows >= needed.1)
     };
     let largest = largest_measurable(surface.pixel_ratio);
     let (mut low, mut high) = (MIN_FONT_PX, largest);
     while low < high {
         let middle = low + (high - low).div_ceil(2);
-        if fits(middle, &mut measure) {
+        if fits(middle) {
             low = middle;
         } else {
             high = middle - 1;
@@ -78,7 +87,7 @@ pub(crate) fn font_px(
 fn grid_at(
     px: u16,
     surface: Surface,
-    measure: &mut dyn FnMut(f32) -> Option<(u32, u32)>,
+    measure: &mut impl FnMut(f32) -> Option<(u32, u32)>,
 ) -> Option<(u16, u16)> {
     let physical = f32::from(px) * surface.pixel_ratio as f32;
     let (cell_width, cell_height) = measure(physical)?;
@@ -95,13 +104,6 @@ fn grid_at(
         cells(surface.height, cell_height),
     ))
 }
-
-/// The alpha at or above which a scratch-canvas pixel counts as inked,
-/// matching the renderer's own threshold.
-const INK_ALPHA: u8 = 128;
-
-/// Bytes per pixel in canvas image data.
-const RGBA: usize = 4;
 
 /// The inked width and height of what was drawn on a scratch canvas `side`
 /// pixels square, from its RGBA bytes; `None` when nothing inked.

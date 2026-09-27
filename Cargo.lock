@@ -3114,7 +3114,6 @@ dependencies = [
  "critical-section",
  "plurimus_core",
  "plurimus_term",
- "ratatui-core",
  "ratzilla",
  "wasm-bindgen",
  "wasm-bindgen-futures",

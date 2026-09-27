@@ -45,15 +45,9 @@ mod browser;
     allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
 )]
 mod fit;
-#[cfg_attr(
-    not(target_arch = "wasm32"),
-    allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
-)]
+#[cfg(any(target_arch = "wasm32", test))]
 mod keys;
-#[cfg_attr(
-    not(target_arch = "wasm32"),
-    allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
-)]
+#[cfg(any(target_arch = "wasm32", test))]
 mod pointer;
 
 #[cfg(target_arch = "wasm32")]

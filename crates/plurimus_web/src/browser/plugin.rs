@@ -6,11 +6,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use plurimus_core::ratatui_core::backend::Backend;
-use plurimus_core::ratatui_core::layout::Size;
 use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderAppExt, TerminalSize};
 use plurimus_term::{InputCapabilities, InputSystems, KeyCode, KeyModifiers, TermPlugin};
-use ratzilla::WebGl2Backend;
 use ratzilla::backend::webgl2::{FontAtlasConfig, WebGl2BackendOptions};
+use ratzilla::{CellSized, WebGl2Backend};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{HtmlCanvasElement, HtmlElement};
@@ -29,23 +28,6 @@ const DEFAULT_FONT: &str = "monospace";
 
 /// Any size loads a web font's face; this one is only asked for.
 const FONT_PROBE_PX: u32 = 16;
-
-/// CSS generic families: always available, and with no face to load.
-const GENERIC_FAMILIES: [&str; 13] = [
-    "serif",
-    "sans-serif",
-    "monospace",
-    "cursive",
-    "fantasy",
-    "system-ui",
-    "ui-serif",
-    "ui-sans-serif",
-    "ui-monospace",
-    "ui-rounded",
-    "math",
-    "emoji",
-    "fangsong",
-];
 
 /// Presents a plurimus app on a WebGL2 canvas in the page, with the
 /// browser's keyboard, pointer, wheel, paste and focus as its input.
@@ -147,20 +129,14 @@ impl Plugin for WebPlugin {
         let surface = surface_of(&parent);
         let meter = CellMeter::new(&self.font);
         let px = font_px(self.fit, surface, |px| meter.as_ref()?.measure(px));
-        let (inner, canvas) =
-            mount_backend(&parent, self.parent.as_deref(), &self.font, px, surface);
+        let options = backend_options(self.parent.as_deref(), &self.font, px, surface);
+        let (inner, canvas) = mount_backend(&parent, options);
+        if let Some(meter) = &meter {
+            warn_on_drift(meter, &inner, px * surface.pixel_ratio as f32);
+        }
         let size = inner.size().unwrap_or_default();
-        let cell_css = meter
-            .and_then(|meter| meter.measure(px * surface.pixel_ratio as f32))
-            .map_or_else(
-                || spread_over(surface, size),
-                |(width, height)| {
-                    (
-                        f64::from(width) / surface.pixel_ratio,
-                        f64::from(height) / surface.pixel_ratio,
-                    )
-                },
-            );
+        let (cell_width, cell_height) = inner.cell_size_css_px();
+        let cell_css = (f64::from(cell_width), f64::from(cell_height));
         app.insert_resource(TerminalSize::new(size.width, size.height));
         app.insert_non_send(listen(&canvas, self.passthrough.clone(), cell_css));
         app.add_systems(
@@ -186,10 +162,6 @@ impl Plugin for WebPlugin {
 /// `@font-face` resolves with no faces whether it is installed or missing,
 /// and a missing one falls back to monospace as CSS itself would.
 fn load_font(family: &str, loaded: Arc<AtomicBool>) {
-    if GENERIC_FAMILIES.contains(&family) {
-        loaded.store(true, Ordering::Release);
-        return;
-    }
     let request = format!("{FONT_PROBE_PX}px '{family}'");
     let pending = JsFuture::from(document().fonts().load(&request));
     let family = family.to_owned();
@@ -215,15 +187,6 @@ fn parent_element(id: Option<&str>) -> HtmlElement {
         .unwrap_or_else(|| panic!("plurimus_web: no element with id {id:?} to mount the canvas in"))
 }
 
-/// A cell's size when it could not be measured: the surface spread over the
-/// grid, which is off by the renderer's unused edge at most.
-fn spread_over(surface: Surface, grid: Size) -> (f64, f64) {
-    (
-        surface.width / f64::from(grid.width.max(1)),
-        surface.height / f64::from(grid.height.max(1)),
-    )
-}
-
 fn surface_of(parent: &HtmlElement) -> Surface {
     Surface {
         width: f64::from(parent.client_width()),
@@ -232,22 +195,28 @@ fn surface_of(parent: &HtmlElement) -> Surface {
     }
 }
 
-/// Builds the renderer in `parent` and styles its canvas to fill it, so the
-/// canvas follows the parent's size rather than keeping its first one.
-fn mount_backend(
-    parent: &HtmlElement,
+fn backend_options(
     parent_id: Option<&str>,
     family: &str,
     px: f32,
     surface: Surface,
-) -> (WebGl2Backend, HtmlCanvasElement) {
-    let mut options = WebGl2BackendOptions::new()
+) -> WebGl2BackendOptions {
+    let options = WebGl2BackendOptions::new()
         .font_atlas_config(FontAtlasConfig::dynamic(&[family], px))
         .size((surface.width as u32, surface.height as u32))
         .disable_auto_css_resize();
-    if let Some(id) = parent_id {
-        options = options.grid_id(id);
+    match parent_id {
+        Some(id) => options.grid_id(id),
+        None => options,
     }
+}
+
+/// Builds the renderer in `parent` and styles its canvas to fill it, so the
+/// canvas follows the parent's size rather than keeping its first one.
+fn mount_backend(
+    parent: &HtmlElement,
+    options: WebGl2BackendOptions,
+) -> (WebGl2Backend, HtmlCanvasElement) {
     let backend = WebGl2Backend::new_with_options(options).unwrap_or_else(|error| {
         panic!("plurimus_web: the WebGL2 canvas could not be created: {error}")
     });
@@ -266,4 +235,18 @@ fn mount_backend(
         let _ = style.set_property(property, value);
     }
     (backend, canvas)
+}
+
+/// The fit was solved against a copy of the renderer's measurement; if the
+/// renderer's own cell differs, that copy has drifted from it upstream.
+fn warn_on_drift(meter: &CellMeter, backend: &WebGl2Backend, physical_px: f32) {
+    let (width, height) = backend.cell_size_px();
+    let renderer = (width.round() as u32, height.round() as u32);
+    let copy = meter.measure(physical_px);
+    if copy != Some(renderer) {
+        warn(&format!(
+            "plurimus_web: the renderer's cell {renderer:?} differs from the one measured \
+             for the fit {copy:?}; the grid may miss its GridFit"
+        ));
+    }
 }

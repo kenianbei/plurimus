@@ -11,28 +11,31 @@ use super::backend::WebBackend;
 use super::{document, warn, window};
 
 /// Follows the canvas's size into the grid and the grid into
-/// `TerminalSize`.
+/// `TerminalSize`, during extraction so the app sees a resize before it
+/// composes the next frame - the browser's counterpart to a terminal's
+/// resize event.
 ///
-/// The renderer only notices a new canvas size when it flushes, and the
-/// presenter skips flushing a frame where no cell changed, so the resize is
-/// applied here, every frame, instead.
+/// The renderer compares the canvas against the size it last laid out only
+/// when it flushes, which the presenter skips on a frame where no cell
+/// changed; the same comparison is made here, against that same stored size.
 pub(crate) fn sync_size(
     mut main_world: ResMut<MainWorld>,
     mut context: ResMut<TerminalContext<WebBackend>>,
-    mut last_css: Local<(i32, i32)>,
 ) {
     let backend = &mut context.backend;
-    let css = (
+    let displayed = (
         backend.canvas.client_width(),
         backend.canvas.client_height(),
     );
-    if css != *last_css {
-        *last_css = css;
-        if let Err(error) = backend.inner.resize_canvas() {
-            warn(&format!(
-                "plurimus_web: resizing the canvas failed: {error}"
-            ));
-        }
+    let laid_out = backend
+        .window_size()
+        .map(|size| (i32::from(size.pixels.width), i32::from(size.pixels.height)));
+    if laid_out.is_ok_and(|laid_out| laid_out != displayed)
+        && let Err(error) = backend.inner.resize_canvas()
+    {
+        warn(&format!(
+            "plurimus_web: resizing the canvas failed: {error}"
+        ));
     }
     let Ok(size) = backend.size() else {
         return;

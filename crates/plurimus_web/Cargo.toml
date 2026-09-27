@@ -21,7 +21,6 @@ plurimus_term = { workspace = true }
 bevy_app = { workspace = true, features = ["web"] }
 console_error_panic_hook = { workspace = true }
 critical-section = { workspace = true, features = ["std"] }
-ratatui-core = { workspace = true }
 ratzilla = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }

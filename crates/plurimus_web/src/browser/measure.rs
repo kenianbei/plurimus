@@ -4,12 +4,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 use super::document;
-use crate::fit::inked_size;
-
-/// The renderer's scratch canvas: it draws the reference glyph this far into
-/// a square this many pixels across and measures what inked.
-const SCRATCH_SIDE: u32 = 128;
-const DRAW_OFFSET: f64 = 16.0;
+use crate::fit::{DRAW_OFFSET, SCRATCH_SIDE, inked_size};
 
 /// The glyph whose inked box is a cell.
 const REFERENCE_GLYPH: &str = "█";
@@ -26,7 +21,10 @@ impl CellMeter {
             document().create_element("canvas").ok()?.dyn_into().ok()?;
         canvas.set_width(SCRATCH_SIDE);
         canvas.set_height(SCRATCH_SIDE);
-        let context = canvas.get_context("2d").ok()??.dyn_into().ok()?;
+        let context: CanvasRenderingContext2d = canvas.get_context("2d").ok()??.dyn_into().ok()?;
+        context.set_text_baseline("top");
+        context.set_text_align("left");
+        context.set_fill_style_str("white");
         Some(Self {
             context,
             family: family.to_owned(),
@@ -39,9 +37,6 @@ impl CellMeter {
         let context = &self.context;
         context.clear_rect(0.0, 0.0, side, side);
         context.set_font(&format!("{px}px '{}', monospace", self.family));
-        context.set_text_baseline("top");
-        context.set_text_align("left");
-        context.set_fill_style_str("white");
         context
             .fill_text(REFERENCE_GLYPH, DRAW_OFFSET, DRAW_OFFSET)
             .ok()?;
