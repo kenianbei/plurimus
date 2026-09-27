@@ -82,6 +82,9 @@ fn finish_exit(app: &App, exit: &AppExit) {
         AppExit::Error(code) => code.get(),
     };
     let init = CustomEventInit::new();
+    // The canvas is mounted after the page's script has run, so a page
+    // listens on the document and the event has to bubble to reach it.
+    init.set_bubbles(true);
     init.set_detail(&code.into());
     let dispatched = CustomEvent::new_with_event_init_dict(EXIT_EVENT, &init)
         .and_then(|event| target.canvas.dispatch_event(&event));

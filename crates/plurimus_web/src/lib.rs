@@ -21,12 +21,11 @@
 //!
 //! The page gives the canvas's element a size - `html, body { height: 100% }`
 //! when it is the body - and supplies the font. When the app exits the canvas
-//! receives `EXIT_EVENT`, its `detail` the exit code, and the page decides
-//! what leaving means:
+//! dispatches `EXIT_EVENT`, bubbling, its `detail` the exit code, and the page
+//! decides what leaving means:
 //!
 //! ```js
-//! document.querySelector("canvas")
-//!   .addEventListener("plurimus-exit", () => location.reload());
+//! document.addEventListener("plurimus-exit", () => location.reload());
 //! ```
 //!
 //! The browser half compiles only for `wasm32-unknown-unknown`, and refuses

@@ -199,9 +199,10 @@ renderer notices a new size only when it flushes and the presenter skips
 flushing an unchanged frame. `TerminalRequest` is served through a cursor rather
 than a drain - clipboard copies to the browser clipboard, the primary selection
 having no browser counterpart, and titles to the page, whose original title is
-restored on exit. An exit stops the runner and dispatches `plurimus-exit` on the
-canvas with the exit code, because a tab has nothing to exit to and what leaving
-means is the page's to decide.
+restored on exit. An exit stops the runner and dispatches `plurimus-exit` from
+the canvas with the exit code, bubbling, since the canvas is mounted only after
+a page's script has run and a page listens on the document instead; a tab has
+nothing to exit to, and what leaving means is the page's to decide.
 
 ### plurimus_ui
 
@@ -583,8 +584,8 @@ CI gates every change: `cargo fmt --all -- --check`,
 `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps`,
 plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
 MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` and the
-`web` example (whose browser halves no native job compiles) and a check of the
-crate on the MSRV, prettier and markdownlint over the markdown, typos,
+`web` example (whose browser code no native job compiles), a check of
+`plurimus_web` on the MSRV, prettier and markdownlint over the markdown, typos,
 cargo-deny, and cargo-semver-checks. The GPU smoke tests are `#[ignore]`d
 because they need a wgpu adapter; run
 `cargo test --workspace --all-features -- --ignored` when touching the 3d

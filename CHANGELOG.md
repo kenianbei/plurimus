@@ -19,10 +19,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   animation frame, holding its first update until the page's font has loaded.
   `GridFit` picks the font size once: a size, a column count, or the largest
   size that still holds a minimum grid. Clipboard copies and window titles are
-  served, and when the app exits the page's title is restored and the canvas
-  receives a `plurimus-exit` event carrying the exit code. It builds for
-  `wasm32-unknown-unknown` without wasm threads, and the new `web` example is a
-  page built on it, with the steps to build and serve it.
+  served, and when the app exits the page's title is restored and a
+  `plurimus-exit` event carrying the exit code bubbles from the canvas to the
+  page. It builds for `wasm32-unknown-unknown` without wasm threads; the new
+  `web` example runs it in a page, built with a size-optimized `wasm-release`
+  profile.
 
 ## [0.7.1] - 2026-08-26
 

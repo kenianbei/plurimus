@@ -372,12 +372,15 @@ for wasm and is served as a static page, with the `wasm-bindgen` CLI at the
 version `Cargo.lock` pins:
 
 ```sh
-cargo build --release --example web --target wasm32-unknown-unknown \
-  --no-default-features --features web,widgets
+cargo build --profile wasm-release --example web \
+  --target wasm32-unknown-unknown --no-default-features --features web,widgets
 wasm-bindgen --target web --out-dir examples/web/pkg \
-  target/wasm32-unknown-unknown/release/examples/web.wasm
+  target/wasm32-unknown-unknown/wasm-release/examples/web.wasm
 python -m http.server -d examples/web
 ```
+
+The `wasm-release` profile optimizes for size and strips symbol names, which
+takes the page from about 23 MB to 6.
 
 ## Requirements
 
