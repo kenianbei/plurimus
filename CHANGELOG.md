@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Browser demos.** The `ratman` and `lander` examples also build for
+  `wasm32-unknown-unknown` with the `web` feature, drawing through `WebPlugin`
+  where the terminal build uses crossterm. `examples/` serves them as a static
+  site under a landing page, published at
+  <https://kenianbei.github.io/plurimus/> by a Pages workflow run by hand.
+  Before downloading a demo, its page checks for WebGL2, and for the lander a
+  hardware WebGPU adapter. When a demo can't run or stops, the page says why and
+  links back instead of leaving a blank canvas, and quitting returns to the
+  landing page.
+
+### Fixed
+
+- **`plurimus_3d` in a browser.** It now enables `bevy_render`'s WebGPU backend
+  on wasm itself. Its headless render stack has no surface, so WebGL2 could
+  never provide an adapter, and every browser app had to enable the feature on
+  its own or fail at startup.
+
 ## [0.7.2] - 2026-09-26
 
 ### Added

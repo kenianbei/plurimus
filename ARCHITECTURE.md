@@ -50,7 +50,9 @@ The facade crate. Feature-gated re-exports of the member crates and nothing
 else: `plurimus_core` is unconditional, and each feature enables one member
 crate and its module (`crossterm` and `web` imply `term`; `widgets` and
 `bevy-ui` imply `ui`). The default feature set is `crossterm` - core, term, and
-a live terminal. The facade crate also hosts the runnable examples.
+a live terminal. The facade crate also hosts the runnable examples, and `ratman`
+and `lander` pick their backend by target, so each is also a browser demo;
+`examples/` is the static site a hand-run Pages workflow publishes them from.
 
 ### plurimus_core
 
@@ -497,7 +499,9 @@ converts them to cells - halfblock colors, luminance ramps (ASCII, blocks,
 braille, shading), depth ramps. Depth readback feeds `DepthOcclusion` for
 cross-camera occlusion and `EdgeOverlay` for outline characters. The render
 stack stops before materials: the app adds its own material system (`PbrPlugin`)
-and asset loading such as `bevy_gltf`.
+and asset loading such as `bevy_gltf`. Having no surface, the stack can take no
+WebGL2 adapter, so on wasm it renders through WebGPU and a browser has to offer
+one.
 
 ### plurimus_test
 
@@ -584,10 +588,10 @@ CI gates every change: `cargo fmt --all -- --check`,
 `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps`,
 plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
 MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` and the
-`web` example (whose browser code no native job compiles), a check of
-`plurimus_web` on the MSRV, prettier and markdownlint over the markdown, typos,
-cargo-deny, and cargo-semver-checks. The GPU smoke tests are `#[ignore]`d
-because they need a wgpu adapter; run
+`web`, `ratman` and `lander` examples (whose browser code no native job
+compiles), a check of `plurimus_web` on the MSRV, prettier and markdownlint over
+the markdown, typos, cargo-deny, and cargo-semver-checks. The GPU smoke tests
+are `#[ignore]`d because they need a wgpu adapter; run
 `cargo test --workspace --all-features -- --ignored` when touching the 3d
 stack - they are the only coverage of the headless render stack's plugin
 composition.
