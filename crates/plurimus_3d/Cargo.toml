@@ -31,6 +31,11 @@ bevy_window = { workspace = true }
 plurimus_core = { workspace = true }
 ratatui-core = { workspace = true }
 
+# The render stack is headless, and wgpu's WebGL2 needs a surface to create an
+# adapter, so in a browser it renders through WebGPU.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bevy_render = { workspace = true, features = ["webgpu"] }
+
 [dev-dependencies]
 bevy_gltf = { workspace = true }
 bevy_pbr = { workspace = true }

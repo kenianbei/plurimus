@@ -28,7 +28,7 @@ jobs:
         id: bindgen
         run: >-
           echo "version=$(cargo metadata --format-version 1 --locked
-          | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')"
+          --filter-platform wasm32-unknown-unknown | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')"
           >> "$GITHUB_OUTPUT"
 
       - uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12

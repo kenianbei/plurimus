@@ -3,7 +3,7 @@
 
 const BACK = "../";
 
-export async function boot(start, { webgpu = false } = {}) {
+export async function boot(demo, { webgpu = false } = {}) {
   const problem = missingWebGl2() ?? (webgpu ? await webGpuProblem() : null);
   if (problem) {
     notify(problem);
@@ -13,14 +13,17 @@ export async function boot(start, { webgpu = false } = {}) {
   addEventListener("unhandledrejection", (event) => stopped(event.reason));
   document.addEventListener("plurimus-exit", () => location.assign(BACK));
   try {
-    await start();
+    const { default: init } = await import(`./${demo}/pkg/${demo}.js`);
+    await init();
   } catch (error) {
     stopped(error);
   }
 }
 
 function missingWebGl2() {
-  if (document.createElement("canvas").getContext("webgl2")) {
+  const probe = document.createElement("canvas").getContext("webgl2");
+  if (probe) {
+    probe.getExtension("WEBGL_lose_context")?.loseContext();
     return null;
   }
   return ["This browser can't run the demos: it has no WebGL2."];

@@ -24,6 +24,7 @@ use plurimus::widgets::WidgetsPlugin;
 
 fn main() -> AppExit {
     let mut app = App::new();
+    app.add_plugins(CorePlugin);
     add_backend(&mut app);
     app.add_plugins((WidgetsPlugin, Plugin2d));
     game::add_game(&mut app);
@@ -41,7 +42,6 @@ fn add_backend(app: &mut App) {
 
     app.add_plugins((
         ScheduleRunnerPlugin::run_loop(FRAME_INTERVAL),
-        CorePlugin,
         CrosstermPlugin::default(),
     ));
 }
@@ -50,8 +50,5 @@ fn add_backend(app: &mut App) {
 fn add_backend(app: &mut App) {
     use plurimus::web::{GridFit, WebPlugin};
 
-    app.add_plugins((
-        CorePlugin,
-        WebPlugin::new().fit(GridFit::Cells(maze::REQUIRED_COLS, maze::REQUIRED_ROWS)),
-    ));
+    app.add_plugins(WebPlugin::new().fit(GridFit::Cells(maze::REQUIRED_COLS, maze::REQUIRED_ROWS)));
 }

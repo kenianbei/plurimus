@@ -13,7 +13,7 @@ mod hud;
 mod scene;
 
 use bevy_app::{App, AppExit, Startup};
-use bevy_asset::AssetPlugin;
+use bevy_asset::{AssetMetaCheck, AssetPlugin};
 use bevy_gltf::GltfPlugin;
 use bevy_gltf::extensions::GltfExtensionHandlers;
 use bevy_pbr::PbrPlugin;
@@ -22,10 +22,25 @@ use plurimus::core::CorePlugin;
 use plurimus::render3d::{Plugin3d, Render3dPlugins};
 use plurimus::widgets::WidgetsPlugin;
 
+#[cfg(not(target_arch = "wasm32"))]
+const ASSET_ROOT: &str = "examples/lander/assets";
+/// Relative to the page.
+#[cfg(target_arch = "wasm32")]
+const ASSET_ROOT: &str = "assets";
+
 fn main() -> AppExit {
     let mut app = App::new();
+    app.add_plugins(CorePlugin);
     add_backend(&mut app);
-    app.add_plugins((WidgetsPlugin, asset_plugin(), Render3dPlugins));
+    app.add_plugins((
+        WidgetsPlugin,
+        AssetPlugin {
+            file_path: ASSET_ROOT.into(),
+            meta_check: AssetMetaCheck::Never,
+            ..AssetPlugin::default()
+        },
+        Render3dPlugins,
+    ));
     // The material system and glTF loading are the app's to assemble:
     // PbrPlugin's build registers a glTF material handler, so the
     // registry has to exist before it, and GltfPlugin's finish reads
@@ -51,7 +66,6 @@ fn add_backend(app: &mut App) {
 
     app.add_plugins((
         ScheduleRunnerPlugin::run_loop(FRAME_INTERVAL),
-        CorePlugin,
         CrosstermPlugin::default(),
     ));
 }
@@ -62,25 +76,7 @@ fn add_backend(app: &mut App) {
 
     const COLUMNS: u16 = 160;
 
-    app.add_plugins((CorePlugin, WebPlugin::new().fit(GridFit::Columns(COLUMNS))));
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn asset_plugin() -> AssetPlugin {
-    AssetPlugin {
-        file_path: "examples/lander/assets".into(),
-        ..AssetPlugin::default()
-    }
-}
-
-/// Assets are fetched relative to the page, which ships no `.meta` files.
-#[cfg(target_arch = "wasm32")]
-fn asset_plugin() -> AssetPlugin {
-    AssetPlugin {
-        file_path: "assets".into(),
-        meta_check: bevy_asset::AssetMetaCheck::Never,
-        ..AssetPlugin::default()
-    }
+    app.add_plugins(WebPlugin::new().fit(GridFit::Columns(COLUMNS)));
 }
 
 #[cfg(test)]
