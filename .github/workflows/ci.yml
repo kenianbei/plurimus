@@ -79,9 +79,31 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
+          target: wasm32-unknown-unknown
 
       - name: Check
         run: cargo check --workspace --all-features
+
+      - name: Check the browser crate
+        run: cargo check -p plurimus_web --target wasm32-unknown-unknown
+
+  # plurimus_web's browser half compiles only for wasm32, so the native
+  # jobs see just its portable layer.
+  wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          components: clippy
+
+      - name: Clippy
+        run: cargo clippy -p plurimus_web --target wasm32-unknown-unknown -- -D warnings
 
   markdown:
     runs-on: ubuntu-latest
