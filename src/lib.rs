@@ -18,3 +18,6 @@ pub use plurimus_2d as render2d;
 
 #[cfg(feature = "3d")]
 pub use plurimus_3d as render3d;
+
+#[cfg(feature = "web")]
+pub use plurimus_web as web;
