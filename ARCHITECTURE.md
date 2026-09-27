@@ -582,10 +582,11 @@ CI gates every change: `cargo fmt --all -- --check`,
 `cargo test --workspace --all-features`, and
 `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps`,
 plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
-MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` (whose
-browser half no native job compiles) and a check of it on the MSRV, prettier and
-markdownlint over the markdown, typos, cargo-deny, and cargo-semver-checks. The
-GPU smoke tests are `#[ignore]`d because they need a wgpu adapter; run
+MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` and the
+`web` example (whose browser halves no native job compiles) and a check of the
+crate on the MSRV, prettier and markdownlint over the markdown, typos,
+cargo-deny, and cargo-semver-checks. The GPU smoke tests are `#[ignore]`d
+because they need a wgpu adapter; run
 `cargo test --workspace --all-features -- --ignored` when touching the 3d
 stack - they are the only coverage of the headless render stack's plugin
 composition.

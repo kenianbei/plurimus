@@ -206,6 +206,11 @@ required-features = ["widgets", "2d"]
 test = true
 
 [[example]]
+name = "web"
+required-features = ["web", "widgets"]
+test = true
+
+[[example]]
 name = "lander"
 required-features = ["widgets", "3d"]
 test = true

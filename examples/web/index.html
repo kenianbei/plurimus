@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>plurimus web</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import init from "./pkg/web.js";
+    // The canvas's exit event does not bubble; catch it on the way down.
+    document.addEventListener("plurimus-exit", () => location.reload(), true);
+    init();
+  </script>
+</body>
+</html>

@@ -105,6 +105,11 @@ jobs:
       - name: Clippy
         run: cargo clippy -p plurimus_web --target wasm32-unknown-unknown -- -D warnings
 
+      - name: Clippy the web example
+        run: >-
+          cargo clippy --example web --target wasm32-unknown-unknown
+          --no-default-features --features web,widgets -- -D warnings
+
   markdown:
     runs-on: ubuntu-latest
 

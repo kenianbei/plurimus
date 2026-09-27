@@ -21,7 +21,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   size that still holds a minimum grid. Clipboard copies and window titles are
   served, and when the app exits the page's title is restored and the canvas
   receives a `plurimus-exit` event carrying the exit code. It builds for
-  `wasm32-unknown-unknown` without wasm threads.
+  `wasm32-unknown-unknown` without wasm threads, and the new `web` example is a
+  page built on it, with the steps to build and serve it.
 
 ## [0.7.1] - 2026-08-26
 

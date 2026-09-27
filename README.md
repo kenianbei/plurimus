@@ -365,6 +365,20 @@ space burns the main thruster, A/D tilt, `t` cycles the pixel-to-cell strategy,
 `e` cycles the sobel edge overlay, `r` resets. The first frames take a few
 seconds while GPU pipelines compile.
 
+**web** is the browser tier: a list to click, an editor to type, paste, copy
+from (select with shift-arrows, then ctrl-c) and scroll with the wheel, and
+buttons that set the page's title and quit, which reloads the page. It builds
+for wasm and is served as a static page, with the `wasm-bindgen` CLI at the
+version `Cargo.lock` pins:
+
+```sh
+cargo build --release --example web --target wasm32-unknown-unknown \
+  --no-default-features --features web,widgets
+wasm-bindgen --target web --out-dir examples/web/pkg \
+  target/wasm32-unknown-unknown/release/examples/web.wasm
+python -m http.server -d examples/web
+```
+
 ## Requirements
 
 | plurimus | bevy | ratatui-core |
