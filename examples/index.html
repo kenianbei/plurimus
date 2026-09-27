@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>plurimus demos</title>
+  <style>
+    body { max-width: 40rem; margin: 4rem auto; padding: 0 1rem; background: #000; color: #ddd; font: 1rem/1.5 system-ui, sans-serif; }
+    a { color: #8cf; }
+    h2 { margin-bottom: 0.25rem; }
+    kbd { font-family: ui-monospace, monospace; color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>plurimus</h1>
+  <p>
+    A Bevy-native terminal renderer, running in the browser: every frame is
+    terminal cells, drawn to a WebGL2 canvas. Both demos want a keyboard.
+    Source and the terminal versions are on
+    <a href="https://github.com/kenianbei/plurimus">GitHub</a>.
+  </p>
+
+  <h2><a href="ratman/">Rat-Man</a></h2>
+  <p>
+    The 2d pipeline: a rat eats cheese through a maze while four birds hunt it,
+    all halfblock pixel art. <kbd>arrows</kbd> or <kbd>WASD</kbd> steer, a power
+    cheese turns the birds edible, <kbd>r</kbd> starts over, <kbd>q</kbd> comes
+    back here.
+  </p>
+
+  <h2><a href="lander/">Lander</a></h2>
+  <p>
+    The 3d pipeline: a GPU scene read back into cells, under a widget HUD.
+    <kbd>W</kbd> or <kbd>space</kbd> burns, <kbd>A</kbd>/<kbd>D</kbd> tilt,
+    <kbd>t</kbd> cycles the pixel-to-cell strategy, <kbd>e</kbd> the edge
+    overlay, <kbd>r</kbd> resets, <kbd>q</kbd> comes back here. Needs hardware
+    WebGPU; the first frames take a few seconds while pipelines compile.
+  </p>
+</body>
+</html>

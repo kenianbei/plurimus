@@ -1,0 +1,68 @@
+name: pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+
+      # The CLI has to match the wasm-bindgen crate the lockfile pins.
+      - name: Find the wasm-bindgen version
+        id: bindgen
+        run: >-
+          echo "version=$(cargo metadata --format-version 1 --locked
+          | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')"
+          >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
+        with:
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
+
+      - name: Build
+        run: |
+          for demo in ratman:2d lander:3d; do
+            name="${demo%%:*}"
+            cargo build --locked --profile wasm-release --example "$name" \
+              --target wasm32-unknown-unknown --no-default-features \
+              --features "web,widgets,${demo##*:}"
+            wasm-bindgen --target web --no-typescript --out-dir "_site/$name/pkg" \
+              "target/wasm32-unknown-unknown/wasm-release/examples/$name.wasm"
+            cp "examples/$name/index.html" "_site/$name/"
+          done
+          cp examples/index.html examples/boot.js _site/
+          cp -r examples/lander/assets _site/lander/
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
