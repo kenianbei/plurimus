@@ -78,6 +78,16 @@ input messages, reports resizes, and supplies the backend to core's presenter.
 The writer is generic: stdout by default, or the controlling terminal via
 `CrosstermPlugin::tty()` so stdout stays free for piped output.
 
+### Web (`plurimus_web`)
+
+The browser in place of a terminal, for `wasm32-unknown-unknown`: a WebGL2
+canvas in the page (through ratzilla), the browser's keys - with real releases -
+pointer, wheel, paste and focus translated into the same input messages, and a
+`requestAnimationFrame` runner. The font size is chosen once from a `GridFit`,
+such as the largest size that still holds a minimum grid, and the canvas follows
+its element's size after that. Clipboard copies and window titles are served,
+and an app's exit hands the page a `plurimus-exit` event to act on.
+
 ### UI (`plurimus_ui`)
 
 Interaction over any entity with an area. It computes widget areas, resolves
@@ -174,6 +184,7 @@ unless the `widgets` feature is on, which re-exports it.
 | _(none)_    | `plurimus_core`      | rendering, always on                |
 | `term`      | `plurimus_term`      | the terminal contract, both ways    |
 | `crossterm` | `plurimus_crossterm` | a live terminal (implies `term`)    |
+| `web`       | `plurimus_web`       | a browser page (implies `term`)     |
 | `ui`        | `plurimus_ui`        | interaction, focus (implies `term`) |
 | `widgets`   | `plurimus_widgets`   | stock controls (implies `ui`)       |
 | `bevy-ui`   | `plurimus_bui`       | flexbox layout (implies `ui`)       |
@@ -220,7 +231,8 @@ fn spawn_ui(mut commands: Commands) {
 A terminal app has no window to pace it, so add
 `ScheduleRunnerPlugin::run_loop(interval)` from `bevy_app` or the app updates
 once and stops. The interval is the frame budget; the presenter writes only
-changed cells, so an idle screen stays cheap at any tick rate.
+changed cells, so an idle screen stays cheap at any tick rate. In a browser,
+`WebPlugin` installs its own runner, paced by the display.
 
 ### Reading input
 
@@ -256,6 +268,8 @@ pressed midway through a hold does not strand it. Poll for the lowercase key -
 
 No plurimus crate writes `AppExit`; exit policy belongs to the app. Write it
 from a key handler, and the crossterm tier restores the terminal on the way out.
+In a browser the runner stops, restores the page title and dispatches
+`plurimus-exit` on the canvas, and the page decides what leaving means.
 
 ### Splitting the screen
 
@@ -362,6 +376,8 @@ seconds while GPU pipelines compile.
 - **A terminal.** Anything crossterm supports; the kitty keyboard protocol adds
   real key releases. Truecolor, 256-color, and 16-color terminals are detected
   and composited down.
+- **A browser with WebGL2**, for the `web` tier instead: built for
+  `wasm32-unknown-unknown` without wasm threads.
 - **A GPU adapter**, for the `3d` tier only. Every other tier is CPU-only.
 
 ## Status
