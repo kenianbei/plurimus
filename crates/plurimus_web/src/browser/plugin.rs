@@ -23,7 +23,6 @@ use super::{document, warn, window};
 use crate::fit::{GridFit, Surface, font_px};
 use crate::keys::DEFAULT_PASSTHROUGH;
 
-/// The font family used when none is named.
 const DEFAULT_FONT: &str = "monospace";
 
 /// Any size loads a web font's face; this one is only asked for.

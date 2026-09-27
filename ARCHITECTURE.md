@@ -17,9 +17,10 @@ viewports split the terminal the way multiple cameras split a window - a map
 view, a sidebar, and a minimap are three cameras with three viewports.
 
 Consumers adopt the workspace in tiers. Core alone renders to any `Backend`;
-adding input and crossterm gives a live terminal; the ui, widgets, and bevy-ui
-tiers add interaction and controls; the 2d and 3d pipelines draw world-space
-entities. Each tier is a feature on the facade crate and a crate of its own.
+adding input and crossterm gives a live terminal, or adding input and the web
+tier a browser page; the ui, widgets, and bevy-ui tiers add interaction and
+controls; the 2d and 3d pipelines draw world-space entities. Each tier is a
+feature on the facade crate and a crate of its own.
 
 ```mermaid
 flowchart TB
@@ -47,9 +48,9 @@ flowchart TB
 
 The facade crate. Feature-gated re-exports of the member crates and nothing
 else: `plurimus_core` is unconditional, and each feature enables one member
-crate and its module (`crossterm` implies `term`; `widgets` and `bevy-ui` imply
-`ui`). The default feature set is `crossterm` - core, term, and a live terminal.
-The facade crate also hosts the runnable examples.
+crate and its module (`crossterm` and `web` imply `term`; `widgets` and
+`bevy-ui` imply `ui`). The default feature set is `crossterm` - core, term, and
+a live terminal. The facade crate also hosts the runnable examples.
 
 ### plurimus_core
 
@@ -156,6 +157,51 @@ and sets the cursor shape, which no `Backend` method reaches. Both flush
 themselves, since the presenter skips its flush on a frame where no cell
 differs. The writer is generic: stdout by default, or the controlling terminal
 directly via `CrosstermPlugin::tty()`.
+
+### plurimus_web
+
+The browser, in `plurimus_crossterm`'s place. `WebPlugin` draws on a WebGL2
+canvas - ratzilla's backend, over beamterm - mounted in an element of the page,
+which it fills and follows as that element resizes. That backend holds browser
+handles and so is not `Send`, which core's presenter asks for; the crate
+satisfies the bound by refusing to compile for wasm with threads, so exactly one
+thread exists and nothing is ever sent, rather than core growing a second
+presenter path. The browser half builds only for `wasm32-unknown-unknown`; on
+other targets the crate is `GridFit` and the pure mappings its tests exercise.
+
+A page gives no blocking loop, so the plugin installs a `requestAnimationFrame`
+runner that holds the first update until every plugin is ready - the page's
+font, loaded asynchronously, and for a 3d app a GPU device created the same way.
+The backend cannot exist before the font does, so the plugin builds it in
+`finish` and adds core's presenter from there, which bevy accepts until every
+plugin has finished; a test pins that. The font size is chosen once, from a
+`GridFit`: a size, a column count, or the largest whole size whose grid still
+holds a minimum, solved against a copy of the renderer's own cell measurement,
+since the renderer's atlas is fixed when it is built. A later resize changes the
+grid, not the font, and a mismatch between the copy and the renderer's cell is
+warned about as upstream drift.
+
+Input comes from the plugin's own listeners on the canvas rather than
+ratzilla's, which report key presses alone. Keys arrive as presses, repeats and
+real releases, modifier keys as keys, so `InputCapabilities` claims both - a
+release lost to a focus change is covered by the blur that caused it. While the
+canvas has focus every key is kept from the browser except a passthrough list
+(reload and devtools by default), so Tab, arrows and chords reach the app. The
+pointer is captured on press, so a drag keeps reporting past the canvas, and
+lands in cells by the renderer's own cell size; wheel deltas become notches with
+the remainder carried, and paste and focus become their messages. Listeners
+queue what they see and a pump writes it in `InputSystems::Pump`, where
+crossterm's pump writes, placing pointers against that frame's grid.
+
+Outbound, extraction does what a terminal's resize event would: it follows the
+canvas into the grid and the grid into `TerminalResized` every frame, since the
+renderer notices a new size only when it flushes and the presenter skips
+flushing an unchanged frame. `TerminalRequest` is served through a cursor rather
+than a drain - clipboard copies to the browser clipboard, the primary selection
+having no browser counterpart, and titles to the page, whose original title is
+restored on exit. An exit stops the runner and dispatches `plurimus-exit` on the
+canvas with the exit code, because a tab has nothing to exit to and what leaving
+means is the page's to decide.
 
 ### plurimus_ui
 
@@ -480,6 +526,9 @@ redraw from a skipped one.
   presenter drives.
 - **crossterm** (0.29) - terminal control and the event source
   `plurimus_crossterm` translates from.
+- **ratzilla** (0.3) - the WebGL2 `Backend`, over beamterm, that `plurimus_web`
+  presents through; **wasm-bindgen**, **wasm-bindgen-futures** and **web-sys**
+  reach the page itself.
 - **tui-scrollview** (0.6) - scroll-area windowing underneath `plurimus_ui`'s
   scrolling.
 - **unicode-segmentation** / **unicode-width** - grapheme segmentation and width
@@ -533,11 +582,13 @@ CI gates every change: `cargo fmt --all -- --check`,
 `cargo test --workspace --all-features`, and
 `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps`,
 plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
-MSRV toolchain, prettier and markdownlint over the markdown, typos, cargo-deny,
-and cargo-semver-checks. The GPU smoke tests are `#[ignore]`d because they need
-a wgpu adapter; run `cargo test --workspace --all-features -- --ignored` when
-touching the 3d stack - they are the only coverage of the headless render
-stack's plugin composition.
+MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` (whose
+browser half no native job compiles) and a check of it on the MSRV, prettier and
+markdownlint over the markdown, typos, cargo-deny, and cargo-semver-checks. The
+GPU smoke tests are `#[ignore]`d because they need a wgpu adapter; run
+`cargo test --workspace --all-features -- --ignored` when touching the 3d
+stack - they are the only coverage of the headless render stack's plugin
+composition.
 
 Because clippy runs with `-D warnings`, the lint configuration is a gate rather
 than advice. `[workspace.lints]`, inherited by every crate, warns `missing_docs`

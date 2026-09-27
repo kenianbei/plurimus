@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`plurimus_web`**, behind the facade's new `web` feature: a plurimus app in a
+  browser page instead of a terminal. `WebPlugin` takes `CrosstermPlugin`'s
+  place after `CorePlugin` and draws on a WebGL2 canvas (through ratzilla) that
+  fills an element of the page and follows its size. The browser's keyboard -
+  presses, repeats and real releases, with modifier keys as keys - pointer,
+  wheel, paste and focus arrive as the same input messages a terminal backend
+  writes. While the canvas has focus every key reaches the app except reload and
+  devtools, which `WebPlugin::passthrough` extends. The app runs once per
+  animation frame, holding its first update until the page's font has loaded.
+  `GridFit` picks the font size once: a size, a column count, or the largest
+  size that still holds a minimum grid. Clipboard copies and window titles are
+  served, and when the app exits the page's title is restored and the canvas
+  receives a `plurimus-exit` event carrying the exit code. It builds for
+  `wasm32-unknown-unknown` without wasm threads.
+
 ## [0.7.1] - 2026-08-26
 
 ### Added

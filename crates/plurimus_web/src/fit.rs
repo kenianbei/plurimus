@@ -13,7 +13,6 @@ pub(crate) const SCRATCH_SIDE: u32 = 128;
 pub(crate) const DRAW_OFFSET: f64 = 16.0;
 const INK_ALPHA: u8 = 128;
 
-/// Bytes per pixel in canvas image data.
 const RGBA: usize = 4;
 
 /// The largest font size the scratch canvas can measure, in physical

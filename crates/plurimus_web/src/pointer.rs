@@ -98,7 +98,6 @@ impl WheelResidue {
     }
 }
 
-/// Adds `notches` to `residue` and takes the whole part out, capped.
 fn take_notches(residue: &mut f64, notches: f64) -> i64 {
     *residue += notches;
     let whole = residue.trunc();
