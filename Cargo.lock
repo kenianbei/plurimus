@@ -3110,6 +3110,7 @@ version = "0.7.1"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "console_error_panic_hook",
  "critical-section",
  "js-sys",
  "plurimus_core",

@@ -10,11 +10,18 @@ compile_error!(
      promise that no second thread exists, which wasm atomics would break"
 );
 
-#[allow(dead_code, reason = "wired up by the browser runtime")]
+#[cfg(target_arch = "wasm32")]
+mod browser;
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    allow(dead_code, reason = "only the wasm32 browser runtime calls into it")
+)]
 mod fit;
 #[allow(dead_code, reason = "wired up by the browser runtime")]
 mod keys;
 #[allow(dead_code, reason = "wired up by the browser runtime")]
 mod pointer;
 
+#[cfg(target_arch = "wasm32")]
+pub use browser::{EXIT_EVENT, WebPlugin};
 pub use fit::GridFit;

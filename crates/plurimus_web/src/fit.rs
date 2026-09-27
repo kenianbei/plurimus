@@ -96,6 +96,30 @@ fn grid_at(
     ))
 }
 
+/// The alpha at or above which a scratch-canvas pixel counts as inked,
+/// matching the renderer's own threshold.
+const INK_ALPHA: u8 = 128;
+
+/// Bytes per pixel in canvas image data.
+const RGBA: usize = 4;
+
+/// The inked width and height of what was drawn on a scratch canvas `side`
+/// pixels square, from its RGBA bytes; `None` when nothing inked.
+pub(crate) fn inked_size(rgba: &[u8], side: u32) -> Option<(u32, u32)> {
+    let side = side as usize;
+    let mut bounds: Option<(usize, usize, usize, usize)> = None;
+    for (index, pixel) in rgba.as_chunks::<RGBA>().0.iter().enumerate() {
+        if pixel[RGBA - 1] < INK_ALPHA {
+            continue;
+        }
+        let (x, y) = (index % side, index / side);
+        bounds = Some(bounds.map_or((x, y, x, y), |(left, top, right, bottom)| {
+            (left.min(x), top.min(y), right.max(x), bottom.max(y))
+        }));
+    }
+    bounds.map(|(left, top, right, bottom)| ((right - left + 1) as u32, (bottom - top + 1) as u32))
+}
+
 fn largest_measurable(pixel_ratio: f64) -> u16 {
     let largest = (f64::from(MAX_MEASURABLE_PX) / pixel_ratio.max(1.0)).floor() as u16;
     largest.max(MIN_FONT_PX)
@@ -121,6 +145,18 @@ mod tests {
         height: 900.0,
         pixel_ratio: 1.0,
     };
+
+    #[test]
+    fn inked_size_spans_only_opaque_enough_pixels() {
+        let side = 4;
+        let mut rgba = vec![0_u8; side * side * RGBA];
+        let mut ink = |x: usize, y: usize, alpha: u8| rgba[(y * side + x) * RGBA + 3] = alpha;
+        ink(1, 1, 255);
+        ink(2, 3, 128);
+        ink(3, 0, 127);
+        assert_eq!(inked_size(&rgba, side as u32), Some((2, 3)));
+        assert_eq!(inked_size(&vec![0; side * side * RGBA], side as u32), None);
+    }
 
     #[test]
     fn a_stated_size_is_taken_as_is() {
