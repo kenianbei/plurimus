@@ -24,7 +24,7 @@ use plurimus::widgets::WidgetsPlugin;
 
 #[cfg(not(target_arch = "wasm32"))]
 const ASSET_ROOT: &str = "examples/lander/assets";
-/// Relative to the page.
+/// Relative to the page, so the site works under any path prefix.
 #[cfg(target_arch = "wasm32")]
 const ASSET_ROOT: &str = "assets";
 
