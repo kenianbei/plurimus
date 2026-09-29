@@ -104,9 +104,8 @@ impl ScrollArea {
     }
 }
 
-// Bevy leaves required components behind with their requirer. `try_`,
-// because a despawn runs this too, and a plain remove would warn about
-// the entity being gone by the time the command applies.
+// Bevy leaves required components behind. `try_`, since a despawn runs
+// this too and a plain remove would warn about the vanished entity.
 fn release_scroll_area(mut world: DeferredWorld, context: HookContext) {
     if let Some(mut offset) = world.get_mut::<ScrollOffset>(context.entity) {
         *offset = ScrollOffset::default();

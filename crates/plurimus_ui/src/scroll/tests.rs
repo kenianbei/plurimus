@@ -121,10 +121,8 @@ fn an_empty_area_addresses_no_cell() {
     );
 }
 
-// The viewport replicates a rule tui-scrollview keeps private, so it is
-// checked against the real thing: an offset past every bound comes back
-// clamped to the render side's own maximum, and the content shows exactly
-// where the viewport says it does.
+// tui-scrollview keeps this rule private, so the viewport is checked
+// against the real thing: where it clamps and where the content shows.
 #[test]
 fn the_viewport_is_where_tui_scrollview_draws_and_clamps() {
     let area = Rect::new(2, 1, 5, 5);

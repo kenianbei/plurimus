@@ -203,9 +203,8 @@ fn scroll_into_view_reveals_minimally() {
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 1));
 }
 
-// Both bars show here, so a column and a row of the area are the bars'
-// and the content's last column and row only ever appear scrolled out
-// from under them.
+// Both bars show here, so the content's last column and row are only
+// ever seen scrolled out from under them.
 #[test]
 fn the_last_column_and_row_scroll_out_from_under_the_bars() {
     let mut app = app();
