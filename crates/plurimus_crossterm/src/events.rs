@@ -9,15 +9,17 @@
 
 use std::time::Duration;
 
-use bevy_ecs::prelude::{Local, MessageWriter};
+use bevy_ecs::prelude::{DetectChangesMut, Local, MessageWriter, ResMut};
 use bevy_ecs::system::SystemParam;
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
 
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{
-    FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind,
-    MouseMessage, PasteMessage, TerminalResized,
+    FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey,
+    MouseButton, MouseKind, MouseMessage, PasteMessage, TerminalResized,
 };
+
+use crate::context::learn_capabilities;
 
 #[derive(SystemParam)]
 pub(crate) struct EventSinks<'w> {
@@ -50,10 +52,13 @@ pub(crate) enum RepeatEncoding {
 
 pub(crate) fn pump_events(
     mut sinks: EventSinks,
+    mut capabilities: ResMut<InputCapabilities>,
     mut batch: Local<Vec<Event>>,
     mut encoding: Local<RepeatEncoding>,
 ) {
     drain(&mut batch, &mut encoding);
+    // Learned here, so this frame's release and modifier synthesis see it.
+    capabilities.set_if_neq(learn_capabilities(&batch, *capabilities));
     forward_batch(&mut batch, &mut sinks, &mut encoding);
 }
 

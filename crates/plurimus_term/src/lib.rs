@@ -76,8 +76,11 @@ impl FocusMessage {
 /// backend saying otherwise. Backends overwrite this after detection, and
 /// should build their value from [`InputCapabilities::none`] rather than
 /// [`Default`]: seeding from the permissive default claims any capability
-/// added later without ever probing for it.
-#[derive(Resource, Debug, Clone, Copy)]
+/// added later without ever probing for it. A backend that can only learn a
+/// capability from what the terminal sends raises it later, so an app
+/// reading this at startup may see a capability absent that arrives with the
+/// first event proving it.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct InputCapabilities {
     /// Real key-release events arrive (kitty keyboard protocol).

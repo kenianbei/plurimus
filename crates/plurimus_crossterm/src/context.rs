@@ -3,9 +3,11 @@
 //!
 //! Every mode entered here has to be undone, including when the process dies
 //! badly, so restoration is idempotent and installed as a panic hook rather
-//! than left to a `Drop`. What the terminal actually supports is probed at
-//! the same time - the kitty keyboard protocol, color depth - and recorded so
-//! the input layer knows which capabilities it must synthesize instead.
+//! than left to a `Drop`. What the terminal actually supports is recorded so
+//! the input layer knows which capabilities it must synthesize instead: color
+//! depth from the environment, and the kitty keyboard protocol's releases and
+//! modifier keys from the first events proving them, since a terminal
+//! answering the protocol query may still ignore the flags pushed to it.
 
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,8 +16,8 @@ use bevy_ecs::prelude::Resource;
 use crossterm::cursor::{Hide, SetCursorStyle, Show};
 use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
-    EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
-    PushKeyboardEnhancementFlags,
+    EnableFocusChange, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyboardEnhancementFlags,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
@@ -54,19 +56,31 @@ pub(crate) fn init<W: Write + Send + Sync + 'static>(
     ColorDepth,
 )> {
     terminal::enable_raw_mode()?;
-    let key_release = terminal::supports_keyboard_enhancement().unwrap_or(false);
+    let kitty = terminal::supports_keyboard_enhancement().unwrap_or(false);
     queue!(writer, EnterAlternateScreen, Hide)?;
-    queue_input_modes(&mut writer, key_release, mouse, paste)?;
+    queue_input_modes(&mut writer, kitty, mouse, paste)?;
     writer.flush()?;
     let (cols, rows) = terminal::size()?;
     Ok((
         CrosstermBackend::new(writer),
         TerminalSize::new(cols, rows),
-        InputCapabilities::none()
-            .with_key_release(key_release)
-            .with_modifier_keys(key_release),
+        InputCapabilities::none(),
         detect_color_depth(),
     ))
+}
+
+/// `known`, raised by whatever `batch` proves the terminal reports.
+///
+/// Never lowered: one release proves the terminal sends them.
+pub(crate) fn learn_capabilities(batch: &[Event], known: InputCapabilities) -> InputCapabilities {
+    batch.iter().fold(known, |learned, event| {
+        let Event::Key(key) = event else {
+            return learned;
+        };
+        learned
+            .with_key_release(learned.key_release || key.kind == KeyEventKind::Release)
+            .with_modifier_keys(learned.modifier_keys || matches!(key.code, KeyCode::Modifier(_)))
+    })
 }
 
 fn detect_color_depth() -> ColorDepth {
@@ -226,6 +240,48 @@ mod tests {
             "PasteMessage's sibling FocusMessage never fires without it"
         );
         assert!(queued(true, true, true).contains("\x1b[?1004h"));
+    }
+
+    fn key(code: KeyCode, kind: KeyEventKind) -> Event {
+        let mut key = crossterm::event::KeyEvent::new(code, crossterm::event::KeyModifiers::NONE);
+        key.kind = kind;
+        Event::Key(key)
+    }
+
+    fn learned(batch: &[Event]) -> InputCapabilities {
+        learn_capabilities(batch, InputCapabilities::none())
+    }
+
+    #[test]
+    fn a_release_proves_releases_and_nothing_else() {
+        let batch = [
+            key(KeyCode::Char('a'), KeyEventKind::Press),
+            key(KeyCode::Char('a'), KeyEventKind::Release),
+        ];
+        assert_eq!(
+            learned(&batch),
+            InputCapabilities::none().with_key_release(true)
+        );
+    }
+
+    #[test]
+    fn a_modifier_key_proves_modifier_keys_and_nothing_else() {
+        let shift = KeyCode::Modifier(crossterm::event::ModifierKeyCode::LeftShift);
+        assert_eq!(
+            learned(&[key(shift, KeyEventKind::Press)]),
+            InputCapabilities::none().with_modifier_keys(true)
+        );
+    }
+
+    #[test]
+    fn a_press_proves_nothing_and_nothing_is_unlearned() {
+        let press = [key(KeyCode::Char('a'), KeyEventKind::Press)];
+        assert_eq!(learned(&press), InputCapabilities::none());
+
+        let known = InputCapabilities::none()
+            .with_key_release(true)
+            .with_modifier_keys(true);
+        assert_eq!(learn_capabilities(&press, known), known);
     }
 
     #[test]
