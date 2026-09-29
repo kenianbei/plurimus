@@ -189,7 +189,7 @@ pub(crate) fn slider_cancel(
     mut commands: Commands,
 ) {
     if let Ok((_, value, _)) = sliders.get(event.entity) {
-        emit(event.entity, value.0, value.0, true, &mut commands);
+        commands.trigger(ValueChange::new(event.entity, value.0, true));
     }
 }
 

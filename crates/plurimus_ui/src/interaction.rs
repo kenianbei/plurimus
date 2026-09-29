@@ -208,10 +208,10 @@ impl PointerRelease {
     }
 }
 
-/// The gesture on a [`Pressed`] widget ended without a release, because the
-/// terminal lost focus: no [`PointerRelease`] and no [`Click`] follow, and a
-/// release reported afterwards reaches nothing. For a widget that has to
-/// settle what a drag left behind.
+/// The gesture on a [`Pressed`] widget ended without a release, as it does
+/// when the terminal loses focus: no [`PointerRelease`] and no [`Click`]
+/// follow, and a release reported afterwards reaches nothing. For a widget
+/// that has to settle what a drag left behind.
 #[derive(EntityEvent, Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct PointerCancel {
