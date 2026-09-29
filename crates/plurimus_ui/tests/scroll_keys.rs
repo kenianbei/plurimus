@@ -3,11 +3,11 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_input_focus::{FocusCause, InputFocus};
+use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key};
+use plurimus_test::{press_chord, press_key, set_focus};
 use plurimus_ui::{
     InteractionDisabled, Key, KeyBinding, ScrollAction, ScrollArea, ScrollKeys, ScrollOffset,
     UiArea, UiPlugin,
@@ -44,15 +44,6 @@ fn spawn_pane(app: &mut App) -> Entity {
     spawn_pane_at(app, AREA)
 }
 
-/// Focus after a frame has run: `bevy_input_focus` hands focus to the
-/// virtual window in `PostStartup`, which would overwrite an earlier set.
-fn focus(app: &mut App, entity: Entity) {
-    app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Pressed);
-}
-
 fn offset(app: &App, entity: Entity) -> Position {
     app.world().entity(entity).get::<ScrollOffset>().unwrap().0
 }
@@ -65,7 +56,7 @@ fn row(app: &App, entity: Entity) -> u16 {
 fn page_down_moves_the_offset_by_the_viewport_height() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::PageDown);
 
@@ -78,7 +69,7 @@ fn page_down_moves_the_offset_by_the_viewport_height() {
 fn repeated_paging_settles_at_each_bound() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     for _ in 0..10 {
         press_key(&mut app, KeyCode::PageDown);
@@ -95,7 +86,7 @@ fn repeated_paging_settles_at_each_bound() {
 fn end_and_home_reach_both_extremes_in_one_press() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::End);
     assert_eq!(row(&app, pane), MAX_ROW);
@@ -108,7 +99,7 @@ fn end_and_home_reach_both_extremes_in_one_press() {
 fn a_jump_leaves_the_horizontal_offset_where_it_was() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
     app.world_mut()
         .entity_mut(pane)
         .insert(ScrollOffset(Position::new(3, 0)));
@@ -122,7 +113,7 @@ fn a_jump_leaves_the_horizontal_offset_where_it_was() {
 fn the_arrows_move_one_row() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::Down);
     press_key(&mut app, KeyCode::Down);
@@ -140,7 +131,7 @@ fn a_bound_key_at_an_extreme_is_still_consumed() {
     app.insert_resource(TerminalSize::new(10, 8));
     let above = spawn_pane_at(&mut app, Rect::new(0, 0, 10, 4));
     let pane = spawn_pane_at(&mut app, Rect::new(0, 4, 10, 4));
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::Up);
 
@@ -167,7 +158,7 @@ fn a_scroll_area_without_the_component_ignores_the_keys() {
         .world_mut()
         .spawn((ScrollArea::new(CONTENT), UiArea::Fixed(AREA)))
         .id();
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::PageDown);
 
@@ -179,7 +170,7 @@ fn a_disabled_pane_ignores_the_keys() {
     let mut app = app();
     let pane = spawn_pane(&mut app);
     app.world_mut().entity_mut(pane).insert(InteractionDisabled);
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::PageDown);
 
@@ -194,7 +185,7 @@ fn a_remapped_binding_replaces_the_default_one() {
         (Key::Character("j".into()).into(), ScrollAction::LineDown),
         (Key::Character("G".into()).into(), ScrollAction::Bottom),
     ]));
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::Char('j'));
     assert_eq!(row(&app, pane), 1);
@@ -216,7 +207,7 @@ fn a_chord_binds_apart_from_its_bare_key() {
         ),
         (Key::Character("d".into()).into(), ScrollAction::LineDown),
     ]));
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('d'));
     assert_eq!(row(&app, pane), PAGE, "ctrl-d pages");
@@ -233,7 +224,7 @@ fn the_horizontal_actions_move_the_column() {
         (Key::ArrowRight.into(), ScrollAction::LineRight),
         (Key::ArrowLeft.into(), ScrollAction::LineLeft),
     ]));
-    focus(&mut app, pane);
+    set_focus(&mut app, pane);
 
     press_key(&mut app, KeyCode::Right);
     press_key(&mut app, KeyCode::Right);

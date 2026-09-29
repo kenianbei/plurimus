@@ -1,13 +1,15 @@
 use bevy_app::App;
 use bevy_color::Color;
 use bevy_ecs::prelude::{Has, Without};
-use bevy_input_focus::{FocusCause, InputFocus};
+use bevy_input_focus::InputFocus;
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::core::TerminalSize;
 use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
 use plurimus::ui::{ComputedWidgetArea, FocusWithin, UiLabel};
 use plurimus::widgets::{Checkbox, MenuButton, Pane, SliderValue, TextInput};
-use plurimus_test::{click, composed_frame, press_chord, press_key, press_key_with, send_mouse};
+use plurimus_test::{
+    click, composed_frame, press_chord, press_key, press_key_with, send_mouse, set_focus,
+};
 
 use super::*;
 
@@ -305,9 +307,7 @@ fn focus_lifts_the_background_of_bui_widgets() {
         Color::NONE
     );
 
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(checkbox, FocusCause::Navigated);
+    set_focus(&mut app, checkbox);
     app.update();
 
     let filled = app.world().get::<BackgroundColor>(checkbox).unwrap().0;

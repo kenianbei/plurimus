@@ -2,11 +2,10 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key};
+use plurimus_test::{press_chord, press_key, set_focus};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextInput, WidgetsPlugin, editable_text};
 
@@ -30,9 +29,7 @@ fn spawn_field(app: &mut App, value: &str) -> Entity {
     let field = world
         .spawn((editable_text(value), UiArea::Fixed(Rect::new(0, 0, 20, 1))))
         .id();
-    world
-        .resource_mut::<InputFocus>()
-        .set(field, FocusCause::Pressed);
+    set_focus(app, field);
     field
 }
 

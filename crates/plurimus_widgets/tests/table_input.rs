@@ -5,11 +5,10 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, Resource};
 use bevy_input::keyboard::Key;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Constraint, Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyCode;
-use plurimus_test::{click, press_key, repeat_key};
+use plurimus_test::{click, press_key, repeat_key, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, ValueChange};
 use plurimus_widgets::ActiveDescendant;
 use plurimus_widgets::{
@@ -62,9 +61,7 @@ fn app(mode: TableSelection) -> (App, Entity, [Entity; 3]) {
         world.spawn((table_row(["cy", "jul"]), ChildOf(table))).id(),
     ];
     world.spawn((table_footer(["total", "3"]), ChildOf(table)));
-    world
-        .resource_mut::<InputFocus>()
-        .set(table, FocusCause::Pressed);
+    set_focus(&mut app, table);
     app.update();
     (app, table, rows)
 }

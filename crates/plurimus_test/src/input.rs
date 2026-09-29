@@ -4,10 +4,12 @@
 //! frame; `press_*`/`send_*` also tick the app.
 
 use bevy_app::App;
+use bevy_ecs::entity::Entity;
+use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{
     FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind,
-    MouseMessage,
+    MouseMessage, PasteMessage,
 };
 
 /// Queues a key press with no modifiers.
@@ -92,10 +94,47 @@ pub fn send_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {
     app.update();
 }
 
-/// A full left click at `(x, y)`: moved, pressed, released, ticking
-/// after each so hover resolves before the press lands.
-pub fn click(app: &mut App, x: u16, y: u16) {
+/// Queues a move to `(x, y)` and a left press there, landing in one frame.
+pub fn write_press_at(app: &mut App, x: u16, y: u16) {
+    write_mouse(app, MouseKind::Moved, x, y);
+    write_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
+}
+
+/// Moves to `(x, y)` and presses left there, ticking after each so hover
+/// resolves before the press lands.
+pub fn press_at(app: &mut App, x: u16, y: u16) {
     send_mouse(app, MouseKind::Moved, x, y);
     send_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
+}
+
+/// Releases left at `(x, y)`, then ticks the app.
+pub fn release_at(app: &mut App, x: u16, y: u16) {
     send_mouse(app, MouseKind::Up(MouseButton::Left), x, y);
+}
+
+/// A full left click at `(x, y)`: [`press_at`], then [`release_at`].
+pub fn click(app: &mut App, x: u16, y: u16) {
+    press_at(app, x, y);
+    release_at(app, x, y);
+}
+
+/// Queues a bracketed paste of `text`.
+pub fn write_paste(app: &mut App, text: &str) {
+    app.world_mut().write_message(PasteMessage(text.into()));
+}
+
+/// Queues a bracketed paste of `text`, then ticks the app.
+pub fn send_paste(app: &mut App, text: &str) {
+    write_paste(app, text);
+    app.update();
+}
+
+/// Gives `entity` input focus, without ticking.
+///
+/// A set before the first frame survives it: `bevy_input_focus` hands the
+/// window focus at startup only when nothing holds it.
+pub fn set_focus(app: &mut App, entity: Entity) {
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(entity, FocusCause::Navigated);
 }

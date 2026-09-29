@@ -3,11 +3,12 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey, PasteMessage};
-use plurimus_test::{composed_styled_frame, press_chord, press_key, repeat_key};
+use plurimus_term::{KeyCode, ModifierKey};
+use plurimus_test::{
+    composed_styled_frame, press_chord, press_key, repeat_key, send_paste, set_focus, write_paste,
+};
 use plurimus_ui::{Key, KeyBinding, UiArea, ValueChange};
 use plurimus_widgets::{
     Submit, TextInput, TextInputAction, TextInputKeys, WidgetsPlugin, editable_text,
@@ -40,9 +41,7 @@ fn spawn_field(app: &mut App, value: &str) -> Entity {
     let field = world
         .spawn((editable_text(value), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
         .id();
-    world
-        .resource_mut::<InputFocus>()
-        .set(field, FocusCause::Pressed);
+    set_focus(app, field);
     field
 }
 
@@ -95,9 +94,7 @@ fn enter_and_blur_emit_final() {
     assert_eq!(app.world().resource::<Edits>().0, [("ok".to_owned(), true)]);
 
     let other = app.world_mut().spawn(()).id();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(other, FocusCause::Pressed);
+    set_focus(&mut app, other);
     app.update();
     assert_eq!(app.world().resource::<Edits>().0.len(), 2);
     assert_eq!(
@@ -117,9 +114,7 @@ fn enter_submits_and_blur_does_not() {
     assert_eq!(app.world().resource::<Submits>().0, ["ok".to_owned()]);
 
     let other = app.world_mut().spawn(()).id();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(other, FocusCause::Pressed);
+    set_focus(&mut app, other);
     app.update();
 
     assert_eq!(
@@ -169,9 +164,7 @@ fn paste_inserts_without_control_chars() {
     let mut app = app();
     let field = spawn_field(&mut app, "");
 
-    app.world_mut()
-        .write_message(PasteMessage("wo\nrld".into()));
-    app.update();
+    send_paste(&mut app, "wo\nrld");
 
     assert_eq!(value_of(&app, field), "world");
     assert_eq!(
@@ -185,12 +178,9 @@ fn paste_bubbles_from_a_focused_child() {
     let mut app = app();
     let field = spawn_field(&mut app, "");
     let child = app.world_mut().spawn(ChildOf(field)).id();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(child, FocusCause::Pressed);
+    set_focus(&mut app, child);
 
-    app.world_mut().write_message(PasteMessage("hi".into()));
-    app.update();
+    send_paste(&mut app, "hi");
 
     assert_eq!(value_of(&app, field), "hi");
 }
@@ -200,8 +190,8 @@ fn each_paste_emits_its_own_change() {
     let mut app = app();
     let field = spawn_field(&mut app, "");
 
-    app.world_mut().write_message(PasteMessage("a".into()));
-    app.world_mut().write_message(PasteMessage("b".into()));
+    write_paste(&mut app, "a");
+    write_paste(&mut app, "b");
     app.update();
 
     assert_eq!(value_of(&app, field), "ab");
@@ -219,8 +209,7 @@ fn paste_without_focus_is_dropped() {
         .spawn((editable_text(""), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
         .id();
 
-    app.world_mut().write_message(PasteMessage("hi".into()));
-    app.update();
+    send_paste(&mut app, "hi");
 
     assert_eq!(value_of(&app, field), "");
     assert!(app.world().resource::<Edits>().0.is_empty());

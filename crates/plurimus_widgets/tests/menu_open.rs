@@ -8,7 +8,7 @@ use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, composed_frame, send_mouse, write_mouse};
+use plurimus_test::{click, composed_frame, press_at, send_mouse, write_mouse, write_press_at};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{Activate, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
 
@@ -79,11 +79,9 @@ fn a_same_batch_item_click_lands_after_the_open() {
     let mut app = app();
     let menu = spawn_menu(&mut app);
     app.update();
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    press_at(&mut app, 2, 0);
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 0);
-    write_mouse(&mut app, MouseKind::Moved, 3, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 3, 2);
+    write_press_at(&mut app, 3, 2);
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 3, 2);
     app.update();
     app.update();
@@ -101,11 +99,9 @@ fn a_same_batch_press_after_a_dismissal_cannot_reach_the_closing_menu() {
     app.update();
     click(&mut app, 2, 0);
     assert!(is_open(&app, &menu));
-    write_mouse(&mut app, MouseKind::Moved, 15, 6);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 15, 6);
+    write_press_at(&mut app, 15, 6);
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 15, 6);
-    write_mouse(&mut app, MouseKind::Moved, 3, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 3, 2);
+    write_press_at(&mut app, 3, 2);
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 3, 2);
     app.update();
     app.update();
@@ -121,8 +117,7 @@ fn a_deferred_batch_with_a_second_flip_converges() {
     // One batch: open, dismiss outside, open again.
     send_mouse(&mut app, MouseKind::Moved, 2, 0);
     for (x, y) in [(2, 0), (15, 6), (2, 0)] {
-        write_mouse(&mut app, MouseKind::Moved, x, y);
-        write_mouse(&mut app, MouseKind::Down(MouseButton::Left), x, y);
+        write_press_at(&mut app, x, y);
         write_mouse(&mut app, MouseKind::Up(MouseButton::Left), x, y);
     }
     for _ in 0..4 {

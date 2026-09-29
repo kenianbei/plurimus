@@ -1,14 +1,12 @@
 //! Standard-widget behavior tests, fully headless.
 
 use bevy_app::App;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{write_key, write_mouse};
+use plurimus_test::{set_focus, write_key, write_mouse, write_press_at};
 use plurimus_ui::{Checked, Hovered, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
@@ -22,12 +20,6 @@ fn app() -> App {
     app.insert_resource(TerminalSize::new(30, 8));
     app.world_mut().spawn(TerminalCamera::default());
     app
-}
-
-fn focus(app: &mut App, entity: Entity) {
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Navigated);
 }
 
 #[derive(Resource, Default)]
@@ -51,8 +43,7 @@ fn button_activates_on_click_and_enter() {
         .entity_mut(button)
         .observe(|_on: On<Activate>, mut count: ResMut<Activations>| count.0 += 1);
 
-    write_mouse(&mut app, MouseKind::Moved, 2, 1);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    write_press_at(&mut app, 2, 1);
     app.update();
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 1);
     app.update();
@@ -91,15 +82,14 @@ fn slider_steps_seeks_and_scrubs() {
             last.0 = Some((on.value, on.is_final));
         },
     );
-    focus(&mut app, slider);
+    set_focus(&mut app, slider);
 
     write_key(&mut app, KeyCode::Right);
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((60.0, true)));
     assert!((app.world().get::<SliderValue>(slider).unwrap().0 - 60.0).abs() < f32::EPSILON);
 
-    write_mouse(&mut app, MouseKind::Moved, 2, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    write_press_at(&mut app, 2, 2);
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((0.0, false)));
 
@@ -134,8 +124,7 @@ fn slider_scrub_holds_capture_outside_the_track() {
         },
     );
 
-    write_mouse(&mut app, MouseKind::Moved, 2, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    write_press_at(&mut app, 2, 2);
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((0.0, false)));
 
@@ -162,14 +151,13 @@ fn checkbox_toggles_via_self_update() {
         .entity_mut(checkbox)
         .observe(checkbox_self_update);
 
-    write_mouse(&mut app, MouseKind::Moved, 2, 1);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    write_press_at(&mut app, 2, 1);
     app.update();
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 1);
     app.update();
     assert!(app.world().get::<Checked>(checkbox).is_some());
 
-    focus(&mut app, checkbox);
+    set_focus(&mut app, checkbox);
     write_key(&mut app, KeyCode::Char(' '));
     app.update();
     app.update();
@@ -203,8 +191,7 @@ fn radio_group_selects_exclusively() {
         .id();
     app.world_mut().entity_mut(group).observe(radio_self_update);
 
-    write_mouse(&mut app, MouseKind::Moved, 2, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    write_press_at(&mut app, 2, 2);
     app.update();
     write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 2);
     app.update();

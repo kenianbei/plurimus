@@ -3,11 +3,11 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::ratatui_core::style::Modifier;
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
+use plurimus_test::set_focus;
 use plurimus_ui::UiArea;
 use plurimus_widgets::{
     ActiveDescendant, TableSelection, WidgetsPlugin, list_item, listbox, table, table_row,
@@ -76,9 +76,7 @@ fn a_list_driven_from_elsewhere_still_shows_its_cursor() {
     let (list, rows) = spawn_list(&mut app);
     let elsewhere = app.world_mut().spawn(()).id();
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(elsewhere, FocusCause::Pressed);
+    set_focus(&mut app, elsewhere);
     set_active(&mut app, list, Some(rows[1]));
 
     let buffer = frame(&mut app);
@@ -92,9 +90,7 @@ fn a_list_with_no_cursor_highlights_nothing() {
     let (list, _) = spawn_list(&mut app);
     let elsewhere = app.world_mut().spawn(()).id();
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(elsewhere, FocusCause::Pressed);
+    set_focus(&mut app, elsewhere);
     set_active(&mut app, list, None);
 
     let buffer = frame(&mut app);
@@ -107,9 +103,7 @@ fn a_focused_list_is_unchanged() {
     let mut app = app();
     let (list, rows) = spawn_list(&mut app);
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(list, FocusCause::Pressed);
+    set_focus(&mut app, list);
     set_active(&mut app, list, Some(rows[0]));
 
     let buffer = frame(&mut app);
@@ -138,9 +132,7 @@ fn a_table_driven_from_elsewhere_still_shows_its_cursor() {
         .collect();
     let elsewhere = app.world_mut().spawn(()).id();
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(elsewhere, FocusCause::Pressed);
+    set_focus(&mut app, elsewhere);
     set_active(&mut app, table_entity, Some(rows[1]));
 
     let buffer = frame(&mut app);

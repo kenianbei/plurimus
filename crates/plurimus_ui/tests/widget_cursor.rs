@@ -3,10 +3,11 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_input_focus::{FocusCause, InputFocus};
+use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalCursor, TerminalSize};
 use plurimus_term::TerminalCursorStyle;
+use plurimus_test::set_focus;
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiPlugin, WidgetCursor};
 
 const AREA: Rect = Rect::new(4, 2, 6, 3);
@@ -25,15 +26,6 @@ fn spawn_editor(app: &mut App, caret: Position) -> Entity {
         .id()
 }
 
-/// Focus after a frame has run: `bevy_input_focus` hands focus to the
-/// virtual window in `PostStartup`, which would overwrite an earlier set.
-fn focus(app: &mut App, entity: Entity) {
-    app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Pressed);
-}
-
 fn cursor(app: &App) -> Option<Position> {
     app.world().resource::<TerminalCursor>().cell
 }
@@ -50,7 +42,7 @@ fn set_cell(app: &mut App, entity: Entity, cell: Option<Position>) {
 fn a_focused_widgets_caret_lands_at_its_offset_from_the_area() {
     let mut app = app();
     let editor = spawn_editor(&mut app, Position::new(2, 1));
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
 
     app.update();
 
@@ -71,7 +63,7 @@ fn an_unfocused_widget_shows_no_cursor() {
 fn losing_focus_takes_the_cursor_away_with_it() {
     let mut app = app();
     let editor = spawn_editor(&mut app, Position::new(0, 0));
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
     app.update();
     assert!(cursor(&app).is_some());
 
@@ -89,7 +81,7 @@ fn a_scrolled_widget_places_the_caret_through_its_offset() {
         ScrollArea::new(Size::new(20, 40)),
         ScrollOffset(Position::new(1, 8)),
     ));
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
 
     app.update();
 
@@ -106,7 +98,7 @@ fn a_caret_scrolled_out_of_view_is_hidden_rather_than_clamped() {
         ScrollArea::new(Size::new(20, 40)),
         ScrollOffset(Position::new(0, 20)),
     ));
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
 
     app.update();
 
@@ -138,7 +130,7 @@ fn the_shape_follows_the_widget_that_owns_the_caret() {
             UiArea::Fixed(AREA),
         ))
         .id();
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
 
     app.update();
 
@@ -160,7 +152,7 @@ fn a_cursor_naming_no_cell_is_hidden_and_keeps_its_style() {
             UiArea::Fixed(AREA),
         ))
         .id();
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
     app.update();
     assert_eq!(cursor(&app), Some(Position::new(6, 3)));
 
@@ -182,7 +174,7 @@ fn naming_a_cell_again_places_the_caret_back() {
         .world_mut()
         .spawn((WidgetCursor::nowhere(), UiArea::Fixed(AREA)))
         .id();
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
     app.update();
     assert_eq!(cursor(&app), None);
 
@@ -205,7 +197,7 @@ fn losing_focus_gives_the_apps_own_shape_back() {
             UiArea::Fixed(AREA),
         ))
         .id();
-    focus(&mut app, editor);
+    set_focus(&mut app, editor);
     app.update();
     assert_eq!(
         *app.world().resource::<TerminalCursorStyle>(),

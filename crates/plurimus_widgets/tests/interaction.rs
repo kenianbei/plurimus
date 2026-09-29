@@ -3,12 +3,12 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{press_key, send_mouse, write_mouse};
+use plurimus_test::{press_at, press_key, release_at, send_mouse, set_focus, write_mouse};
 use plurimus_ui::Key;
 use plurimus_ui::{Click, FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
@@ -139,12 +139,11 @@ fn click_presses_focuses_and_triggers() {
         .entity_mut(widget)
         .observe(|_click: On<Click>, mut clicks: ResMut<Clicks>| clicks.0 += 1);
 
-    send_mouse(&mut app, MouseKind::Moved, 3, 1);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 3, 1);
+    press_at(&mut app, 3, 1);
     assert!(app.world().get::<Pressed>(widget).is_some());
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(widget));
 
-    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), 3, 1);
+    release_at(&mut app, 3, 1);
     assert!(app.world().get::<Pressed>(widget).is_none());
     assert_eq!(app.world().resource::<Clicks>().0, 1);
 }
@@ -188,16 +187,12 @@ fn focus_within_tracks_the_ancestor_chain() {
     let widget_b = app.world_mut().spawn(ChildOf(pane_b)).id();
     app.update();
 
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(widget_a, FocusCause::Navigated);
+    set_focus(&mut app, widget_a);
     app.update();
     assert!(app.world().get::<FocusWithin>(pane_a).is_some());
     assert!(app.world().get::<FocusWithin>(pane_b).is_none());
 
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(widget_b, FocusCause::Navigated);
+    set_focus(&mut app, widget_b);
     app.update();
     assert!(app.world().get::<FocusWithin>(pane_a).is_none());
     assert!(app.world().get::<FocusWithin>(pane_b).is_some());
@@ -220,9 +215,7 @@ fn a_remapped_slider_steps_on_its_own_keys() {
         ]),
     ));
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(slider, FocusCause::Navigated);
+    set_focus(&mut app, slider);
 
     press_key(&mut app, KeyCode::Char('l'));
     assert!(value(&app, slider) > 50.0, "the bound key steps");

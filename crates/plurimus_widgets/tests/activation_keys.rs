@@ -5,10 +5,10 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
-use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
+use bevy_input_focus::FocusedInput;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key, repeat_key};
+use plurimus_test::{press_chord, press_key, repeat_key, set_focus};
 use plurimus_ui::{InteractionDisabled, KeyBinding, ValueChange};
 use plurimus_widgets::{
     Activate, ActivateKeys, RadioGroup, WidgetsPlugin, button, checkbox, radio,
@@ -22,12 +22,6 @@ fn app() -> App {
     app.init_resource::<Activations>();
     app.init_resource::<Unconsumed>();
     app
-}
-
-fn focus(app: &mut App, entity: Entity) {
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Navigated);
 }
 
 #[derive(Resource, Default)]
@@ -74,7 +68,7 @@ fn the_default_bindings_activate_and_consume() {
     let form = form(&mut app);
     let button = app.world_mut().spawn((button("ok"), ChildOf(form))).id();
     count_activations(&mut app, button);
-    focus(&mut app, button);
+    set_focus(&mut app, button);
 
     press_key(&mut app, KeyCode::Enter);
     press_key(&mut app, KeyCode::Char(' '));
@@ -105,7 +99,7 @@ fn a_narrowed_checkbox_leaves_enter_to_the_form() {
     app.world_mut().entity_mut(check).observe(
         |_on: On<ValueChange<bool>>, mut activations: ResMut<Activations>| activations.0 += 1,
     );
-    focus(&mut app, check);
+    set_focus(&mut app, check);
 
     press_key(&mut app, KeyCode::Enter);
     assert_eq!(
@@ -141,7 +135,7 @@ fn a_chord_activates_apart_from_its_bare_key() {
     app.world_mut()
         .entity_mut(ok)
         .observe(|_on: On<Activate>, mut activations: ResMut<Activations>| activations.0 += 1);
-    focus(&mut app, ok);
+    set_focus(&mut app, ok);
 
     press_key(&mut app, KeyCode::Enter);
     assert_eq!(
@@ -180,7 +174,7 @@ fn a_narrowed_radio_uses_only_its_bound_key() {
             ChildOf(group),
         ))
         .id();
-    focus(&mut app, option);
+    set_focus(&mut app, option);
 
     press_key(&mut app, KeyCode::Char(' '));
     assert_eq!(app.world().resource::<Activations>().0, 0);
@@ -200,7 +194,7 @@ fn an_empty_binding_list_activates_on_nothing() {
         .spawn((button("ok"), ActivateKeys(Vec::new()), ChildOf(form)))
         .id();
     count_activations(&mut app, button);
-    focus(&mut app, button);
+    set_focus(&mut app, button);
 
     press_key(&mut app, KeyCode::Enter);
     press_key(&mut app, KeyCode::Char(' '));
@@ -224,7 +218,7 @@ fn a_disabled_widget_leaves_its_bound_keys_alone() {
     app.world_mut().entity_mut(check).observe(
         |_on: On<ValueChange<bool>>, mut activations: ResMut<Activations>| activations.0 += 1,
     );
-    focus(&mut app, check);
+    set_focus(&mut app, check);
 
     press_key(&mut app, KeyCode::Enter);
 
@@ -241,7 +235,7 @@ fn a_repeat_of_a_bound_key_does_not_activate() {
     let mut app = app();
     let button = app.world_mut().spawn(button("ok")).id();
     count_activations(&mut app, button);
-    focus(&mut app, button);
+    set_focus(&mut app, button);
 
     press_key(&mut app, KeyCode::Enter);
     repeat_key(&mut app, KeyCode::Enter);

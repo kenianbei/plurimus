@@ -5,13 +5,13 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabGroup;
 use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder, UiWidget};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_key, send_mouse};
+use plurimus_test::{click, press_at, press_key, release_at, send_mouse, set_focus};
 use plurimus_ui::{
     Click, Hovered, InteractionDisabled, PointerDrag, PointerPress, PressFocusDisabled,
     PressPassThrough, Pressed, UiArea,
@@ -91,9 +91,7 @@ fn a_press_on_a_disabled_widget_moves_no_focus() {
         .insert((InteractionDisabled, TabIndex(0)));
     let elsewhere = app.world_mut().spawn(()).id();
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(elsewhere, FocusCause::Pressed);
+    set_focus(&mut app, elsewhere);
 
     click(&mut app, AREA.x + 1, AREA.y + 1);
 
@@ -177,17 +175,9 @@ fn a_press_focus_disabled_widget_presses_without_taking_focus() {
         .insert((TabIndex(0), PressFocusDisabled));
     let editor = app.world_mut().spawn(TabIndex(1)).id();
     app.update();
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(editor, FocusCause::Pressed);
+    set_focus(&mut app, editor);
 
-    send_mouse(&mut app, MouseKind::Moved, AREA.x + 1, AREA.y + 1);
-    send_mouse(
-        &mut app,
-        MouseKind::Down(MouseButton::Left),
-        AREA.x + 1,
-        AREA.y + 1,
-    );
+    press_at(&mut app, AREA.x + 1, AREA.y + 1);
 
     assert!(was_pressed(&app, toolbar), "the press landed");
     assert!(app.world().entity(toolbar).contains::<Pressed>());
@@ -210,25 +200,14 @@ fn a_press_focus_disabled_widget_still_drags_and_clicks() {
     app.add_observer(|_: On<Click>, mut log: ResMut<Gestures>| log.0.push("click"));
     app.update();
 
-    send_mouse(&mut app, MouseKind::Moved, AREA.x + 1, AREA.y + 1);
-    send_mouse(
-        &mut app,
-        MouseKind::Down(MouseButton::Left),
-        AREA.x + 1,
-        AREA.y + 1,
-    );
+    press_at(&mut app, AREA.x + 1, AREA.y + 1);
     send_mouse(
         &mut app,
         MouseKind::Drag(MouseButton::Left),
         AREA.x + 2,
         AREA.y + 1,
     );
-    send_mouse(
-        &mut app,
-        MouseKind::Up(MouseButton::Left),
-        AREA.x + 2,
-        AREA.y + 1,
-    );
+    release_at(&mut app, AREA.x + 2, AREA.y + 1);
 
     assert_eq!(
         app.world().resource::<Gestures>().0,
@@ -265,23 +244,12 @@ fn a_widget_disabled_mid_gesture_does_not_click() {
     app.add_observer(|_: On<Click>, mut log: ResMut<Gestures>| log.0.push("click"));
     app.update();
 
-    send_mouse(&mut app, MouseKind::Moved, AREA.x + 1, AREA.y + 1);
-    send_mouse(
-        &mut app,
-        MouseKind::Down(MouseButton::Left),
-        AREA.x + 1,
-        AREA.y + 1,
-    );
+    press_at(&mut app, AREA.x + 1, AREA.y + 1);
     assert!(app.world().entity(widget).contains::<Pressed>());
     app.world_mut()
         .entity_mut(widget)
         .insert(InteractionDisabled);
-    send_mouse(
-        &mut app,
-        MouseKind::Up(MouseButton::Left),
-        AREA.x + 1,
-        AREA.y + 1,
-    );
+    release_at(&mut app, AREA.x + 1, AREA.y + 1);
 
     assert!(
         app.world().resource::<Gestures>().0.is_empty(),
