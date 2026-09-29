@@ -23,7 +23,11 @@ use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, Mo
 pub enum InputSystems {
     /// Backends drain their event source into messages.
     Pump,
-    /// State is derived (button state, cursor, synthesis) from messages.
+    /// The releases no terminal will send are written: expired holds and
+    /// every key held across a focus loss.
+    Synthesize,
+    /// State is derived (button state, cursor) from messages, synthesized
+    /// ones included.
     Update,
 }
 

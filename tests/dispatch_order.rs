@@ -19,7 +19,7 @@ use plurimus::widgets::{
     ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,
     table_footer, table_header, table_row,
 };
-use plurimus_test::{press_key, send_paste, set_focus};
+use plurimus_test::{press_key, send_focus, send_paste, set_focus, write_key};
 
 const AREA: Rect = Rect::new(0, 0, 20, 6);
 
@@ -78,6 +78,29 @@ fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
         Some(true),
         "the paste dispatch ran before bevy_input drained the synthesized \
          press, so an observer reading held keys sees none"
+    );
+}
+
+// A `FocusedInput` observer reads bevy's key state, so it has to agree with
+// plurimus's own in the frame focus is lost.
+#[test]
+fn a_focus_loss_releases_the_forwarded_key_in_the_same_frame() {
+    let mut app = app();
+    write_key(&mut app, KeyCode::Char('w'));
+    app.update();
+    let is_held = |app: &App| {
+        app.world()
+            .resource::<ButtonInput<BevyKeyCode>>()
+            .pressed(BevyKeyCode::KeyW)
+    };
+    assert!(is_held(&app));
+
+    send_focus(&mut app, false);
+
+    assert!(
+        !is_held(&app),
+        "forwarding ran before the synthetic release was written, so bevy's \
+         key state holds the key a frame longer than plurimus's own"
     );
 }
 

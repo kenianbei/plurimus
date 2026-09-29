@@ -160,22 +160,29 @@ impl Plugin for TermPlugin {
         app.add_message::<TerminalResized>();
         app.configure_sets(
             PreUpdate,
-            (InputSystems::Pump, InputSystems::Update).chain(),
+            (
+                InputSystems::Pump,
+                InputSystems::Synthesize,
+                InputSystems::Update,
+            )
+                .chain(),
         );
         app.add_systems(
             PreUpdate,
-            // Both synthesis paths go before the polled state they feed:
-            // recording this frame's presses, then writing the releases no
-            // terminal will, leaves `update_button_input` one batch to apply.
             (
-                record_held_keys,
-                expire_held_keys.run_if(releases_are_synthesized),
-                release_keys_on_focus_loss,
-                update_button_input,
-                track_cursor_cell,
-            )
-                .chain()
-                .in_set(InputSystems::Update),
+                // Recording this frame's presses first, so a focus lost in
+                // the same frame releases them too.
+                (
+                    record_held_keys,
+                    expire_held_keys.run_if(releases_are_synthesized),
+                    release_keys_on_focus_loss,
+                )
+                    .chain()
+                    .in_set(InputSystems::Synthesize),
+                (update_button_input, track_cursor_cell)
+                    .chain()
+                    .in_set(InputSystems::Update),
+            ),
         );
         // Into core's own set, so a resize reported this frame reaches the
         // cameras that resolve against it in the same frame.
