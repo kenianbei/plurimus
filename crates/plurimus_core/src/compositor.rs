@@ -197,12 +197,10 @@ mod tests {
         let (first, second) = (world.spawn_empty().id(), world.spawn_empty().id());
         let (low, high) = (first.min(second), first.max(second));
         for (source, symbol) in [(high, "h"), (low, "l")] {
-            let mut cell = Cell::EMPTY;
-            cell.set_symbol(symbol);
             world.spawn((
                 ExtractedCamera::new(0, area, Background::TerminalDefault),
                 SourceCamera(source),
-                CameraBuffer(Buffer::filled(area, cell)),
+                CameraBuffer(Buffer::filled(area, Cell::new(symbol))),
             ));
         }
 
