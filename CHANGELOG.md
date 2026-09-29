@@ -75,6 +75,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   viewport on the left and top only, so a node overflowing its camera on the
   right or bottom took clicks inside whatever camera sat beside it. They are now
   cut on all four sides, and are zero for a node wholly outside the viewport.
+- **A lower pixel showing through a higher one in braille.** In a
+  `SubcellMode::Braille` camera, a pixel drawn over another on the same dot
+  mixed its color with the one beneath, so a higher-z sprite came out tinted by
+  what it covered. The higher pixel's color now replaces it. Distinct dots in
+  one cell still share the average of their colors, since a braille cell has one
+  foreground.
+- **Cameras with the same `order` stacking at random.** Cameras with equal
+  `order` were composited in query order, which can change as components are
+  added and removed. They now composite in `Entity` order, the tie-break used
+  when choosing the default camera and when docking viewports, so their stacking
+  is fixed. Two equal-order cameras spawned one after the other may swap
+  compared with before; give cameras distinct orders when their stacking
+  matters.
 
 ## [0.7.2] - 2026-09-26
 

@@ -37,7 +37,7 @@ pub enum Background {
 #[non_exhaustive]
 pub struct TerminalCamera {
     /// Cameras with a higher order composite later, on top; equal orders
-    /// composite in entity order.
+    /// composite in [`Entity`] order.
     pub order: isize,
     /// Cell-space region of the terminal this camera occupies.
     pub viewport: Viewport,
