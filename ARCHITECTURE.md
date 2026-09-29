@@ -110,33 +110,35 @@ the caret to take, which no ratatui `Backend` method can express. That stream is
 one-way, so `LastCopied` is the state derived from it: a stock system in
 `RequestSystems::Echo` records the last copy bound for the ordinary clipboard,
 giving a paste key one answer across every widget that asks. It echoes what was
-requested rather than what the terminal holds, and runs in `Last` because a
-backend consumes requests by draining them during extraction, after every
-main-world schedule. `TermPlugin` requires `CorePlugin` first, since applying a
-resize writes core's `TerminalSize`. `InputCapabilities` records what the active
-backend can report (real key releases, modifier key events - the kitty keyboard
-protocol tier); where a capability is absent, release synthesis fills the gap on
-a `ReleaseTimeout`. Losing focus is the gap no capability covers, since a
-terminal reports nothing at all while unfocused: every held key is released when
-a `FocusMessage` says focus went away, keys only, because a synthetic key
-release corrects held state while a pointer release would complete a click
-nobody made. Both paths drain one held-key registry, which is why recording into
-it is a system of its own rather than the first half of the timeout's - what is
-held has to be known on every tier, and only the expiry is a capability's to
-turn off. Both run before polled state is derived rather than reading it back,
-so a hold the terminal stopped reporting clears in the frame it ended. A release
-either writes carries no modifiers and names the key as held, which is what a
-terminal does too - an event reports the state it leaves behind, and a shifted
-character is exactly what nothing being held can no longer produce. A click
-count is the other fact no terminal reports, and the one no capability governs,
-since no tier reports it - but only the run itself lives elsewhere, in the crate
-whose router knows what a press reached. What stays here is `MultiClickWindow`,
-how soon after a press another has to land to run with it, sitting beside
-`ReleaseTimeout` as the second knob an app sets once for every widget and read
-against the same `Time<Real>`. The `bevy_compat` module forwards messages into
-`bevy_input` event types for crates built on them, such as the focus stack, and
-`HeldModifiers` is the way back for what that seam drops: bevy's `KeyboardInput`
-carries no modifiers, so a key observer polls the ones held through it.
+requested rather than what the terminal holds, and runs in `Last` so it sees
+every request the frame wrote; a backend reads the stream through a cursor of
+its own during extraction rather than consuming it, so the echo, the backend and
+any app reader all see the same requests. `TermPlugin` requires `CorePlugin`
+first, since applying a resize writes core's `TerminalSize`. `InputCapabilities`
+records what the active backend can report (real key releases, modifier key
+events - the kitty keyboard protocol tier); where a capability is absent,
+release synthesis fills the gap on a `ReleaseTimeout`. Losing focus is the gap
+no capability covers, since a terminal reports nothing at all while unfocused:
+every held key is released when a `FocusMessage` says focus went away, keys
+only, because a synthetic key release corrects held state while a pointer
+release would complete a click nobody made. Both paths drain one held-key
+registry, which is why recording into it is a system of its own rather than the
+first half of the timeout's - what is held has to be known on every tier, and
+only the expiry is a capability's to turn off. Both run before polled state is
+derived rather than reading it back, so a hold the terminal stopped reporting
+clears in the frame it ended. A release either writes carries no modifiers and
+names the key as held, which is what a terminal does too - an event reports the
+state it leaves behind, and a shifted character is exactly what nothing being
+held can no longer produce. A click count is the other fact no terminal reports,
+and the one no capability governs, since no tier reports it - but only the run
+itself lives elsewhere, in the crate whose router knows what a press reached.
+What stays here is `MultiClickWindow`, how soon after a press another has to
+land to run with it, sitting beside `ReleaseTimeout` as the second knob an app
+sets once for every widget and read against the same `Time<Real>`. The
+`bevy_compat` module forwards messages into `bevy_input` event types for crates
+built on them, such as the focus stack, and `HeldModifiers` is the way back for
+what that seam drops: bevy's `KeyboardInput` carries no modifiers, so a key
+observer polls the ones held through it.
 
 ### plurimus_crossterm
 
@@ -202,13 +204,13 @@ crossterm's pump writes, placing pointers against that frame's grid.
 Outbound, extraction does what a terminal's resize event would: it follows the
 canvas into the grid and the grid into `TerminalResized` every frame, since the
 renderer notices a new size only when it flushes and the presenter skips
-flushing an unchanged frame. `TerminalRequest` is served through a cursor rather
-than a drain - clipboard copies to the browser clipboard, the primary selection
-having no browser counterpart, and titles to the page, whose original title is
-restored on exit. An exit stops the runner and dispatches `plurimus-exit` from
-the canvas with the exit code, bubbling, since the canvas is mounted only after
-a page's script has run and a page listens on the document instead; a tab has
-nothing to exit to, and what leaving means is the page's to decide.
+flushing an unchanged frame. `TerminalRequest` is served there too - clipboard
+copies to the browser clipboard, the primary selection having no browser
+counterpart, and titles to the page, whose original title is restored on exit.
+An exit stops the runner and dispatches `plurimus-exit` from the canvas with the
+exit code, bubbling, since the canvas is mounted only after a page's script has
+run and a page listens on the document instead; a tab has nothing to exit to,
+and what leaving means is the page's to decide.
 
 ### plurimus_ui
 
@@ -511,7 +513,7 @@ one.
 
 Dev-only test support; a dev-dependency everywhere, never shipped. Input
 injection (`press_key`, `click`, and friends) writes messages as if a backend
-had translated them, `clipboard_writes` takes back the copies an app asked for
+had translated them, `clipboard_writes` reads back the copies an app asked for
 the way a backend would, and `composed_frame`/`composed_styled_frame` snapshot
 the composed `FrameBuffer` straight out of the sub-app - so a test drives a full
 app headlessly with no terminal and no presenter attached. `widget_content`
