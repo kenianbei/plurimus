@@ -97,6 +97,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   never. `plurimus_test`'s `clipboard_writes` no longer takes the requests
   either: it returns the copies made since its previous call and leaves the
   stream as it found it.
+- **Rows that lost a component still drawn with it.** Removing `ListItemText`,
+  `UiLabel` or `ListItem` from a list box row, or `TableHeader`, `TableFooter`
+  or `TableRow` from a table row, left the container drawn as before until
+  something else repainted it. It now redraws in the same frame, and a list's
+  scroll extent follows a row losing its text or ceasing to be a row. The other
+  way round, a tab bar no longer redraws its chrome when the active tab changes,
+  and a table no longer redraws when a row loses `Marked` or `ListItemTrailing`,
+  neither of which it draws.
 
 ## [0.7.2] - 2026-09-26
 
