@@ -13,14 +13,14 @@ use bevy_ecs::prelude::{
     Added, ChildOf, Commands, Component, Entity, MessageWriter, On, Query, Res, ResMut, With,
 };
 use bevy_ecs::system::SystemParam;
-use bevy_input_focus::InputFocus;
-use bevy_input_focus::directional_navigation::DirectionalNavigationMap;
-use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use bevy_math::CompassOctant;
 use plurimus::core::ratatui_core::layout::{Rect, Size};
 use plurimus::core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus::core::ratatui_core::text::{Line, Text};
 use plurimus::core::{ResolvedViewport, UiArea, UiWidget};
+use plurimus::ui::bevy_input_focus::InputFocus;
+use plurimus::ui::bevy_input_focus::directional_navigation::DirectionalNavigationMap;
+use plurimus::ui::bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus::ui::tui_scrollview::ScrollbarVisibility;
 use plurimus::ui::{Checked, ScrollArea, UiLabel, UiTheme, ValueChange};
 use plurimus::widgets::ratatui_textarea::TextArea;

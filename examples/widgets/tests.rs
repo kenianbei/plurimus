@@ -1,10 +1,10 @@
 use bevy_app::App;
 use bevy_color::Color;
 use bevy_ecs::prelude::{Has, Without};
-use bevy_input_focus::InputFocus;
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::core::TerminalSize;
 use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
+use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{ComputedWidgetArea, FocusWithin, UiLabel};
 use plurimus::widgets::{Checkbox, MenuButton, Pane, SliderValue, TextInput};
 use plurimus_test::{

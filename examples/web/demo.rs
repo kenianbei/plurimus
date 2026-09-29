@@ -5,10 +5,10 @@ use bevy_ecs::prelude::{
     ChildOf, Commands, Component, DetectChanges, Entity, MessageWriter, On, Query, Res, ResMut,
     Resource, With,
 };
-use bevy_input_focus::tab_navigation::TabGroup;
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{TerminalCamera, UiArea, UiWidget};
 use plurimus::term::TerminalRequest;
+use plurimus::ui::bevy_input_focus::tab_navigation::TabGroup;
 use plurimus::ui::{UiLabel, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{

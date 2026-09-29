@@ -26,6 +26,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   press there, and `release_at` and `write_release_at` release. `send_paste` and
   `write_paste` deliver a bracketed paste. Each follows the module's families:
   `write_*` only queues, and the rest tick.
+- **`InputSystems::Synthesize`.** Release synthesis (expired holds, and every
+  key held across a focus loss) runs in a set of its own, chained between `Pump`
+  and `Update`, so a system can order against it. `Update` now derives state
+  only, and every system in it sees the frame's synthetic releases.
+- **`bevy_input_focus` re-exported.** `plurimus_ui` and `plurimus_widgets`
+  re-export it, so `InputFocus`, `TabIndex`, `FocusedInput` and
+  `InputFocusSystems` are reachable without a dependency pinned by hand.
 
 ### Changed
 
@@ -37,6 +44,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Bevy's key state lagging a focus loss by a frame.** When the terminal lost
+  focus, the keys released for it reached `ButtonInput<KeyCode>` that frame but
+  bevy's `KeyboardInput` and its own `ButtonInput` only on the next, so a
+  `FocusedInput` observer could see a key held that no longer was. Both now
+  release in the same frame.
 - **`plurimus_3d` in a browser.** It now enables `bevy_render`'s WebGPU backend
   on wasm itself. Its headless render stack has no surface, so WebGL2 could
   never provide an adapter, and every browser app had to enable the feature on

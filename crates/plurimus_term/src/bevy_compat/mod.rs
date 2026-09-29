@@ -35,8 +35,9 @@ use keymap::{logical_key, modifier_logical, modifier_physical, physical_code};
 /// Synthesized transitions always name the left key, since [`KeyModifiers`]
 /// collapses the sides: a right-shift press arrives as `ShiftLeft`.
 ///
-/// Register in [`crate::InputSystems::Update`] before
-/// `bevy_input::InputSystems`.
+/// Register in [`crate::InputSystems::Update`], which runs after
+/// [`crate::InputSystems::Synthesize`] so this frame's synthetic releases
+/// are forwarded with it, and before `bevy_input::InputSystems`.
 pub fn forward_keyboard(
     mut keys: MessageReader<KeyMessage>,
     capabilities: Res<InputCapabilities>,
