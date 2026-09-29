@@ -88,7 +88,9 @@ pub(crate) use popover::{adopt_anchor_cameras, place_popovers};
 pub(crate) use radio::style_radios;
 pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
-pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
+pub(crate) use slider::{
+    slider_cancel, slider_drag, slider_key, slider_press, slider_release, style_sliders,
+};
 pub(crate) use tabbar::{
     TabBarSelfChanged, TabItemsChanged, place_tab_items, style_tab_bars, style_tab_items,
     tab_bar_key, tab_item_click,
@@ -228,6 +230,7 @@ fn add_observers(app: &mut App) {
     app.add_observer(slider_press);
     app.add_observer(slider_drag);
     app.add_observer(slider_release);
+    app.add_observer(slider_cancel);
     app.add_observer(slider_key);
     app.add_observer(scrollbar_press);
     app.add_observer(scrollbar_drag);

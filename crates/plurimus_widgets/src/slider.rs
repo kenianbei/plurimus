@@ -26,8 +26,8 @@ use super::ValueChange;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{
-    ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress, PointerRelease,
-    UiTheme,
+    ComputedWidgetArea, Hovered, InteractionDisabled, PointerCancel, PointerDrag, PointerPress,
+    PointerRelease, UiTheme,
 };
 use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
@@ -179,6 +179,18 @@ pub(crate) fn slider_release(
         &sliders,
         &mut commands,
     );
+}
+
+// A cancelled drag commits rather than reverts, as a text field does on
+// losing focus: the final change an app waits for still arrives.
+pub(crate) fn slider_cancel(
+    event: On<PointerCancel>,
+    sliders: SliderQuery,
+    mut commands: Commands,
+) {
+    if let Ok((_, value, _)) = sliders.get(event.entity) {
+        emit(event.entity, value.0, value.0, true, &mut commands);
+    }
 }
 
 fn seek(
