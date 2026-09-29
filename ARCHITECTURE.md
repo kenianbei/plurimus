@@ -119,13 +119,17 @@ records what the active backend can report (real key releases, modifier key
 events - the kitty keyboard protocol tier); where a capability is absent,
 release synthesis fills the gap on a `ReleaseTimeout`. Losing focus is the gap
 no capability covers, since a terminal reports nothing at all while unfocused:
-every held key is released when a `FocusMessage` says focus went away, keys
-only, because a synthetic key release corrects held state while a pointer
-release would complete a click nobody made. Both paths drain one held-key
-registry, which is why recording into it is a system of its own rather than the
-first half of the timeout's - what is held has to be known on every tier, and
-only the expiry is a capability's to turn off. Both run in
-`InputSystems::Synthesize`, chained after `Pump` and before the `Update` that
+every held key is released when a `FocusMessage` says focus went away, while the
+pointer's gesture is cancelled rather than released, because a synthetic key
+release corrects held state while a pointer release would complete a click
+nobody made. The cancel is a `MouseKind::Cancel` written after the frame's
+pumped input, so it ends a press from that same batch too; polled state drops
+every held button on it, and `plurimus_ui`'s router ends the pressed widget's
+gesture with a `PointerCancel` instead of a release and a click. Both key paths
+drain one held-key registry, which is why recording into it is a system of its
+own rather than the first half of the timeout's - what is held has to be known
+on every tier, and only the expiry is a capability's to turn off. All of it runs
+in `InputSystems::Synthesize`, chained after `Pump` and before the `Update` that
 derives polled state, rather than reading it back, so a hold the terminal
 stopped reporting clears in the frame it ended - in the state forwarded to
 `bevy_input` too, since forwarding runs in `Update`. A release either writes
