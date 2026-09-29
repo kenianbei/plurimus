@@ -10,9 +10,11 @@
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::{
     Commands, Component, EntityEvent, MessageReader, Mut, On, Query, With, Without,
 };
+use bevy_ecs::world::DeferredWorld;
 use plurimus_core::RasterDeferred;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_term::{MouseKind, MouseMessage};
@@ -26,8 +28,13 @@ use crate::modal::ModalGuard;
 /// Declares a widget entity's content to be `content_size` cells,
 /// windowed into the resolved area at render time by its
 /// [`ScrollOffset`].
+///
+/// Removing it hands the widget back to core's widget pass, drawn
+/// unscrolled with its offset at the origin. [`WheelReceptive`] stays,
+/// since other components require it too.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(ScrollOffset, WheelReceptive, RasterDeferred, ComputedWidgetArea)]
+#[component(on_remove = release_scroll_area)]
 #[non_exhaustive]
 pub struct ScrollArea {
     /// Content extent in cells.
@@ -100,6 +107,19 @@ impl ScrollArea {
             ..area
         }
     }
+}
+
+// Bevy leaves required components behind with their requirer. `try_`,
+// because a despawn runs this too, and a plain remove would warn about
+// the entity being gone by the time the command applies.
+fn release_scroll_area(mut world: DeferredWorld, context: HookContext) {
+    if let Some(mut offset) = world.get_mut::<ScrollOffset>(context.entity) {
+        *offset = ScrollOffset::default();
+    }
+    world
+        .commands()
+        .entity(context.entity)
+        .try_remove::<RasterDeferred>();
 }
 
 /// Scroll offset in cells from the content's top-left.
