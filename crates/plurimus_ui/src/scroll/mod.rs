@@ -64,12 +64,49 @@ impl ScrollArea {
             _ => area_width.saturating_sub(1).max(1),
         }
     }
+
+    /// The part of `area` the content is drawn into, once tui-scrollview
+    /// has taken a column for a vertical bar and a row for a horizontal one.
+    ///
+    /// Automatic bars follow tui-scrollview's rule: nothing when the
+    /// content fits, otherwise a bar on every axis the content does not
+    /// fit, an exact fit included, since the other bar takes the line that
+    /// made it fit.
+    #[must_use]
+    pub const fn viewport(&self, area: Rect) -> Rect {
+        let content = self.content_size;
+        let (horizontal, vertical) = match self.scrollbars {
+            ScrollbarVisibility::Always => (true, true),
+            ScrollbarVisibility::Never => (false, false),
+            ScrollbarVisibility::Automatic => {
+                let overflows = content.width > area.width || content.height > area.height;
+                (
+                    overflows && content.width >= area.width,
+                    overflows && content.height >= area.height,
+                )
+            }
+        };
+        Rect {
+            width: if vertical {
+                area.width.saturating_sub(1)
+            } else {
+                area.width
+            },
+            height: if horizontal {
+                area.height.saturating_sub(1)
+            } else {
+                area.height
+            },
+            ..area
+        }
+    }
 }
 
 /// Scroll offset in cells from the content's top-left.
 ///
-/// Systems mutating it clamp to `content_size - area`; the render side
-/// only reads it (extraction is one-directional).
+/// Systems mutating it clamp to the [`max_offset`] of the content in the
+/// area's [`ScrollArea::viewport`]; the render side only reads it
+/// (extraction is one-directional).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollOffset(pub Position);
 
@@ -215,9 +252,10 @@ pub(crate) fn sync_scroll_area_axes(
     mut areas: Query<(&ScrollArea, &ComputedWidgetArea, &mut WheelAxes)>,
 ) {
     for (scroll, computed, mut axes) in &mut areas {
+        let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
         axes.set_if_neq(WheelAxes {
-            horizontal: scroll.content_size.width > computed.0.width,
-            vertical: scroll.content_size.height > computed.0.height,
+            horizontal: max.x > 0,
+            vertical: max.y > 0,
         });
     }
 }
@@ -240,7 +278,7 @@ pub(crate) fn scroll_area_scrolled(
     let Ok((computed, scroll, mut offset)) = areas.get_mut(event.entity) else {
         return;
     };
-    let max = max_offset(scroll.content_size, computed.0);
+    let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
     let stepped = Position::new(
         stepped_offset(offset.0.x, event.step.0, max.x),
         stepped_offset(offset.0.y, event.step.1, max.y),
@@ -264,20 +302,21 @@ pub(crate) fn scroll_into_view(
     let Ok((computed, scroll, mut offset)) = areas.get_mut(event.entity) else {
         return;
     };
-    let max = max_offset(scroll.content_size, computed.0);
+    let viewport = scroll.viewport(computed.0);
+    let max = max_offset(scroll.content_size, viewport);
     let revealed = Position::new(
         reveal_axis(
             offset.0.x,
             event.target.x,
             event.target.width,
-            computed.0.width,
+            viewport.width,
         )
         .min(max.x),
         reveal_axis(
             offset.0.y,
             event.target.y,
             event.target.height,
-            computed.0.height,
+            viewport.height,
         )
         .min(max.y),
     );
@@ -345,7 +384,9 @@ pub fn screen_cell(content: Position, area: Rect, offset: Position) -> Option<Po
     (x < area.width && y < area.height).then(|| Position::new(area.x + x, area.y + y))
 }
 
-/// The largest valid [`ScrollOffset`] for `content` windowed by `area`.
+/// The largest valid [`ScrollOffset`] for `content` windowed by `area`;
+/// for a [`ScrollArea`] that is its [`ScrollArea::viewport`], not the whole
+/// area it is drawn in.
 #[must_use]
 pub const fn max_offset(content: Size, area: Rect) -> Position {
     Position::new(

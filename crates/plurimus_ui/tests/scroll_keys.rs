@@ -17,8 +17,10 @@ const AREA: Rect = Rect::new(0, 0, 10, 4);
 /// Overflows the area on both axes, so a horizontal offset has somewhere
 /// to be and is not clamped back to zero by the vertical assertions.
 const CONTENT: Size = Size::new(30, 20);
-/// `content.height - area.height`, the furthest the offset can travel.
-const MAX_ROW: u16 = 16;
+/// Rows left once the horizontal bar takes one, which is a page.
+const PAGE: u16 = 3;
+/// `content.height - PAGE`, the furthest the offset can travel.
+const MAX_ROW: u16 = 17;
 
 fn app() -> App {
     let mut app = App::new();
@@ -67,7 +69,7 @@ fn page_down_moves_the_offset_by_the_viewport_height() {
 
     press_key(&mut app, KeyCode::PageDown);
 
-    assert_eq!(row(&app, pane), AREA.height);
+    assert_eq!(row(&app, pane), PAGE);
 }
 
 // A single saturated jump does not exercise this: the clamp has to hold
@@ -217,10 +219,10 @@ fn a_chord_binds_apart_from_its_bare_key() {
     focus(&mut app, pane);
 
     press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('d'));
-    assert_eq!(row(&app, pane), 4, "ctrl-d pages");
+    assert_eq!(row(&app, pane), PAGE, "ctrl-d pages");
 
     press_key(&mut app, KeyCode::Char('d'));
-    assert_eq!(row(&app, pane), 5, "a bare d steps one line");
+    assert_eq!(row(&app, pane), PAGE + 1, "a bare d steps one line");
 }
 
 #[test]

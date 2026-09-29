@@ -13,7 +13,7 @@ use plurimus_term::bevy_compat::HeldModifiers;
 
 use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
 use crate::keys::{KeyBinding, first_bound};
-use crate::scroll::ScrollBy;
+use crate::scroll::{ScrollArea, ScrollBy};
 
 /// What a bound key does to a scrolled widget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,9 +50,10 @@ pub enum ScrollAction {
 /// editor - would otherwise answer one press twice. Add it to a scrolled
 /// widget that has no keys of its own.
 ///
-/// A page is measured from the widget's resolved area, so an area whose
-/// content extent was never set pages by its own height against nothing;
-/// see [`ScrollArea::content_size`](crate::ScrollArea::content_size).
+/// A page is measured from the widget's resolved area, less any bars a
+/// [`ScrollArea`] draws in it, so an area whose content extent was never
+/// set pages by its own height against nothing; see
+/// [`ScrollArea::content_size`](crate::ScrollArea::content_size).
 ///
 /// Horizontal bindings exist but are unbound by default: an area that
 /// does not overflow horizontally would otherwise swallow the left and
@@ -77,11 +78,14 @@ impl Default for ScrollKeys {
 pub(crate) fn scroll_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    areas: Query<(&ScrollKeys, &ComputedWidgetArea), Without<InteractionDisabled>>,
+    areas: Query<
+        (&ScrollKeys, &ComputedWidgetArea, Option<&ScrollArea>),
+        Without<InteractionDisabled>,
+    >,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;
-    let Ok((keys, area)) = areas.get(entity) else {
+    let Ok((keys, area, scroll)) = areas.get(entity) else {
         return;
     };
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
@@ -90,9 +94,10 @@ pub(crate) fn scroll_key(
     // Consumed even at an extreme, so a bound key never reaches
     // directional navigation and moves focus out of the pane instead.
     input.propagate(false);
+    let viewport = scroll.map_or(area.0, |scroll| scroll.viewport(area.0));
     commands.trigger(ScrollBy {
         entity,
-        step: step(action, area.0.height),
+        step: step(action, viewport.height),
     });
 }
 

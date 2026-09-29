@@ -1,5 +1,8 @@
-use super::{ScrollOffset, content_cell, screen_cell, stepped_offset};
-use plurimus_core::ratatui_core::layout::{Position, Rect};
+use super::{ScrollArea, ScrollOffset, content_cell, max_offset, screen_cell, stepped_offset};
+use plurimus_core::ratatui_core::buffer::Buffer;
+use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
+use plurimus_core::ratatui_core::widgets::StatefulWidget;
+use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
 
 const AREA: Rect = Rect::new(4, 2, 10, 5);
 const UNSCROLLED: Position = Position::new(0, 0);
@@ -116,4 +119,59 @@ fn an_empty_area_addresses_no_cell() {
         screen_cell(Position::new(0, 0), Rect::ZERO, UNSCROLLED),
         None
     );
+}
+
+// The viewport replicates a rule tui-scrollview keeps private, so it is
+// checked against the real thing: an offset past every bound comes back
+// clamped to the render side's own maximum, and the content shows exactly
+// where the viewport says it does.
+#[test]
+fn the_viewport_is_where_tui_scrollview_draws_and_clamps() {
+    let area = Rect::new(2, 1, 5, 5);
+    let visibilities = [
+        ScrollbarVisibility::Automatic,
+        ScrollbarVisibility::Always,
+        ScrollbarVisibility::Never,
+    ];
+    let fits_exactly_and_overflows = 3..=7;
+    for scrollbars in visibilities {
+        for width in fits_exactly_and_overflows.clone() {
+            for height in fits_exactly_and_overflows.clone() {
+                let content = Size::new(width, height);
+                let case = format!("{content:?} {scrollbars:?}");
+                let viewport = ScrollArea::new(content)
+                    .with_scrollbars(scrollbars)
+                    .viewport(area);
+
+                let mut state = ScrollViewState::with_offset(Position::new(u16::MAX, u16::MAX));
+                let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 10));
+                filled_view(content, scrollbars).render(area, &mut buffer, &mut state);
+
+                assert_eq!(state.offset(), max_offset(content, viewport), "{case}");
+                let shown = Rect {
+                    width: viewport.width.min(width),
+                    height: viewport.height.min(height),
+                    ..viewport
+                };
+                for position in area.positions() {
+                    let is_content = buffer[position].symbol() == CONTENT;
+                    assert_eq!(
+                        is_content,
+                        shown.contains(position),
+                        "{case} at {position:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+const CONTENT: &str = "x";
+
+fn filled_view(content: Size, scrollbars: ScrollbarVisibility) -> ScrollView {
+    let mut view = ScrollView::new(content).scrollbars_visibility(scrollbars);
+    for position in view.area().positions() {
+        view.buf_mut()[position].set_symbol(CONTENT);
+    }
+    view
 }
