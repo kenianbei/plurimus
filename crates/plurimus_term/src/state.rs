@@ -23,12 +23,13 @@ use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, Mo
 pub enum InputSystems {
     /// Backends drain their event source into messages.
     Pump,
-    /// The releases no terminal will send are written: expired holds and
-    /// every key held across a focus loss.
-    Synthesize,
     /// State is derived (button state, cursor) from messages, synthesized
     /// ones included.
     Update,
+    /// Between [`Pump`](Self::Pump) and [`Update`](Self::Update), the
+    /// releases no terminal will send are written: expired holds and every
+    /// key held across a focus loss.
+    Synthesize,
 }
 
 pub(crate) fn update_button_input(
