@@ -122,7 +122,7 @@ fn seek(
     let Ok((scroll, target_area, mut offset)) = targets.get_mut(bar.target) else {
         return;
     };
-    let max = max_offset(scroll.content_size, target_area.0);
+    let max = max_offset(scroll.content_size, scroll.viewport(target_area.0));
     let sought = if bar.orientation.is_vertical() {
         Position::new(
             offset.0.x,
@@ -154,10 +154,11 @@ pub(crate) fn style_scrollbars(
         let Ok((scroll, offset, area)) = targets.get(bar.target) else {
             continue;
         };
+        let shown = scroll.viewport(area.0);
         let (position, content, viewport) = if bar.orientation.is_vertical() {
-            (offset.0.y, scroll.content_size.height, area.0.height)
+            (offset.0.y, scroll.content_size.height, shown.height)
         } else {
-            (offset.0.x, scroll.content_size.width, area.0.width)
+            (offset.0.x, scroll.content_size.width, shown.width)
         };
         let next = observed(state, &focus, hashed_bits((position, content, viewport)));
         if !cache.redraws(next, theme.is_changed()) {

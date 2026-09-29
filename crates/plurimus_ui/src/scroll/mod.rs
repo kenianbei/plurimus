@@ -10,9 +10,11 @@
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::prelude::{
     Commands, Component, EntityEvent, MessageReader, Mut, On, Query, With, Without,
 };
+use bevy_ecs::world::DeferredWorld;
 use plurimus_core::RasterDeferred;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_term::{MouseKind, MouseMessage};
@@ -26,8 +28,13 @@ use crate::modal::ModalGuard;
 /// Declares a widget entity's content to be `content_size` cells,
 /// windowed into the resolved area at render time by its
 /// [`ScrollOffset`].
+///
+/// Removing it hands the widget back to core's widget pass, drawn
+/// unscrolled with its offset at the origin. [`WheelReceptive`] stays,
+/// since other components require it too.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(ScrollOffset, WheelReceptive, RasterDeferred, ComputedWidgetArea)]
+#[component(on_remove = release_scroll_area)]
 #[non_exhaustive]
 pub struct ScrollArea {
     /// Content extent in cells.
@@ -57,6 +64,9 @@ impl ScrollArea {
 
     /// Usable content width inside `area_width`, accounting for the
     /// one-column gutter tui-scrollview reserves for a visible bar.
+    ///
+    /// The width content is laid out at, reserved before anyone knows
+    /// whether it overflows; [`Self::viewport`] is what it is drawn into.
     #[must_use]
     pub fn content_width(&self, area_width: u16) -> u16 {
         match self.scrollbars {
@@ -64,12 +74,53 @@ impl ScrollArea {
             _ => area_width.saturating_sub(1).max(1),
         }
     }
+
+    /// The part of `area` the content is drawn into, once tui-scrollview
+    /// has taken a column for a vertical bar and a row for a horizontal one.
+    ///
+    /// Automatic bars follow tui-scrollview's rule: nothing when the
+    /// content fits, otherwise a bar on every axis the content does not
+    /// fit, an exact fit included, since the other bar takes the line that
+    /// made it fit.
+    #[must_use]
+    pub const fn viewport(&self, area: Rect) -> Rect {
+        let content = self.content_size;
+        let (horizontal, vertical) = match self.scrollbars {
+            ScrollbarVisibility::Always => (true, true),
+            ScrollbarVisibility::Never => (false, false),
+            ScrollbarVisibility::Automatic => {
+                let overflows = content.width > area.width || content.height > area.height;
+                (
+                    overflows && content.width >= area.width,
+                    overflows && content.height >= area.height,
+                )
+            }
+        };
+        Rect {
+            width: area.width.saturating_sub(vertical as u16),
+            height: area.height.saturating_sub(horizontal as u16),
+            ..area
+        }
+    }
+}
+
+// Bevy leaves required components behind. `try_`, since a despawn runs
+// this too and a plain remove would warn about the vanished entity.
+fn release_scroll_area(mut world: DeferredWorld, context: HookContext) {
+    if let Some(mut offset) = world.get_mut::<ScrollOffset>(context.entity) {
+        *offset = ScrollOffset::default();
+    }
+    world
+        .commands()
+        .entity(context.entity)
+        .try_remove::<RasterDeferred>();
 }
 
 /// Scroll offset in cells from the content's top-left.
 ///
-/// Systems mutating it clamp to `content_size - area`; the render side
-/// only reads it (extraction is one-directional).
+/// Systems mutating it clamp to the [`max_offset`] of the content in the
+/// area's [`ScrollArea::viewport`]; the render side only reads it
+/// (extraction is one-directional).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollOffset(pub Position);
 
@@ -215,9 +266,10 @@ pub(crate) fn sync_scroll_area_axes(
     mut areas: Query<(&ScrollArea, &ComputedWidgetArea, &mut WheelAxes)>,
 ) {
     for (scroll, computed, mut axes) in &mut areas {
+        let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
         axes.set_if_neq(WheelAxes {
-            horizontal: scroll.content_size.width > computed.0.width,
-            vertical: scroll.content_size.height > computed.0.height,
+            horizontal: max.x > 0,
+            vertical: max.y > 0,
         });
     }
 }
@@ -240,7 +292,7 @@ pub(crate) fn scroll_area_scrolled(
     let Ok((computed, scroll, mut offset)) = areas.get_mut(event.entity) else {
         return;
     };
-    let max = max_offset(scroll.content_size, computed.0);
+    let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
     let stepped = Position::new(
         stepped_offset(offset.0.x, event.step.0, max.x),
         stepped_offset(offset.0.y, event.step.1, max.y),
@@ -264,20 +316,21 @@ pub(crate) fn scroll_into_view(
     let Ok((computed, scroll, mut offset)) = areas.get_mut(event.entity) else {
         return;
     };
-    let max = max_offset(scroll.content_size, computed.0);
+    let viewport = scroll.viewport(computed.0);
+    let max = max_offset(scroll.content_size, viewport);
     let revealed = Position::new(
         reveal_axis(
             offset.0.x,
             event.target.x,
             event.target.width,
-            computed.0.width,
+            viewport.width,
         )
         .min(max.x),
         reveal_axis(
             offset.0.y,
             event.target.y,
             event.target.height,
-            computed.0.height,
+            viewport.height,
         )
         .min(max.y),
     );
@@ -345,7 +398,9 @@ pub fn screen_cell(content: Position, area: Rect, offset: Position) -> Option<Po
     (x < area.width && y < area.height).then(|| Position::new(area.x + x, area.y + y))
 }
 
-/// The largest valid [`ScrollOffset`] for `content` windowed by `area`.
+/// The largest valid [`ScrollOffset`] for `content` windowed by `area`;
+/// for a [`ScrollArea`] that is its [`ScrollArea::viewport`], not the whole
+/// area it is drawn in.
 #[must_use]
 pub const fn max_offset(content: Size, area: Rect) -> Position {
     Position::new(
@@ -363,124 +418,4 @@ fn reveal_axis(offset: u16, start: u16, length: u16, window: u16) -> u16 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{ScrollOffset, content_cell, screen_cell, stepped_offset};
-    use plurimus_core::ratatui_core::layout::{Position, Rect};
-
-    const AREA: Rect = Rect::new(4, 2, 10, 5);
-    const UNSCROLLED: Position = Position::new(0, 0);
-
-    #[test]
-    fn a_widget_carrying_no_offset_is_scrolled_to_the_origin() {
-        assert_eq!(ScrollOffset::resolve(None), Position::ORIGIN);
-    }
-
-    #[test]
-    fn a_widget_carrying_one_is_scrolled_by_it() {
-        let offset = ScrollOffset(Position::new(3, 7));
-
-        assert_eq!(ScrollOffset::resolve(Some(&offset)), Position::new(3, 7));
-    }
-
-    #[test]
-    fn a_step_moves_the_offset_and_stops_at_either_bound() {
-        assert_eq!(stepped_offset(10, 5, 100), 15);
-        assert_eq!(stepped_offset(10, -5, 100), 5);
-        assert_eq!(stepped_offset(10, -50, 100), 0);
-        assert_eq!(stepped_offset(10, 500, 100), 100);
-    }
-
-    // A jump to an extreme is a step at the full range of its type, which
-    // must saturate at the bound rather than overflow reaching it.
-    #[test]
-    fn a_step_past_the_offsets_own_range_still_lands_on_the_bound() {
-        assert_eq!(stepped_offset(u16::MAX - 1, i32::MAX, u16::MAX), u16::MAX);
-        assert_eq!(stepped_offset(u16::MAX - 1, i32::MIN, u16::MAX), 0);
-        assert_eq!(stepped_offset(0, i32::from(i16::MAX) + 1, u16::MAX), 32768);
-    }
-
-    #[test]
-    fn a_cell_inside_the_area_is_its_offset_from_the_origin() {
-        assert_eq!(
-            content_cell(Position::new(6, 3), AREA, UNSCROLLED),
-            Some(Position::new(2, 1))
-        );
-    }
-
-    #[test]
-    fn the_scroll_offset_is_added_to_what_the_area_resolves() {
-        assert_eq!(
-            content_cell(Position::new(6, 3), AREA, Position::new(7, 20)),
-            Some(Position::new(9, 21))
-        );
-    }
-
-    // A captured drag reports cells outside the widget it began on; the
-    // nearest one is what keeps it selecting rather than collapsing.
-    #[test]
-    fn a_cell_outside_the_area_clamps_to_the_nearest_edge() {
-        assert_eq!(
-            content_cell(Position::new(0, 0), AREA, UNSCROLLED),
-            Some(Position::new(0, 0)),
-            "above and left of the area"
-        );
-        assert_eq!(
-            content_cell(Position::new(99, 99), AREA, UNSCROLLED),
-            Some(Position::new(9, 4)),
-            "the last cell, not one past it"
-        );
-    }
-
-    #[test]
-    fn a_content_cell_maps_back_to_the_screen_cell_it_came_from() {
-        for screen in [
-            Position::new(4, 2),
-            Position::new(9, 5),
-            Position::new(6, 3),
-        ] {
-            let offset = Position::new(7, 20);
-            let content = content_cell(screen, AREA, offset).expect("inside the area");
-            assert_eq!(screen_cell(content, AREA, offset), Some(screen));
-        }
-    }
-
-    // A caret whose character is scrolled off has no screen cell; answering
-    // with the nearest edge would draw it beside the wrong character.
-    #[test]
-    fn a_content_cell_outside_the_window_is_on_no_screen_cell() {
-        let offset = Position::new(3, 4);
-        assert_eq!(screen_cell(Position::new(2, 5), AREA, offset), None, "left");
-        assert_eq!(
-            screen_cell(Position::new(5, 3), AREA, offset),
-            None,
-            "above"
-        );
-        assert_eq!(
-            screen_cell(Position::new(13, 5), AREA, offset),
-            None,
-            "past the right edge"
-        );
-        assert_eq!(
-            screen_cell(Position::new(5, 9), AREA, offset),
-            None,
-            "past the bottom edge"
-        );
-    }
-
-    #[test]
-    fn an_empty_area_addresses_no_cell() {
-        assert_eq!(
-            content_cell(Position::new(4, 2), Rect::ZERO, UNSCROLLED),
-            None
-        );
-        assert_eq!(
-            content_cell(Position::new(4, 2), Rect::new(4, 2, 0, 5), UNSCROLLED),
-            None,
-            "zero width alone is enough"
-        );
-        assert_eq!(
-            screen_cell(Position::new(0, 0), Rect::ZERO, UNSCROLLED),
-            None
-        );
-    }
-}
+mod tests;

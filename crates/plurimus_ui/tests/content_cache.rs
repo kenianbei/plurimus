@@ -153,3 +153,24 @@ fn a_respawned_widget_rasterizes_fresh() {
 
     assert_eq!(rasterizations(&second), 1, "no stale entry is inherited");
 }
+
+#[test]
+fn a_widget_whose_scroll_area_is_removed_draws_unscrolled() {
+    let mut app = app();
+    let renders = Arc::new(AtomicUsize::new(0));
+    let widget = spawn_scrolled(&mut app, &renders);
+    app.world_mut()
+        .entity_mut(widget)
+        .insert(ScrollOffset(Position::new(0, 3)));
+    app.update();
+    assert_eq!(composed_frame(&app), "r3  \nr4  ");
+
+    app.world_mut().entity_mut(widget).remove::<ScrollArea>();
+    app.update();
+
+    assert_eq!(composed_frame(&app), "r0  \nr1  ");
+    assert_eq!(
+        app.world().get::<ScrollOffset>(widget),
+        Some(&ScrollOffset(Position::ORIGIN))
+    );
+}

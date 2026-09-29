@@ -82,12 +82,13 @@ fn wheel_clamps_at_both_extremes() {
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
     assert!(app.world().resource::<OffsetChanges>().0.is_empty());
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
-    assert_eq!(offset_of(&app, scrolled), Position::new(0, 1));
+    for _ in 0..3 {
+        send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+    }
+    assert_eq!(offset_of(&app, scrolled), Position::new(0, 2));
     assert_eq!(
         app.world().resource::<OffsetChanges>().0,
-        [Position::new(0, 1)]
+        [Position::new(0, 1), Position::new(0, 2)]
     );
 }
 
@@ -137,7 +138,7 @@ fn wheel_prefers_the_innermost_of_two_same_order_areas() {
 fn wheel_falls_through_an_axis_a_widget_cannot_scroll() {
     let mut app = app();
     let below = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 10), 0);
-    let above = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(20, 3), 1);
+    let above = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(20, 2), 1);
 
     send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
 
@@ -168,7 +169,7 @@ fn scrollbar_press_and_drag_seek_target() {
     ));
 
     send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 10, 3);
-    assert_eq!(offset_of(&app, target), Position::new(0, 9));
+    assert_eq!(offset_of(&app, target), Position::new(0, 10));
 
     send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 10, 1);
     assert_eq!(offset_of(&app, target), Position::new(0, 3));
@@ -187,7 +188,7 @@ fn scroll_into_view_reveals_minimally() {
         entity: scrolled,
         target: Rect::new(0, 7, 1, 1),
     });
-    assert_eq!(offset_of(&app, scrolled), Position::new(0, 5));
+    assert_eq!(offset_of(&app, scrolled), Position::new(0, 6));
 
     app.world_mut().trigger(ScrollIntoView {
         entity: scrolled,
@@ -199,5 +200,43 @@ fn scroll_into_view_reveals_minimally() {
         entity: scrolled,
         target: Rect::new(0, 2, 1, 1),
     });
+    assert_eq!(offset_of(&app, scrolled), Position::new(0, 1));
+}
+
+// Both bars show here, so the content's last column and row are only
+// ever seen scrolled out from under them.
+#[test]
+fn the_last_column_and_row_scroll_out_from_under_the_bars() {
+    let mut app = app();
+    let area = Rect::new(0, 0, 5, 3);
+    let last = Position::new(4, 4);
+    let wheeled = scroll_entity(&mut app, area, Size::new(8, 6), 0);
+    for _ in 0..10 {
+        send_mouse(&mut app, MouseKind::ScrollRight, 1, 1);
+        send_mouse(&mut app, MouseKind::ScrollDown, 1, 1);
+    }
+    assert_eq!(offset_of(&app, wheeled), last, "by the wheel");
+
+    let revealed = scroll_entity(&mut app, area, Size::new(8, 6), 1);
+    app.update();
+    app.world_mut().trigger(ScrollIntoView {
+        entity: revealed,
+        target: Rect::new(7, 5, 1, 1),
+    });
+    assert_eq!(
+        offset_of(&app, revealed),
+        last,
+        "by revealing the last cell"
+    );
+}
+
+#[test]
+fn a_row_under_a_horizontal_bar_takes_the_wheel() {
+    let mut app = app();
+    let scrolled = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(20, 3), 0);
+    app.update();
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 1));
 }
