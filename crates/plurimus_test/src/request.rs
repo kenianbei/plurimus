@@ -1,12 +1,8 @@
 //! Readers for the outbound half of the terminal contract.
 
 use bevy_app::App;
-use bevy_ecs::message::{MessageCursor, Messages};
-use bevy_ecs::prelude::{Mut, Resource};
+use bevy_ecs::prelude::MessageReader;
 use plurimus_term::TerminalRequest;
-
-#[derive(Resource, Debug, Default)]
-struct ClipboardCursor(MessageCursor<TerminalRequest>);
 
 /// The clipboard contents an app has asked for since the previous call,
 /// oldest first. Call it after the frame that wrote the requests has run.
@@ -14,19 +10,22 @@ struct ClipboardCursor(MessageCursor<TerminalRequest>);
 /// Reads through a cursor of its own, so a backend or any other reader of
 /// the stream still sees every request. Copies only: any other request is
 /// passed over.
+///
+/// # Panics
+///
+/// If the app never registered `TerminalRequest`, which `TermPlugin` does.
 pub fn clipboard_writes(app: &mut App) -> Vec<String> {
-    let world = app.world_mut();
-    world.init_resource::<ClipboardCursor>();
-    world.resource_scope(|world, mut cursor: Mut<ClipboardCursor>| {
-        cursor
-            .0
-            .read(world.resource::<Messages<TerminalRequest>>())
-            .filter_map(|request| match request {
-                TerminalRequest::CopyToClipboard { content, .. } => Some(content.clone()),
-                _ => None,
-            })
-            .collect()
-    })
+    app.world_mut()
+        .run_system_cached(|mut requests: MessageReader<TerminalRequest>| {
+            requests
+                .read()
+                .filter_map(|request| match request {
+                    TerminalRequest::CopyToClipboard { content, .. } => Some(content.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .expect("TerminalRequest is registered, as TermPlugin does")
 }
 
 #[cfg(test)]
@@ -43,7 +42,6 @@ mod tests {
         app.add_message::<TerminalRequest>();
         app.world_mut()
             .write_message(TerminalRequest::copy("taken"));
-        app.update();
 
         assert_eq!(clipboard_writes(&mut app), ["taken"]);
         assert!(

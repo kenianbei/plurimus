@@ -41,8 +41,8 @@ pub(crate) struct ClipboardEnabled(pub(crate) bool);
 #[derive(Resource, Debug, Default, Clone, Copy)]
 pub(crate) struct PreviousCursorStyle(TerminalCursorStyle);
 
-/// Reads through a cursor rather than draining, so any other reader of the
-/// stream still sees every request.
+/// Reads through a cursor of its own, so any other reader of the stream
+/// still sees every request.
 pub(crate) fn write_terminal_requests<W: Write + Send + Sync + 'static>(
     main_world: Res<MainWorld>,
     mut cursor: Local<MessageCursor<TerminalRequest>>,

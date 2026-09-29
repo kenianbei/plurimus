@@ -46,8 +46,8 @@ pub(crate) fn sync_size(
     }
 }
 
-/// Serves what an app asks of the page. Reads through a cursor rather than
-/// draining, so any other reader of the stream still sees every request.
+/// Serves what an app asks of the page. Reads through a cursor of its own,
+/// so any other reader of the stream still sees every request.
 pub(crate) fn serve_requests(
     main_world: Res<MainWorld>,
     mut cursor: Local<MessageCursor<TerminalRequest>>,
