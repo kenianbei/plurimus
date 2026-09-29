@@ -11,7 +11,7 @@ use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiWidget};
 use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, send_mouse, write_mouse};
+use plurimus_test::{click, send_mouse, write_mouse, write_release_at};
 use plurimus_ui::{ComputedWidgetArea, Hovered, PointerPress, ScrollArea, ScrollOffset, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
@@ -194,7 +194,7 @@ fn a_swallowed_press_does_not_defer_the_rest_of_the_batch() {
 
     for (x, y) in [(frame.x, frame.y), (frame.x, footer_of(frame).y)] {
         write_mouse(&mut app, MouseKind::Down(MouseButton::Left), x, y);
-        write_mouse(&mut app, MouseKind::Up(MouseButton::Left), x, y);
+        write_release_at(&mut app, x, y);
     }
     app.update();
 

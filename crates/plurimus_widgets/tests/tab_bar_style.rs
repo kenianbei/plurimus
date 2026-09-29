@@ -6,11 +6,10 @@ use std::sync::Arc;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_test::{composed_styled_frame, widget_content};
+use plurimus_test::{composed_styled_frame, set_focus, widget_content};
 use plurimus_ui::{Checked, InteractionDisabled, StylistDisabled, UiArea, UiStyle};
 use plurimus_widgets::ratatui_widgets::borders::BorderType;
 use plurimus_widgets::{TabBarActiveStyle, TabBarLook, WidgetsPlugin, tab_bar, tab_item};
@@ -41,12 +40,6 @@ fn spawn_bar(app: &mut App) -> Bar {
     Bar { bar, items }
 }
 
-fn focus(app: &mut App, entity: Entity) {
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Navigated);
-}
-
 #[test]
 fn active_item_reads_without_focus_and_gains_focus_with_the_bar() {
     let mut app = app();
@@ -54,7 +47,7 @@ fn active_item_reads_without_focus_and_gains_focus_with_the_bar() {
     app.update();
     insta::assert_snapshot!("tab_bar_active_unfocused", composed_styled_frame(&app));
 
-    focus(&mut app, bar.bar);
+    set_focus(&mut app, bar.bar);
     app.update();
     insta::assert_snapshot!("tab_bar_active_focused", composed_styled_frame(&app));
 }

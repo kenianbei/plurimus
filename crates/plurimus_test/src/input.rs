@@ -1,13 +1,16 @@
 //! Input-injection helpers.
 //!
-//! Two families: `write_*` only queues the message, so several land in one
-//! frame; `press_*`/`send_*` also tick the app.
+//! Two families: `write_*` only queues, so several messages land in one
+//! frame; the rest tick after each message they send. `set_focus` is
+//! neither, writing focus directly.
 
 use bevy_app::App;
+use bevy_ecs::entity::Entity;
+use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{
     FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseButton, MouseKind,
-    MouseMessage,
+    MouseMessage, PasteMessage,
 };
 
 /// Queues a key press with no modifiers.
@@ -25,6 +28,11 @@ fn press_key_kind(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: K
     app.update();
 }
 
+fn press_and_release(app: &mut App, code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) {
+    press_key_kind(app, code, modifiers, kind);
+    press_key_kind(app, code, modifiers, KeyKind::Release);
+}
+
 /// Queues a mouse message at `(x, y)` with no modifiers.
 pub fn write_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {
     app.world_mut().write_message(MouseMessage::new(
@@ -34,23 +42,23 @@ pub fn write_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {
     ));
 }
 
-/// Queues a key press with no modifiers, then ticks the app.
+/// Presses and releases `code` with no modifiers, ticking after each.
 pub fn press_key(app: &mut App, code: KeyCode) {
-    write_key(app, code);
-    app.update();
+    press_and_release(app, code, KeyModifiers::default(), KeyKind::Press);
 }
 
-/// Queues an autorepeat of `code` with no modifiers, then ticks the app.
+/// An autorepeat of `code` with no modifiers, then its release, ticking
+/// after each.
 ///
 /// A held key, as a terminal reports it on the kitty tier: widgets repeat
 /// movement on one but must not re-activate.
 pub fn repeat_key(app: &mut App, code: KeyCode) {
-    press_key_kind(app, code, KeyModifiers::default(), KeyKind::Repeat);
+    press_and_release(app, code, KeyModifiers::default(), KeyKind::Repeat);
 }
 
-/// Queues a key press carrying `modifiers`, then ticks the app.
+/// Presses and releases `code` carrying `modifiers`, ticking after each.
 pub fn press_key_with(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
-    press_key_kind(app, code, modifiers, KeyKind::Press);
+    press_and_release(app, code, modifiers, KeyKind::Press);
 }
 
 /// A whole chord: presses `modifier`, presses and releases `code` carrying
@@ -67,8 +75,7 @@ pub fn press_chord(app: &mut App, modifier: ModifierKey, code: KeyCode) {
     let held = KeyModifiers::from(modifier);
     let none = KeyModifiers::default();
     press_key_kind(app, modifier_code, held, KeyKind::Press);
-    press_key_kind(app, code, held, KeyKind::Press);
-    press_key_kind(app, code, held, KeyKind::Release);
+    press_and_release(app, code, held, KeyKind::Press);
     press_key_kind(app, modifier_code, none, KeyKind::Release);
 }
 
@@ -92,10 +99,83 @@ pub fn send_mouse(app: &mut App, kind: MouseKind, x: u16, y: u16) {
     app.update();
 }
 
-/// A full left click at `(x, y)`: moved, pressed, released, ticking
-/// after each so hover resolves before the press lands.
-pub fn click(app: &mut App, x: u16, y: u16) {
+/// Queues a move to `(x, y)` and a left press there, landing in one frame.
+pub fn write_press_at(app: &mut App, x: u16, y: u16) {
+    write_mouse(app, MouseKind::Moved, x, y);
+    write_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
+}
+
+/// Moves to `(x, y)` and presses left there, ticking after each so hover
+/// resolves before the press lands.
+pub fn press_at(app: &mut App, x: u16, y: u16) {
     send_mouse(app, MouseKind::Moved, x, y);
     send_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
-    send_mouse(app, MouseKind::Up(MouseButton::Left), x, y);
+}
+
+/// Queues a left release at `(x, y)`.
+pub fn write_release_at(app: &mut App, x: u16, y: u16) {
+    write_mouse(app, MouseKind::Up(MouseButton::Left), x, y);
+}
+
+/// Releases left at `(x, y)`, then ticks the app.
+pub fn release_at(app: &mut App, x: u16, y: u16) {
+    write_release_at(app, x, y);
+    app.update();
+}
+
+/// A full left click at `(x, y)`: [`press_at`], then [`release_at`].
+pub fn click(app: &mut App, x: u16, y: u16) {
+    press_at(app, x, y);
+    release_at(app, x, y);
+}
+
+/// Queues a bracketed paste of `text`.
+pub fn write_paste(app: &mut App, text: &str) {
+    app.world_mut().write_message(PasteMessage(text.into()));
+}
+
+/// Queues a bracketed paste of `text`, then ticks the app.
+pub fn send_paste(app: &mut App, text: &str) {
+    write_paste(app, text);
+    app.update();
+}
+
+/// Gives `entity` input focus, without ticking.
+///
+/// A set before the first frame survives it: `bevy_input_focus` hands the
+/// window focus at startup only when nothing holds it.
+pub fn set_focus(app: &mut App, entity: Entity) {
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(entity, FocusCause::Navigated);
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_app::App;
+    use plurimus_core::CorePlugin;
+    use plurimus_term::{ButtonInput, KeyCode, KeyModifiers, TermPlugin};
+
+    use super::{press_key, press_key_with, repeat_key};
+
+    fn is_held(app: &App, code: KeyCode) -> bool {
+        app.world().resource::<ButtonInput<KeyCode>>().pressed(code)
+    }
+
+    #[test]
+    fn an_injected_keystroke_leaves_nothing_held() {
+        let mut app = App::new();
+        app.add_plugins((CorePlugin, TermPlugin));
+
+        press_key(&mut app, KeyCode::Char('a'));
+        assert!(!is_held(&app, KeyCode::Char('a')), "press_key");
+        repeat_key(&mut app, KeyCode::Down);
+        assert!(!is_held(&app, KeyCode::Down), "repeat_key");
+        press_key_with(
+            &mut app,
+            KeyCode::Char('b'),
+            KeyModifiers::default().with_ctrl(true),
+        );
+        assert!(!is_held(&app, KeyCode::Char('b')), "press_key_with");
+    }
 }

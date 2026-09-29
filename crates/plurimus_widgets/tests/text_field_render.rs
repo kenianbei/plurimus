@@ -2,13 +2,13 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_input_focus::{FocusCause, InputFocus};
+use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
 use plurimus_term::KeyCode;
-use plurimus_test::press_key;
+use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{UiArea, UiTheme};
 use plurimus_widgets::{WidgetsPlugin, editable_text};
 
@@ -32,9 +32,7 @@ fn spawn_field(app: &mut App, value: &str) -> Entity {
             UiArea::Fixed(Rect::new(0, 0, WIDTH, 1)),
         ))
         .id();
-    world
-        .resource_mut::<InputFocus>()
-        .set(field, FocusCause::Pressed);
+    set_focus(app, field);
     field
 }
 

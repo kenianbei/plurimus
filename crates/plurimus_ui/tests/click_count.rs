@@ -9,7 +9,7 @@ use bevy_ecs::prelude::{Commands, On, Query, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder};
 use plurimus_term::{MouseButton, MouseKind, MultiClickWindow};
-use plurimus_test::{click, send_mouse, write_mouse};
+use plurimus_test::{click, release_at, send_mouse, write_mouse};
 use plurimus_ui::{
     Click, ComputedWidgetArea, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, PointerDrag,
     PointerPress, Pressed, UiArea, UiPlugin,
@@ -193,8 +193,7 @@ fn a_click_completed_in_one_batch_carries_its_count() {
     click_at(&mut app, CELL);
     send_at(&mut app, MouseKind::Moved, CELL);
     write_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.x, CELL.y);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), CELL.x, CELL.y);
-    app.update();
+    release_at(&mut app, CELL.x, CELL.y);
 
     assert_eq!(presses(&app), vec![1, 2]);
     assert_eq!(clicks(&app), vec![1, 2]);
@@ -209,7 +208,7 @@ fn a_click_released_a_frame_later_carries_its_count() {
 
     click_at(&mut app, CELL);
     send_at(&mut app, MouseKind::Down(MouseButton::Left), CELL);
-    send_at(&mut app, MouseKind::Up(MouseButton::Left), CELL);
+    release_at(&mut app, CELL.x, CELL.y);
 
     assert_eq!(presses(&app), vec![1, 2]);
     assert_eq!(clicks(&app), vec![1, 2]);
@@ -250,7 +249,7 @@ fn a_hand_pressed_widget_clicks_as_a_lone_press() {
         .entity_mut(target)
         .insert(Pressed::default());
 
-    send_at(&mut app, MouseKind::Up(MouseButton::Left), CELL);
+    release_at(&mut app, CELL.x, CELL.y);
 
     assert_eq!(clicks(&app), vec![1], "the click reports a lone press");
 }

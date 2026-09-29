@@ -6,8 +6,8 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseButton, MouseKind};
-use plurimus_test::{click, composed_frame, press_key, send_mouse};
+use plurimus_term::{KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseKind};
+use plurimus_test::{click, composed_frame, press_at, press_key, send_mouse};
 use plurimus_ui::Key;
 use plurimus_ui::{
     Hovered, InteractionDisabled, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget,
@@ -325,8 +325,7 @@ fn outside_click_dismisses_and_swallows() {
     click(&mut app, 2, 0);
     assert!(is_open(&app, &menu));
 
-    send_mouse(&mut app, MouseKind::Moved, 13, 6);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 13, 6);
+    press_at(&mut app, 13, 6);
     assert!(!is_open(&app, &menu));
     assert!(app.world().get::<Pressed>(bystander).is_none());
 }

@@ -10,7 +10,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, Res, ResMut, Resource};
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode as BevyKeyCode;
-use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
+use bevy_input_focus::FocusedInput;
 use plurimus::core::ratatui_core::layout::{Constraint, Rect};
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus::term::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, PasteMessage};
@@ -19,7 +19,7 @@ use plurimus::widgets::{
     ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,
     table_footer, table_header, table_row,
 };
-use plurimus_test::press_key;
+use plurimus_test::{press_key, send_paste, set_focus};
 
 const AREA: Rect = Rect::new(0, 0, 20, 6);
 
@@ -29,12 +29,6 @@ fn app() -> App {
     app.insert_resource(TerminalSize::new(20, 6));
     app.world_mut().spawn(TerminalCamera::default());
     app
-}
-
-fn focus(app: &mut App, entity: Entity) {
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Pressed);
 }
 
 fn active(app: &App, container: Entity) -> Option<Entity> {
@@ -69,17 +63,15 @@ fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
             seen.0 = Some(keys.pressed(BevyKeyCode::ShiftLeft));
         },
     );
-    focus(&mut app, target);
+    set_focus(&mut app, target);
     app.update();
 
-    let world = app.world_mut();
-    world.write_message(KeyMessage::new(
+    app.world_mut().write_message(KeyMessage::new(
         KeyCode::Char('a'),
         KeyModifiers::default().with_shift(true),
         KeyKind::Press,
     ));
-    world.write_message(PasteMessage("x".into()));
-    app.update();
+    send_paste(&mut app, "x");
 
     assert_eq!(
         app.world().resource::<ShiftAtPaste>().0,
@@ -104,7 +96,7 @@ fn a_first_frame_page_moves_a_full_listbox_page() {
     world
         .entity_mut(container)
         .insert(ActiveDescendant(Some(items[0])));
-    focus(&mut app, container);
+    set_focus(&mut app, container);
 
     press_key(&mut app, KeyCode::PageDown);
 
@@ -141,7 +133,7 @@ fn a_first_frame_page_moves_a_full_table_page() {
     world
         .entity_mut(container)
         .insert(ActiveDescendant(Some(rows[0])));
-    focus(&mut app, container);
+    set_focus(&mut app, container);
 
     press_key(&mut app, KeyCode::PageDown);
 

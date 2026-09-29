@@ -3,14 +3,12 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{
-    InputCapabilities, KeyCode, KeyModifiers, LastCopied, ModifierKey, MouseKind, PasteMessage,
-};
+use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers, LastCopied, ModifierKey, MouseKind};
 use plurimus_test::{
     clipboard_writes, composed_frame, press_chord, press_key, press_key_with, send_mouse,
+    send_paste, set_focus, write_key,
 };
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextChanged, TextEditor, WidgetsPlugin, text_editor};
@@ -35,9 +33,7 @@ fn spawn_editor(app: &mut App, text: &str) -> Entity {
     let editor = world
         .spawn((text_editor(text), UiArea::Fixed(Rect::new(0, 0, 8, 2))))
         .id();
-    world
-        .resource_mut::<InputFocus>()
-        .set(editor, FocusCause::Pressed);
+    set_focus(app, editor);
     editor
 }
 
@@ -116,8 +112,7 @@ fn ctrl_undo_from_real_modifier_keys() {
     let mut app = app();
     let editor = editor_typed_ab(&mut app);
 
-    ctrl_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
-    ctrl_key(&mut app, KeyCode::Char('u'));
+    ctrl_chord(&mut app, 'u');
 
     assert_eq!(lines_of(&app, editor), ["a"], "ctrl+u undoes, inserts no u");
 }
@@ -138,9 +133,7 @@ fn paste_inserts_multi_line_text() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "");
 
-    app.world_mut()
-        .write_message(PasteMessage("one\ntwo".into()));
-    app.update();
+    send_paste(&mut app, "one\ntwo");
 
     assert_eq!(lines_of(&app, editor), ["one", "two"]);
     assert_eq!(app.world().resource::<Changes>().0, 1);
@@ -243,7 +236,8 @@ fn a_copy_fills_the_shared_buffer() {
 fn a_seeded_buffer_pastes_on_the_next_frame() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "");
-    ctrl_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    write_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    app.update();
 
     app.world_mut().resource_mut::<LastCopied>().0 = Some("seeded".to_owned());
     ctrl_key(&mut app, KeyCode::Char('v'));
@@ -259,9 +253,7 @@ fn a_copy_in_one_editor_pastes_into_another() {
     ctrl_chord(&mut app, 'c');
 
     let target = spawn_editor(&mut app, "");
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(target, FocusCause::Pressed);
+    set_focus(&mut app, target);
     ctrl_chord(&mut app, 'v');
 
     assert_eq!(lines_of(&app, target), ["ab"]);

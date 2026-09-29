@@ -8,8 +8,7 @@ use bevy_ui::{FlexDirection, Node, Overflow, ScrollPosition, Val};
 use plurimus_bui::BuiPlugin;
 use plurimus_bui::Text;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{composed_frame, send_mouse};
+use plurimus_test::{composed_frame, press_at, release_at};
 use plurimus_ui::{Hovered, Pressed};
 
 const COLS: f32 = 8.0;
@@ -68,11 +67,6 @@ fn is_pressed(app: &App, entity: Entity) -> bool {
     app.world().entity(entity).contains::<Pressed>()
 }
 
-fn press(app: &mut App, x: u16, y: u16) {
-    send_mouse(app, MouseKind::Moved, x, y);
-    send_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
-}
-
 /// A header row above a two-row scroll container holding four rows,
 /// scrolled down two: rows 0-1 are clipped away, and row 1's unclipped
 /// rect lands exactly over the header.
@@ -98,7 +92,7 @@ fn a_scrolled_out_row_takes_no_press() {
     let mut app = app();
     let (header, rows) = scrolled_scene(&mut app);
     app.world_mut().entity_mut(header).remove::<Hovered>();
-    press(&mut app, 2, 0);
+    press_at(&mut app, 2, 0);
     for (index, id) in rows.iter().enumerate() {
         assert!(!is_pressed(&app, *id), "row{index} is invisible there");
     }
@@ -108,7 +102,7 @@ fn a_scrolled_out_row_takes_no_press() {
 fn the_header_wins_its_own_cell_over_an_invisible_row() {
     let mut app = app();
     let (header, rows) = scrolled_scene(&mut app);
-    press(&mut app, 2, 0);
+    press_at(&mut app, 2, 0);
     assert!(is_pressed(&app, header));
     assert!(!is_pressed(&app, rows[1]));
 }
@@ -117,7 +111,7 @@ fn the_header_wins_its_own_cell_over_an_invisible_row() {
 fn a_visible_scrolled_row_is_still_pressable() {
     let mut app = app();
     let (_, rows) = scrolled_scene(&mut app);
-    press(&mut app, 2, 1);
+    press_at(&mut app, 2, 1);
     assert!(
         is_pressed(&app, rows[2]),
         "row2 is drawn at the container top"
@@ -144,11 +138,11 @@ fn a_partially_clipped_row_presses_only_where_drawn() {
     app.update();
     app.update();
 
-    press(&mut app, 2, 1);
+    press_at(&mut app, 2, 1);
     assert!(is_pressed(&app, tall), "inside the container");
 
-    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 1);
-    press(&mut app, 2, 2);
+    release_at(&mut app, 2, 1);
+    press_at(&mut app, 2, 2);
     assert!(
         !is_pressed(&app, tall),
         "its third row is clipped by the container"

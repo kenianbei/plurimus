@@ -6,13 +6,14 @@ use bevy_app::App;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyCode;
-use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_content, write_key};
+use plurimus_test::{
+    composed_frame, composed_styled_frame, press_key, set_focus, widget_content, write_key,
+};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiLabel, UiStyle, UiTheme};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem, ListItemText,
@@ -39,9 +40,7 @@ fn spawn_listbox(app: &mut App) -> (Entity, [Entity; 3]) {
         world.spawn((list_item("beta"), ChildOf(container))).id(),
         world.spawn((list_item("gamma"), ChildOf(container))).id(),
     ];
-    world
-        .resource_mut::<InputFocus>()
-        .set(container, FocusCause::Pressed);
+    set_focus(app, container);
     (container, items)
 }
 

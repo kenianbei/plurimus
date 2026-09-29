@@ -4,14 +4,14 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Bundle, ChildOf};
+use bevy_input_focus::InputFocus;
 use bevy_input_focus::directional_navigation::DirectionalNavigationMap;
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
-use bevy_input_focus::{FocusCause, InputFocus};
 use bevy_math::CompassOctant;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyCode;
-use plurimus_test::press_key;
+use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{InteractionDisabled, NavigationConfig, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{WidgetsPlugin, slider};
@@ -39,12 +39,6 @@ fn spawn_grouped_pair(app: &mut App) -> (Entity, Entity) {
     let left = spawn_focusable(app, Rect::new(2, 1, 6, 1), (TabIndex(0), ChildOf(root)));
     let right = spawn_focusable(app, Rect::new(12, 1, 6, 1), (TabIndex(1), ChildOf(root)));
     (left, right)
-}
-
-fn focus_on(app: &mut App, entity: Entity) {
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(entity, FocusCause::Navigated);
 }
 
 fn focused(app: &App) -> Option<Entity> {
@@ -172,7 +166,7 @@ fn blocked_manual_edge_survives_and_gates_navigation() {
         .block_edge(left, CompassOctant::East);
     app.update();
 
-    focus_on(&mut app, left);
+    set_focus(&mut app, left);
     press_key(&mut app, KeyCode::Right);
     assert_eq!(focused(&app), Some(left), "blocked edge gates navigation");
     assert_eq!(neighbor(&app, right, CompassOctant::West), Some(left));
@@ -236,7 +230,7 @@ fn focused_slider_consumes_horizontal_arrows() {
     );
     app.update();
 
-    focus_on(&mut app, track);
+    set_focus(&mut app, track);
     press_key(&mut app, KeyCode::Right);
     assert_eq!(focused(&app), Some(track));
 }
@@ -263,14 +257,14 @@ fn modal_group_traps_arrows() {
     );
     app.update();
 
-    focus_on(&mut app, inside);
+    set_focus(&mut app, inside);
     press_key(&mut app, KeyCode::Left);
     assert_eq!(focused(&app), Some(inside));
 
     press_key(&mut app, KeyCode::Right);
     assert_eq!(focused(&app), Some(inside_east));
 
-    focus_on(&mut app, outside);
+    set_focus(&mut app, outside);
     press_key(&mut app, KeyCode::Right);
     assert_eq!(focused(&app), Some(inside));
 }

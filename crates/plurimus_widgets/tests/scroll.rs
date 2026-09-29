@@ -5,7 +5,7 @@ use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::send_mouse;
+use plurimus_test::{release_at, send_mouse};
 use plurimus_ui::{
     InteractionDisabled, ScrollArea, ScrollIntoView, ScrollOffset, UiArea, UiOrder, UiWidget,
     ValueChange,
@@ -174,7 +174,7 @@ fn scrollbar_press_and_drag_seek_target() {
     send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 10, 1);
     assert_eq!(offset_of(&app, target), Position::new(0, 3));
 
-    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), 10, 0);
+    release_at(&mut app, 10, 0);
     assert_eq!(offset_of(&app, target), Position::new(0, 0));
 }
 

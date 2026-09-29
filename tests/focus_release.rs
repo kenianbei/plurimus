@@ -12,7 +12,7 @@ use bevy_app::App;
 use bevy_input::ButtonInput;
 use plurimus::core::CorePlugin;
 use plurimus::term::{KeyCode, TermPlugin};
-use plurimus_test::{press_key, send_focus, write_focus, write_key};
+use plurimus_test::{send_focus, write_focus, write_key};
 
 fn app() -> App {
     let mut app = App::new();
@@ -27,7 +27,8 @@ fn is_held(app: &App, code: KeyCode) -> bool {
 #[test]
 fn losing_focus_ends_a_hold_the_terminal_never_will() {
     let mut app = app();
-    press_key(&mut app, KeyCode::Char('w'));
+    write_key(&mut app, KeyCode::Char('w'));
+    app.update();
     assert!(is_held(&app, KeyCode::Char('w')));
 
     send_focus(&mut app, false);

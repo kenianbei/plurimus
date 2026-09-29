@@ -3,13 +3,13 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_input_focus::{FocusCause, InputFocus};
 use bevy_ui::{FlexDirection, Node, Val};
 use plurimus_bui::BuiPlugin;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{press_key, send_mouse};
+use plurimus_test::{press_at, press_key, release_at, send_mouse, set_focus};
 use plurimus_ui::{Hovered, InteractionDisabled, PointerPress};
 use plurimus_widgets::{Activate, Button, WidgetsPlugin};
 
@@ -85,12 +85,10 @@ fn node_button_activates_by_click_and_enter() {
         Some(button),
         "click on the node should focus it"
     );
-    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 1);
+    release_at(&mut app, 2, 1);
     assert_eq!(app.world().resource::<Activations>().0, 1);
 
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(button, FocusCause::Navigated);
+    set_focus(&mut app, button);
     press_key(&mut app, KeyCode::Enter);
     assert_eq!(app.world().resource::<Activations>().0, 2);
 }
@@ -113,8 +111,7 @@ fn node_text_field_edits_after_click_focus() {
     app.update();
     app.update();
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    press_at(&mut app, 2, 0);
     assert_eq!(
         app.world().resource::<InputFocus>().get(),
         Some(field),
@@ -172,9 +169,7 @@ fn tab_index_only_nodes_join_directional_navigation() {
         "node never opted into hover"
     );
 
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(left, FocusCause::Navigated);
+    set_focus(&mut app, left);
     press_key(&mut app, KeyCode::Right);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(right));
 }
@@ -249,8 +244,7 @@ fn a_disabled_node_absorbs_the_press() {
     app.update();
     app.update();
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    press_at(&mut app, 2, 0);
 
     let presses = &app.world().resource::<Presses>().0;
     assert!(!presses.contains(&root), "nothing beneath was pressed");

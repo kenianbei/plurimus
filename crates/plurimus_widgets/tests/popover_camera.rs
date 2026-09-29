@@ -5,37 +5,17 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{Changed, Query, ResMut, Resource, With};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
-use plurimus_core::{
-    ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera, UiWidget,
-    Viewport,
-};
+use plurimus_core::{UiArea, UiCamera, UiWidget};
 use plurimus_ui::ComputedWidgetArea;
-use plurimus_widgets::{Popover, WidgetsPlugin, menu_item, menu_popup};
+use plurimus_widgets::{Popover, menu_item, menu_popup};
 use ratatui_widgets::paragraph::Paragraph;
+
+mod popover;
+
+use popover::{app, camera_of, spawn_camera};
 
 const MAIN: Rect = Rect::new(0, 0, 20, 6);
 const SIDE: Rect = Rect::new(0, 6, 20, 6);
-
-fn app() -> App {
-    let mut app = App::new();
-    app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize::new(20, 12));
-    app
-}
-
-fn spawn_camera(app: &mut App, viewport: Rect, order: isize) -> Entity {
-    app.world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(order)
-                .with_viewport(Viewport::Fixed(viewport)),
-        )
-        .id()
-}
-
-fn camera_of(app: &App, entity: Entity) -> Option<Entity> {
-    app.world().get::<ComputedUiCamera>(entity).unwrap().0
-}
 
 fn spawn_anchor(app: &mut App, camera: Entity) -> Entity {
     app.world_mut()

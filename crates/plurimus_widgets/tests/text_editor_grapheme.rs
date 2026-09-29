@@ -2,11 +2,10 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key};
+use plurimus_test::{press_chord, press_key, set_focus};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextEditor, WidgetsPlugin, text_editor};
 use ratatui_textarea::DataCursor;
@@ -28,9 +27,7 @@ fn spawn_editor(app: &mut App, text: &str) -> Entity {
     let editor = world
         .spawn((text_editor(text), UiArea::Fixed(Rect::new(0, 0, 20, 4))))
         .id();
-    world
-        .resource_mut::<InputFocus>()
-        .set(editor, FocusCause::Pressed);
+    set_focus(app, editor);
     editor
 }
 

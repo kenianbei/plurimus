@@ -7,8 +7,10 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, composed_frame, send_mouse, write_mouse};
+use plurimus_term::MouseKind;
+use plurimus_test::{
+    click, composed_frame, press_at, release_at, send_mouse, write_press_at, write_release_at,
+};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{Activate, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
 
@@ -79,13 +81,10 @@ fn a_same_batch_item_click_lands_after_the_open() {
     let mut app = app();
     let menu = spawn_menu(&mut app);
     app.update();
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 0);
-    write_mouse(&mut app, MouseKind::Moved, 3, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 3, 2);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 3, 2);
-    app.update();
+    press_at(&mut app, 2, 0);
+    write_release_at(&mut app, 2, 0);
+    write_press_at(&mut app, 3, 2);
+    release_at(&mut app, 3, 2);
     app.update();
     assert_eq!(activations(&app), 2, "button opened, then the item fired");
     assert!(
@@ -101,13 +100,10 @@ fn a_same_batch_press_after_a_dismissal_cannot_reach_the_closing_menu() {
     app.update();
     click(&mut app, 2, 0);
     assert!(is_open(&app, &menu));
-    write_mouse(&mut app, MouseKind::Moved, 15, 6);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 15, 6);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 15, 6);
-    write_mouse(&mut app, MouseKind::Moved, 3, 2);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 3, 2);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 3, 2);
-    app.update();
+    write_press_at(&mut app, 15, 6);
+    write_release_at(&mut app, 15, 6);
+    write_press_at(&mut app, 3, 2);
+    release_at(&mut app, 3, 2);
     app.update();
     assert!(!is_open(&app, &menu), "the outside press dismissed");
     assert_eq!(activations(&app), 1, "only the opening click activated");
@@ -121,9 +117,8 @@ fn a_deferred_batch_with_a_second_flip_converges() {
     // One batch: open, dismiss outside, open again.
     send_mouse(&mut app, MouseKind::Moved, 2, 0);
     for (x, y) in [(2, 0), (15, 6), (2, 0)] {
-        write_mouse(&mut app, MouseKind::Moved, x, y);
-        write_mouse(&mut app, MouseKind::Down(MouseButton::Left), x, y);
-        write_mouse(&mut app, MouseKind::Up(MouseButton::Left), x, y);
+        write_press_at(&mut app, x, y);
+        write_release_at(&mut app, x, y);
     }
     for _ in 0..4 {
         app.update();

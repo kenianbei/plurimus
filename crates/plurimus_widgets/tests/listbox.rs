@@ -4,12 +4,11 @@ use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_key, repeat_key, send_mouse};
+use plurimus_test::{click, press_at, press_key, release_at, repeat_key, send_mouse, set_focus};
 use plurimus_ui::{
     Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
 };
@@ -45,9 +44,7 @@ fn spawn_listbox(app: &mut App) -> (Entity, [Entity; 3]) {
         world.spawn((list_item("beta"), ChildOf(container))).id(),
         world.spawn((list_item("gamma"), ChildOf(container))).id(),
     ];
-    world
-        .resource_mut::<InputFocus>()
-        .set(container, FocusCause::Pressed);
+    set_focus(app, container);
     (container, items)
 }
 
@@ -67,9 +64,7 @@ fn spawn_scrolling_listbox(app: &mut App) -> (Entity, Vec<Entity>) {
                 .id()
         })
         .collect();
-    world
-        .resource_mut::<InputFocus>()
-        .set(container, FocusCause::Pressed);
+    set_focus(app, container);
     (container, items)
 }
 
@@ -310,8 +305,7 @@ fn a_press_moves_the_cursor_without_selecting() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 1);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    press_at(&mut app, 2, 1);
 
     assert_eq!(active(&app, container), Some(items[1]));
     assert!(app.world().resource::<Selections>().0.is_empty());
@@ -322,9 +316,8 @@ fn a_drag_across_rows_selects_the_one_it_ends_on() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
-    send_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 2);
+    press_at(&mut app, 2, 0);
+    release_at(&mut app, 2, 2);
 
     assert_eq!(active(&app, container), Some(items[2]));
     assert_eq!(
@@ -339,8 +332,7 @@ fn a_held_pointer_drags_the_cursor_with_it() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    press_at(&mut app, 2, 0);
     assert_eq!(active(&app, container), Some(items[0]));
 
     send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 2, 2);
@@ -370,8 +362,7 @@ fn press_on_an_overlay_does_not_reach_the_listbox_beneath() {
         UiOrder(1),
     ));
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 1);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    press_at(&mut app, 2, 1);
 
     assert_eq!(active(&app, container), None);
     assert!(app.world().resource::<Selections>().0.is_empty());
@@ -428,9 +419,7 @@ fn spawn_tall_listbox(app: &mut App) -> (Entity, [Entity; 3]) {
         world.spawn((tall_item("two", 3), ChildOf(container))).id(),
         world.spawn((list_item("three"), ChildOf(container))).id(),
     ];
-    world
-        .resource_mut::<InputFocus>()
-        .set(container, FocusCause::Pressed);
+    set_focus(app, container);
     (container, items)
 }
 

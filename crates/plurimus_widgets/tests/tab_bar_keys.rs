@@ -5,11 +5,11 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
-use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
+use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyCode;
-use plurimus_test::{press_key, repeat_key};
+use plurimus_test::{press_key, repeat_key, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::{
     TabBarAction, TabBarKeys, WidgetsPlugin, tab_bar, tab_bar_self_update, tab_item,
@@ -42,7 +42,9 @@ fn spawn_bar(app: &mut App, labels: &[&'static str], active: Option<usize>) -> B
     let form = app.world_mut().spawn_empty().id();
     app.world_mut().entity_mut(form).observe(
         |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Unconsumed>| {
-            seen.0.push(input.input.logical_key.clone());
+            if input.input.state.is_pressed() {
+                seen.0.push(input.input.logical_key.clone());
+            }
         },
     );
     let bar = app
@@ -68,9 +70,7 @@ fn spawn_bar(app: &mut App, labels: &[&'static str], active: Option<usize>) -> B
     if let Some(index) = active {
         app.world_mut().entity_mut(items[index]).insert(Checked);
     }
-    app.world_mut()
-        .resource_mut::<InputFocus>()
-        .set(bar, FocusCause::Navigated);
+    set_focus(app, bar);
     app.update();
     Bar { bar, items }
 }

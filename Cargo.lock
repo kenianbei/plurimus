@@ -3081,6 +3081,7 @@ version = "0.7.2"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_input_focus",
  "plurimus_core",
  "plurimus_term",
 ]

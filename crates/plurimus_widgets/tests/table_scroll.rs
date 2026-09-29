@@ -4,11 +4,10 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::layout::{Constraint, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseKind};
-use plurimus_test::{click, composed_frame, press_key, send_mouse};
+use plurimus_test::{click, composed_frame, press_key, send_mouse, set_focus};
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea};
 use plurimus_widgets::{
     ActiveColumn, ActiveDescendant, TableCursor, TableSelection, WidgetsPlugin, table,
@@ -64,9 +63,7 @@ fn app_with(
         })
         .collect();
     world.spawn((table_footer(["total", "8"]), ChildOf(table)));
-    world
-        .resource_mut::<InputFocus>()
-        .set(table, FocusCause::Pressed);
+    set_focus(&mut app, table);
     app.update();
     (app, table, rows)
 }

@@ -5,13 +5,14 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{
-    Background, ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera,
-    UiWidget, Viewport,
-};
+use plurimus_core::{UiArea, UiCamera, UiWidget};
 use plurimus_ui::{ComputedWidgetArea, ScrollOffset};
-use plurimus_widgets::{Popover, PopoverAlign, PopoverSide, WidgetsPlugin};
+use plurimus_widgets::{Popover, PopoverAlign, PopoverSide};
 use ratatui_widgets::paragraph::Paragraph;
+
+mod popover;
+
+use popover::{app, camera_of, spawn_camera};
 
 const FULL: Rect = Rect::new(0, 0, 20, 12);
 const SHORT: Rect = Rect::new(0, 0, 20, 6);
@@ -19,24 +20,6 @@ const STRIP: Rect = Rect::new(0, 11, 20, 1);
 const ANCHOR: Rect = Rect::new(2, 1, 10, 4);
 const ON_STRIP: Rect = Rect::new(0, 0, 6, 1);
 const CELL: Position = Position::new(3, 2);
-
-fn app() -> App {
-    let mut app = App::new();
-    app.add_plugins((CorePlugin, WidgetsPlugin));
-    app.insert_resource(TerminalSize::new(20, 12));
-    app
-}
-
-fn spawn_camera(app: &mut App, viewport: Rect, order: isize) -> Entity {
-    app.world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(order)
-                .with_viewport(Viewport::Fixed(viewport))
-                .with_background(Background::Transparent),
-        )
-        .id()
-}
 
 fn spawn_anchor(app: &mut App, camera: Entity, area: Rect) -> Entity {
     app.world_mut()
@@ -56,10 +39,6 @@ fn spawn_popover(app: &mut App, popover: Popover) -> Entity {
 
 fn placed(app: &App, popover: Entity) -> Rect {
     app.world().get::<ComputedWidgetArea>(popover).unwrap().0
-}
-
-fn camera_of(app: &App, entity: Entity) -> Option<Entity> {
-    app.world().get::<ComputedUiCamera>(entity).unwrap().0
 }
 
 // The strip is the lowest-ordered camera and so the default one, which is

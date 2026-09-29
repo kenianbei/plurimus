@@ -8,8 +8,9 @@ mod widget;
 
 pub use frame::{composed_frame, composed_styled_frame};
 pub use input::{
-    click, press_chord, press_key, press_key_with, repeat_key, send_focus, send_mouse, write_focus,
-    write_key, write_mouse,
+    click, press_at, press_chord, press_key, press_key_with, release_at, repeat_key, send_focus,
+    send_mouse, send_paste, set_focus, write_focus, write_key, write_mouse, write_paste,
+    write_press_at, write_release_at,
 };
 pub use request::clipboard_writes;
 pub use widget::widget_content;
