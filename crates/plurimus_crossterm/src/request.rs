@@ -36,8 +36,8 @@ pub(crate) struct ClipboardEnabled(pub(crate) bool);
 /// The cursor shape last asked of the terminal, so an unchanged one costs
 /// no escape sequence.
 ///
-/// No "unknown" state to track: the default shape is the one that asks for
-/// nothing, so a first frame matching it correctly writes nothing.
+/// Starts at the default because the terminal starts at the user's own
+/// shape, so a first frame asking for it writes nothing.
 #[derive(Resource, Debug, Default, Clone, Copy)]
 pub(crate) struct PreviousCursorStyle(TerminalCursorStyle);
 
@@ -100,26 +100,23 @@ pub(crate) fn write_cursor_style<W: Write + Send + Sync + 'static>(
         return Ok(());
     }
     previous.0 = wanted;
-    let Some(style) = cursor_style(wanted) else {
-        return Ok(());
-    };
+    crate::context::mark_shape_written();
     let writer = &mut context.backend;
-    queue!(writer, style)?;
+    queue!(writer, cursor_style(wanted))?;
     writer.flush()?;
     Ok(())
 }
 
-/// `None` for the terminal's own shape, which is asked for by not asking -
-/// and which a shape this backend has no escape for falls back to.
-const fn cursor_style(style: TerminalCursorStyle) -> Option<SetCursorStyle> {
+/// A shape this backend has no escape for falls back to the user's own.
+const fn cursor_style(style: TerminalCursorStyle) -> SetCursorStyle {
     match style {
-        TerminalCursorStyle::BlinkingBlock => Some(SetCursorStyle::BlinkingBlock),
-        TerminalCursorStyle::SteadyBlock => Some(SetCursorStyle::SteadyBlock),
-        TerminalCursorStyle::BlinkingUnderline => Some(SetCursorStyle::BlinkingUnderScore),
-        TerminalCursorStyle::SteadyUnderline => Some(SetCursorStyle::SteadyUnderScore),
-        TerminalCursorStyle::BlinkingBar => Some(SetCursorStyle::BlinkingBar),
-        TerminalCursorStyle::SteadyBar => Some(SetCursorStyle::SteadyBar),
-        _ => None,
+        TerminalCursorStyle::BlinkingBlock => SetCursorStyle::BlinkingBlock,
+        TerminalCursorStyle::SteadyBlock => SetCursorStyle::SteadyBlock,
+        TerminalCursorStyle::BlinkingUnderline => SetCursorStyle::BlinkingUnderScore,
+        TerminalCursorStyle::SteadyUnderline => SetCursorStyle::SteadyUnderScore,
+        TerminalCursorStyle::BlinkingBar => SetCursorStyle::BlinkingBar,
+        TerminalCursorStyle::SteadyBar => SetCursorStyle::SteadyBar,
+        _ => SetCursorStyle::DefaultUserShape,
     }
 }
 
@@ -338,14 +335,14 @@ mod tests {
     }
 
     #[test]
-    fn a_shape_reaches_the_terminal_and_the_default_asks_for_nothing() {
+    fn a_shape_reaches_the_terminal_and_the_default_takes_it_back() {
         let (mut app, writer) = app_serving_requests(false);
         app.update();
         // DECSCUSR is the only ` q`-terminated sequence here; the frame's
         // own clear and cursor hide are not it.
         assert!(
             !writer.written().contains(" q"),
-            "the terminal's own shape is asked for by not asking: {:?}",
+            "the terminal starts at its own shape, so nothing is asked: {:?}",
             writer.written()
         );
 
@@ -355,6 +352,15 @@ mod tests {
         assert!(
             writer.written().contains("\x1b[6 q"),
             "{:?}",
+            writer.written()
+        );
+
+        *app.world_mut().resource_mut::<TerminalCursorStyle>() = TerminalCursorStyle::Default;
+        app.update();
+
+        assert!(
+            writer.written().ends_with("\x1b[0 q"),
+            "a bar stays a bar unless the default is asked for: {:?}",
             writer.written()
         );
     }

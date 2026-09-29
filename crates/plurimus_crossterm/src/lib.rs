@@ -151,10 +151,11 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
 
 impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
     fn build(&self, app: &mut App) {
+        // First, so an init failing after raw mode panics into a restore.
+        context::install_panic_hook();
         let (backend, size, capabilities, color_depth) =
             context::init(self.take_writer(), self.mouse, self.paste)
                 .expect("failed to initialize the terminal (the writer must reach a tty)");
-        context::install_panic_hook();
         if !app.is_plugin_added::<plurimus_term::TermPlugin>() {
             app.add_plugins(plurimus_term::TermPlugin);
         }

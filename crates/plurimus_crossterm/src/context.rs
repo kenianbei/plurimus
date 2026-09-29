@@ -11,7 +11,7 @@ use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy_ecs::prelude::Resource;
-use crossterm::cursor::{Hide, Show};
+use crossterm::cursor::{Hide, SetCursorStyle, Show};
 use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
@@ -23,9 +23,11 @@ use plurimus_core::{ColorDepth, TerminalSize};
 use plurimus_term::InputCapabilities;
 use ratatui_crossterm::CrosstermBackend;
 
-// Restore runs from panic hooks with no app state; only the kitty pop needs
-// guarding, since popping an unpushed stack is the hazard.
+// Restore runs from panic hooks with no app state, so what it undoes
+// conditionally is recorded here: popping an unpushed stack is a hazard, and
+// resetting a shape the app never set clobbers the shell's own.
 static KITTY_PUSHED: AtomicBool = AtomicBool::new(false);
+static SHAPE_WRITTEN: AtomicBool = AtomicBool::new(false);
 
 /// Restores the terminal when the render world is torn down.
 #[derive(Resource)]
@@ -35,6 +37,10 @@ impl Drop for RestoreOnDrop {
     fn drop(&mut self) {
         restore();
     }
+}
+
+pub(crate) fn mark_shape_written() {
+    SHAPE_WRITTEN.store(true, Ordering::Relaxed);
 }
 
 pub(crate) fn init<W: Write + Send + Sync + 'static>(
@@ -136,6 +142,9 @@ pub fn restore() {
     let mut writer = restore_writer();
     if KITTY_PUSHED.load(Ordering::Relaxed) {
         let _ = queue!(writer, PopKeyboardEnhancementFlags);
+    }
+    if SHAPE_WRITTEN.load(Ordering::Relaxed) {
+        let _ = queue!(writer, SetCursorStyle::DefaultUserShape);
     }
     let _ = execute!(
         writer,
