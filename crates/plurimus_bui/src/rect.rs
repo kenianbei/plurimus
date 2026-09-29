@@ -13,7 +13,7 @@ use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_math::Vec2;
 use bevy_ui::{CalculatedClip, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform};
 use plurimus_core::ResolvedViewport;
-use plurimus_core::ratatui_core::layout::{Position, Rect};
+use plurimus_core::ratatui_core::layout::Rect;
 
 use super::upsert;
 
@@ -50,15 +50,6 @@ impl CellBox {
         self.right <= self.left || self.bottom <= self.top
     }
 
-    pub(crate) fn width(self) -> i32 {
-        (self.right - self.left).max(0)
-    }
-
-    pub(crate) fn contains(self, position: Position) -> bool {
-        let (x, y) = (i32::from(position.x), i32::from(position.y));
-        (self.left..self.right).contains(&x) && (self.top..self.bottom).contains(&y)
-    }
-
     /// The part of the box inside `area`, or [`Rect::ZERO`] when none is.
     pub(crate) fn clamped(self, area: Rect) -> Rect {
         let horizontal = |edge: i32| edge.clamp(area.left().into(), area.right().into()) as u16;
@@ -73,14 +64,16 @@ impl CellBox {
 }
 
 // Edge rounding keeps adjacent nodes gapless: each edge rounds
-// independently, width is the rounded-edge difference.
-fn cell_box(center: Vec2, size: Vec2, viewport: Rect) -> CellBox {
-    let edge = |position: f32, origin: u16| position.round() as i32 + i32::from(origin);
+// independently, width is the rounded-edge difference. Edge-wise, not
+// center/size, because a scroll clip is infinite on its free axis and
+// infinity minus infinity is NaN; the cast saturates an infinite edge.
+fn cell_box(min: Vec2, max: Vec2, viewport: Rect) -> CellBox {
+    let edge = |position: f32, origin: u16| (position + f32::from(origin)).round() as i32;
     CellBox {
-        left: edge(center.x - size.x / 2.0, viewport.x),
-        top: edge(center.y - size.y / 2.0, viewport.y),
-        right: edge(center.x + size.x / 2.0, viewport.x),
-        bottom: edge(center.y + size.y / 2.0, viewport.y),
+        left: edge(min.x, viewport.x),
+        top: edge(min.y, viewport.y),
+        right: edge(max.x, viewport.x),
+        bottom: edge(max.y, viewport.y),
     }
 }
 
@@ -91,12 +84,17 @@ pub(crate) fn node_boxes(
     transform: &UiGlobalTransform,
     viewport: Rect,
 ) -> (CellBox, CellBox) {
+    let half = computed.size / 2.0;
     let content_box = computed.content_box();
     (
-        cell_box(transform.translation, computed.size, viewport),
         cell_box(
-            transform.translation + content_box.center(),
-            content_box.size(),
+            transform.translation - half,
+            transform.translation + half,
+            viewport,
+        ),
+        cell_box(
+            transform.translation + content_box.min,
+            transform.translation + content_box.max,
             viewport,
         ),
     )
@@ -131,21 +129,8 @@ fn node_rects(
     })
 }
 
-// Edge-wise, not center/size: a scroll clip is infinite on its free
-// axis, and infinity minus infinity is NaN.
 pub(crate) fn clip_cells(clip: bevy_math::Rect, viewport: Rect) -> Rect {
-    let width = f32::from(viewport.width);
-    let height = f32::from(viewport.height);
-    let left = clip.min.x.clamp(0.0, width).round() as u16;
-    let top = clip.min.y.clamp(0.0, height).round() as u16;
-    let right = clip.max.x.clamp(0.0, width).round() as u16;
-    let bottom = clip.max.y.clamp(0.0, height).round() as u16;
-    Rect::new(
-        viewport.x.saturating_add(left),
-        viewport.y.saturating_add(top),
-        right.saturating_sub(left),
-        bottom.saturating_sub(top),
-    )
+    cell_box(clip.min, clip.max, viewport).clamped(viewport)
 }
 
 pub(crate) fn compute_node_rects(

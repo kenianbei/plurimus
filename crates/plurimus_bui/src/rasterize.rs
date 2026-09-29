@@ -67,10 +67,11 @@ fn clipped(rect: CellBox, area: Rect, clip: Option<Rect>) -> Rect {
 
 // Shadows land outside the node rect, so they use their own bounds.
 fn draw_shadows(node: &ExtractedBuiNode, buffer: &mut Buffer) {
+    let node_cells = node.rect.clamped(buffer.area);
     for shadow in &node.decoration.shadows {
         let area = clipped(shadow.rect, buffer.area, node.clip);
         for position in area.positions() {
-            if !node.rect.contains(position) {
+            if !node_cells.contains(position) {
                 dim_cell(buffer, position, shadow.color);
             }
         }
@@ -187,7 +188,7 @@ fn draw_text(buffer: &mut Buffer, bounds: Rect, text: &TextRun) {
     if visible.is_empty() {
         return;
     }
-    let lines = wrap_spans(&text.spans, Some(content.width() as usize));
+    let lines = wrap_spans(&text.spans, Some((content.right - content.left) as usize));
     let hidden_rows = (i32::from(visible.top()) - content.top) as usize;
     for (y, line) in (visible.top()..visible.bottom()).zip(lines.iter().skip(hidden_rows)) {
         draw_line(buffer, line, content.left, y, visible);

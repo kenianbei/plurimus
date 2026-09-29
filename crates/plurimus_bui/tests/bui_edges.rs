@@ -2,7 +2,6 @@
 
 use bevy_app::App;
 use bevy_color::Color;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_math::Vec2;
 use bevy_ui::{
@@ -121,18 +120,15 @@ fn a_wide_character_cut_by_the_left_edge_leaves_its_column_blank() {
     assert_eq!(rows[0].trim_end(), " 界 x");
 }
 
-fn node_rect(app: &App, node: Entity) -> Rect {
-    app.world()
-        .get::<ComputedNodeRect>(node)
-        .expect("a laid-out node")
-        .rect
-}
-
 #[test]
 fn a_node_past_the_right_edge_publishes_only_its_on_screen_cells() {
     let mut app = app();
     let node = app.world_mut().spawn(absolute(6.0, 3.0, 8.0, 4.0)).id();
     settle(&mut app);
 
-    assert_eq!(node_rect(&app, node), Rect::new(6, 3, 4, 2));
+    let published = app
+        .world()
+        .get::<ComputedNodeRect>(node)
+        .expect("a laid-out node");
+    assert_eq!(published.rect, Rect::new(6, 3, 4, 2));
 }
