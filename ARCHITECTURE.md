@@ -411,11 +411,13 @@ everything a container cannot work out for itself, which is why `rows` holds it
 and depends on neither: the cursor (`ActiveDescendant`), the row decorations
 (`ListItemText`, `ListItemTrailing`, `Marked`), and four generic passes in
 `WidgetSystems::Layout`. Their rows are child entities, and a child's change
-never marks its parent, so one pass forwards a row's edit, restyle, check, mark,
-or uncheck to the container before any stylist runs, and a second sums its rows'
-heights into the scroll extent, reading that same signal so a row's edit resizes
-the content in the frame it happens. A third keeps the cursor pointing at a live
-row - filtering a list is despawning its rows, and a cursor naming a dead one
+never marks its parent, so one pass forwards a row's change to the container
+before any stylist runs - including a row losing a component, which no change
+reports, so each container names every component it draws from its rows beside
+the filter that watches them - and a second sums its rows' heights into the
+scroll extent, reading that same signal so a row's edit resizes the content in
+the frame it happens. A third keeps the cursor pointing at a live row -
+filtering a list is despawning its rows, and a cursor naming a dead one
 highlights nothing and moves from nowhere, so it re-points to the first
 survivor, or to none when none survives, leaving a deliberately empty cursor
 alone. A fourth scrolls whichever row the cursor names into view, which belongs

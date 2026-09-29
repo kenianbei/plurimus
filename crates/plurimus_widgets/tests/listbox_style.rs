@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use bevy_app::App;
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
 use bevy_input_focus::{FocusCause, InputFocus};
@@ -15,7 +16,7 @@ use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_con
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiLabel, UiStyle, UiTheme};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem, ListItemText,
-    WidgetsPlugin, list_item, listbox, listbox_self_update,
+    ListItemTrailing, WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -256,6 +257,19 @@ fn rebuilds_after(change: impl FnOnce(&mut App, Entity, [Entity; 3])) -> bool {
     rebuilds_after_setup(|_, _, _| {}, change)
 }
 
+// Whether the stylist rebuilt the widget once the first row, holding
+// `component`, lost it.
+fn rebuilds_after_removing<C: Component>(component: C) -> bool {
+    rebuilds_after_setup(
+        |app, _, rows| {
+            app.world_mut().entity_mut(rows[0]).insert(component);
+        },
+        |app, _, rows| {
+            app.world_mut().entity_mut(rows[0]).remove::<C>();
+        },
+    )
+}
+
 // The stylist reads no row unless something says a row changed, so every
 // signal below is the only thing standing between an edit and a stale list.
 #[test]
@@ -298,32 +312,32 @@ fn a_row_edit_reaches_the_stylist() {
 }
 
 // `Changed` never fires for a component that goes, so these reach the
-// stylist through the forwarder's `RemovedComponents` readers alone.
+// stylist through `mark_cleared` alone.
 #[test]
 fn a_removed_row_component_reaches_the_stylist() {
     assert!(
-        rebuilds_after_setup(
-            |app, _, items| {
-                app.world_mut().entity_mut(items[0]).insert(Checked);
-            },
-            |app, _, items| {
-                app.world_mut().entity_mut(items[0]).remove::<Checked>();
-            },
-        ),
+        rebuilds_after_removing(Checked),
         "a row unchecked in place, the cursor never moving"
     );
     assert!(
-        rebuilds_after_setup(
-            |app, _, items| {
-                app.world_mut()
-                    .entity_mut(items[0])
-                    .insert(UiStyle(Style::new().fg(Color::Green)));
-            },
-            |app, _, items| {
-                app.world_mut().entity_mut(items[0]).remove::<UiStyle>();
-            },
-        ),
+        rebuilds_after_removing(UiStyle(Style::new().fg(Color::Green))),
         "a row's style override cleared by removing it"
+    );
+    assert!(
+        rebuilds_after_removing(ListItemText(Text::from("alpha"))),
+        "a row's text cleared back to its label"
+    );
+    assert!(
+        rebuilds_after_removing(ListItemTrailing(Line::from("^A"))),
+        "a row's trailing content cleared"
+    );
+    assert!(
+        rebuilds_after_removing(UiLabel(Line::from("alpha"))),
+        "a row losing its label"
+    );
+    assert!(
+        rebuilds_after_removing(ListItem),
+        "a child that stops being a row"
     );
 }
 

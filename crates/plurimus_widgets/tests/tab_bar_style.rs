@@ -136,6 +136,23 @@ fn moving_the_active_item_repaints_both_items() {
     assert!(!Arc::ptr_eq(&before.1, &widget_content(&app, bar.items[1])));
 }
 
+// The bar draws its chrome, never an item, so which item is active is
+// nothing to it.
+#[test]
+fn moving_the_active_item_leaves_the_bar_alone() {
+    let mut app = app();
+    let bar = spawn_bar(&mut app);
+    app.update();
+    app.update();
+    let before = widget_content(&app, bar.bar);
+
+    app.world_mut().entity_mut(bar.items[1]).remove::<Checked>();
+    app.world_mut().entity_mut(bar.items[0]).insert(Checked);
+    app.update();
+
+    assert!(Arc::ptr_eq(&before, &widget_content(&app, bar.bar)));
+}
+
 #[test]
 fn a_boxed_active_item_styles_its_frame_with_its_label() {
     let mut app = app();

@@ -76,7 +76,7 @@ pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{
     listbox_click, listbox_drag, listbox_key, listbox_press, reveal_listbox_cursor,
 };
-pub(crate) use listbox_style::{ListRowsChanged, ListSelfChanged, style_listboxes};
+pub(crate) use listbox_style::{mark_list_content, style_listboxes};
 pub(crate) use menu::{
     menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
     style_menu_popups,
@@ -93,8 +93,7 @@ pub(crate) use tabbar::{
     tab_bar_key, tab_item_click,
 };
 pub(crate) use table::{
-    TableBodyRow, TableRowsChanged, TableSelfChanged, reveal_table_cursor, style_tables,
-    table_click, table_key,
+    TableBodyRow, mark_table_content, reveal_table_cursor, style_tables, table_click, table_key,
 };
 pub(crate) use text::{
     install_editor_views, style_text_inputs, text_editor_key, text_editor_paste,
@@ -187,10 +186,7 @@ fn add_layout_systems(app: &mut App) {
                     repair_active_descendants::<ListBox, With<ListItem>>,
                     repair_active_descendants::<Table, TableBodyRow>,
                 ),
-                (
-                    mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
-                    mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
-                ),
+                (mark_list_content(), mark_table_content()),
                 (
                     sync_row_scroll::<ListBox, ListItem>,
                     sync_row_scroll::<Table, TableRow>,

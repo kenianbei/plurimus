@@ -478,6 +478,29 @@ fn editing_a_rows_text_resizes_the_extent() {
     );
 }
 
+// `Changed` never fires for a component that goes, so these reach the extent
+// only through the removal forwarding.
+#[test]
+fn a_row_losing_its_text_or_its_row_resizes_the_extent() {
+    let mut app = app();
+    let (container, items) = spawn_tall_listbox(&mut app);
+    app.update();
+
+    app.world_mut()
+        .entity_mut(items[0])
+        .remove::<ListItemText>();
+    app.update();
+    assert_eq!(extent(&app, container), 5, "the two-line row became one");
+
+    app.world_mut().entity_mut(items[1]).remove::<ListItem>();
+    app.update();
+    assert_eq!(
+        extent(&app, container),
+        2,
+        "the three-line child stopped being a row"
+    );
+}
+
 #[test]
 fn a_click_anywhere_in_a_tall_row_selects_it() {
     let mut app = app();
