@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use bevy_app::App;
+use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
@@ -219,6 +220,19 @@ fn rebuilds_after(change: impl FnOnce(&mut App, Entity, [Entity; 3])) -> bool {
     rebuilds_after_setup(|_, _, _| {}, change)
 }
 
+// Whether the stylist rebuilt the widget once the first row, holding
+// `component`, lost it.
+fn rebuilds_after_removing<C: Component>(component: C) -> bool {
+    rebuilds_after_setup(
+        |app, _, rows| {
+            app.world_mut().entity_mut(rows[0]).insert(component);
+        },
+        |app, _, rows| {
+            app.world_mut().entity_mut(rows[0]).remove::<C>();
+        },
+    )
+}
+
 #[test]
 fn a_row_edit_reaches_the_stylist() {
     assert!(
@@ -258,83 +272,36 @@ fn a_row_edit_reaches_the_stylist() {
 }
 
 // `Changed` never fires for a component that goes, so a removal reaches the
-// stylist only through the forwarder's `RemovedComponents` readers.
+// stylist only through `mark_cleared`.
 #[test]
 fn a_removed_row_component_reaches_the_stylist() {
     assert!(
-        rebuilds_after_setup(
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).insert(Checked);
-            },
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).remove::<Checked>();
-            },
-        ),
+        rebuilds_after_removing(Checked),
         "a row unchecked in place, the cursor never moving"
     );
     assert!(
-        rebuilds_after_setup(
-            |app, _, rows| {
-                app.world_mut()
-                    .entity_mut(rows[0])
-                    .insert(UiStyle(Style::new().fg(Color::Green)));
-            },
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).remove::<UiStyle>();
-            },
-        ),
+        rebuilds_after_removing(UiStyle(Style::new().fg(Color::Green))),
         "a row's style override cleared by removing it"
+    );
+    assert!(
+        rebuilds_after_removing(TableHeader),
+        "a row leaving the header band"
+    );
+    assert!(
+        rebuilds_after_removing(TableFooter),
+        "a row leaving the footer band"
+    );
+    assert!(
+        rebuilds_after_removing(TableRow(vec![Line::from("alpha")])),
+        "a child that stops being a row"
     );
 }
 
 #[test]
 fn a_removed_decoration_a_table_never_draws_leaves_it_alone() {
     assert!(
-        !rebuilds_after_setup(
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).insert(Marked);
-            },
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).remove::<Marked>();
-            },
-        ),
+        !rebuilds_after_removing(Marked),
         "a table draws no marker gutter"
-    );
-}
-
-#[test]
-fn a_row_leaving_its_band_reaches_the_stylist() {
-    assert!(
-        rebuilds_after_setup(
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).insert(TableHeader);
-            },
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[0]).remove::<TableHeader>();
-            },
-        ),
-        "a row leaving the header band"
-    );
-    assert!(
-        rebuilds_after_setup(
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[2]).insert(TableFooter);
-            },
-            |app, _, rows| {
-                app.world_mut().entity_mut(rows[2]).remove::<TableFooter>();
-            },
-        ),
-        "a row leaving the footer band"
-    );
-}
-
-#[test]
-fn a_child_that_stops_being_a_row_reaches_the_stylist() {
-    assert!(
-        rebuilds_after(|app, _, rows| {
-            app.world_mut().entity_mut(rows[0]).remove::<TableRow>();
-        }),
-        "a child that stops being a row"
     );
 }
 

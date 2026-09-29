@@ -6,7 +6,7 @@
 //! the cursor. Rows are children, and a child's change never marks its
 //! parent, so no query filter on the container can see one.
 //!
-//! Both systems run in [`WidgetSystems::Layout`](crate::WidgetSystems),
+//! Every system here runs in [`WidgetSystems::Layout`](crate::WidgetSystems),
 //! before the stylists read what they leave behind.
 
 use std::marker::PhantomData;
@@ -25,9 +25,9 @@ use plurimus_ui::{ComputedWidgetArea, ScrollArea, StylistCache, UiTheme};
 /// Marks a container whose content changed: a row added, edited, restyled,
 /// or checked.
 ///
-/// [`mark_dirty_content`] sets it, and the container's stylist reads it
-/// beside its `StylistCache` rather than hashing every row to find out
-/// whether it need redraw.
+/// [`mark_dirty_content`] and [`mark_cleared`] set it, and the container's
+/// stylist reads it beside its `StylistCache` rather than hashing every row
+/// to find out whether it need redraw.
 #[derive(Component)]
 pub(crate) struct ContentDirty<M: Send + Sync + 'static>(PhantomData<M>);
 
@@ -125,7 +125,8 @@ pub(crate) fn mark_dirty_content<Container, Row, RowsChanged, SelfChanged>(
 ///
 /// `Changed` never fires for a component that goes, and the row keeps no
 /// record that it had one, so each component a container draws from its
-/// rows is registered here once for that container.
+/// rows is registered once for that container, beside the `Changed` filter
+/// it completes.
 pub(crate) fn mark_cleared<Container: Component, C: Component>(
     mut removed: RemovedComponents<C>,
     parents: Query<&ChildOf>,

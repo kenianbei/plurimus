@@ -9,7 +9,9 @@
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Changed, Has, Or, Query, Res};
+use bevy_ecs::prelude::{Changed, Has, IntoScheduleConfigs, Or, Query, Res};
+use bevy_ecs::schedule::ScheduleConfigs;
+use bevy_ecs::system::ScheduleSystem;
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::Constraint;
 use plurimus_core::ratatui_core::style::Style;
@@ -22,13 +24,13 @@ use super::{
     TableLayout, TableRow, TableSelection, TableStripe,
 };
 use crate::rows::ActiveDescendant;
-use crate::rows::ContentDirty;
+use crate::rows::{ContentDirty, mark_cleared, mark_dirty_content};
 use crate::rows::{cursor_style, cursor_symbol};
 use plurimus_core::UiWidget;
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
-pub(crate) type TableRowsChanged = Or<(
+type TableRowsChanged = Or<(
     Changed<TableRow>,
     Changed<UiStyle>,
     Changed<Checked>,
@@ -38,7 +40,7 @@ pub(crate) type TableRowsChanged = Or<(
 
 // The cursor is absent by design: it reaches the stylist through
 // `StylistCache`, which needs no ordering against whatever moved it.
-pub(crate) type TableSelfChanged = Or<(
+type TableSelfChanged = Or<(
     Changed<Children>,
     Changed<TableColumns>,
     Changed<TableStripe>,
@@ -47,6 +49,20 @@ pub(crate) type TableSelfChanged = Or<(
     Changed<TableCursor>,
     Changed<TableSelection>,
 )>;
+
+/// Marks a table's content dirty on everything in [`TableRowsChanged`], its
+/// removal included, which no `Changed` filter reports.
+pub(crate) fn mark_table_content() -> ScheduleConfigs<ScheduleSystem> {
+    (
+        mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
+        mark_cleared::<Table, TableRow>,
+        mark_cleared::<Table, UiStyle>,
+        mark_cleared::<Table, Checked>,
+        mark_cleared::<Table, TableHeader>,
+        mark_cleared::<Table, TableFooter>,
+    )
+        .into_configs()
+}
 
 type TableRows<'w, 's> = Query<
     'w,

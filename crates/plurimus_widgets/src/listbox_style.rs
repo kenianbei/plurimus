@@ -13,18 +13,20 @@ use core::slice;
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
+use bevy_ecs::prelude::{Changed, Has, IntoScheduleConfigs, Or, Query, Res, With};
+use bevy_ecs::schedule::ScheduleConfigs;
+use bevy_ecs::system::ScheduleSystem;
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
 use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem};
-use crate::rows::ContentDirty;
 use crate::rows::{
     ActiveDescendant, CURSOR_SYMBOL, ListItemText, ListItemTrailing, Marked, cursor_style,
     cursor_symbol,
 };
+use crate::rows::{ContentDirty, mark_cleared, mark_dirty_content};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle, UiTheme};
@@ -32,7 +34,7 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, decorate, hashed_bits, obs
 
 // `ListItem` catches a child that becomes a row without its label
 // changing; the rest is what a row draws with.
-pub(crate) type ListRowsChanged = Or<(
+type ListRowsChanged = Or<(
     Changed<ListItem>,
     Changed<UiLabel>,
     Changed<ListItemText>,
@@ -44,12 +46,28 @@ pub(crate) type ListRowsChanged = Or<(
 
 // The cursor row is absent by design: it reaches the stylist hashed into
 // `StylistCache`, which needs no ordering against whatever moved it.
-pub(crate) type ListSelfChanged = Or<(
+type ListSelfChanged = Or<(
     Changed<Children>,
     Changed<ListBoxCursor>,
     Changed<ListBoxSelectionMarker>,
     Changed<ListBoxStripe>,
 )>;
+
+/// Marks a list's content dirty on everything in [`ListRowsChanged`], its
+/// removal included, which no `Changed` filter reports.
+pub(crate) fn mark_list_content() -> ScheduleConfigs<ScheduleSystem> {
+    (
+        mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
+        mark_cleared::<ListBox, ListItem>,
+        mark_cleared::<ListBox, UiLabel>,
+        mark_cleared::<ListBox, ListItemText>,
+        mark_cleared::<ListBox, ListItemTrailing>,
+        mark_cleared::<ListBox, UiStyle>,
+        mark_cleared::<ListBox, Checked>,
+        mark_cleared::<ListBox, Marked>,
+    )
+        .into_configs()
+}
 
 const CHECKED_MARKER: &str = "▪ ";
 /// Both markers are two cells wide by construction, which is what the

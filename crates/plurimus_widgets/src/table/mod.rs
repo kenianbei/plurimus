@@ -34,7 +34,7 @@ pub use geometry::TableGeometry;
 
 pub(crate) use geometry::BodyRow as TableBodyRow;
 pub(crate) use input::{reveal_table_cursor, table_click, table_key};
-pub(crate) use style::{TableRowsChanged, TableSelfChanged, style_tables};
+pub(crate) use style::{mark_table_content, style_tables};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
