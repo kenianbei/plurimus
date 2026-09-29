@@ -30,6 +30,7 @@ mod scrolled;
 mod stylist;
 mod theme;
 
+pub use bevy_input_focus;
 pub use tui_scrollview;
 
 pub use bevy_input::keyboard::Key;
@@ -71,8 +72,10 @@ use plurimus_term::InputSystems;
 /// `FocusedInput` observer reads this frame's [`ComputedWidgetArea`] and
 /// a settled `ButtonInput`. Anything that has to see what such an
 /// observer did - forwarding a keyed edit, restyling from it - belongs
-/// after `bevy_input_focus::InputFocusSystems::Dispatch` rather than
-/// after [`Areas`](Self::Areas) alone.
+/// after [`InputFocusSystems::Dispatch`] rather than after
+/// [`Areas`](Self::Areas) alone.
+///
+/// [`InputFocusSystems::Dispatch`]: bevy_input_focus::InputFocusSystems::Dispatch
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum UiSystems {

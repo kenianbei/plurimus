@@ -8,7 +8,6 @@ use bevy_app::{App, PostUpdate, Startup, Update};
 use bevy_color::Color;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{ChildOf, Commands, Entity, IntoScheduleConfigs, On, Query, ResMut, With};
-use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use bevy_ui::{
     AngularColorStop, BackgroundColor, BackgroundGradient, BorderColor, BorderRadius, ColorStop,
     ConicGradient, FlexDirection, Gradient, LinearGradient, Node, UiPosition, UiRect, UiSystems,
@@ -17,6 +16,7 @@ use bevy_ui::{
 use plurimus::bui::{ComputedNodeRect, Text};
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{ResolvedViewport, UiArea, UiCamera, local_area};
+use plurimus::ui::bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus::ui::{UiLabel, ValueChange};
 use plurimus::widgets::{
     Activate, Button, Checkbox, EditableText, RadioButton, RadioGroup, Slider, SliderRange,

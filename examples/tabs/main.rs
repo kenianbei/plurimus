@@ -19,12 +19,12 @@ use bevy_ecs::prelude::{
     Without,
 };
 use bevy_ecs::system::SystemParam;
-use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::ratatui_core::style::{Color, Style};
 use plurimus::core::{CorePlugin, Edge, TerminalCamera, UiArea, UiHidden, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus::ui::{Checked, UiLabel, ValueChange};
 use plurimus::widgets::ratatui_widgets::borders::BorderType;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;

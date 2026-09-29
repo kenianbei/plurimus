@@ -4,9 +4,9 @@
 
 use bevy_color::Color;
 use bevy_ecs::prelude::{Changed, Entity, Has, Or, Query, Res, With};
-use bevy_input_focus::InputFocus;
 use bevy_ui::{BackgroundColor, BorderColor};
 use plurimus::bui::{ComputedNodeRect, Text};
+use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{Checked, Hovered, InteractionDisabled, Pressed, UiLabel};
 use plurimus::widgets::{Button, Checkbox, RadioButton, SliderRange, SliderValue};
 

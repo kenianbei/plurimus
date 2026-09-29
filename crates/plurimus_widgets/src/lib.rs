@@ -30,6 +30,7 @@ mod table;
 mod text;
 
 pub use bevy_input::keyboard::Key;
+pub use bevy_input_focus;
 pub use plurimus_ui::ValueChange;
 pub use ratatui_textarea;
 pub use ratatui_widgets;

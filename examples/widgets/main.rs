@@ -22,7 +22,6 @@ use bevy_ecs::prelude::{
     Commands, Component, Entity, Has, IntoScheduleConfigs, MessageReader, MessageWriter, On, Or,
     Query, Res, ResMut, Resource, With, Without,
 };
-use bevy_input_focus::InputFocus;
 use plurimus::bui::BuiPlugin;
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{
@@ -32,6 +31,7 @@ use plurimus::core::{
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 use plurimus::ui::InteractionDisabled;
+use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
     Activate, Button, Checkbox, EditableText, ListBox, MenuButton, RadioButton, Slider, TextEditor,

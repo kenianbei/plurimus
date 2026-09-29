@@ -26,13 +26,13 @@ use bevy_ecs::prelude::{
     ChildOf, Children, Commands, Component, Entity, MessageReader, MessageWriter, On, Query, Res,
     ResMut, Resource, With,
 };
-use bevy_input_focus::InputFocus;
 use plurimus::core::ratatui_core::layout::{Constraint, Rect, Size};
 use plurimus::core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus::core::ratatui_core::text::Line;
 use plurimus::core::{CorePlugin, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{KeyBinding, ScrollArea, UiStyle, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{

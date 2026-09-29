@@ -10,11 +10,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, Res, ResMut, Resource};
 use bevy_input::ButtonInput;
 use bevy_input::keyboard::KeyCode as BevyKeyCode;
-use bevy_input_focus::FocusedInput;
 use plurimus::core::ratatui_core::layout::{Constraint, Rect};
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus::term::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, PasteMessage};
 use plurimus::ui::UiArea;
+use plurimus::ui::bevy_input_focus::FocusedInput;
 use plurimus::widgets::{
     ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,
     table_footer, table_header, table_row,
