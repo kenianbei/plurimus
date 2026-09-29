@@ -143,7 +143,8 @@ carries no modifiers, so a key observer polls the ones held through it.
 The real terminal. `CrosstermPlugin` takes over the terminal on build - raw
 mode, alternate screen, mouse capture, bracketed paste, the kitty keyboard
 protocol when the terminal supports it, focus reporting - and restores all of it
-on exit or panic, the cursor shape included. It detects color support from the
+on exit or panic, a takeover failing partway included, resetting the cursor
+shape too when the app changed it. It detects color support from the
 environment, pumps crossterm events into input messages and `TerminalResized`,
 and hands a `CrosstermBackend` (via ratatui-crossterm) to core's presenter. The
 pump is where a terminal's own encoding is normalized away, because a message
@@ -152,13 +153,16 @@ drained batch: a held key reported as a release followed by its own press
 becomes one `KeyKind::Repeat`, and a shifted letter keeps the shift bit the
 kitty protocol drops in favour of the shifted character. Which encoding a
 terminal uses is learned from what it sends rather than probed, since no
-crossterm query distinguishes them. Going the other way it serves
-`TerminalRequest` during extraction - which runs inside the sub-app world with
-the main world lent in, so one system reaches both the messages and the writer -
-and sets the cursor shape, which no `Backend` method reaches. Both flush
-themselves, since the presenter skips its flush on a frame where no cell
-differs. The writer is generic: stdout by default, or the controlling terminal
-directly via `CrosstermPlugin::tty()`.
+crossterm query distinguishes them, and so is what it reports: the kitty query
+decides only whether the protocol's flags are pushed, and `InputCapabilities`
+counts releases and modifier keys as reported once the first of each arrives,
+because a terminal answering the query can still ignore the flags. Going the
+other way it serves `TerminalRequest` during extraction - which runs inside the
+sub-app world with the main world lent in, so one system reaches both the
+messages and the writer - and sets the cursor shape, which no `Backend` method
+reaches. Both flush themselves, since the presenter skips its flush on a frame
+where no cell differs. The writer is generic: stdout by default, or the
+controlling terminal directly via `CrosstermPlugin::tty()`.
 
 ### plurimus_web
 

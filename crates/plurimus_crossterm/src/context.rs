@@ -3,15 +3,14 @@
 //!
 //! Every mode entered here has to be undone, including when the process dies
 //! badly, so restoration is idempotent and installed as a panic hook rather
-//! than left to a `Drop`. What the terminal actually supports is probed at
-//! the same time - the kitty keyboard protocol, color depth - and recorded so
-//! the input layer knows which capabilities it must synthesize instead.
+//! than left to a `Drop`. Color depth is detected from the environment at the
+//! same time; what the keyboard reports is learned later, from what arrives.
 
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy_ecs::prelude::Resource;
-use crossterm::cursor::{Hide, Show};
+use crossterm::cursor::{Hide, SetCursorStyle, Show};
 use crossterm::event::{
     DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
     EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
@@ -20,12 +19,12 @@ use crossterm::event::{
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
 use plurimus_core::{ColorDepth, TerminalSize};
-use plurimus_term::InputCapabilities;
 use ratatui_crossterm::CrosstermBackend;
 
-// Restore runs from panic hooks with no app state; only the kitty pop needs
-// guarding, since popping an unpushed stack is the hazard.
+// Restore runs from panic hooks with no app state, so what it undoes only
+// if it was done - the kitty push, a cursor shape - is recorded here.
 static KITTY_PUSHED: AtomicBool = AtomicBool::new(false);
+static SHAPE_WRITTEN: AtomicBool = AtomicBool::new(false);
 
 /// Restores the terminal when the render world is torn down.
 #[derive(Resource)]
@@ -37,28 +36,24 @@ impl Drop for RestoreOnDrop {
     }
 }
 
+pub(crate) fn mark_shape_written() {
+    SHAPE_WRITTEN.store(true, Ordering::Relaxed);
+}
+
 pub(crate) fn init<W: Write + Send + Sync + 'static>(
     mut writer: W,
     mouse: bool,
     paste: bool,
-) -> io::Result<(
-    CrosstermBackend<W>,
-    TerminalSize,
-    InputCapabilities,
-    ColorDepth,
-)> {
+) -> io::Result<(CrosstermBackend<W>, TerminalSize, ColorDepth)> {
     terminal::enable_raw_mode()?;
-    let key_release = terminal::supports_keyboard_enhancement().unwrap_or(false);
+    let kitty = terminal::supports_keyboard_enhancement().unwrap_or(false);
     queue!(writer, EnterAlternateScreen, Hide)?;
-    queue_input_modes(&mut writer, key_release, mouse, paste)?;
+    queue_input_modes(&mut writer, kitty, mouse, paste)?;
     writer.flush()?;
     let (cols, rows) = terminal::size()?;
     Ok((
         CrosstermBackend::new(writer),
         TerminalSize::new(cols, rows),
-        InputCapabilities::none()
-            .with_key_release(key_release)
-            .with_modifier_keys(key_release),
         detect_color_depth(),
     ))
 }
@@ -136,6 +131,9 @@ pub fn restore() {
     let mut writer = restore_writer();
     if KITTY_PUSHED.load(Ordering::Relaxed) {
         let _ = queue!(writer, PopKeyboardEnhancementFlags);
+    }
+    if SHAPE_WRITTEN.load(Ordering::Relaxed) {
+        let _ = queue!(writer, SetCursorStyle::DefaultUserShape);
     }
     let _ = execute!(
         writer,

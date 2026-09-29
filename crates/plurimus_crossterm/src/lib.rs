@@ -22,7 +22,7 @@ use std::sync::Mutex;
 use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt};
-use plurimus_term::InputSystems;
+use plurimus_term::{InputCapabilities, InputSystems};
 
 /// Owns the terminal and presents composed frames via crossterm.
 ///
@@ -151,15 +151,16 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
 
 impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
     fn build(&self, app: &mut App) {
-        let (backend, size, capabilities, color_depth) =
+        // First, so an init failing after raw mode panics into a restore.
+        context::install_panic_hook();
+        let (backend, size, color_depth) =
             context::init(self.take_writer(), self.mouse, self.paste)
                 .expect("failed to initialize the terminal (the writer must reach a tty)");
-        context::install_panic_hook();
         if !app.is_plugin_added::<plurimus_term::TermPlugin>() {
             app.add_plugins(plurimus_term::TermPlugin);
         }
         app.insert_resource(size);
-        app.insert_resource(capabilities);
+        app.insert_resource(InputCapabilities::none());
         if self.detect_color_depth {
             app.insert_resource(color_depth);
         }

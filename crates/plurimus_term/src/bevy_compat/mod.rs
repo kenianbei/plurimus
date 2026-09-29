@@ -28,7 +28,7 @@ use keymap::{logical_key, modifier_logical, modifier_physical, physical_code};
 /// [`InputCapabilities::modifier_keys`] set, real [`KeyCode::Modifier`]
 /// events carry every transition and convert like any other key. Without
 /// it, presses/releases are synthesized from [`KeyModifiers`] transitions.
-/// A terminal that answers the kitty probe but withholds
+/// A backend claiming the capability for a terminal that withholds
 /// modifier-keys-as-keys therefore reports no modifier state here; the raw
 /// [`KeyMessage::modifiers`] bitfield stays accurate.
 ///

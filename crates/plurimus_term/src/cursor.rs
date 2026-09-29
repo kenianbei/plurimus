@@ -16,7 +16,7 @@ use bevy_ecs::prelude::Resource;
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TerminalCursorStyle {
-    /// Whatever the terminal was already using.
+    /// The shape the user configured the terminal with.
     #[default]
     Default,
     /// A blinking filled cell.
