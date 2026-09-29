@@ -113,6 +113,18 @@ fn a_cursor_past_the_end_highlights_one_blank() {
     assert_eq!(reversed_columns(&buffer), vec![2]);
 }
 
+#[test]
+fn a_field_narrower_than_its_cursor_cluster_clips_the_caret() {
+    let mut app = app();
+    let field = spawn_field(&mut app, FAMILY);
+    app.world_mut()
+        .entity_mut(field)
+        .insert(UiArea::Fixed(Rect::new(0, 0, 1, 1)));
+    press_key(&mut app, KeyCode::Home);
+    let buffer = frame(&mut app);
+    assert_eq!(reversed_columns(&buffer), vec![0]);
+}
+
 // A screenful of fields each drawing a block would claim each of them has
 // the keys, when only one of them does.
 #[test]

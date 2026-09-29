@@ -57,10 +57,13 @@ pub struct SliderRange {
 }
 
 impl SliderRange {
-    /// A range from `start` to `end`.
+    /// A range between `start` and `end`, in either order.
     #[must_use]
     pub const fn new(start: f32, end: f32) -> Self {
-        Self { start, end }
+        Self {
+            start: start.min(end),
+            end: start.max(end),
+        }
     }
 
     /// Lower bound.
@@ -295,5 +298,15 @@ mod tests {
         assert!((track_value(area, range, 7) - 50.0).abs() < f32::EPSILON);
         assert!((track_value(area, range, 12) - 100.0).abs() < f32::EPSILON);
         assert!((track_value(area, range, 40) - 100.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn reversed_bounds_mean_the_same_range() {
+        let range = SliderRange::new(100.0, 0.0);
+        assert!((range.start() - 0.0).abs() < f32::EPSILON);
+        assert!((range.end() - 100.0).abs() < f32::EPSILON);
+        assert!((range.clamp(-5.0) - 0.0).abs() < f32::EPSILON);
+        let area = Rect::new(2, 0, 11, 1);
+        assert!((track_value(area, range, 12) - 100.0).abs() < f32::EPSILON);
     }
 }
