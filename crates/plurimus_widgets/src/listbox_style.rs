@@ -53,8 +53,8 @@ type ListSelfChanged = Or<(
     Changed<ListBoxStripe>,
 )>;
 
-/// Marks a list's content dirty on everything in [`ListRowsChanged`], its
-/// removal included, which no `Changed` filter reports.
+/// Marks a list's content dirty on a row change in [`ListRowsChanged`], and on a
+/// row losing any component it names, which no `Changed` filter reports.
 pub(crate) fn mark_list_content() -> ScheduleConfigs<ScheduleSystem> {
     (
         mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,

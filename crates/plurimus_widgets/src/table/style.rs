@@ -50,8 +50,8 @@ type TableSelfChanged = Or<(
     Changed<TableSelection>,
 )>;
 
-/// Marks a table's content dirty on everything in [`TableRowsChanged`], its
-/// removal included, which no `Changed` filter reports.
+/// Marks a table's content dirty on a row change in [`TableRowsChanged`], and on a
+/// row losing any component it names, which no `Changed` filter reports.
 pub(crate) fn mark_table_content() -> ScheduleConfigs<ScheduleSystem> {
     (
         mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
