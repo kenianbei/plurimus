@@ -103,9 +103,8 @@ fn text_scrolled_off_the_top_shows_its_later_lines() {
     );
 }
 
-// Half a wide character cannot be drawn; the column stays blank, and the
-// characters after it stay where layout put them. The frame prints a wide
-// character's second cell as a space.
+// Half a wide character cannot be drawn, so its column stays blank. The
+// frame prints a wide character's second cell as a space.
 #[test]
 fn a_wide_character_cut_by_the_left_edge_leaves_its_column_blank() {
     let mut app = app();

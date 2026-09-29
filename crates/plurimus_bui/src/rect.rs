@@ -35,8 +35,7 @@ pub struct ComputedNodeRect {
 }
 
 /// A node's cell edges in screen space. Signed, unlike a [`Rect`], so a node
-/// hanging off its viewport keeps its true edges for painting; only
-/// [`CellBox::clamped`] cuts it down to what is on-screen.
+/// hanging off its viewport keeps its true edges for painting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CellBox {
     pub(crate) left: i32,
@@ -63,10 +62,8 @@ impl CellBox {
     }
 }
 
-// Edge rounding keeps adjacent nodes gapless: each edge rounds
-// independently, width is the rounded-edge difference. Edge-wise, not
-// center/size, because a scroll clip is infinite on its free axis and
-// infinity minus infinity is NaN; the cast saturates an infinite edge.
+// Each edge rounds on its own, which keeps adjacent nodes gapless. Edge-wise
+// since a scroll clip is infinite on its free axis; the cast saturates it.
 fn cell_box(min: Vec2, max: Vec2, viewport: Rect) -> CellBox {
     let edge = |position: f32, origin: u16| (position + f32::from(origin)).round() as i32;
     CellBox {
