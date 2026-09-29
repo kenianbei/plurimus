@@ -154,11 +154,11 @@ pub(crate) fn style_scrollbars(
         let Ok((scroll, offset, area)) = targets.get(bar.target) else {
             continue;
         };
-        let viewport = scroll.viewport(area.0);
+        let shown = scroll.viewport(area.0);
         let (position, content, viewport) = if bar.orientation.is_vertical() {
-            (offset.0.y, scroll.content_size.height, viewport.height)
+            (offset.0.y, scroll.content_size.height, shown.height)
         } else {
-            (offset.0.x, scroll.content_size.width, viewport.width)
+            (offset.0.x, scroll.content_size.width, shown.width)
         };
         let next = observed(state, &focus, hashed_bits((position, content, viewport)));
         if !cache.redraws(next, theme.is_changed()) {

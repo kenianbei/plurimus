@@ -64,6 +64,9 @@ impl ScrollArea {
 
     /// Usable content width inside `area_width`, accounting for the
     /// one-column gutter tui-scrollview reserves for a visible bar.
+    ///
+    /// The width content is laid out at, reserved before anyone knows
+    /// whether it overflows; [`Self::viewport`] is what it is drawn into.
     #[must_use]
     pub fn content_width(&self, area_width: u16) -> u16 {
         match self.scrollbars {
@@ -94,16 +97,8 @@ impl ScrollArea {
             }
         };
         Rect {
-            width: if vertical {
-                area.width.saturating_sub(1)
-            } else {
-                area.width
-            },
-            height: if horizontal {
-                area.height.saturating_sub(1)
-            } else {
-                area.height
-            },
+            width: area.width.saturating_sub(vertical as u16),
+            height: area.height.saturating_sub(horizontal as u16),
             ..area
         }
     }

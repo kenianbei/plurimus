@@ -1,5 +1,5 @@
 use super::{ScrollArea, ScrollOffset, content_cell, max_offset, screen_cell, stepped_offset};
-use plurimus_core::ratatui_core::buffer::Buffer;
+use plurimus_core::ratatui_core::buffer::{Buffer, Cell};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::ratatui_core::widgets::StatefulWidget;
 use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
@@ -144,7 +144,7 @@ fn the_viewport_is_where_tui_scrollview_draws_and_clamps() {
                     .viewport(area);
 
                 let mut state = ScrollViewState::with_offset(Position::new(u16::MAX, u16::MAX));
-                let mut buffer = Buffer::empty(Rect::new(0, 0, 10, 10));
+                let mut buffer = Buffer::empty(area);
                 filled_view(content, scrollbars).render(area, &mut buffer, &mut state);
 
                 assert_eq!(state.offset(), max_offset(content, viewport), "{case}");
@@ -170,8 +170,6 @@ const CONTENT: &str = "x";
 
 fn filled_view(content: Size, scrollbars: ScrollbarVisibility) -> ScrollView {
     let mut view = ScrollView::new(content).scrollbars_visibility(scrollbars);
-    for position in view.area().positions() {
-        view.buf_mut()[position].set_symbol(CONTENT);
-    }
+    *view.buf_mut() = Buffer::filled(view.area(), Cell::new(CONTENT));
     view
 }
