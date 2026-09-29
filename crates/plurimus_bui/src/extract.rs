@@ -17,14 +17,14 @@ use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
     BackgroundColor, BackgroundGradient, BorderColor, BorderGradient, BoxShadow, CalculatedClip,
-    ComputedNode, ComputedUiTargetCamera, GlobalZIndex, Gradient, ZIndex,
+    ComputedNode, ComputedUiTargetCamera, GlobalZIndex, Gradient, UiGlobalTransform, ZIndex,
 };
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
 
 use super::decorate::{Decoration, resolve_gradients, resolve_shadows, rounded_corners};
-use super::rect::{ComputedNodeRect, clip_cells};
+use super::rect::{CellBox, clip_cells, node_boxes};
 use super::text::{Seg, Text, TextStyle, resolved_spans};
 
 #[derive(Resource, Default)]
@@ -32,7 +32,7 @@ pub(crate) struct ExtractedBuiNodes(pub(crate) Vec<ExtractedBuiNode>);
 
 pub(crate) struct ExtractedBuiNode {
     pub(crate) camera: Entity,
-    pub(crate) rect: Rect,
+    pub(crate) rect: CellBox,
     pub(crate) clip: Option<Rect>,
     pub(crate) background: Option<CellColor>,
     pub(crate) border: Option<BorderSides>,
@@ -50,7 +50,7 @@ pub(crate) struct BorderSides {
 
 pub(crate) struct TextRun {
     pub(crate) spans: Vec<Seg>,
-    pub(crate) content: Rect,
+    pub(crate) content: CellBox,
 }
 
 pub(crate) fn extract_bui_nodes(
@@ -112,17 +112,15 @@ fn convert(
     let computed = world.get::<ComputedNode>(entity)?;
     let camera = world.get::<ComputedUiTargetCamera>(entity)?.get()?;
     let viewport = *viewports.get(&camera)?;
-    let rects = *world.get::<ComputedNodeRect>(entity)?;
-    if rects.rect.is_empty() {
+    let transform = world.get::<UiGlobalTransform>(entity)?;
+    let (rect, content) = node_boxes(computed, transform, viewport);
+    if rect.is_empty() {
         return None;
     }
     let clip = world
         .get::<CalculatedClip>(entity)
         .map(|clip| clip_cells(clip.clip, viewport));
-    let frame = NodeFrame {
-        rect: rects.rect,
-        viewport,
-    };
+    let frame = NodeFrame { rect, viewport };
     let decoration = node_decoration(world, entity, computed, frame);
     let (background, border) = solid_colors(
         world,
@@ -132,11 +130,11 @@ fn convert(
     );
     Some(ExtractedBuiNode {
         camera,
-        rect: rects.rect,
+        rect,
         clip,
         background,
         border,
-        text: text_run(world, entity, rects.content),
+        text: text_run(world, entity, content),
         decoration,
         global_z: 0,
     })
@@ -160,7 +158,7 @@ fn solid_colors(
 }
 
 struct NodeFrame {
-    rect: Rect,
+    rect: CellBox,
     viewport: Rect,
 }
 
@@ -229,7 +227,7 @@ fn border_sides(
         .then_some(sides)
 }
 
-fn text_run(world: &World, entity: Entity, content: Rect) -> Option<TextRun> {
+fn text_run(world: &World, entity: Entity, content: CellBox) -> Option<TextRun> {
     let text = world.get::<Text>(entity)?;
     if content.is_empty() {
         return None;

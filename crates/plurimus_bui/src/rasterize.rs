@@ -13,12 +13,15 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Color;
 use plurimus_core::{CameraBuffer, SourceCamera, camera_buffer_mut};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use plurimus_core::raster::linear_cell_color;
 
 use super::decorate::{dim_toward, sample_gradients};
 use super::extract::{ExtractedBuiNode, ExtractedBuiNodes, TextRun};
-use super::text::wrap_spans;
+use super::rect::CellBox;
+use super::text::{Seg, wrap_spans};
 
 pub(crate) fn rasterize_bui(
     nodes: Res<ExtractedBuiNodes>,
@@ -57,8 +60,8 @@ fn fill(buffer: &mut Buffer, area: Rect, color: Color) {
     }
 }
 
-fn clipped(rect: Rect, area: Rect, clip: Option<Rect>) -> Rect {
-    let bounds = rect.intersection(area);
+fn clipped(rect: CellBox, area: Rect, clip: Option<Rect>) -> Rect {
+    let bounds = rect.clamped(area);
     clip.map_or(bounds, |clip| bounds.intersection(clip))
 }
 
@@ -101,10 +104,10 @@ fn draw_gradient_background(node: &ExtractedBuiNode, buffer: &mut Buffer, bounds
     }
 }
 
-fn cell_center(rect: Rect, position: Position) -> Vec2 {
+fn cell_center(rect: CellBox, position: Position) -> Vec2 {
     Vec2::new(
-        f32::from(position.x.saturating_sub(rect.x)) + 0.5,
-        f32::from(position.y.saturating_sub(rect.y)) + 0.5,
+        (i32::from(position.x) - rect.left) as f32 + 0.5,
+        (i32::from(position.y) - rect.top) as f32 + 0.5,
     )
 }
 
@@ -119,9 +122,9 @@ impl BorderPainter<'_> {
             return;
         };
         let rect = self.node.rect;
-        let (left, right) = (rect.left(), rect.right().saturating_sub(1));
-        let (top, bottom) = (rect.top(), rect.bottom().saturating_sub(1));
-        for x in rect.left()..rect.right() {
+        let (left, right) = (rect.left, rect.right - 1);
+        let (top, bottom) = (rect.top, rect.bottom - 1);
+        for x in (self.bounds.left()..self.bounds.right()).map(i32::from) {
             let at_edge = (x == left, x == right);
             self.put(buffer, (x, top), self.symbol(at_edge, true), sides.top);
             self.put(
@@ -131,7 +134,7 @@ impl BorderPainter<'_> {
                 sides.bottom,
             );
         }
-        for y in rect.top()..rect.bottom() {
+        for y in (self.bounds.top()..self.bounds.bottom()).map(i32::from) {
             if y == top || y == bottom {
                 continue;
             }
@@ -152,8 +155,11 @@ impl BorderPainter<'_> {
         }
     }
 
-    fn put(&self, buffer: &mut Buffer, (x, y): (u16, u16), symbol: &str, color: Option<Color>) {
+    fn put(&self, buffer: &mut Buffer, (x, y): (i32, i32), symbol: &str, color: Option<Color>) {
         let Some(color) = color else {
+            return;
+        };
+        let (Ok(x), Ok(y)) = (u16::try_from(x), u16::try_from(y)) else {
             return;
         };
         if !self.bounds.contains((x, y).into()) {
@@ -176,19 +182,35 @@ impl BorderPainter<'_> {
 }
 
 fn draw_text(buffer: &mut Buffer, bounds: Rect, text: &TextRun) {
-    let lines = wrap_spans(&text.spans, Some(text.content.width as usize));
-    for (row, line) in lines.iter().enumerate() {
-        let y = text.content.y.saturating_add(row as u16);
-        if y >= text.content.bottom() || y < bounds.top() || y >= bounds.bottom() {
-            continue;
-        }
-        let end = text.content.right().min(bounds.right());
-        let mut x = text.content.x.max(bounds.left());
-        for (content, style) in line {
-            if x >= end {
-                break;
+    let content = text.content;
+    let visible = content.clamped(bounds);
+    if visible.is_empty() {
+        return;
+    }
+    let lines = wrap_spans(&text.spans, Some(content.width() as usize));
+    let hidden_rows = (i32::from(visible.top()) - content.top) as usize;
+    for (y, line) in (visible.top()..visible.bottom()).zip(lines.iter().skip(hidden_rows)) {
+        draw_line(buffer, line, content.left, y, visible);
+    }
+}
+
+// A cluster straddling the left edge is left undrawn rather than shifted
+// into view, so every drawn cluster sits in its laid-out column.
+fn draw_line(buffer: &mut Buffer, line: &[Seg], left: i32, y: u16, visible: Rect) {
+    let mut column = left;
+    for (content, style) in line {
+        for cluster in content.graphemes(true) {
+            let start = column;
+            column += cluster.width() as i32;
+            let Ok(x) = u16::try_from(start) else {
+                continue;
+            };
+            if x >= visible.right() {
+                return;
             }
-            (x, _) = buffer.set_stringn(x, y, content, usize::from(end - x), *style);
+            if x >= visible.left() {
+                buffer.set_stringn(x, y, cluster, usize::from(visible.right() - x), *style);
+            }
         }
     }
 }

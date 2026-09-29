@@ -1,0 +1,9 @@
+---
+source: crates/plurimus_bui/tests/bui_decorate.rs
+expression: composed_styled_frame(&app)
+---
+        
+--
+aabbbbbb
+a: fg:Some(Reset) bg:Some(Rgb(0, 111, 0)) mods:NONE
+b: fg:Some(Reset) bg:Some(Rgb(0, 153, 0)) mods:NONE
