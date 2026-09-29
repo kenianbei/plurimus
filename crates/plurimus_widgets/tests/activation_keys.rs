@@ -27,8 +27,8 @@ fn app() -> App {
 #[derive(Resource, Default)]
 struct Activations(u32);
 
-/// Every key that reached the ancestor, which is every key the widget
-/// below it did not consume.
+/// Every key press that reached the ancestor, which is every press the
+/// widget below it did not consume.
 #[derive(Resource, Default)]
 struct Unconsumed(Vec<Key>);
 
@@ -39,7 +39,9 @@ fn space() -> Key {
 fn track_unconsumed(app: &mut App, entity: Entity) {
     app.world_mut().entity_mut(entity).observe(
         |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Unconsumed>| {
-            seen.0.push(input.input.logical_key.clone());
+            if input.input.state.is_pressed() {
+                seen.0.push(input.input.logical_key.clone());
+            }
         },
     );
 }
@@ -153,8 +155,8 @@ fn a_chord_activates_apart_from_its_bare_key() {
     );
     let enters = seen(&app).iter().filter(|key| **key == Key::Enter).count();
     assert_eq!(
-        enters, 2,
-        "the chord's press is consumed; only its release joins the bare Enter"
+        enters, 1,
+        "the chord's press is consumed; only the bare Enter reached the form"
     );
 }
 

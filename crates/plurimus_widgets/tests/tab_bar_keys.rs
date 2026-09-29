@@ -42,7 +42,9 @@ fn spawn_bar(app: &mut App, labels: &[&'static str], active: Option<usize>) -> B
     let form = app.world_mut().spawn_empty().id();
     app.world_mut().entity_mut(form).observe(
         |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Unconsumed>| {
-            seen.0.push(input.input.logical_key.clone());
+            if input.input.state.is_pressed() {
+                seen.0.push(input.input.logical_key.clone());
+            }
         },
     );
     let bar = app

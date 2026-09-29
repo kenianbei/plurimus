@@ -8,7 +8,7 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers, LastCopied, ModifierKey, MouseKind};
 use plurimus_test::{
     clipboard_writes, composed_frame, press_chord, press_key, press_key_with, send_mouse,
-    send_paste, set_focus,
+    send_paste, set_focus, write_key,
 };
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextChanged, TextEditor, WidgetsPlugin, text_editor};
@@ -112,7 +112,8 @@ fn ctrl_undo_from_real_modifier_keys() {
     let mut app = app();
     let editor = editor_typed_ab(&mut app);
 
-    ctrl_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    write_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    app.update();
     ctrl_key(&mut app, KeyCode::Char('u'));
 
     assert_eq!(lines_of(&app, editor), ["a"], "ctrl+u undoes, inserts no u");
@@ -237,7 +238,8 @@ fn a_copy_fills_the_shared_buffer() {
 fn a_seeded_buffer_pastes_on_the_next_frame() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "");
-    ctrl_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    write_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    app.update();
 
     app.world_mut().resource_mut::<LastCopied>().0 = Some("seeded".to_owned());
     ctrl_key(&mut app, KeyCode::Char('v'));
