@@ -124,21 +124,23 @@ only, because a synthetic key release corrects held state while a pointer
 release would complete a click nobody made. Both paths drain one held-key
 registry, which is why recording into it is a system of its own rather than the
 first half of the timeout's - what is held has to be known on every tier, and
-only the expiry is a capability's to turn off. Both run before polled state is
-derived rather than reading it back, so a hold the terminal stopped reporting
-clears in the frame it ended. A release either writes carries no modifiers and
-names the key as held, which is what a terminal does too - an event reports the
-state it leaves behind, and a shifted character is exactly what nothing being
-held can no longer produce. A click count is the other fact no terminal reports,
-and the one no capability governs, since no tier reports it - but only the run
-itself lives elsewhere, in the crate whose router knows what a press reached.
-What stays here is `MultiClickWindow`, how soon after a press another has to
-land to run with it, sitting beside `ReleaseTimeout` as the second knob an app
-sets once for every widget and read against the same `Time<Real>`. The
-`bevy_compat` module forwards messages into `bevy_input` event types for crates
-built on them, such as the focus stack, and `HeldModifiers` is the way back for
-what that seam drops: bevy's `KeyboardInput` carries no modifiers, so a key
-observer polls the ones held through it.
+only the expiry is a capability's to turn off. Both run in
+`InputSystems::Synthesize`, chained after `Pump` and before the `Update` that
+derives polled state, rather than reading it back, so a hold the terminal
+stopped reporting clears in the frame it ended - in the state forwarded to
+`bevy_input` too, since forwarding runs in `Update`. A release either writes
+carries no modifiers and names the key as held, which is what a terminal does
+too - an event reports the state it leaves behind, and a shifted character is
+exactly what nothing being held can no longer produce. A click count is the
+other fact no terminal reports, and the one no capability governs, since no tier
+reports it - but only the run itself lives elsewhere, in the crate whose router
+knows what a press reached. What stays here is `MultiClickWindow`, how soon
+after a press another has to land to run with it, sitting beside
+`ReleaseTimeout` as the second knob an app sets once for every widget and read
+against the same `Time<Real>`. The `bevy_compat` module forwards messages into
+`bevy_input` event types for crates built on them, such as the focus stack, and
+`HeldModifiers` is the way back for what that seam drops: bevy's `KeyboardInput`
+carries no modifiers, so a key observer polls the ones held through it.
 
 ### plurimus_crossterm
 
@@ -300,8 +302,9 @@ whatever landed meanwhile. `observed` reads an entity's state through
 value contributes, for a stylist that resolves its state rather than reading it;
 `restyle` runs the whole loop for the label-driven case, and a `UiLabel` is a
 ratatui `Line`, so a label carries per-span style of its own. Re-exports
-`tui_scrollview`, and `bevy_input`'s `Key`, the type its bindings are written
-in.
+`tui_scrollview`; `bevy_input_focus`, whose focus types and dispatch set are
+part of this contract; and `bevy_input`'s `Key`, the type its bindings are
+written in.
 
 ### plurimus_widgets
 
@@ -476,7 +479,8 @@ cursor; and it is why an unstated `TableColumns` is divided by this crate rather
 than by ratatui, whose identical rule would answer to its own render area and so
 could drift from the geometry that has been published.
 
-Re-exports `ratatui_widgets`, `ratatui_textarea`, and `bevy_input`'s `Key`.
+Re-exports `ratatui_widgets`, `ratatui_textarea`, `bevy_input_focus`, and
+`bevy_input`'s `Key`.
 
 ### plurimus_bui
 
