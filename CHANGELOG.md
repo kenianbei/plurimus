@@ -18,6 +18,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   links back instead of leaving a blank canvas, and quitting returns to the
   landing page.
 - **`InputCapabilities` compares.** It implements `PartialEq` and `Eq`.
+- **`ScrollArea::viewport`.** The part of an area a `ScrollArea`'s content is
+  drawn into, once its scrollbars have taken their column and row. Pass it to
+  `max_offset` in place of the whole area.
 
 ### Fixed
 
@@ -48,6 +51,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   modifier-key event, so a terminal that answers the query but ignores those
   flags keeps release synthesis and modifier tracking instead of reading every
   key as held. Until then, an app reading `InputCapabilities` sees both off.
+- **The last row and column of a scroll area hidden under its scrollbars.** A
+  `ScrollArea` clamped its offset against its whole area while its scrollbars
+  took a column and a row of it, so the wheel, `ScrollIntoView`, a `Scrollbar`
+  and `ScrollKeys` all stopped one short and the content's edge stayed under the
+  bar. They now measure against the space left beside the bars. Scrolling to the
+  end reaches one row or column further than before, a `ScrollKeys` page is the
+  visible height, and content that fits one axis exactly while overflowing the
+  other can now be wheeled along it. List boxes and tables with automatic
+  scrollbars never show a horizontal bar, and scroll as before.
+- **A widget that vanished when its `ScrollArea` was removed.** Removing the
+  component left the widget drawn by nothing. It is now drawn again, unscrolled.
 
 ## [0.7.2] - 2026-09-26
 
