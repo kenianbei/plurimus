@@ -51,6 +51,10 @@ pub enum MouseKind {
     ScrollLeft,
     /// Scrolled right.
     ScrollRight,
+    /// Every gesture in flight ended without a release, so nothing pressed
+    /// completes. Written when the terminal loses focus, since the release of
+    /// a button held across it will never be reported.
+    Cancel,
 }
 
 /// The latest known mouse position, in cells.

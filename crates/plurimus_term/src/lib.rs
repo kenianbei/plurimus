@@ -41,8 +41,8 @@ pub use synthesis::ReleaseTimeout;
 pub(crate) use request::echo_clipboard_writes;
 pub(crate) use state::{track_cursor_cell, update_button_input};
 pub(crate) use synthesis::{
-    HeldKeys, expire_held_keys, record_held_keys, release_keys_on_focus_loss,
-    releases_are_synthesized,
+    HeldKeys, cancel_pointer_on_focus_loss, expire_held_keys, record_held_keys,
+    release_keys_on_focus_loss, releases_are_synthesized,
 };
 
 use bevy_app::{App, Last, Plugin, PreUpdate};
@@ -176,6 +176,7 @@ impl Plugin for TermPlugin {
                     record_held_keys,
                     expire_held_keys.run_if(releases_are_synthesized),
                     release_keys_on_focus_loss,
+                    cancel_pointer_on_focus_loss,
                 )
                     .chain()
                     .in_set(InputSystems::Synthesize),
