@@ -21,9 +21,8 @@ use crossterm::{execute, queue};
 use plurimus_core::{ColorDepth, TerminalSize};
 use ratatui_crossterm::CrosstermBackend;
 
-// Restore runs from panic hooks with no app state, so what it undoes
-// conditionally is recorded here: popping an unpushed stack is a hazard, and
-// resetting a shape the app never set clobbers the shell's own.
+// Restore runs from panic hooks with no app state, so what it undoes only
+// if it was done - the kitty push, a cursor shape - is recorded here.
 static KITTY_PUSHED: AtomicBool = AtomicBool::new(false);
 static SHAPE_WRITTEN: AtomicBool = AtomicBool::new(false);
 
