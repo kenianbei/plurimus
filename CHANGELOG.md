@@ -21,6 +21,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`ScrollArea::viewport`.** The part of an area a `ScrollArea`'s content is
   drawn into, once its scrollbars have taken their column and row. Pass it to
   `max_offset` in place of the whole area.
+- **More `plurimus_test` injection helpers.** `set_focus` gives an entity input
+  focus without ticking. `press_at` and `write_press_at` move to a cell and
+  press there, and `release_at` and `write_release_at` release. `send_paste` and
+  `write_paste` deliver a bracketed paste. Each follows the module's families:
+  `write_*` only queues, and the rest tick.
+
+### Changed
+
+- **`plurimus_test`'s key injectors release what they press.** `press_key`,
+  `press_key_with` and `repeat_key` send the key's release on a second tick, as
+  `press_chord` already did, so a keystroke no longer stays held in
+  `ButtonInput<KeyCode>` for the rest of the app. A test that needs a key held
+  queues it with `write_key` and ticks.
 
 ### Fixed
 
