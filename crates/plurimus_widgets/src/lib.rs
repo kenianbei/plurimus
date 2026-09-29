@@ -85,7 +85,9 @@ pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
 pub(crate) use pane::style_panes;
 pub(crate) use popover::{adopt_anchor_cameras, place_popovers};
 pub(crate) use radio::style_radios;
-pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_scroll};
+pub(crate) use rows::{
+    mark_cleared, mark_dirty_content, repair_active_descendants, sync_row_scroll,
+};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
 pub(crate) use slider::{slider_drag, slider_key, slider_press, slider_release, style_sliders};
 pub(crate) use tabbar::{
@@ -107,7 +109,7 @@ use bevy_ecs::schedule::SystemSet;
 use bevy_input_focus::InputFocusSystems;
 
 use plurimus_core::CameraSystems;
-use plurimus_ui::{UiPlugin, UiSystems};
+use plurimus_ui::{Checked, UiPlugin, UiStyle, UiSystems};
 
 // Shared track convention: first cell is 0.0, last is 1.0, outside clamps.
 pub(crate) fn track_ratio(start: u16, length: u16, pointer: u16) -> f32 {
@@ -146,6 +148,7 @@ impl Plugin for WidgetsPlugin {
             app.add_plugins(UiPlugin);
         }
         add_layout_systems(app);
+        add_row_systems(app);
         add_stylists(app);
         add_observers(app);
     }
@@ -179,27 +182,47 @@ fn add_layout_systems(app: &mut App) {
             )
                 .chain()
                 .in_set(WidgetSystems::Layout),
-            // The scroll extent reads the dirty mark, so a row's edit
-            // resizes the content in the frame it happens; the reveal reads
-            // the extent, so it comes after both.
+        ),
+    );
+}
+
+// The scroll extent reads the dirty mark, so a row's edit resizes the content
+// in the frame it happens; the reveal reads the extent, so it comes after both.
+fn add_row_systems(app: &mut App) {
+    app.add_systems(
+        PreUpdate,
+        (
+            (
+                repair_active_descendants::<ListBox, With<ListItem>>,
+                repair_active_descendants::<Table, TableBodyRow>,
+            ),
             (
                 (
-                    repair_active_descendants::<ListBox, With<ListItem>>,
-                    repair_active_descendants::<Table, TableBodyRow>,
-                ),
-                (
                     mark_dirty_content::<ListBox, ListItem, ListRowsChanged, ListSelfChanged>,
-                    mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
+                    mark_cleared::<ListBox, Checked>,
+                    mark_cleared::<ListBox, Marked>,
+                    mark_cleared::<ListBox, ListItemTrailing>,
+                    mark_cleared::<ListBox, UiStyle>,
+                    mark_cleared::<ListBox, ListItemText>,
+                    mark_cleared::<ListBox, ListItem>,
                 ),
                 (
-                    sync_row_scroll::<ListBox, ListItem>,
-                    sync_row_scroll::<Table, TableRow>,
+                    mark_dirty_content::<Table, TableRow, TableRowsChanged, TableSelfChanged>,
+                    mark_cleared::<Table, Checked>,
+                    mark_cleared::<Table, UiStyle>,
+                    mark_cleared::<Table, TableHeader>,
+                    mark_cleared::<Table, TableFooter>,
+                    mark_cleared::<Table, TableRow>,
                 ),
-                (reveal_listbox_cursor, reveal_table_cursor),
-            )
-                .chain()
-                .in_set(WidgetSystems::Layout),
-        ),
+            ),
+            (
+                sync_row_scroll::<ListBox, ListItem>,
+                sync_row_scroll::<Table, TableRow>,
+            ),
+            (reveal_listbox_cursor, reveal_table_cursor),
+        )
+            .chain()
+            .in_set(WidgetSystems::Layout),
     );
 }
 

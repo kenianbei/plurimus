@@ -16,12 +16,11 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Changed, Component, Or, Query, RemovedComponents, With};
 use bevy_ecs::query::QueryFilter;
-use bevy_ecs::system::SystemParam;
 use plurimus_core::ratatui_core::layout::Size;
 use plurimus_core::ratatui_core::text::{Line, Text};
 
 use plurimus_core::ratatui_core::style::Style;
-use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, StylistCache, UiStyle, UiTheme};
+use plurimus_ui::{ComputedWidgetArea, ScrollArea, StylistCache, UiTheme};
 
 /// Marks a container whose content changed: a row added, edited, restyled,
 /// or checked.
@@ -57,7 +56,7 @@ pub struct ActiveDescendant(pub Option<Entity>);
 
 /// Lights a row's marker gutter without claiming it is selected.
 ///
-/// [`Checked`] is the selection channel, written by
+/// [`Checked`](plurimus_ui::Checked) is the selection channel, written by
 /// [`listbox_self_update`](crate::listbox_self_update) and read as "the user
 /// picked this". A row can also be marked for a reason of the app's own -
 /// a command already in force, a file with unsaved edits - and saying that
@@ -99,51 +98,14 @@ pub(crate) fn row_height(text: Option<&ListItemText>) -> u16 {
     })
 }
 
-// A row clearing one of these reaches its container by no other route:
-// `Changed` never fires for a component that goes, and the row itself keeps
-// no record that it had one.
-#[derive(SystemParam)]
-pub(crate) struct ClearedRows<'w, 's> {
-    checked: RemovedComponents<'w, 's, Checked>,
-    marked: RemovedComponents<'w, 's, Marked>,
-    trailing: RemovedComponents<'w, 's, ListItemTrailing>,
-    styled: RemovedComponents<'w, 's, UiStyle>,
-    parents: Query<'w, 's, &'static ChildOf>,
-}
-
-impl ClearedRows<'_, '_> {
-    // A despawned row resolves to nothing, which is right: its container
-    // hears about it through `Changed<Children>` instead.
-    fn parents(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        let Self {
-            checked,
-            marked,
-            trailing,
-            styled,
-            parents,
-        } = self;
-        checked
-            .read()
-            .chain(marked.read())
-            .chain(trailing.read())
-            .chain(styled.read())
-            .filter_map(|row| parents.get(row).ok())
-            .map(ChildOf::parent)
-    }
-}
-
 /// Forwards a row's change to the container that draws it.
 ///
 /// `RowsChanged` says what counts as a row edit and `SelfChanged` what
 /// counts as a change to the container itself; the markers `Container` and
 /// `Row` are matched here, so neither filter carries its own `With`.
-///
-/// Independently of both, a row that *loses* [`Checked`] or [`UiStyle`]
-/// marks its container too, which no `Changed` filter can report.
 pub(crate) fn mark_dirty_content<Container, Row, RowsChanged, SelfChanged>(
     rows: Query<&ChildOf, (With<Row>, RowsChanged)>,
     changed: Query<Entity, (With<Container>, SelfChanged)>,
-    mut cleared: ClearedRows,
     mut content: Query<&mut ContentDirty<Container>>,
 ) where
     Container: Component,
@@ -151,13 +113,31 @@ pub(crate) fn mark_dirty_content<Container, Row, RowsChanged, SelfChanged>(
     RowsChanged: QueryFilter + 'static,
     SelfChanged: QueryFilter + 'static,
 {
-    let touched = rows
-        .iter()
-        .map(ChildOf::parent)
-        .chain(changed.iter())
-        .chain(cleared.parents());
+    let touched = rows.iter().map(ChildOf::parent).chain(changed.iter());
     for container in touched {
         if let Ok(mut dirty) = content.get_mut(container) {
+            dirty.set_changed();
+        }
+    }
+}
+
+/// Forwards a row losing `C` to the container that draws it.
+///
+/// `Changed` never fires for a component that goes, and the row keeps no
+/// record that it had one, so each component a container draws from its
+/// rows is registered here once for that container.
+pub(crate) fn mark_cleared<Container: Component, C: Component>(
+    mut removed: RemovedComponents<C>,
+    parents: Query<&ChildOf>,
+    mut content: Query<&mut ContentDirty<Container>>,
+) {
+    // A despawned row resolves to nothing, which is right: its container
+    // hears about it through `Changed<Children>` instead.
+    for row in removed.read() {
+        if let Ok(mut dirty) = parents
+            .get(row)
+            .and_then(|parent| content.get_mut(parent.parent()))
+        {
             dirty.set_changed();
         }
     }

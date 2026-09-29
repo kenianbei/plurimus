@@ -13,7 +13,7 @@ use plurimus_test::{composed_frame, composed_styled_frame, widget_content};
 use plurimus_ui::{Checked, InteractionDisabled, StylistDisabled, UiArea, UiStyle, UiTheme};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
-    ActiveColumn, ActiveDescendant, Table, TableCheckedStyle, TableColumns, TableCursor,
+    ActiveColumn, ActiveDescendant, Marked, Table, TableCheckedStyle, TableColumns, TableCursor,
     TableFooter, TableHeader, TableLayout, TableRow, TableSelection, TableStripe, WidgetsPlugin,
     table, table_footer, table_header, table_row,
 };
@@ -284,6 +284,57 @@ fn a_removed_row_component_reaches_the_stylist() {
             },
         ),
         "a row's style override cleared by removing it"
+    );
+}
+
+#[test]
+fn a_removed_decoration_a_table_never_draws_leaves_it_alone() {
+    assert!(
+        !rebuilds_after_setup(
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).insert(Marked);
+            },
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).remove::<Marked>();
+            },
+        ),
+        "a table draws no marker gutter"
+    );
+}
+
+#[test]
+fn a_row_leaving_its_band_reaches_the_stylist() {
+    assert!(
+        rebuilds_after_setup(
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).insert(TableHeader);
+            },
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[0]).remove::<TableHeader>();
+            },
+        ),
+        "a row leaving the header band"
+    );
+    assert!(
+        rebuilds_after_setup(
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[2]).insert(TableFooter);
+            },
+            |app, _, rows| {
+                app.world_mut().entity_mut(rows[2]).remove::<TableFooter>();
+            },
+        ),
+        "a row leaving the footer band"
+    );
+}
+
+#[test]
+fn a_child_that_stops_being_a_row_reaches_the_stylist() {
+    assert!(
+        rebuilds_after(|app, _, rows| {
+            app.world_mut().entity_mut(rows[0]).remove::<TableRow>();
+        }),
+        "a child that stops being a row"
     );
 }
 

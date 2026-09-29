@@ -15,7 +15,7 @@ use plurimus_test::{composed_frame, composed_styled_frame, press_key, widget_con
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiLabel, UiStyle, UiTheme};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem, ListItemText,
-    WidgetsPlugin, list_item, listbox, listbox_self_update,
+    ListItemTrailing, WidgetsPlugin, list_item, listbox, listbox_self_update,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -365,6 +365,50 @@ fn a_list_edit_reaches_the_stylist() {
                 .insert(ListBoxSelectionMarker);
         }),
         "the marker column"
+    );
+}
+
+#[test]
+fn a_removed_row_decoration_reaches_the_stylist() {
+    assert!(
+        rebuilds_after_setup(
+            |app, _, items| {
+                app.world_mut()
+                    .entity_mut(items[0])
+                    .insert(ListItemText(Text::from("alpha")));
+            },
+            |app, _, items| {
+                app.world_mut()
+                    .entity_mut(items[0])
+                    .remove::<ListItemText>();
+            },
+        ),
+        "a row's text cleared back to its label"
+    );
+    assert!(
+        rebuilds_after_setup(
+            |app, _, items| {
+                app.world_mut()
+                    .entity_mut(items[0])
+                    .insert(ListItemTrailing(Line::from("^A")));
+            },
+            |app, _, items| {
+                app.world_mut()
+                    .entity_mut(items[0])
+                    .remove::<ListItemTrailing>();
+            },
+        ),
+        "a row's trailing content cleared"
+    );
+}
+
+#[test]
+fn a_child_that_stops_being_a_row_reaches_the_stylist() {
+    assert!(
+        rebuilds_after(|app, _, items| {
+            app.world_mut().entity_mut(items[0]).remove::<ListItem>();
+        }),
+        "a child that stops being a row"
     );
 }
 
