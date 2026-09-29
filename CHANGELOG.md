@@ -17,6 +17,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hardware WebGPU adapter. When a demo can't run or stops, the page says why and
   links back instead of leaving a blank canvas, and quitting returns to the
   landing page.
+- **`InputCapabilities` compares.** It implements `PartialEq` and `Eq`.
 
 ### Fixed
 
@@ -32,6 +33,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   order, so `SliderRange::new(100.0, 0.0)` and `slider(100.0, 0.0, value)` mean
   the same range as `0.0..=100.0`, instead of panicking on the first key step or
   drag.
+- **A terminal left in raw mode after a failed start.** If `CrosstermPlugin`
+  failed partway through taking over the terminal, it panicked with raw mode and
+  the alternate screen still on, leaving a shell that echoed nothing. The
+  terminal is now restored before the panic is reported.
+- **A cursor shape outliving the app.** Setting `TerminalCursorStyle` back to
+  `Default` now returns the terminal to the user's configured shape instead of
+  keeping the last one, and exiting or panicking resets a shape the app set. An
+  app that never sets a shape leaves the shell's own alone.
+- **Keys stuck held on a terminal that half-supports the kitty protocol.**
+  `plurimus_crossterm` no longer takes a terminal's answer to the kitty keyboard
+  query as proof that it reports key releases and modifier keys. Both
+  capabilities start absent and turn on with the first release and the first
+  modifier-key event, so a terminal that answers the query but ignores those
+  flags keeps release synthesis and modifier tracking instead of reading every
+  key as held. Until then, an app reading `InputCapabilities` sees both off.
 
 ## [0.7.2] - 2026-09-26
 
