@@ -5,7 +5,7 @@ use bevy_ecs::prelude::MessageReader;
 use plurimus_term::TerminalRequest;
 
 /// The clipboard contents an app has asked for since the previous call,
-/// oldest first. Call it after the frame that wrote the requests has run.
+/// oldest first.
 ///
 /// Reads through a cursor of its own, so a backend or any other reader of
 /// the stream still sees every request. Copies only: any other request is
