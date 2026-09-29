@@ -311,7 +311,7 @@ fn higher_z_pixel_wins_the_subcell() {
     insta::assert_snapshot!(composed_styled_frame(&app));
 }
 
-// Rgb, because named colors already fell back to the last write.
+// Rgb, since only Rgb dots average; named colors take the last write.
 #[test]
 fn higher_z_pixel_wins_the_braille_dot() {
     let mut app = app(3, 1);

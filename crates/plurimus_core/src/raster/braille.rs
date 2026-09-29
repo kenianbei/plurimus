@@ -5,7 +5,7 @@
 //! background, so every dot in it shares that color. A dot keeps the last
 //! color written to it, so a later write covers that dot, but the cell's color
 //! is the average of its lit dots - a pipeline that needs one point to occlude
-//! its neighbours' color wants [`HalfblockGrid`](super::HalfblockGrid) instead.
+//! its neighbors' color wants [`HalfblockGrid`](super::HalfblockGrid) instead.
 
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
