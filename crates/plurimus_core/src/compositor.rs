@@ -12,7 +12,7 @@ use bevy_ecs::prelude::{Query, Res, ResMut, Resource};
 use ratatui_core::buffer::{Buffer, Cell};
 use ratatui_core::layout::Rect;
 
-use crate::camera::{Background, CameraBuffer, ExtractedCamera};
+use crate::camera::{Background, CameraBuffer, ExtractedCamera, SourceCamera};
 use crate::size::TerminalSize;
 
 /// The composed full-terminal frame, consumed by the presenter.
@@ -28,13 +28,13 @@ impl Default for FrameBuffer {
 pub(crate) fn composite(
     mut frame: ResMut<FrameBuffer>,
     size: Res<TerminalSize>,
-    cameras: Query<(&ExtractedCamera, &CameraBuffer)>,
+    cameras: Query<(&ExtractedCamera, &SourceCamera, &CameraBuffer)>,
 ) {
     frame.0.resize(size.rect());
     frame.0.reset();
     let mut ordered: Vec<_> = cameras.iter().collect();
-    ordered.sort_by_key(|(camera, _)| camera.order);
-    for (camera, buffer) in ordered {
+    ordered.sort_by_key(|(camera, source, _)| (camera.order, source.0));
+    for (camera, _, buffer) in ordered {
         if buffer.0.area.is_empty() {
             continue;
         }
@@ -61,13 +61,17 @@ fn merge_transparent(frame: &mut Buffer, layer: &Buffer) {
 #[cfg(test)]
 mod tests {
     use bevy_app::App;
-    use bevy_ecs::prelude::Query;
+    use bevy_ecs::prelude::{Query, World};
+    use bevy_ecs::system::RunSystemOnce;
+    use ratatui_core::buffer::{Buffer, Cell};
     use ratatui_core::layout::Rect;
     use ratatui_core::style::{Color, Style};
 
+    use super::composite;
     use crate::{
-        Background, CameraBuffer, CorePlugin, ExtractedCamera, FrameBuffer, TerminalCamera,
-        TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems, TerminalSize, Viewport,
+        Background, CameraBuffer, CorePlugin, ExtractedCamera, FrameBuffer, SourceCamera,
+        TerminalCamera, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
+        TerminalSize, Viewport,
     };
 
     fn paint(mut cameras: Query<(&ExtractedCamera, &mut CameraBuffer)>) {
@@ -181,5 +185,28 @@ mod tests {
             .filter_map(|x| frame.0.cell((x, 0)).map(|cell| cell.symbol().to_owned()))
             .collect();
         assert_eq!(row, "AABB");
+    }
+
+    // Spawned against source order, so query order alone would put `low` on top.
+    #[test]
+    fn equal_orders_composite_in_source_camera_order() {
+        let area = Rect::new(0, 0, 2, 1);
+        let mut world = World::new();
+        world.insert_resource(TerminalSize::new(area.width, area.height));
+        world.init_resource::<FrameBuffer>();
+        let (first, second) = (world.spawn_empty().id(), world.spawn_empty().id());
+        let (low, high) = (first.min(second), first.max(second));
+        for (source, symbol) in [(high, "h"), (low, "l")] {
+            world.spawn((
+                ExtractedCamera::new(0, area, Background::TerminalDefault),
+                SourceCamera(source),
+                CameraBuffer(Buffer::filled(area, Cell::new(symbol))),
+            ));
+        }
+
+        world.run_system_once(composite).unwrap();
+
+        let frame = world.resource::<FrameBuffer>();
+        assert_eq!(frame.0.cell((0, 0)).unwrap().symbol(), "h");
     }
 }

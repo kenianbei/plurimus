@@ -2,10 +2,10 @@
 //!
 //! A braille pattern addresses eight points in one cell, four times what a
 //! halfblock offers, but the cell carries one foreground color and no
-//! background, so every dot in it shares that color. The color is the average
-//! of the dots written to the cell, which means a later write blends with the
-//! earlier ones rather than covering them - a pipeline that needs one point
-//! to occlude another wants [`HalfblockGrid`](super::HalfblockGrid) instead.
+//! background, so every dot in it shares that color. A dot keeps the last
+//! color written to it, so a later write covers that dot, but the cell's color
+//! is the average of its lit dots - a pipeline that needs one point to occlude
+//! its neighbors' color wants [`HalfblockGrid`](super::HalfblockGrid) instead.
 
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
@@ -22,8 +22,7 @@ use super::average::LinearColorSum;
 #[derive(Default)]
 pub struct BrailleGrid {
     area: Rect,
-    dots: Vec<u8>,
-    colors: Vec<ColorSum>,
+    cells: Vec<BrailleCell>,
 }
 
 impl BrailleGrid {
@@ -40,10 +39,8 @@ impl BrailleGrid {
     pub fn reset(&mut self, area: Rect) {
         self.area = area;
         let cells = area.width as usize * area.height as usize;
-        self.dots.clear();
-        self.dots.resize(cells, 0);
-        self.colors.clear();
-        self.colors.resize(cells, ColorSum::default());
+        self.cells.clear();
+        self.cells.resize(cells, BrailleCell::default());
     }
 
     /// The grid's area in absolute subcell coordinates: doubled columns,
@@ -58,13 +55,13 @@ impl BrailleGrid {
         )
     }
 
-    /// Sets a subcell dot; out-of-area coordinates are ignored.
+    /// Sets a subcell dot, replacing any color it already held;
+    /// out-of-area coordinates are ignored.
     pub fn set(&mut self, sub_x: u16, sub_y: u16, color: Color) {
         let Some((index, bit)) = self.index(sub_x, sub_y) else {
             return;
         };
-        self.dots[index] |= 1 << bit;
-        self.colors[index].add(color);
+        self.cells[index].set(bit, color);
     }
 
     fn index(&self, sub_x: u16, sub_y: u16) -> Option<(usize, u8)> {
@@ -86,11 +83,8 @@ impl BrailleGrid {
         if width == 0 {
             return;
         }
-        for (index, (&bits, sum)) in self.dots.iter().zip(&self.colors).enumerate() {
-            if bits == 0 {
-                continue;
-            }
-            let Some(color) = sum.resolve() else {
+        for (index, cell) in self.cells.iter().enumerate() {
+            let Some((bits, color)) = cell.resolve() else {
                 continue;
             };
             let x = self.area.left() + (index % width) as u16;
@@ -108,28 +102,43 @@ fn write_braille_cell(buffer: &mut Buffer, position: (u16, u16), bits: u8, color
     cell.set_fg(color);
 }
 
-/// Per-cell color accumulator: `Rgb` dots average in linear space; when
-/// a cell only received non-`Rgb` colors, the last one written wins.
+/// One cell's dots, each holding the last color written to it. `Rgb` dots
+/// average in linear space; when a cell has no `Rgb` dot, the last other
+/// color written wins.
 #[derive(Clone, Copy, Default)]
-struct ColorSum {
-    sum: LinearColorSum,
+struct BrailleCell {
+    dots: [Option<Color>; 8],
     fallback: Option<Color>,
 }
 
-impl ColorSum {
-    fn add(&mut self, color: Color) {
-        if let Color::Rgb(red, green, blue) = color {
-            self.sum.add([red, green, blue]);
-        } else {
+impl BrailleCell {
+    fn set(&mut self, bit: u8, color: Color) {
+        self.dots[usize::from(bit)] = Some(color);
+        if !matches!(color, Color::Rgb(..)) {
             self.fallback = Some(color);
         }
     }
 
-    fn resolve(&self) -> Option<Color> {
-        match self.sum.resolve_srgb() {
-            Some([red, green, blue]) => Some(Color::Rgb(red, green, blue)),
-            None => self.fallback,
+    fn resolve(&self) -> Option<(u8, Color)> {
+        let mut bits = 0;
+        let mut sum = LinearColorSum::default();
+        for (bit, dot) in self.dots.iter().enumerate() {
+            let Some(color) = dot else {
+                continue;
+            };
+            bits |= 1 << bit;
+            if let Color::Rgb(red, green, blue) = *color {
+                sum.add([red, green, blue]);
+            }
         }
+        if bits == 0 {
+            return None;
+        }
+        let color = match sum.resolve_srgb() {
+            Some([red, green, blue]) => Color::Rgb(red, green, blue),
+            None => self.fallback?,
+        };
+        Some((bits, color))
     }
 }
 
@@ -171,6 +180,19 @@ mod tests {
         grid.resolve_into(&mut buffer);
 
         assert_eq!(buffer.cell((0, 0)).unwrap().fg, Color::Rgb(188, 0, 188));
+    }
+
+    #[test]
+    fn a_dot_written_twice_takes_its_last_color() {
+        let area = Rect::new(0, 0, 1, 1);
+        let mut grid = BrailleGrid::new(area);
+        grid.set(0, 0, Color::Rgb(255, 0, 0));
+        grid.set(0, 0, Color::Rgb(0, 0, 255));
+        let mut buffer = Buffer::empty(area);
+
+        grid.resolve_into(&mut buffer);
+
+        assert_eq!(buffer.cell((0, 0)).unwrap().fg, Color::Rgb(0, 0, 255));
     }
 
     #[test]

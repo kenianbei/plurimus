@@ -311,6 +311,29 @@ fn higher_z_pixel_wins_the_subcell() {
     insta::assert_snapshot!(composed_styled_frame(&app));
 }
 
+// Rgb, since only Rgb dots average; named colors take the last write.
+#[test]
+fn higher_z_pixel_wins_the_braille_dot() {
+    let mut app = app(3, 1);
+    app.world_mut().spawn((
+        TerminalCamera::default(),
+        Projection2d::default(),
+        SubcellMode::Braille,
+    ));
+    app.world_mut().spawn((
+        Pixel::new(Color::Rgb(0, 0, 255)),
+        Transform::from_xyz(0.0, 0.0, 2.0),
+    ));
+    app.world_mut().spawn((
+        Pixel::new(Color::Rgb(255, 0, 0)),
+        Transform::from_xyz(0.0, 0.0, 1.0),
+    ));
+
+    app.update();
+
+    insta::assert_snapshot!(composed_styled_frame(&app));
+}
+
 #[test]
 fn pixels_and_pixel_blocks_share_one_z_order() {
     let mut app = app(3, 1);
