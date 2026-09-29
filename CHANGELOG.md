@@ -88,6 +88,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is fixed. Two equal-order cameras spawned one after the other may swap
   compared with before; give cameras distinct orders when their stacking
   matters.
+- **Terminal requests taken from every other reader.** `plurimus_crossterm`
+  consumed each frame's `TerminalRequest`s by emptying the stream, so a system
+  reading them after extraction, or one that had not read them yet, saw nothing.
+  It now reads them the way `plurimus_web` already did, leaving them for every
+  other reader. With it installed, a copy written in `Last` after
+  `RequestSystems::Echo` now reaches `LastCopied` on the next frame instead of
+  never. `plurimus_test`'s `clipboard_writes` no longer takes the requests
+  either: it returns the copies made since its previous call and leaves the
+  stream as it found it.
 
 ## [0.7.2] - 2026-09-26
 
