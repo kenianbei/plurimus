@@ -12,8 +12,8 @@
 use std::io::{self, Write};
 
 use bevy_ecs::error::Result as BevyResult;
-use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::{Res, ResMut, Resource};
+use bevy_ecs::message::{MessageCursor, Messages};
+use bevy_ecs::prelude::{Local, Res, ResMut, Resource};
 use bevy_log::{warn, warn_once};
 use crossterm::clipboard::{ClipboardSelection, ClipboardType, CopyToClipboard};
 use crossterm::cursor::SetCursorStyle;
@@ -41,22 +41,19 @@ pub(crate) struct ClipboardEnabled(pub(crate) bool);
 #[derive(Resource, Debug, Default, Clone, Copy)]
 pub(crate) struct PreviousCursorStyle(TerminalCursorStyle);
 
+/// Reads through a cursor rather than draining, so any other reader of the
+/// stream still sees every request.
 pub(crate) fn write_terminal_requests<W: Write + Send + Sync + 'static>(
-    mut main_world: ResMut<MainWorld>,
+    main_world: Res<MainWorld>,
+    mut cursor: Local<MessageCursor<TerminalRequest>>,
     mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
     clipboard: Res<ClipboardEnabled>,
 ) -> BevyResult {
-    let requests: Vec<TerminalRequest> = main_world
-        .resource_mut::<Messages<TerminalRequest>>()
-        .drain()
-        .collect();
-    if requests.is_empty() {
-        return Ok(());
-    }
+    let requests = cursor.read(main_world.resource::<Messages<TerminalRequest>>());
     // The backend is itself a `Write` forwarding to the terminal writer,
     // which is the stable way in; `writer_mut` is behind ratatui's unstable
     // `backend-writer` feature.
-    serve(&mut context.backend, &requests, clipboard.0)?;
+    serve(&mut context.backend, requests, clipboard.0)?;
     Ok(())
 }
 
@@ -65,7 +62,11 @@ pub(crate) fn write_terminal_requests<W: Write + Send + Sync + 'static>(
 /// A request the terminal cannot be asked for - copying with the capability
 /// switched off, an oversized payload, a variant this backend does not
 /// know - is dropped rather than failing the frame.
-fn serve(writer: &mut impl Write, requests: &[TerminalRequest], clipboard: bool) -> io::Result<()> {
+fn serve<'a>(
+    writer: &mut impl Write,
+    requests: impl IntoIterator<Item = &'a TerminalRequest>,
+    clipboard: bool,
+) -> io::Result<()> {
     let mut wrote = false;
     for request in requests {
         wrote |= match request {
@@ -167,12 +168,15 @@ const fn base64_len(bytes: usize) -> usize {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use bevy_app::App;
+    use bevy_app::{App, Last};
+    use bevy_ecs::prelude::{IntoScheduleConfigs, MessageWriter, run_once};
     use plurimus_core::ratatui_core::layout::Position;
     use plurimus_core::{
         CorePlugin, PresenterPlugin, TerminalCursor, TerminalRenderApp, TerminalRenderAppExt,
         TerminalSize,
     };
+
+    use plurimus_term::{LastCopied, RequestSystems};
 
     use super::*;
 
@@ -332,6 +336,38 @@ mod tests {
         app.update();
 
         assert_eq!(writer.written(), after_first, "a second frame repeats it");
+    }
+
+    #[test]
+    fn a_served_request_stays_readable_by_other_readers() {
+        let (mut app, _writer) = app_serving_requests(true);
+        app.world_mut().write_message(TerminalRequest::copy("hi"));
+        app.update();
+
+        let requests = app.world().resource::<Messages<TerminalRequest>>();
+        let mut cursor = MessageCursor::default();
+        let seen: Vec<_> = cursor.read(requests).collect();
+        assert_eq!(seen, [&TerminalRequest::copy("hi")]);
+    }
+
+    #[test]
+    fn a_copy_written_after_the_echo_is_echoed_the_next_frame() {
+        let (mut app, _writer) = app_serving_requests(true);
+        app.add_systems(
+            Last,
+            (|mut requests: MessageWriter<TerminalRequest>| {
+                requests.write(TerminalRequest::copy("late"));
+            })
+            .run_if(run_once)
+            .after(RequestSystems::Echo),
+        );
+        app.update();
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<LastCopied>().0.as_deref(),
+            Some("late")
+        );
     }
 
     #[test]

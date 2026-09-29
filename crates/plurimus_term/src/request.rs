@@ -2,10 +2,10 @@
 //! reports.
 //!
 //! One message carries every one-shot request rather than a type per
-//! capability: there is exactly one reader - whichever backend is
-//! installed - so separate channels would buy no filtering and would leave
-//! two requests written in the same frame with no defined order on a stream
-//! where order is the whole point.
+//! capability: whichever backend is installed serves every request, so
+//! separate channels would buy no filtering and would leave two requests
+//! written in the same frame with no defined order on a stream where order
+//! is the whole point.
 
 use bevy_ecs::prelude::{Message, MessageReader, ResMut, Resource, SystemSet};
 
@@ -82,11 +82,10 @@ pub enum RequestSystems {
     /// `Last`: fills [`LastCopied`] from the requests written this frame.
     ///
     /// It runs here, rather than beside the inbound systems in `PreUpdate`,
-    /// because a backend consumes the requests by draining them during
-    /// extraction, after every main-world schedule. Reading earlier would
-    /// miss everything written later in the same frame, and would miss it
-    /// only once a real backend was installed. An app writing a request in
-    /// `Last` orders itself `before` this.
+    /// so it sees every request the frame wrote: reading earlier would echo
+    /// a copy made later in the frame only on the next one. An app writing a
+    /// request in `Last` orders itself `before` this to be echoed in the same
+    /// frame.
     Echo,
 }
 
