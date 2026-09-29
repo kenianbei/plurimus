@@ -1,4 +1,4 @@
-//! The key releases no terminal will send.
+//! The input no terminal will send.
 //!
 //! Two gaps, both ending with a release written as if a backend had reported
 //! it. Most terminals report only key presses, so a press without a real
@@ -12,14 +12,21 @@
 //! system of its own rather than the first half of the timeout's: what is
 //! held has to be known on every tier, and only the expiry is a capability's
 //! to turn off.
+//!
+//! A focus loss ends the pointer's gesture too, but as a cancel rather than a
+//! release, since a release completes a click.
 
 use std::collections::HashMap;
 use std::time::Duration;
 
-use bevy_ecs::prelude::{MessageReader, MessageWriter, Res, ResMut, Resource};
+use bevy_ecs::message::{MessageCursor, Messages};
+use bevy_ecs::prelude::{Local, MessageReader, MessageWriter, Res, ResMut, Resource};
 use bevy_time::{Real, Time};
 
-use super::{FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers};
+use super::{
+    CursorCell, FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers,
+    MouseKind, MouseMessage,
+};
 
 /// Every key the crate believes is down, timed from its last press or repeat.
 ///
@@ -91,7 +98,7 @@ pub(crate) fn releases_are_synthesized(capabilities: Res<InputCapabilities>) -> 
 /// Keys only, and deliberately. Every keyboard consumer acts on a press, so a
 /// synthetic release corrects held state and triggers nothing else; a pointer
 /// release is not inert in the same way - it completes a click - so a
-/// captured drag is left for a cancellation path that can express it.
+/// captured drag is ended by [`cancel_pointer_on_focus_loss`] instead.
 ///
 /// Runs after [`record_held_keys`] and before
 /// [`update_button_input`](crate::state::update_button_input): the first puts
@@ -108,6 +115,34 @@ pub(crate) fn release_keys_on_focus_loss(
     }
     for (code, _) in held.0.drain() {
         keys.write(synthetic_release(code));
+    }
+}
+
+/// Ends the pointer's gesture when the terminal reports losing focus.
+///
+/// Writes one [`MouseKind::Cancel`] after whatever this frame pumped, so a
+/// press in the losing frame is cancelled too, placed where the pointer last
+/// was so [`CursorCell`] stays put. Before any pointer has reported there is
+/// nothing to cancel, and nothing is written.
+///
+/// Reading and writing one message type through two system params conflicts,
+/// so it reads through a cursor of its own, advanced every frame.
+pub(crate) fn cancel_pointer_on_focus_loss(
+    mut focus: MessageReader<FocusMessage>,
+    mut pumped: Local<MessageCursor<MouseMessage>>,
+    mut mouse: ResMut<Messages<MouseMessage>>,
+    cursor: Res<CursorCell>,
+) {
+    let last = pumped.read(&mouse).last().map(|message| message.position);
+    if !focus.read().any(|message| !message.gained) {
+        return;
+    }
+    if let Some(position) = last.or(cursor.0) {
+        mouse.write(MouseMessage::new(
+            MouseKind::Cancel,
+            position,
+            KeyModifiers::default(),
+        ));
     }
 }
 
@@ -136,11 +171,16 @@ mod tests {
     use bevy_ecs::prelude::World;
     use bevy_time::{Real, Time};
 
+    use plurimus_core::ratatui_core::layout::Position;
+
     use super::{
-        HeldKeys, ReleaseTimeout, expire_held, expire_held_keys, record_held_keys,
-        release_keys_on_focus_loss,
+        HeldKeys, ReleaseTimeout, cancel_pointer_on_focus_loss, expire_held, expire_held_keys,
+        record_held_keys, release_keys_on_focus_loss,
     };
-    use crate::{FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers};
+    use crate::{
+        CursorCell, FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseKind,
+        MouseMessage,
+    };
 
     fn holding(code: KeyCode, at: Duration) -> HeldKeys {
         let mut held = HeldKeys::default();
@@ -282,5 +322,55 @@ mod tests {
 
         assert!(!still_held_after_release(shifted, bare));
         assert!(!still_held_after_release(bare, bare));
+    }
+
+    /// The cancels a focus change writes, with the pointer last seen at
+    /// `cursor` and `pumped` arriving in the same frame.
+    fn cancels(gained: bool, cursor: Option<Position>, pumped: &[Position]) -> Vec<MouseMessage> {
+        let mut world = World::new();
+        world.init_resource::<Messages<MouseMessage>>();
+        world.init_resource::<Messages<FocusMessage>>();
+        world.insert_resource(CursorCell(cursor));
+        let cancel = world.register_system(cancel_pointer_on_focus_loss);
+
+        for &position in pumped {
+            world.write_message(MouseMessage::new(
+                MouseKind::Moved,
+                position,
+                KeyModifiers::none(),
+            ));
+        }
+        world.write_message(FocusMessage::new(gained));
+        world.run_system(cancel).unwrap();
+        world
+            .resource_mut::<Messages<MouseMessage>>()
+            .drain()
+            .filter(|message| message.kind == MouseKind::Cancel)
+            .collect()
+    }
+
+    #[test]
+    fn losing_focus_cancels_where_the_pointer_last_was() {
+        let seen = Position::new(1, 1);
+        let moved = Position::new(4, 2);
+
+        let written = cancels(false, Some(seen), &[moved]);
+        assert_eq!(written.len(), 1);
+        assert_eq!(
+            written[0].position, moved,
+            "a stale position would move the cursor back"
+        );
+
+        assert_eq!(cancels(false, Some(seen), &[])[0].position, seen);
+    }
+
+    #[test]
+    fn losing_focus_before_any_pointer_cancels_nothing() {
+        assert!(cancels(false, None, &[]).is_empty());
+    }
+
+    #[test]
+    fn focus_arriving_cancels_nothing() {
+        assert!(cancels(true, Some(Position::new(1, 1)), &[]).is_empty());
     }
 }

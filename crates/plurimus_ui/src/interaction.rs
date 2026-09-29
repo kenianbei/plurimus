@@ -208,6 +208,25 @@ impl PointerRelease {
     }
 }
 
+/// The gesture on a [`Pressed`] widget ended without a release, as it does
+/// when the terminal loses focus: no [`PointerRelease`] and no [`Click`]
+/// follow, and a release reported afterwards reaches nothing. For a widget
+/// that has to settle what a drag left behind.
+#[derive(EntityEvent, Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct PointerCancel {
+    /// The widget the gesture started on.
+    pub entity: Entity,
+}
+
+impl PointerCancel {
+    /// A cancel ending the gesture on `entity`.
+    #[must_use]
+    pub const fn new(entity: Entity) -> Self {
+        Self { entity }
+    }
+}
+
 /// Arbitration key: highest band first, then the innermost (smallest)
 /// rect, then a stable tiebreak. Innermost-wins is what routes a tick to
 /// a nested scroller rather than its scrolling ancestor.
@@ -340,6 +359,10 @@ fn route_message(
         MouseKind::Up(MouseButton::Left) => {
             release_all(routing, run_pressed, message.position, commands)
         }
+        MouseKind::Cancel => {
+            cancel_all(routing, run_pressed, commands);
+            false
+        }
         _ => false,
     }
 }
@@ -421,24 +444,33 @@ fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut
     }
 }
 
-fn release_all(
-    routing: &PointerRouting,
-    run_pressed: &mut Vec<(Entity, u8)>,
-    position: Position,
-    commands: &mut Commands,
-) -> bool {
-    let held = routing
-        .pressed
+/// Every gesture in flight, as `(entity, count, disabled)`: the settled
+/// [`Pressed`] widgets, then this batch's presses whose `Pressed` has not
+/// landed yet.
+fn gestures<'a>(
+    pressed: &'a PressedQuery,
+    run_pressed: &'a mut Vec<(Entity, u8)>,
+) -> impl Iterator<Item = (Entity, u8, bool)> + 'a {
+    let held = pressed
         .iter()
         .map(|(entity, pressed, disabled)| (entity, pressed.0, disabled));
     // Run-pressed entities cannot be disabled: an absorbed press never
     // reaches `run_pressed`, and nothing disables them mid-run.
     let fresh = run_pressed
         .drain(..)
-        .filter(|&(entity, _)| !routing.pressed.contains(entity))
+        .filter(|&(entity, _)| !pressed.contains(entity))
         .map(|(entity, count)| (entity, count, false));
+    held.chain(fresh)
+}
+
+fn release_all(
+    routing: &PointerRouting,
+    run_pressed: &mut Vec<(Entity, u8)>,
+    position: Position,
+    commands: &mut Commands,
+) -> bool {
     let mut menu_clicked = false;
-    for (entity, count, disabled) in held.chain(fresh) {
+    for (entity, count, disabled) in gestures(&routing.pressed, run_pressed) {
         if !disabled {
             commands.trigger(PointerRelease { entity, position });
         }
@@ -460,6 +492,22 @@ fn release_all(
         commands.entity(entity).remove::<Pressed>();
     }
     menu_clicked
+}
+
+// The run ends too: a press after focus returns is not the second of one
+// made before it left.
+fn cancel_all(
+    routing: &mut PointerRouting,
+    run_pressed: &mut Vec<(Entity, u8)>,
+    commands: &mut Commands,
+) {
+    for (entity, _, disabled) in gestures(&routing.pressed, run_pressed) {
+        if !disabled {
+            commands.trigger(PointerCancel { entity });
+        }
+        commands.entity(entity).remove::<Pressed>();
+    }
+    routing.run.reset();
 }
 
 /// A widget's value changed. `T` is the value type: `bool` for toggles,

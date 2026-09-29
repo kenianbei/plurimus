@@ -38,8 +38,8 @@ pub use cursor::WidgetCursor;
 pub use focus::FocusWithin;
 pub use interaction::ValueChange;
 pub use interaction::{
-    Checked, Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
-    PointerRelease, PressFocusDisabled, PressPassThrough, Pressed,
+    Checked, Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerCancel, PointerDrag,
+    PointerPress, PointerRelease, PressFocusDisabled, PressPassThrough, Pressed,
 };
 pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};

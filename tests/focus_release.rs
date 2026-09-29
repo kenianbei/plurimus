@@ -1,5 +1,5 @@
-//! A terminal reports nothing while unfocused, so the release of a key held
-//! across a focus loss is one no backend will ever send. What has to be true
+//! A terminal reports nothing while unfocused, so the release of a key or
+//! button held across a focus loss is one no backend will ever send. What has to be true
 //! is an ordering claim only an assembled app can prove: the release covers
 //! keys pressed in the losing frame too, since alt-tab's own keys arrive in
 //! that batch.
@@ -11,8 +11,8 @@
 use bevy_app::App;
 use bevy_input::ButtonInput;
 use plurimus::core::CorePlugin;
-use plurimus::term::{KeyCode, TermPlugin};
-use plurimus_test::{send_focus, write_focus, write_key};
+use plurimus::term::{KeyCode, MouseButton, MouseKind, TermPlugin};
+use plurimus_test::{send_focus, send_mouse, write_focus, write_key, write_mouse};
 
 fn app() -> App {
     let mut app = App::new();
@@ -49,4 +49,30 @@ fn a_key_pressed_in_the_losing_frame_does_not_survive_it() {
     app.update();
 
     assert!(!is_held(&app, KeyCode::Char('w')));
+}
+
+fn is_button_held(app: &App) -> bool {
+    app.world()
+        .resource::<ButtonInput<MouseButton>>()
+        .pressed(MouseButton::Left)
+}
+
+#[test]
+fn losing_focus_ends_a_button_hold_too() {
+    let mut app = app();
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    assert!(is_button_held(&app));
+
+    send_focus(&mut app, false);
+    assert!(!is_button_held(&app));
+}
+
+#[test]
+fn a_button_pressed_in_the_losing_frame_does_not_survive_it() {
+    let mut app = app();
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    write_focus(&mut app, false);
+    app.update();
+
+    assert!(!is_button_held(&app));
 }

@@ -8,9 +8,11 @@ use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{press_at, press_key, release_at, send_mouse, set_focus, write_mouse};
+use plurimus_test::{
+    press_at, press_key, release_at, send_focus, send_mouse, set_focus, write_mouse,
+};
 use plurimus_ui::Key;
-use plurimus_ui::{Click, FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget};
+use plurimus_ui::{Click, FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
     Slider, SliderAction, SliderKeys, SliderRange, SliderValue, WidgetsPlugin, slider_self_update,
@@ -230,6 +232,33 @@ fn a_remapped_slider_steps_on_its_own_keys() {
 
     press_key(&mut app, KeyCode::Char('h'));
     assert_eq!(value(&app, slider), 50.0);
+}
+
+#[derive(Resource, Default)]
+struct FinalValues(Vec<f32>);
+
+// The drag's own changes are not final, so the one final change is the
+// cancel's, and an app committing on `is_final` still gets to.
+#[test]
+fn a_drag_cut_off_by_a_focus_loss_commits_where_it_reached() {
+    let mut app = app();
+    app.world_mut().spawn(TerminalCamera::default());
+    app.init_resource::<FinalValues>();
+    let slider = spawn_slider(&mut app);
+    app.world_mut().entity_mut(slider).observe(
+        |change: On<ValueChange<f32>>, mut finals: ResMut<FinalValues>| {
+            if change.is_final {
+                finals.0.push(change.value);
+            }
+        },
+    );
+
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 0, 0);
+    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 9, 0);
+    send_focus(&mut app, false);
+
+    assert!(app.world().get::<Pressed>(slider).is_none());
+    assert_eq!(app.world().resource::<FinalValues>().0, [100.0]);
 }
 
 fn value(app: &App, slider: Entity) -> f32 {

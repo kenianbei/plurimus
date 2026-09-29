@@ -26,10 +26,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   press there, and `release_at` and `write_release_at` release. `send_paste` and
   `write_paste` deliver a bracketed paste. Each follows the module's families:
   `write_*` only queues, and the rest tick.
-- **`InputSystems::Synthesize`.** Release synthesis (expired holds, and every
-  key held across a focus loss) runs in a set of its own, chained between `Pump`
+- **`InputSystems::Synthesize`.** The input no terminal sends (releases for
+  expired holds and for every key held across a focus loss, and that focus
+  loss's pointer cancel) is written in a set of its own, chained between `Pump`
   and `Update`, so a system can order against it. `Update` now derives state
-  only, and every system in it sees the frame's synthetic releases.
+  only, and every system in it sees the frame's synthetic input.
+- **Pointer cancel.** `MouseKind::Cancel` ends every pointer gesture without a
+  release, and `plurimus_term` writes one when the terminal loses focus.
+  `ButtonInput<MouseButton>` drops every held button on it, and `plurimus_ui`
+  sends the pressed widget a `PointerCancel` in place of `PointerRelease` and
+  `Click`. A slider whose drag is cancelled emits a final `ValueChange` at its
+  current value.
 - **`bevy_input_focus` re-exported.** `plurimus_ui` and `plurimus_widgets`
   re-export it, so `InputFocus`, `TabIndex`, `FocusedInput` and
   `InputFocusSystems` are reachable without a dependency pinned by hand.
@@ -44,6 +51,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A pointer press surviving a focus loss.** A widget pressed when the terminal
+  lost focus stayed `Pressed`, kept receiving drags, and clicked if the release
+  that eventually arrived landed inside it; `ButtonInput<MouseButton>` kept the
+  button held. The gesture now ends at the focus loss, with no click, and the
+  next press starts a new click run.
 - **Bevy's key state lagging a focus loss by a frame.** When the terminal lost
   focus, the keys released for it reached `ButtonInput<KeyCode>` that frame but
   bevy's `KeyboardInput` and its own `ButtonInput` only on the next, so a

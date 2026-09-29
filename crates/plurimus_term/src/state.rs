@@ -28,8 +28,9 @@ pub enum InputSystems {
     /// State is derived (button state, cursor) from messages, synthesized
     /// ones included.
     Update,
-    /// The releases no terminal will send are written: expired holds and
-    /// every key held across a focus loss.
+    /// The input no terminal will send is written: releases for expired
+    /// holds and every key held across a focus loss, and a pointer cancel
+    /// for that same focus loss.
     Synthesize,
 }
 
@@ -54,6 +55,7 @@ pub(crate) fn update_button_input(
         match event.kind {
             MouseKind::Down(button) => mouse_state.press(button),
             MouseKind::Up(button) => mouse_state.release(button),
+            MouseKind::Cancel => mouse_state.release_all(),
             _ => {}
         }
     }
