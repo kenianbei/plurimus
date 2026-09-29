@@ -17,7 +17,9 @@ use bevy_input::ButtonInput;
 
 use super::{CursorCell, KeyCode, KeyKind, KeyMessage, MouseButton, MouseKind, MouseMessage};
 
-/// Ordered phases of input handling in `PreUpdate`.
+/// Ordered phases of input handling in `PreUpdate`: they run chained as
+/// [`Pump`](Self::Pump), [`Synthesize`](Self::Synthesize),
+/// [`Update`](Self::Update), whatever order they are declared in.
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum InputSystems {
@@ -26,9 +28,8 @@ pub enum InputSystems {
     /// State is derived (button state, cursor) from messages, synthesized
     /// ones included.
     Update,
-    /// Between [`Pump`](Self::Pump) and [`Update`](Self::Update), the
-    /// releases no terminal will send are written: expired holds and every
-    /// key held across a focus loss.
+    /// The releases no terminal will send are written: expired holds and
+    /// every key held across a focus loss.
     Synthesize,
 }
 
