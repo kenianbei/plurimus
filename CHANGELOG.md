@@ -26,8 +26,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its own or fail at startup.
 - **A text field narrower than the character under its cursor.** A one-column
   `EditableText` whose cursor sat on a double-width character (CJK, most emoji)
-  panicked in debug builds and drew its caret at a wrapped column in release. It
-  now draws the caret in its one column.
+  panicked in debug builds and could lose its caret in release. It now draws the
+  caret in its one column.
 - **A slider with reversed bounds.** `SliderRange::new` puts its bounds in
   order, so `SliderRange::new(100.0, 0.0)` and `slider(100.0, 0.0, value)` mean
   the same range as `0.0..=100.0`, instead of panicking on the first key step or
