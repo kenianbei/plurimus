@@ -178,3 +178,43 @@ fn box_shadow_dims_cells_outside_the_node() {
 
     insta::assert_snapshot!("bui_box_shadow", composed_styled_frame(&app));
 }
+
+#[test]
+fn a_shadow_cast_by_a_node_off_screen_still_lands() {
+    use bevy_ui::{BoxShadow, PositionType, ShadowStyle};
+
+    let mut app = app(8, 1);
+    let root = app
+        .world_mut()
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..Node::default()
+            },
+            BackgroundColor(Color::srgb(0.0, 0.6, 0.0)),
+        ))
+        .id();
+    app.world_mut().spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(-6.0),
+            width: Val::Px(4.0),
+            height: Val::Px(1.0),
+            ..Node::default()
+        },
+        BoxShadow(vec![ShadowStyle {
+            color: Color::srgba(0.0, 0.0, 0.0, 1.0),
+            x_offset: Val::Px(4.0),
+            y_offset: Val::ZERO,
+            spread_radius: Val::ZERO,
+            blur_radius: Val::ZERO,
+        }]),
+        ChildOf(root),
+    ));
+
+    app.update();
+    app.update();
+
+    insta::assert_snapshot!("bui_offscreen_shadow", composed_styled_frame(&app));
+}

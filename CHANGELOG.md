@@ -62,6 +62,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scrollbars never show a horizontal bar, and scroll as before.
 - **A widget that vanished when its `ScrollArea` was removed.** Removing the
   component left the widget drawn by nothing. It is now drawn again, unscrolled.
+- **A bevy_ui node cut by its camera's edge drawn shifted instead of cut.** A
+  node hanging off the left or top of its viewport, or scrolled partly out of a
+  container at the top of one, drew as if it began at the edge: a border corner
+  that isn't there, the first characters and lines of its text instead of the
+  visible ones, and its gradients and shadow moved with it. It now draws from
+  its true edges. Its text wraps at its laid-out width, not at the width left
+  visible, and a wide character cut by the left edge leaves its visible column
+  blank. A node wholly off-screen still draws the part of its `BoxShadow` that
+  falls on-screen.
+- **`ComputedNodeRect` running past its camera.** Its rects were cut to the
+  viewport on the left and top only, so a node overflowing its camera on the
+  right or bottom took clicks inside whatever camera sat beside it. They are now
+  cut on all four sides, and are zero for a node wholly outside the viewport.
 
 ## [0.7.2] - 2026-09-26
 

@@ -14,8 +14,9 @@ use bevy_color::{Alpha, LinearRgba, Mix, Srgba};
 use bevy_math::Vec2;
 use bevy_ui::{BoxShadow, ColorStop, Gradient, ResolvedBorderRadius, ShadowStyle};
 use plurimus_core::raster::linear_cell_color;
-use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
+
+use super::rect::CellBox;
 
 // One glyph per corner is the honest cell resolution; half a cell of
 // radius is where a rounded glyph reads better than a square one.
@@ -251,13 +252,13 @@ pub(crate) fn sample_gradients(gradients: &[ResolvedGradient], point: Vec2) -> O
 }
 
 pub(crate) struct ResolvedShadow {
-    pub(crate) rect: Rect,
+    pub(crate) rect: CellBox,
     pub(crate) color: LinearRgba,
 }
 
 pub(crate) fn resolve_shadows(
     shadow: &BoxShadow,
-    node_rect: Rect,
+    node_rect: CellBox,
     size: Vec2,
     target: Vec2,
 ) -> Vec<ResolvedShadow> {
@@ -271,7 +272,7 @@ pub(crate) fn resolve_shadows(
 // Blur has no cell equivalent: it only extends the rect by half itself.
 fn resolve_shadow(
     style: &ShadowStyle,
-    node_rect: Rect,
+    node_rect: CellBox,
     size: Vec2,
     target: Vec2,
 ) -> Option<ResolvedShadow> {
@@ -285,20 +286,16 @@ fn resolve_shadow(
     (color.alpha > f32::EPSILON).then_some(ResolvedShadow { rect, color })
 }
 
-fn offset_and_inflate(rect: Rect, offset: Vec2, grow: f32) -> Option<Rect> {
+fn offset_and_inflate(rect: CellBox, offset: Vec2, grow: f32) -> Option<CellBox> {
     let grow = grow.round() as i32;
-    let left = i32::from(rect.x) + offset.x.round() as i32 - grow;
-    let top = i32::from(rect.y) + offset.y.round() as i32 - grow;
-    let width = i32::from(rect.width) + 2 * grow;
-    let height = i32::from(rect.height) + 2 * grow;
-    if width <= 0 || height <= 0 {
-        return None;
-    }
-    let clip_x = left.max(0);
-    let clip_y = top.max(0);
-    let width = (width - (clip_x - left)).max(0) as u16;
-    let height = (height - (clip_y - top)).max(0) as u16;
-    (width > 0 && height > 0).then(|| Rect::new(clip_x as u16, clip_y as u16, width, height))
+    let (dx, dy) = (offset.x.round() as i32, offset.y.round() as i32);
+    let shadow = CellBox {
+        left: rect.left + dx - grow,
+        top: rect.top + dy - grow,
+        right: rect.right + dx + grow,
+        bottom: rect.bottom + dy + grow,
+    };
+    (!shadow.is_empty()).then_some(shadow)
 }
 
 /// Darkens a cell background toward the shadow color; `None` reads as
