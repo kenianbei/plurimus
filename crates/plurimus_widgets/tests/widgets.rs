@@ -6,7 +6,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{set_focus, write_key, write_mouse, write_press_at};
+use plurimus_test::{release_at, set_focus, write_key, write_mouse, write_press_at};
 use plurimus_ui::{Checked, Hovered, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
@@ -45,8 +45,7 @@ fn button_activates_on_click_and_enter() {
 
     write_press_at(&mut app, 2, 1);
     app.update();
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 1);
-    app.update();
+    release_at(&mut app, 2, 1);
     assert_eq!(app.world().resource::<Activations>().0, 1);
 
     write_key(&mut app, KeyCode::Enter);
@@ -97,8 +96,7 @@ fn slider_steps_seeks_and_scrubs() {
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((50.0, false)));
 
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 12, 2);
-    app.update();
+    release_at(&mut app, 12, 2);
     assert_eq!(app.world().resource::<LastChange>().0, Some((100.0, true)));
     assert!((app.world().get::<SliderValue>(slider).unwrap().0 - 100.0).abs() < f32::EPSILON);
 }
@@ -153,8 +151,7 @@ fn checkbox_toggles_via_self_update() {
 
     write_press_at(&mut app, 2, 1);
     app.update();
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 1);
-    app.update();
+    release_at(&mut app, 2, 1);
     assert!(app.world().get::<Checked>(checkbox).is_some());
 
     set_focus(&mut app, checkbox);
@@ -193,8 +190,7 @@ fn radio_group_selects_exclusively() {
 
     write_press_at(&mut app, 2, 2);
     app.update();
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 2);
-    app.update();
+    release_at(&mut app, 2, 2);
 
     assert!(app.world().get::<Checked>(second).is_some());
     assert!(app.world().get::<Checked>(first).is_none());

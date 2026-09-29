@@ -10,9 +10,9 @@ use plurimus_ui::ComputedWidgetArea;
 use plurimus_widgets::{Popover, menu_item, menu_popup};
 use ratatui_widgets::paragraph::Paragraph;
 
-use popover::{app, camera_of, spawn_camera};
-
 mod popover;
+
+use popover::{app, camera_of, spawn_camera};
 
 const MAIN: Rect = Rect::new(0, 0, 20, 6);
 const SIDE: Rect = Rect::new(0, 6, 20, 6);

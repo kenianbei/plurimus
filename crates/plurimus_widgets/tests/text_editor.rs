@@ -112,9 +112,7 @@ fn ctrl_undo_from_real_modifier_keys() {
     let mut app = app();
     let editor = editor_typed_ab(&mut app);
 
-    write_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
-    app.update();
-    ctrl_key(&mut app, KeyCode::Char('u'));
+    ctrl_chord(&mut app, 'u');
 
     assert_eq!(lines_of(&app, editor), ["a"], "ctrl+u undoes, inserts no u");
 }

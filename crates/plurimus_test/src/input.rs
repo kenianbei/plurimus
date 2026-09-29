@@ -1,7 +1,8 @@
 //! Input-injection helpers.
 //!
-//! Two families: `write_*` only queues the message, so several land in one
-//! frame; `press_*`/`send_*` also tick the app.
+//! Two families: `write_*` only queues, so several messages land in one
+//! frame; the rest tick after each message they send. `set_focus` is
+//! neither, writing focus directly.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -111,9 +112,15 @@ pub fn press_at(app: &mut App, x: u16, y: u16) {
     send_mouse(app, MouseKind::Down(MouseButton::Left), x, y);
 }
 
+/// Queues a left release at `(x, y)`.
+pub fn write_release_at(app: &mut App, x: u16, y: u16) {
+    write_mouse(app, MouseKind::Up(MouseButton::Left), x, y);
+}
+
 /// Releases left at `(x, y)`, then ticks the app.
 pub fn release_at(app: &mut App, x: u16, y: u16) {
-    send_mouse(app, MouseKind::Up(MouseButton::Left), x, y);
+    write_release_at(app, x, y);
+    app.update();
 }
 
 /// A full left click at `(x, y)`: [`press_at`], then [`release_at`].

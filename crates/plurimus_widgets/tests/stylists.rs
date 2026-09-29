@@ -7,7 +7,9 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{composed_styled_frame, set_focus, write_mouse, write_press_at};
+use plurimus_test::{
+    composed_styled_frame, set_focus, write_mouse, write_press_at, write_release_at,
+};
 use plurimus_ui::{InteractionDisabled, StylistDisabled, UiArea, UiStyle};
 use plurimus_widgets::{
     RadioGroup, WidgetsPlugin, button, checkbox, checkbox_self_update, radio, radio_self_update,
@@ -42,7 +44,7 @@ fn button_states() {
     app.update();
     insta::assert_snapshot!("button_pressed", composed_styled_frame(&app));
 
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 4, 0);
+    write_release_at(&mut app, 4, 0);
     write_mouse(&mut app, MouseKind::Moved, 0, 0);
     set_focus(&mut app, button);
     app.update();
@@ -73,7 +75,7 @@ fn checkbox_states() {
 
     write_press_at(&mut app, 2, 0);
     app.update();
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), 2, 0);
+    write_release_at(&mut app, 2, 0);
     write_mouse(&mut app, MouseKind::Moved, 11, 0);
     app.update();
     app.update();
