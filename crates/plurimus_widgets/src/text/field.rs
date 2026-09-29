@@ -49,7 +49,8 @@ impl Widget for &TextField {
         let window = Window {
             start: cursor_column
                 .saturating_add(cursor_width)
-                .saturating_sub(area.width),
+                .saturating_sub(area.width)
+                .min(cursor_column),
             area,
         };
         for x in area.left()..area.right() {
@@ -63,7 +64,7 @@ impl Widget for &TextField {
             return;
         };
         let cursor = Rect::new(
-            area.x + cursor_column.saturating_sub(window.start),
+            area.x + (cursor_column - window.start),
             area.y,
             cursor_width,
             1,
