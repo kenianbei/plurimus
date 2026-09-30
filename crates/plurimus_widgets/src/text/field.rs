@@ -23,7 +23,8 @@ use super::state::TextInput;
 /// The windowed single row: what it draws, the fill style the row is
 /// painted with, the caret's style - `None` for a field without focus,
 /// which draws no caret at all rather than one more block competing with
-/// whichever field the keys actually reach - and the selection's.
+/// whichever field the keys actually reach, and for one with a selection -
+/// and the selection's.
 pub(super) struct TextField {
     pub(super) row: DrawnRow,
     pub(super) style: Style,

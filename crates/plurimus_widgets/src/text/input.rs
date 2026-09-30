@@ -39,9 +39,9 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 /// Which keys edit and which submits is [`TextInputKeys`], required here and
 /// defaulting to what the field always bound.
 ///
-/// The caret is drawn into the row while the field has focus, and its cell
-/// is published in the required [`WidgetCursor`], so the terminal's own
-/// cursor sits on it too. That cursor is a steady bar unless an app sets
+/// The caret is drawn into the row while the field has focus and nothing is
+/// selected, and its cell is published in the required [`WidgetCursor`], so
+/// the terminal's own cursor sits on it too, selection or not. That cursor is a steady bar unless an app sets
 /// another shape with [`WidgetCursor::with_style`], which the field keeps: a
 /// block cursor drawn by inverting its cell would cancel the reversed caret
 /// beneath it. A field given [`StylistDisabled`]
