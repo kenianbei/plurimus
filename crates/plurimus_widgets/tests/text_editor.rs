@@ -10,8 +10,10 @@ use plurimus_test::{
     clipboard_writes, composed_frame, press_chord, press_key, press_key_with, send_mouse,
     send_paste, set_focus, write_key,
 };
-use plurimus_ui::UiArea;
-use plurimus_widgets::{TextChanged, TextEditor, WidgetsPlugin, text_editor};
+use plurimus_ui::{Key, KeyBinding, UiArea};
+use plurimus_widgets::{
+    TextChanged, TextEditor, TextEditorAction, TextEditorKeys, WidgetsPlugin, text_editor,
+};
 
 #[derive(Resource, Default)]
 struct Changes(usize);
@@ -46,6 +48,10 @@ fn ctrl_key(app: &mut App, code: KeyCode) {
 // The kitty-tier spelling of the same chord, modifier key and all.
 fn ctrl_chord(app: &mut App, character: char) {
     press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
+}
+
+fn ctrl_letter(letter: &str) -> KeyBinding {
+    KeyBinding::new(Key::Character(letter.into())).with_ctrl()
 }
 
 fn select_from_home(app: &mut App, count: usize) {
@@ -112,9 +118,9 @@ fn ctrl_undo_from_real_modifier_keys() {
     let mut app = app();
     let editor = editor_typed_ab(&mut app);
 
-    ctrl_chord(&mut app, 'u');
+    ctrl_chord(&mut app, 'z');
 
-    assert_eq!(lines_of(&app, editor), ["a"], "ctrl+u undoes, inserts no u");
+    assert_eq!(lines_of(&app, editor), ["a"], "ctrl+z undoes, inserts no z");
 }
 
 #[test]
@@ -123,9 +129,9 @@ fn ctrl_undo_from_synthesized_modifiers() {
     app.insert_resource(InputCapabilities::none());
     let editor = editor_typed_ab(&mut app);
 
-    ctrl_key(&mut app, KeyCode::Char('u'));
+    ctrl_key(&mut app, KeyCode::Char('z'));
 
-    assert_eq!(lines_of(&app, editor), ["a"], "ctrl+u undoes, inserts no u");
+    assert_eq!(lines_of(&app, editor), ["a"], "ctrl+z undoes, inserts no z");
 }
 
 #[test]
@@ -260,32 +266,25 @@ fn a_copy_in_one_editor_pastes_into_another() {
     assert_eq!(lines_of(&app, source), ["abcd"], "the source is untouched");
 }
 
-#[test]
-fn ctrl_v_pastes_rather_than_paging() {
-    let mut app = app();
-    let editor = spawn_editor(&mut app, "abcd");
-    select_from_home(&mut app, 2);
-    ctrl_chord(&mut app, 'c');
-    press_key(&mut app, KeyCode::End);
-
-    ctrl_chord(&mut app, 'v');
-
-    assert_eq!(lines_of(&app, editor), ["abcdab"]);
-}
-
-// The app clipboard and the engine's kill ring stay separate: ctrl+y takes
-// what ctrl+k killed, not the older copy. Any design that fed the shared
+// The app clipboard and the engine's kill ring stay separate: a yank takes
+// what the kill took, not the older copy. Any design that fed the shared
 // buffer into the engine's own yank would paste "ab" here.
 #[test]
 fn a_kill_still_yanks_what_it_killed() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "abcd");
+    let mut keys = TextEditorKeys::default();
+    keys.0.extend([
+        (ctrl_letter("k"), TextEditorAction::DeleteToLineEnd),
+        (ctrl_letter("u"), TextEditorAction::Yank),
+    ]);
+    app.world_mut().entity_mut(editor).insert(keys);
     select_from_home(&mut app, 2);
     ctrl_chord(&mut app, 'c');
 
     press_key(&mut app, KeyCode::Home);
     ctrl_chord(&mut app, 'k');
-    ctrl_chord(&mut app, 'y');
+    ctrl_chord(&mut app, 'u');
 
     assert_eq!(
         lines_of(&app, editor),

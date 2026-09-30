@@ -67,8 +67,8 @@ pub use table::{
     table_row,
 };
 pub use text::{
-    EditableText, Submit, TextChanged, TextEditor, TextInput, TextInputAction, TextInputKeys,
-    TextMask, editable_text, text_editor,
+    EditableText, Submit, TextChanged, TextEditor, TextEditorAction, TextEditorKeys, TextInput,
+    TextInputAction, TextInputKeys, TextMask, editable_text, text_editor,
 };
 
 pub(crate) use activate::{widget_click, widget_key};

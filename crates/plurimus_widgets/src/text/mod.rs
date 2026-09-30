@@ -15,6 +15,7 @@
 
 mod edit;
 mod editor;
+mod editor_keys;
 mod field;
 mod grapheme;
 mod input;
@@ -23,6 +24,7 @@ mod state;
 mod word;
 
 pub use editor::{TextChanged, TextEditor, text_editor};
+pub use editor_keys::{TextEditorAction, TextEditorKeys};
 pub use input::{EditableText, Submit, TextMask, editable_text};
 pub use keys::{TextInputAction, TextInputKeys};
 pub use state::TextInput;

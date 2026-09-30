@@ -17,19 +17,21 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
-use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
-use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
+use plurimus_term::{LastCopied, PasteMessage, TerminalRequest};
+use ratatui_textarea::{CursorMove, DataCursor, TextArea};
 
+use super::editor_keys::{TextEditorAction, TextEditorKeys};
 use super::grapheme::{cluster_len_after, cluster_len_before};
+use super::keys::unbound_text;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{ComputedDisabled, Hovered};
+use plurimus_ui::{ComputedDisabled, Hovered, first_bound};
 use plurimus_ui::{ScrollBy, WheelReceptive};
 
 use plurimus_ui::LiveWidget;
@@ -39,30 +41,29 @@ use plurimus_ui::LiveWidget;
 /// widget rebuild. Edits emit [`TextChanged`]; read content via
 /// [`TextEditor::lock`].
 ///
-/// Keys are dispatched through ratatui-textarea's default keymap, so its
-/// emacs-flavored modifier bindings apply: ctrl+u undo, ctrl+r redo,
-/// ctrl+y paste, shift+arrow selection. Tab is withheld for focus
-/// navigation.
+/// Keys come from [`TextEditorKeys`], not the engine's own emacs keymap:
+/// a bound key applies its [`TextEditorAction`] and is consumed whether or
+/// not it changed anything, an unbound unchorded character types itself,
+/// and an unbound chord propagates. Tab is unbound by default, left to
+/// focus navigation.
 ///
-/// ctrl+c, ctrl+x and ctrl+v are taken over rather than forwarded. Copy and
-/// cut act as the engine would and also ask the terminal for the text
-/// through [`TerminalRequest`], so a copy leaves the app; neither sends
+/// Copy and cut act as the engine would and also ask the terminal for the
+/// text through [`TerminalRequest`], so a copy leaves the app; neither sends
 /// anything when there is no selection. Whether it reaches a system
 /// clipboard is the backend's business - `plurimus_crossterm` writes none
-/// until asked - but it always reaches [`LastCopied`], and ctrl+v inserts
+/// until asked - but it always reaches [`LastCopied`], and paste inserts
 /// from there, so a copy in one editor is a paste in another.
 ///
-/// ctrl+v therefore means the app's clipboard and ctrl+y the engine's own
-/// kill ring, which ctrl+k and ctrl+w fill. They are deliberately separate:
-/// a copy anywhere in the app would otherwise displace a kill the user has
-/// not yet put back.
+/// Paste therefore means the app's clipboard, and
+/// [`Yank`](TextEditorAction::Yank) the engine's own kill ring, which the
+/// line and word deletions fill. They are deliberately separate: a copy
+/// anywhere in the app would otherwise displace a kill the user has not yet
+/// put back.
 ///
-/// Movement and deletion step whole grapheme clusters, but the engine
-/// records one history entry per scalar, so undoing a deleted multi-scalar
-/// cluster restores it one scalar at a time. Its emacs aliases (ctrl+h,
-/// ctrl+d) and selection-extending motions remain scalar-granular.
+/// Movement and deletion step whole grapheme clusters, and a deleted cluster
+/// is one edit to undo.
 #[derive(Component, Clone)]
-#[require(Hovered, WheelReceptive, LiveWidget)]
+#[require(Hovered, WheelReceptive, LiveWidget, TextEditorKeys)]
 pub struct TextEditor(Arc<Mutex<TextArea<'static>>>);
 
 impl TextEditor {
@@ -113,99 +114,153 @@ pub(crate) struct Clipboard<'w> {
 pub(crate) fn text_editor_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    editors: Query<&TextEditor, Without<ComputedDisabled>>,
+    editors: Query<(&TextEditor, &TextEditorKeys), Without<ComputedDisabled>>,
     mut clipboard: Clipboard,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;
-    let Ok(editor) = editors.get(entity) else {
+    let Ok((editor, keys)) = editors.get(entity) else {
         return;
     };
     if input.input.state != ButtonState::Pressed {
         return;
     }
     let held = held.get();
-    if let Some(action) = clipboard_action(&input.input.logical_key, held) {
-        input.propagate(false);
-        if apply_clipboard(&mut editor.lock(), action, &mut clipboard) {
-            commands.trigger(TextChanged { entity });
-        }
+    let bound = first_bound(&keys.0, &input.input, held);
+    let typed = unbound_text(&input.input.logical_key, held);
+    if bound.is_none() && typed.is_none() {
         return;
     }
-    let Some(edit) = editor_input(&input.input.logical_key, held) else {
-        return;
+    let mut area = editor.lock();
+    let edited = match bound {
+        Some(action) => apply(&mut area, action, &mut clipboard),
+        None => typed.is_some_and(|text| area.insert_str(text)),
     };
     input.propagate(false);
-    let mut area = editor.lock();
-    let mut edited = false;
-    for _ in 0..cluster_steps(&area, &edit) {
-        edited |= area.input(edit.clone());
-    }
     if edited {
         commands.trigger(TextChanged { entity });
     }
 }
 
-/// What a clipboard chord asks for, taken over from textarea's keymap so
-/// the text also reaches the terminal.
-#[derive(Debug, Clone, Copy)]
-enum ClipboardAction {
-    Copy,
-    Cut,
-    Paste,
-}
-
-/// The modifier test mirrors textarea's own, which requires ctrl without
-/// alt; matching it loosely would claim chords the engine would have
-/// handled differently.
-fn clipboard_action(key: &Key, held: KeyModifiers) -> Option<ClipboardAction> {
-    let Key::Character(chars) = key else {
-        return None;
-    };
-    if !held.ctrl || held.alt {
-        return None;
-    }
-    match chars.as_str() {
-        "c" => Some(ClipboardAction::Copy),
-        "x" => Some(ClipboardAction::Cut),
-        // The engine spends ctrl+v on page-down, which the PageDown key
-        // already reaches; the paste every user expects is worth more.
-        "v" => Some(ClipboardAction::Paste),
-        _ => None,
-    }
-}
-
-/// Applies the chord and reports whether the text changed.
-fn apply_clipboard(
+/// Applies `action` and reports whether the text changed.
+fn apply(
     area: &mut TextArea<'static>,
-    action: ClipboardAction,
+    action: TextEditorAction,
     clipboard: &mut Clipboard,
 ) -> bool {
     match action {
-        // `copy` cancels the selection and reports nothing, so whether
-        // there was one has to be asked before the call rather than after.
-        ClipboardAction::Copy => {
-            if area.is_selecting() {
-                area.copy();
-                offer_yank(area, &mut clipboard.requests);
-            }
+        TextEditorAction::Move(motion) => {
+            area.cancel_selection();
+            step(area, motion);
             false
         }
-        ClipboardAction::Cut => {
-            let cut = area.cut();
-            if cut {
-                offer_yank(area, &mut clipboard.requests);
-            }
-            cut
+        TextEditorAction::Select(motion) => {
+            select(area, motion);
+            false
         }
-        // `insert_str` is `paste` with the text supplied rather than taken
-        // from the engine's yank, which is what keeps a kill intact.
-        ClipboardAction::Paste => clipboard
-            .copied
-            .0
-            .as_deref()
-            .is_some_and(|text| area.insert_str(text)),
+        TextEditorAction::Scroll(scrolling) => {
+            area.cancel_selection();
+            area.scroll(scrolling);
+            false
+        }
+        TextEditorAction::Newline => {
+            area.insert_newline();
+            true
+        }
+        TextEditorAction::InsertTab => area.insert_tab(),
+        TextEditorAction::Backspace => {
+            delete_cluster(area, CursorMove::Back, TextArea::delete_char)
+        }
+        TextEditorAction::Delete => {
+            delete_cluster(area, CursorMove::Forward, TextArea::delete_next_char)
+        }
+        TextEditorAction::DeleteWord => area.delete_word(),
+        TextEditorAction::DeleteNextWord => area.delete_next_word(),
+        TextEditorAction::DeleteToLineEnd => area.delete_line_by_end(),
+        TextEditorAction::DeleteToLineHead => area.delete_line_by_head(),
+        TextEditorAction::Undo => area.undo(),
+        TextEditorAction::Redo => area.redo(),
+        TextEditorAction::Yank => area.paste(),
+        TextEditorAction::Copy => copy(area, clipboard),
+        TextEditorAction::Cut => cut(area, clipboard),
+        TextEditorAction::Paste => paste(area, clipboard),
+        TextEditorAction::SelectAll => {
+            area.select_all();
+            false
+        }
+        TextEditorAction::CancelSelection => {
+            area.cancel_selection();
+            false
+        }
     }
+}
+
+/// Moves by `motion`, across a whole grapheme cluster where the engine
+/// steps one scalar.
+fn step(area: &mut TextArea<'static>, motion: CursorMove) {
+    for _ in 0..cluster_steps(area, motion) {
+        area.move_cursor(motion);
+    }
+}
+
+/// Extends the selection by `motion`, starting one if there is none -
+/// unless the cursor could not move, so no empty selection is left behind.
+fn select(area: &mut TextArea<'static>, motion: CursorMove) {
+    if area.is_selecting() {
+        step(area, motion);
+        return;
+    }
+    let before = area.cursor();
+    area.start_selection();
+    step(area, motion);
+    if area.cursor() == before {
+        area.cancel_selection();
+    }
+}
+
+/// Deletes the selection, or selects the cluster `motion` crosses and
+/// deletes that, so the engine records the cluster as one edit.
+///
+/// `delete` has to be the engine's deletion in the same direction: an empty
+/// selection, left where `motion` could not move, falls through to it.
+fn delete_cluster(
+    area: &mut TextArea<'static>,
+    motion: CursorMove,
+    delete: fn(&mut TextArea<'static>) -> bool,
+) -> bool {
+    if !area.is_selecting() {
+        area.start_selection();
+        step(area, motion);
+    }
+    delete(area)
+}
+
+// `copy` cancels the selection and reports nothing, so whether there was
+// one has to be asked before the call rather than after.
+fn copy(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
+    if area.is_selecting() {
+        area.copy();
+        offer_yank(area, &mut clipboard.requests);
+    }
+    false
+}
+
+fn cut(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
+    let cut = area.cut();
+    if cut {
+        offer_yank(area, &mut clipboard.requests);
+    }
+    cut
+}
+
+// `insert_str` is `paste` with the text supplied rather than taken from the
+// engine's yank, which is what keeps a kill intact.
+fn paste(area: &mut TextArea<'static>, clipboard: &Clipboard) -> bool {
+    clipboard
+        .copied
+        .0
+        .as_deref()
+        .is_some_and(|text| area.insert_str(text))
 }
 
 /// Sends what the engine just yanked to the terminal, unless it is empty -
@@ -217,53 +272,20 @@ fn offer_yank(area: &TextArea<'static>, requests: &mut MessageWriter<TerminalReq
     }
 }
 
-/// How many scalar steps one engine input should repeat for.
+/// How many engine steps of `motion` cross one grapheme cluster.
 ///
 /// Never zero: the engine owns line wrapping and joining at column edges.
-/// Never above one while selecting: the first input eats the whole
-/// selection. The ctrl/alt check mirrors textarea's keymap; if that moves
-/// upstream this degrades to scalar stepping, wrong on screen but never
-/// damaging text.
-fn cluster_steps(area: &TextArea<'static>, edit: &Input) -> usize {
-    let deletes = matches!(edit.key, EditorKey::Backspace | EditorKey::Delete);
-    if edit.ctrl || edit.alt || (deletes && area.is_selecting()) {
-        return 1;
-    }
+fn cluster_steps(area: &TextArea<'static>, motion: CursorMove) -> usize {
     let DataCursor(row, column) = area.cursor();
     let Some(line) = area.lines().get(row) else {
         return 1;
     };
-    let steps = match edit.key {
-        EditorKey::Left | EditorKey::Backspace => cluster_len_before(line, column),
-        EditorKey::Right | EditorKey::Delete => cluster_len_after(line, column),
+    let steps = match motion {
+        CursorMove::Back => cluster_len_before(line, column),
+        CursorMove::Forward => cluster_len_after(line, column),
         _ => return 1,
     };
     steps.max(1)
-}
-
-fn editor_input(key: &Key, held: KeyModifiers) -> Option<Input> {
-    let key = match key {
-        Key::Character(chars) => EditorKey::Char(chars.chars().next()?),
-        Key::Space => EditorKey::Char(' '),
-        Key::Enter => EditorKey::Enter,
-        Key::Backspace => EditorKey::Backspace,
-        Key::Delete => EditorKey::Delete,
-        Key::ArrowLeft => EditorKey::Left,
-        Key::ArrowRight => EditorKey::Right,
-        Key::ArrowUp => EditorKey::Up,
-        Key::ArrowDown => EditorKey::Down,
-        Key::Home => EditorKey::Home,
-        Key::End => EditorKey::End,
-        Key::PageUp => EditorKey::PageUp,
-        Key::PageDown => EditorKey::PageDown,
-        _ => return None,
-    };
-    Some(Input {
-        key,
-        ctrl: held.ctrl,
-        alt: held.alt,
-        shift: held.shift,
-    })
 }
 
 pub(crate) fn text_editor_paste(

@@ -11,7 +11,7 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus_term::KeyModifiers;
 use plurimus_ui::first_bound;
 
-use super::keys::{TextInputAction, TextInputKeys};
+use super::keys::{TextInputAction, TextInputKeys, unbound_text};
 use super::state::TextInput;
 use super::word::{word_end_forward, word_start_backward, word_start_forward};
 
@@ -62,9 +62,6 @@ impl TextInput {
     pub(crate) fn apply(&mut self, action: TextInputAction) {
         let cursor = self.cursor();
         match action {
-            // Word bindings mirror TextEditor's, whose engine binds
-            // ctrl+arrows to word motion and alt+Backspace/Delete to word
-            // deletion.
             TextInputAction::WordLeft => self.move_to(word_start_backward(self.value(), cursor)),
             TextInputAction::WordRight => self.move_to(word_start_forward(self.value(), cursor)),
             TextInputAction::WordBackspace => {
@@ -83,21 +80,11 @@ impl TextInput {
         }
     }
 
-    /// What an unbound key types, which is nothing unless it is an unchorded
-    /// character.
-    ///
-    /// Shift is not a chord: the kitty protocol reports a shifted letter with
-    /// the bit set, so blocking it would stop capitals.
     fn insert_unbound(&mut self, key: &Key, held: KeyModifiers) -> bool {
-        let chorded = held.ctrl || held.alt || held.super_key || held.hyper || held.meta;
-        if chorded {
+        let Some(text) = unbound_text(key, held) else {
             return false;
-        }
-        match key {
-            Key::Character(characters) => characters.chars().for_each(|c| self.insert(c)),
-            Key::Space => self.insert(' '),
-            _ => return false,
-        }
+        };
+        text.chars().for_each(|c| self.insert(c));
         true
     }
 
