@@ -90,9 +90,8 @@ fn cursor_span(value: &str, cursor: usize) -> (u16, u16) {
     (column, 1)
 }
 
-/// `value` drawn as one `mask` per grapheme cluster, and `cursor` mapped
-/// onto it: a multi-scalar cluster becomes a single char, so the cursor
-/// counts the clusters before it rather than the chars.
+/// One `mask` per grapheme cluster. The cursor is a char index, and a
+/// multi-scalar cluster masks to one char, so it maps to a cluster count.
 pub(super) fn mask_value(value: &str, cursor: usize, mask: char) -> (String, usize) {
     let masked = value.graphemes(true).map(|_| mask).collect();
     let masked_cursor = value[..char_to_byte(value, cursor)].graphemes(true).count();
