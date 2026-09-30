@@ -39,8 +39,9 @@ pub use cursor::WidgetCursor;
 pub use focus::FocusWithin;
 pub use interaction::ValueChange;
 pub use interaction::{
-    Checked, Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerCancel, PointerDrag,
-    PointerPress, PointerRelease, PressFocusDisabled, PressPassThrough, Pressed,
+    Checked, Click, ComputedDisabled, ComputedWidgetArea, Hovered, InteractionDisabled,
+    PointerCancel, PointerDrag, PointerPress, PointerRelease, PressFocusDisabled, PressPassThrough,
+    Pressed,
 };
 pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
@@ -80,7 +81,8 @@ use plurimus_term::InputSystems;
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum UiSystems {
-    /// Widget screen areas are attached and computed.
+    /// Widget screen areas are attached and computed, and
+    /// [`ComputedDisabled`] is resolved.
     Areas,
     /// Hover state resolves from the cursor.
     Hover,
@@ -118,6 +120,7 @@ impl Plugin for UiPlugin {
                 )
                     .chain()
                     .in_set(UiSystems::Areas),
+                interaction::propagate_disabled.in_set(UiSystems::Areas),
                 interaction::hover_widgets.in_set(UiSystems::Hover),
                 (
                     nav::build_navigation_map,

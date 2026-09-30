@@ -8,7 +8,7 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_test::click;
+use plurimus_test::{click, press_at};
 use plurimus_ui::{Checked, InteractionDisabled, PressFocusDisabled, UiArea, ValueChange};
 use plurimus_widgets::{WidgetsPlugin, tab_bar, tab_bar_self_update, tab_item};
 
@@ -72,6 +72,19 @@ fn a_click_activates_the_item_and_focuses_the_bar() {
     assert_eq!(focused(&app), Some(bar.bar));
     assert!(app.world().get::<Checked>(bar.items[0]).is_some());
     assert!(app.world().get::<Checked>(bar.items[1]).is_none());
+}
+
+// An item has no TabIndex, so the press walks up to the bar: focus moves
+// on the way down, as it does for any other press.
+#[test]
+fn a_press_on_an_item_focuses_the_bar_before_the_release() {
+    let mut app = app();
+    let bar = spawn_bar(&mut app);
+
+    press_at(&mut app, 1, 0);
+
+    assert_eq!(focused(&app), Some(bar.bar));
+    assert!(activated(&app).is_empty());
 }
 
 #[test]

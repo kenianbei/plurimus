@@ -78,16 +78,21 @@ than each deriving: `ComputedUiCamera` is resolved once a frame in
 `CameraSystems::PropagateCameras` as the widget's own `UiCamera`, else the
 nearest ancestor's, else the default - so a child sits on its parent's camera
 without being told, and forgetting to say stops being a silent misplacement.
-`UiArea` requires it, local to what being half of where; `CameraViewports`
-carries a camera to its viewport with the same default fallback, and
-`local_area` is `resolve_area`'s inverse, for a crate holding a screen rect that
-has to be stored camera-locally. `PresenterPlugin<B>` diffs the composed frame
-and writes changed cells through any ratatui-core `Backend`, and applies
-`TerminalCursor` - the terminal's own caret, which a screen reader follows and
-an input method anchors to - outside that diff, because a caret crossing a cell
-changes no cell's content and the diff skips a frame where nothing differs.
-Position and visibility go through `Backend`; the shape is a backend's to serve.
-Re-exports `ratatui_core`.
+Whether it draws at all is agreed the same way: `UiHidden` hides everything
+beneath it, and `ComputedHidden` marks what it reaches, resolved downward from
+each carrier - once in `PropagateCameras` so input routes against it, and again
+in `Last` so a subtree hidden during the frame is not drawn by it. Every reader
+reads the computed marker, which is what lets a popover or a menu be hidden by
+its root alone. `UiArea` requires it, local to what being half of where;
+`CameraViewports` carries a camera to its viewport with the same default
+fallback, and `local_area` is `resolve_area`'s inverse, for a crate holding a
+screen rect that has to be stored camera-locally. `PresenterPlugin<B>` diffs the
+composed frame and writes changed cells through any ratatui-core `Backend`, and
+applies `TerminalCursor` - the terminal's own caret, which a screen reader
+follows and an input method anchors to - outside that diff, because a caret
+crossing a cell changes no cell's content and the diff skips a frame where
+nothing differs. Position and visibility go through `Backend`; the shape is a
+backend's to serve. Re-exports `ratatui_core`.
 
 ### plurimus_term
 
@@ -230,14 +235,20 @@ releases without clicking - while wheel ticks still fall through it, consuming
 being that router's own opt-in; `PressPassThrough` is press transparency, the
 widget keeping its area for everything but the press; and `PressFocusDisabled`
 suppresses only the focus a press would move, so a toolbar control is
-tab-reachable without a click on it taking the keyboard - focus otherwise
-follows a press to any `TabIndex` carrier. Every press also carries how many
-have run together on it, `PointerPress`, the `Pressed` it leaves on the widget,
-and the `Click` completing it all reporting the same number. The run behind it
-is this crate's own and private, because every fact keying it is this router's:
-which widget the press reached, and whether it reached one at all - a press that
-dismissed an overlay or that a disabled widget absorbed ends the run rather than
-counting, so the next press starts over rather than arriving as a second. Only
+tab-reachable without a click on it taking the keyboard. Disabled reaches a
+widget's descendants as hidden does, through `ComputedDisabled`, resolved in
+`Areas` and read on every input path and by the stylists alike, so a disabled
+container is inert inside rather than merely drawn so. Focus otherwise follows a
+press to the first `TabIndex` carrier at or above what it lands on - a part of a
+widget focuses the widget - stopping at `PressFocusDisabled`, whose promise
+covers what is inside it, and at an open overlay's root, whose opener lies
+outside it. Every press also carries how many have run together on it,
+`PointerPress`, the `Pressed` it leaves on the widget, and the `Click`
+completing it all reporting the same number. The run behind it is this crate's
+own and private, because every fact keying it is this router's: which widget the
+press reached, and whether it reached one at all - a press that dismissed an
+overlay or that a disabled widget absorbed ends the run rather than counting, so
+the next press starts over rather than arriving as a second. Only
 `plurimus_term`'s `MultiClickWindow` bounds it from outside. The count rests on
 `Pressed` for the length of the gesture because a gesture outlives the message
 that started it: a same-batch release reads it from the router's own list, since
@@ -393,24 +404,23 @@ key, a `Select(index)` over the enabled items, or a `Click` on an item - is one
 `ValueChange<Entity>` on the bar, which `tab_bar_self_update` answers by moving
 `Checked` through the same `move_checked_among` a radio group uses. A `Select`
 past the last item and a key on a disabled bar propagate; a disabled item is
-stepped over and drawn disabled, as every item of a disabled bar is. A click
-hands focus to the bar itself, because a press focuses only the entity it lands
-on and an item has no `TabIndex`; `PressFocusDisabled` on the bar keeps it.
-`TabBarLook` is composable fields rather than variants - `orientation`,
-`border`, `divider`, `padding`, `joined` - and `thickness()` is one cell or
-three. The bar draws chrome and each item draws itself: the bar's stylist fills
-its area, draws the divider in each gap and, when `joined` names an edge across
-the bar's axis in a border that has a `line::Set`, a baseline along that edge;
-it redraws on `ContentDirty`, marked by `mark_dirty_content` when an item's
-rect, the children or the look change. An item's stylist reads the parent's look
-and active style and hashes the bar's focus into its cache, since an item never
-holds focus itself, and resolves the active item as focused while the bar is,
-patching `TabBarActiveStyle` over the theme and beneath the item's own
-`UiStyle`, frame and label alike. A boxed item is a `Block` with ratatui's
-padding; on a joined look the active box clears its joined edge and turns its
-two corners outward while every closed box tees its corners into the baseline,
-glyphs taken from the `line::Set` matching the `BorderType`, which is why the
-quadrant borders draw closed.
+stepped over and drawn disabled, as every item of a disabled bar is. An item has
+no `TabIndex`, so a press on one focuses the bar, the nearest ancestor that
+does; `PressFocusDisabled` on the bar keeps it. `TabBarLook` is composable
+fields rather than variants - `orientation`, `border`, `divider`, `padding`,
+`joined` - and `thickness()` is one cell or three. The bar draws chrome and each
+item draws itself: the bar's stylist fills its area, draws the divider in each
+gap and, when `joined` names an edge across the bar's axis in a border that has
+a `line::Set`, a baseline along that edge; it redraws on `ContentDirty`, marked
+by `mark_dirty_content` when an item's rect, the children or the look change. An
+item's stylist reads the parent's look and active style and hashes the bar's
+focus into its cache, since an item never holds focus itself, and resolves the
+active item as focused while the bar is, patching `TabBarActiveStyle` over the
+theme and beneath the item's own `UiStyle`, frame and label alike. A boxed item
+is a `Block` with ratatui's padding; on a joined look the active box clears its
+joined edge and turns its two corners outward while every closed box tees its
+corners into the baseline, glyphs taken from the `line::Set` matching the
+`BorderType`, which is why the quadrant borders draw closed.
 
 A stylist rebuilds a widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the
 state it last drew differs from the current one, or when its label changed, not

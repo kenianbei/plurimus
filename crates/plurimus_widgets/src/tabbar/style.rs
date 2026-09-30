@@ -24,7 +24,7 @@ use super::boxed::{Boxed, Joint};
 use super::{TabBar, TabBarActiveStyle, TabBarLook, TabBarOrientation, TabItem};
 use crate::rows::ContentDirty;
 use plurimus_core::UiWidget;
-use plurimus_ui::{ComputedWidgetArea, InteractionDisabled, UiLabel, UiStyle, UiTheme};
+use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, UiLabel, UiStyle, UiTheme};
 use plurimus_ui::{InteractionState, StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 pub(crate) type TabItemsChanged = Changed<ComputedWidgetArea>;
@@ -37,7 +37,7 @@ type Bars<'w, 's> = Query<
     (
         Entity,
         &'static TabBarLook,
-        Has<InteractionDisabled>,
+        Has<ComputedDisabled>,
         Option<&'static UiStyle>,
         &'static ComputedWidgetArea,
         &'static Children,
@@ -164,16 +164,8 @@ type Items<'w, 's> = Query<
     Stylable<TabItem>,
 >;
 
-type ParentBars<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Ref<'static, TabBarLook>,
-        Ref<'static, TabBarActiveStyle>,
-        Has<InteractionDisabled>,
-    ),
-    With<TabBar>,
->;
+type ParentBars<'w, 's> =
+    Query<'w, 's, (Ref<'static, TabBarLook>, Ref<'static, TabBarActiveStyle>), With<TabBar>>;
 
 pub(crate) fn style_tab_items(
     theme: Res<UiTheme>,
@@ -181,26 +173,11 @@ pub(crate) fn style_tab_items(
     mut items: Items,
     bars: ParentBars,
 ) {
-    for (
-        (entity, hovered, pressed, disabled, checked, over),
-        label,
-        parent,
-        mut cache,
-        mut widget,
-    ) in &mut items
-    {
-        let Ok((look, active, bar_disabled)) = bars.get(parent.parent()) else {
+    for (state @ (.., over), label, parent, mut cache, mut widget) in &mut items {
+        let Ok((look, active)) = bars.get(parent.parent()) else {
             continue;
         };
         let bar_focused = focus.get() == Some(parent.parent());
-        let state = (
-            entity,
-            hovered,
-            pressed,
-            disabled || bar_disabled,
-            checked,
-            over,
-        );
         let next = observed(state, &focus, hashed_bits(bar_focused));
         let dirty =
             theme.is_changed() || label.is_changed() || look.is_changed() || active.is_changed();

@@ -26,7 +26,7 @@ use super::ValueChange;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{
-    ComputedWidgetArea, Hovered, InteractionDisabled, PointerCancel, PointerDrag, PointerPress,
+    ComputedDisabled, ComputedWidgetArea, Hovered, PointerCancel, PointerDrag, PointerPress,
     PointerRelease, UiTheme,
 };
 use plurimus_ui::{KeyBinding, first_bound};
@@ -213,7 +213,7 @@ pub(crate) fn slider_key(
     held: HeldModifiers,
     sliders: Query<
         (&SliderValue, &SliderRange, &SliderStep, &SliderKeys),
-        (With<Slider>, Without<InteractionDisabled>),
+        (With<Slider>, Without<ComputedDisabled>),
     >,
     mut commands: Commands,
 ) {

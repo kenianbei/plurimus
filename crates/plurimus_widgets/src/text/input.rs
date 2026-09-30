@@ -23,7 +23,7 @@ use super::state::TextInput;
 use crate::ValueChange;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{Hovered, InteractionDisabled, UiTheme, first_bound};
+use plurimus_ui::{ComputedDisabled, Hovered, UiTheme, first_bound};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A single-line editable text field. Edits mutate [`TextInput`] directly
@@ -75,7 +75,7 @@ pub(crate) fn text_input_key(
     held: HeldModifiers,
     mut fields: Query<
         (&mut TextInput, &TextInputKeys),
-        (With<EditableText>, Without<InteractionDisabled>),
+        (With<EditableText>, Without<ComputedDisabled>),
     >,
     mut commands: Commands,
 ) {
@@ -113,7 +113,7 @@ fn emit(field: Entity, text: &TextInput, is_final: bool, commands: &mut Commands
 
 pub(crate) fn text_input_paste(
     mut input: On<FocusedInput<PasteMessage>>,
-    mut fields: Query<&mut TextInput, (With<EditableText>, Without<InteractionDisabled>)>,
+    mut fields: Query<&mut TextInput, (With<EditableText>, Without<ComputedDisabled>)>,
     mut commands: Commands,
 ) {
     let field = input.focused_entity;

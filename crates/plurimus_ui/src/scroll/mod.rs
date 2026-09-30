@@ -20,7 +20,7 @@ use plurimus_term::{MouseKind, MouseMessage};
 use tui_scrollview::ScrollbarVisibility;
 
 use crate::interaction::{
-    AreaTargetQuery, ComputedWidgetArea, InteractionDisabled, ValueChange, topmost_at,
+    AreaTargetQuery, ComputedDisabled, ComputedWidgetArea, ValueChange, topmost_at,
 };
 use crate::modal::ModalGuard;
 
@@ -157,9 +157,10 @@ pub struct ScrollIntoView {
 
 /// Marks a widget as a wheel target. Every receptive widget under the
 /// cursor is arbitrated by z-order and only the topmost is sent a
-/// [`ScrollBy`], so stacked widgets never both scroll. Widgets with
-/// [`InteractionDisabled`] are skipped, and the tick falls through to the
-/// next receptive widget beneath.
+/// [`ScrollBy`], so stacked widgets never both scroll. Widgets disabled
+/// by [`InteractionDisabled`](crate::InteractionDisabled), their own or an
+/// ancestor's, are skipped, and the tick falls through to the next
+/// receptive widget beneath.
 ///
 /// Wheel arbitration only: a scroll addressed to a widget by any other
 /// route reaches it without consulting this.
@@ -242,7 +243,7 @@ impl ScrollBy {
 // tick is this router's own opt-in, and a disabled widget consuming
 // nothing is the same as an axis it cannot scroll.
 type WheelTargetQuery<'w, 's> =
-    AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<InteractionDisabled>)>;
+    AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<ComputedDisabled>)>;
 
 /// Everything a wheel tick routes against beside the modal state.
 #[derive(SystemParam)]

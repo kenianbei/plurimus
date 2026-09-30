@@ -7,12 +7,13 @@
 //! observe rather than raw mouse messages.
 
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, Has, Query, Res, With, Without};
+use bevy_ecs::entity::{Entity, EntityHashSet};
+use bevy_ecs::hierarchy::Children;
+use bevy_ecs::prelude::{Commands, Component, EntityEvent, Has, Local, Query, Res, With, Without};
 use bevy_ecs::query::QueryFilter;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
-    CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
+    CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiOrder, UiWidget, resolve_area,
 };
 use plurimus_term::CursorCell;
 
@@ -40,7 +41,9 @@ impl Default for Pressed {
     }
 }
 
-/// Disables all interaction with the widget.
+/// Disables all interaction with the widget and everything beneath it
+/// through `ChildOf`. What is disabled by an ancestor carries
+/// [`ComputedDisabled`], which is what every input path reads.
 ///
 /// A disabled widget is inert, not invisible: it still wins press
 /// arbitration and absorbs the press - no event, no focus movement, and
@@ -51,6 +54,38 @@ impl Default for Pressed {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct InteractionDisabled;
 
+/// Present on every entity disabled by its own [`InteractionDisabled`] or
+/// an ancestor's.
+///
+/// Resolved in [`UiSystems::Areas`](crate::UiSystems::Areas), before focus
+/// dispatch and the pointer router read it, so what is disabled later in a
+/// frame takes effect from the next one. Read it rather than write it: the
+/// resolver removes it from whatever no [`InteractionDisabled`] reaches.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ComputedDisabled;
+
+pub(crate) fn propagate_disabled(
+    roots: Query<Entity, With<InteractionDisabled>>,
+    children: Query<&Children>,
+    marked: Query<Entity, With<ComputedDisabled>>,
+    mut reached: Local<EntityHashSet>,
+    mut commands: Commands,
+) {
+    reached.clear();
+    for root in &roots {
+        reached.insert(root);
+        reached.extend(children.iter_descendants(root));
+    }
+    for entity in &marked {
+        if !reached.remove(&entity) {
+            commands.entity(entity).try_remove::<ComputedDisabled>();
+        }
+    }
+    for entity in reached.drain() {
+        commands.entity(entity).try_insert(ComputedDisabled);
+    }
+}
+
 /// Exempts the widget from press hit-testing: a press lands on whatever
 /// is beneath it. Presses only - the widget keeps its area for hover, the
 /// wheel, and navigation. On a widget with [`InteractionDisabled`], this
@@ -58,11 +93,16 @@ pub struct InteractionDisabled;
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressPassThrough;
 
-/// Keeps a press on the widget from moving focus, while the press itself
-/// still lands - [`Pressed`], [`PointerDrag`], [`Click`] all arrive. For a
-/// toolbar control beside an editor: tab-reachable through its `TabIndex`,
-/// but a click on it leaves the keyboard - and any armed selection - where
-/// they were.
+/// Keeps a press on the widget, or on anything inside it, from moving
+/// focus, while the press itself still lands - [`Pressed`], [`PointerDrag`],
+/// [`Click`] all arrive. For a toolbar control beside an editor:
+/// tab-reachable through its `TabIndex`, but a click on it leaves the
+/// keyboard - and any armed selection - where they were.
+///
+/// A press otherwise focuses the first `TabIndex` carrier at or above what
+/// it lands on through `ChildOf`, so a part of a widget - a tab of a tab
+/// bar - focuses the widget. The search stops here, and at an open overlay's
+/// [`ModalOpen`](crate::ModalOpen) root, whose opener lies outside it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressFocusDisabled;
 
@@ -249,7 +289,7 @@ pub(crate) fn compute_widget_areas(
         &UiArea,
         &ComputedUiCamera,
         &mut ComputedWidgetArea,
-        Has<UiHidden>,
+        Has<ComputedHidden>,
     )>,
 ) {
     for (area, target, mut computed, hidden) in &mut widgets {

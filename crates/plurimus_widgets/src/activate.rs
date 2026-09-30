@@ -22,7 +22,7 @@ use plurimus_term::bevy_compat::HeldModifiers;
 use crate::button::Button;
 use crate::checkbox::Checkbox;
 use crate::radio::{RadioButton, RadioGroup};
-use plurimus_ui::{Checked, Click, InteractionDisabled, KeyBinding, ValueChange};
+use plurimus_ui::{Checked, Click, ComputedDisabled, KeyBinding, ValueChange};
 
 /// The widget was activated (a click, or a key in [`ActivateKeys`]).
 #[derive(EntityEvent, Debug, Clone, Copy)]
@@ -57,9 +57,9 @@ fn is_fresh_press(input: &KeyboardInput) -> bool {
 
 #[derive(SystemParam)]
 pub(crate) struct ActivationTargets<'w, 's> {
-    buttons: Query<'w, 's, (), (With<Button>, Without<InteractionDisabled>)>,
-    checkboxes: Query<'w, 's, Has<Checked>, (With<Checkbox>, Without<InteractionDisabled>)>,
-    radios: Query<'w, 's, (), (With<RadioButton>, Without<InteractionDisabled>)>,
+    buttons: Query<'w, 's, (), (With<Button>, Without<ComputedDisabled>)>,
+    checkboxes: Query<'w, 's, Has<Checked>, (With<Checkbox>, Without<ComputedDisabled>)>,
+    radios: Query<'w, 's, (), (With<RadioButton>, Without<ComputedDisabled>)>,
     keys: Query<'w, 's, &'static ActivateKeys>,
     held: HeldModifiers<'w>,
     parents: Query<'w, 's, &'static ChildOf>,

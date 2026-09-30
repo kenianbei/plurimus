@@ -11,7 +11,7 @@ use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_term::bevy_compat::HeldModifiers;
 
-use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
+use crate::interaction::{ComputedDisabled, ComputedWidgetArea};
 use crate::keys::{KeyBinding, first_bound};
 use crate::scroll::{ScrollArea, ScrollBy, ScrollOffset, WheelAxes};
 
@@ -43,7 +43,8 @@ pub enum ScrollAction {
 ///
 /// Requires [`TabIndex`], which Bevy does not remove when this component
 /// goes: removing it leaves an unscrollable widget in the tab order.
-/// [`InteractionDisabled`] is how one is turned off.
+/// [`InteractionDisabled`](crate::InteractionDisabled) is how one is
+/// turned off.
 ///
 /// Deliberately not required by [`ScrollArea`](crate::ScrollArea): a
 /// widget owning its own movement keys - a list box, a table, a text
@@ -89,7 +90,7 @@ pub(crate) fn scroll_key(
             Option<(&ScrollArea, &ScrollOffset)>,
             Option<&WheelAxes>,
         ),
-        Without<InteractionDisabled>,
+        Without<ComputedDisabled>,
     >,
     mut commands: Commands,
 ) {

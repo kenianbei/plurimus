@@ -12,8 +12,9 @@
 //! the rules.
 
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Component, Entity, Query, Res};
+use bevy_ecs::entity::EntityHashSet;
+use bevy_ecs::hierarchy::{ChildOf, Children};
+use bevy_ecs::prelude::{Commands, Component, Entity, Local, Query, Res, With};
 use ratatui_core::layout::Rect;
 
 use crate::camera::DefaultCamera;
@@ -44,9 +45,44 @@ impl UiOrder {
     pub const OVERLAY: Self = Self(i32::MAX / 2);
 }
 
-/// Hides the widget: it is neither rendered nor interactive while present.
+/// Hides the widget and everything beneath it through `ChildOf`: none of
+/// it is rendered or interactive while present. What is hidden by an
+/// ancestor carries [`ComputedHidden`], which is what readers read.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct UiHidden;
+
+/// Present on every entity hidden by its own [`UiHidden`] or an
+/// ancestor's.
+///
+/// Resolved twice a frame - in
+/// [`CameraSystems::PropagateCameras`](crate::CameraSystems::PropagateCameras),
+/// so input routes against it, and in `Last`, so a subtree hidden during the
+/// frame is not drawn by it. Read it rather than write it: the resolver
+/// removes it from whatever no [`UiHidden`] reaches.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ComputedHidden;
+
+pub(crate) fn propagate_hidden(
+    roots: Query<Entity, With<UiHidden>>,
+    children: Query<&Children>,
+    marked: Query<Entity, With<ComputedHidden>>,
+    mut reached: Local<EntityHashSet>,
+    mut commands: Commands,
+) {
+    reached.clear();
+    for root in &roots {
+        reached.insert(root);
+        reached.extend(children.iter_descendants(root));
+    }
+    for entity in &marked {
+        if !reached.remove(&entity) {
+            commands.entity(entity).try_remove::<ComputedHidden>();
+        }
+    }
+    for entity in reached.drain() {
+        commands.entity(entity).try_insert(ComputedHidden);
+    }
+}
 
 /// Explicit target camera (main-world entity). Absent: the active camera
 /// with the lowest order.

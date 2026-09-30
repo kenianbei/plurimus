@@ -27,7 +27,7 @@ use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Without};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 
 use plurimus_core::{
-    CameraViewports, ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area,
+    CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiCamera, UiOrder, local_area,
 };
 use plurimus_ui::{ComputedWidgetArea, ScrollOffset, screen_cell};
 
@@ -207,7 +207,7 @@ pub(crate) fn place_popovers(
         &ComputedUiCamera,
         &mut UiArea,
         &mut ComputedWidgetArea,
-        Has<UiHidden>,
+        Has<ComputedHidden>,
     )>,
 ) {
     for (popover, target, mut area, mut computed, hidden) in &mut popovers {

@@ -33,7 +33,7 @@ use plurimus_core::{UiHidden, UiOrder, UiWidget};
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{
-    Click, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
+    Click, ComputedDisabled, Hovered, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
 };
 use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
 use plurimus_ui::{KeyBinding, first_bound};
@@ -135,7 +135,6 @@ pub fn menu_item(label: impl Into<Line<'static>>) -> impl Bundle {
         MenuItem,
         UiLabel(label.into()),
         ITEM_ORDER,
-        UiHidden,
         UiWidget::default(),
     )
 }
@@ -147,7 +146,7 @@ pub(crate) struct MenuAccess<'w, 's> {
     parents: Query<'w, 's, &'static ChildOf>,
     popups: Query<'w, 's, Entity, With<MenuPopup>>,
     open: Query<'w, 's, Entity, With<MenuOpen>>,
-    items: Query<'w, 's, Has<InteractionDisabled>, With<MenuItem>>,
+    items: Query<'w, 's, Has<ComputedDisabled>, With<MenuItem>>,
     keys: Query<'w, 's, &'static MenuKeys>,
 }
 
@@ -191,11 +190,13 @@ impl MenuAccess<'_, '_> {
             .entity(popup)
             .insert((MenuOpen, ModalOpen))
             .remove::<UiHidden>();
-        let rows = self.item_rows(popup);
-        for &item in &rows {
-            commands.entity(item).remove::<UiHidden>();
-        }
-        if let Some(&first) = rows.first() {
+        let first = self.children.get(popup).ok().and_then(|children| {
+            children
+                .iter()
+                .copied()
+                .find(|&child| self.items.contains(child))
+        });
+        if let Some(first) = first {
             focus.set(first, FocusCause::Navigated);
         }
     }
@@ -205,9 +206,6 @@ impl MenuAccess<'_, '_> {
             .entity(popup)
             .remove::<(MenuOpen, ModalOpen)>()
             .insert(UiHidden);
-        for item in self.item_rows(popup) {
-            commands.entity(item).insert(UiHidden);
-        }
         // A press that switched menus has already moved focus on.
         let is_focus_inside = focus.get().is_some_and(|focused| {
             focused == popup
@@ -246,7 +244,7 @@ pub(crate) fn menu_dismiss(
 
 pub(crate) fn menu_button_activate(
     activate: On<Activate>,
-    buttons: Query<(), (With<MenuButton>, Without<InteractionDisabled>)>,
+    buttons: Query<(), (With<MenuButton>, Without<ComputedDisabled>)>,
     menus: MenuAccess,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,

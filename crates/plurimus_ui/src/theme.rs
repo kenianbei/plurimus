@@ -24,7 +24,8 @@ pub struct InteractionState {
     pub hovered: bool,
     /// Pointer held on the widget.
     pub pressed: bool,
-    /// The widget has [`InteractionDisabled`](crate::InteractionDisabled).
+    /// The widget or an ancestor has
+    /// [`InteractionDisabled`](crate::InteractionDisabled).
     pub disabled: bool,
     /// The widget holds input focus.
     pub focused: bool,
@@ -44,7 +45,9 @@ pub struct UiTheme {
     pub hovered: Style,
     /// Pointer held on the widget.
     pub pressed: Style,
-    /// Widgets with [`InteractionDisabled`](crate::InteractionDisabled).
+    /// Widgets disabled by
+    /// [`InteractionDisabled`](crate::InteractionDisabled), their own or an
+    /// ancestor's.
     pub disabled: Style,
     /// Patched over the state style while the widget has input focus.
     pub focused: Style,

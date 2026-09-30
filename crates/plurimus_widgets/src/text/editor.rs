@@ -29,7 +29,7 @@ use ratatui_textarea::{DataCursor, Input, Key as EditorKey, TextArea};
 use super::grapheme::{cluster_len_after, cluster_len_before};
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{Hovered, InteractionDisabled};
+use plurimus_ui::{ComputedDisabled, Hovered};
 use plurimus_ui::{ScrollBy, WheelReceptive};
 
 use plurimus_ui::LiveWidget;
@@ -113,7 +113,7 @@ pub(crate) struct Clipboard<'w> {
 pub(crate) fn text_editor_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
-    editors: Query<&TextEditor, Without<InteractionDisabled>>,
+    editors: Query<&TextEditor, Without<ComputedDisabled>>,
     mut clipboard: Clipboard,
     mut commands: Commands,
 ) {
@@ -268,7 +268,7 @@ fn editor_input(key: &Key, held: KeyModifiers) -> Option<Input> {
 
 pub(crate) fn text_editor_paste(
     mut input: On<FocusedInput<PasteMessage>>,
-    editors: Query<&TextEditor, Without<InteractionDisabled>>,
+    editors: Query<&TextEditor, Without<ComputedDisabled>>,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;

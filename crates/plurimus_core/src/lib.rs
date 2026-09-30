@@ -51,12 +51,13 @@ pub use sub_app::{
 };
 pub use viewport::{CameraSystems, CameraViewports, Edge, ResolvedViewport, Viewport};
 pub use widget::placement::{
-    ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area, resolve_area, resolve_camera,
+    ComputedHidden, ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area,
+    resolve_area, resolve_camera,
 };
 pub use widget::raster::{ExtractedWidget, RasterDeferred, WidgetRasterize};
 pub use widget::{TerminalWidget, UiWidget};
 
-use bevy_app::{App, Plugin, PreUpdate};
+use bevy_app::{App, Last, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 
 /// Registers the terminal render sub-app and core rendering resources.
@@ -83,8 +84,13 @@ impl Plugin for CorePlugin {
         );
         app.add_systems(
             PreUpdate,
-            widget::placement::propagate_cameras.in_set(CameraSystems::PropagateCameras),
+            (
+                widget::placement::propagate_cameras,
+                widget::placement::propagate_hidden,
+            )
+                .in_set(CameraSystems::PropagateCameras),
         );
+        app.add_systems(Last, widget::placement::propagate_hidden);
         app.add_systems(
             PreUpdate,
             viewport::resolve_camera_viewports.in_set(CameraSystems::ResolveViewports),
