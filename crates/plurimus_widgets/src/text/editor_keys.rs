@@ -83,9 +83,15 @@ const MOTIONS: [(KeyBinding, CursorMove); 12] = [
     (ctrl(Key::ArrowRight), CursorMove::WordForward),
     (ctrl(Key::ArrowUp), CursorMove::ParagraphBack),
     (ctrl(Key::ArrowDown), CursorMove::ParagraphForward),
-    (ctrl(Key::Home), CursorMove::Top),
-    (ctrl(Key::End), CursorMove::Bottom),
+    (ctrl(Key::Home), DOCUMENT_START),
+    (ctrl(Key::End), DOCUMENT_END),
 ];
+
+/// The first cell of the first line; the engine's `Top` keeps the column.
+const DOCUMENT_START: CursorMove = CursorMove::Jump(0, 0);
+
+/// The last cell of the last line, the engine clamping the jump to both.
+const DOCUMENT_END: CursorMove = CursorMove::Jump(u16::MAX, u16::MAX);
 
 impl Default for TextEditorKeys {
     fn default() -> Self {
