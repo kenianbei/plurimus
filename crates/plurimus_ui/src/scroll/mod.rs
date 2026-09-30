@@ -101,6 +101,16 @@ impl ScrollArea {
             ..area
         }
     }
+
+    /// Where `step` moves `offset` in this area drawn at `area`, clamped
+    /// to the content's extent.
+    pub(crate) fn stepped(self, area: Rect, offset: Position, step: (i32, i32)) -> Position {
+        let max = max_offset(self.content_size, self.viewport(area));
+        Position::new(
+            stepped_offset(offset.x, step.0, max.x),
+            stepped_offset(offset.y, step.1, max.y),
+        )
+    }
 }
 
 // Bevy leaves required components behind. `try_`, since a despawn runs
@@ -166,6 +176,9 @@ pub struct WheelReceptive;
 /// offset moves. Defaults to both, which is what a widget the router
 /// cannot measure - a `TextEditor` scrolling its own
 /// viewport - should keep.
+///
+/// A focused [`ScrollKeys`](crate::ScrollKeys) carrier that is not a
+/// [`ScrollArea`] reads it too, passing on a key for an axis it rules out.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct WheelAxes {
@@ -185,7 +198,7 @@ impl WheelAxes {
         }
     }
 
-    const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
+    pub(crate) const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
         (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
     }
 }
@@ -298,11 +311,7 @@ pub(crate) fn scroll_area_scrolled(
     let Ok((computed, scroll, mut offset)) = areas.get_mut(event.entity) else {
         return;
     };
-    let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
-    let stepped = Position::new(
-        stepped_offset(offset.0.x, event.step.0, max.x),
-        stepped_offset(offset.0.y, event.step.1, max.y),
-    );
+    let stepped = scroll.stepped(computed.0, offset.0, event.step);
     apply_offset(event.entity, stepped, &mut offset, &mut commands);
 }
 

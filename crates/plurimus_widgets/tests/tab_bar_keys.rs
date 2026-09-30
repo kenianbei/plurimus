@@ -115,7 +115,7 @@ fn arrows_step_on_both_axes_and_home_end_jump() {
 }
 
 #[test]
-fn stepping_stops_at_the_ends_and_still_consumes() {
+fn stepping_stops_at_the_ends_and_passes_the_key_on() {
     let mut app = app();
     let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
 
@@ -125,7 +125,10 @@ fn stepping_stops_at_the_ends_and_still_consumes() {
     press_key(&mut app, KeyCode::Right);
 
     assert_eq!(activated(&app), [bar.items[1]]);
-    assert!(unconsumed(&app).is_empty());
+    assert_eq!(
+        unconsumed(&app),
+        [Key::ArrowLeft, Key::Home, Key::ArrowRight]
+    );
 }
 
 #[test]

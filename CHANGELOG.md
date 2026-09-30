@@ -56,8 +56,25 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   batch of input waits a frame for the close. A menu that closes returns focus
   to its button only if focus was still inside it, so the press that switched
   keeps the focus it moved.
+- **A bound key that changes nothing is no longer consumed.** `ScrollKeys`,
+  `ListBoxKeys`, `TableKeys`, `TabBarKeys` and `SliderKeys` used to swallow
+  every key they bind. They now let a key through when it would move nothing: a
+  scroll area already at that end or fitting that axis, a list or table cursor
+  on its first or last row, a tab bar on its first or last tab, a slider at its
+  bound. The key reaches the widget's ancestors, so a fresh arrow press at an
+  edge moves focus to the neighbouring widget; a held arrow still stops there,
+  since directional navigation ignores repeats. Select keeps consuming, its
+  repeats included, except on a list with no cursor. A slider key at a bound no
+  longer emits a `ValueChange`. A scroll consumer other than a `ScrollArea`,
+  such as a bevy_ui node, lets a key through for an axis its `WheelAxes` rules
+  out. `ScrollKeys` now binds Left and Right to `LineLeft` and `LineRight` by
+  default.
 
 ### Fixed
+
+- **Left and Right in a row-selection table.** In a `TableSelection::Row` table,
+  the column keys jumped the cursor to the first row. They now leave it where it
+  is and pass the key on.
 
 - **Tab out of an open menu.** Tab moved focus to another tab stop and left the
   popup open behind it, still swallowing the pointer. `MenuKeys` now binds Tab

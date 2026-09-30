@@ -13,7 +13,7 @@ use plurimus_term::bevy_compat::HeldModifiers;
 
 use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
 use crate::keys::{KeyBinding, first_bound};
-use crate::scroll::{ScrollArea, ScrollBy};
+use crate::scroll::{ScrollArea, ScrollBy, ScrollOffset, WheelAxes};
 
 /// What a bound key does to a scrolled widget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,9 +55,11 @@ pub enum ScrollAction {
 /// set pages by its own height against nothing; see
 /// [`ScrollArea::content_size`](crate::ScrollArea::content_size).
 ///
-/// Horizontal bindings exist but are unbound by default: an area that
-/// does not overflow horizontally would otherwise swallow the left and
-/// right arrows that move focus between widgets.
+/// A key that would not move a [`ScrollArea`]'s content - an end already
+/// reached, an axis the content fits - is not consumed, so an arrow moves
+/// focus on and any other key reaches the widget's ancestors. Any other
+/// scroll consumer clamps out of this crate's sight, so there a key passes
+/// on only for an axis its [`WheelAxes`] rules out.
 #[derive(Component, Debug, Clone)]
 #[require(TabIndex, ComputedWidgetArea)]
 pub struct ScrollKeys(pub Vec<(KeyBinding, ScrollAction)>);
@@ -71,6 +73,8 @@ impl Default for ScrollKeys {
             (Key::End.into(), ScrollAction::Bottom),
             (Key::ArrowUp.into(), ScrollAction::LineUp),
             (Key::ArrowDown.into(), ScrollAction::LineDown),
+            (Key::ArrowLeft.into(), ScrollAction::LineLeft),
+            (Key::ArrowRight.into(), ScrollAction::LineRight),
         ])
     }
 }
@@ -79,26 +83,35 @@ pub(crate) fn scroll_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
     areas: Query<
-        (&ScrollKeys, &ComputedWidgetArea, Option<&ScrollArea>),
+        (
+            &ScrollKeys,
+            &ComputedWidgetArea,
+            Option<(&ScrollArea, &ScrollOffset)>,
+            Option<&WheelAxes>,
+        ),
         Without<InteractionDisabled>,
     >,
     mut commands: Commands,
 ) {
     let entity = input.focused_entity;
-    let Ok((keys, area, scroll)) = areas.get(entity) else {
+    let Ok((keys, area, scroll, axes)) = areas.get(entity) else {
         return;
     };
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    // Consumed even at an extreme, so a bound key never reaches
-    // directional navigation and moves focus out of the pane instead.
+    let viewport = scroll.map_or(area.0, |(scroll, _)| scroll.viewport(area.0));
+    let step = step(action, viewport.height);
+    let moves = match (scroll, axes) {
+        (Some((scroll, offset)), _) => scroll.stepped(area.0, offset.0, step) != offset.0,
+        (None, Some(axes)) => axes.consumes(step),
+        (None, None) => true,
+    };
+    if !moves {
+        return;
+    }
     input.propagate(false);
-    let viewport = scroll.map_or(area.0, |scroll| scroll.viewport(area.0));
-    commands.trigger(ScrollBy {
-        entity,
-        step: step(action, viewport.height),
-    });
+    commands.trigger(ScrollBy { entity, step });
 }
 
 fn step(action: ScrollAction, height: u16) -> (i32, i32) {

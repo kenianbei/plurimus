@@ -164,15 +164,22 @@ pub(crate) fn listbox_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    input.propagate(false);
     if action == ListBoxAction::Select {
-        if !input.input.repeat && row_spans(children, &items).next().is_some() {
-            select_active(listbox, *active, &mut commands);
+        let Some(item) = active.0.filter(|&row| items.contains(row)) else {
+            return;
+        };
+        // A repeat selects nothing, but still must not reach a form's
+        // submit above the list.
+        input.propagate(false);
+        if !input.input.repeat {
+            commands.trigger(ValueChange::new(listbox, item, true));
         }
         return;
     }
     let rows: Vec<RowSpan> = row_spans(children, &items).collect();
-    move_active(action, &rows, *area, &mut active);
+    if move_active(action, &rows, *area, &mut active) {
+        input.propagate(false);
+    }
 }
 
 /// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set
@@ -206,9 +213,9 @@ fn move_active(
     rows: &[RowSpan],
     area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
-) {
+) -> bool {
     let Some(last) = rows.len().checked_sub(1) else {
-        return;
+        return false;
     };
     let current = active
         .0
@@ -218,7 +225,7 @@ fn move_active(
     // floor is for a hidden list, which keeps focus but has no area.
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
-    active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));
+    active.set_if_neq(ActiveDescendant(Some(rows[index].entity)))
 }
 
 fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
@@ -229,12 +236,6 @@ fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page:
         (ListBoxAction::PageDown, Some(index)) => index.saturating_add(page).min(last),
         (ListBoxAction::Last, _) => last,
         _ => 0,
-    }
-}
-
-fn select_active(listbox: Entity, active: ActiveDescendant, commands: &mut Commands) {
-    if let Some(item) = active.0 {
-        commands.trigger(ValueChange::new(listbox, item, true));
     }
 }
 
@@ -308,7 +309,7 @@ pub(crate) fn listbox_click(
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
-    select_active(listbox, *active, &mut commands);
+    commands.trigger(ValueChange::new(listbox, row, true));
 }
 
 /// The rows a list's geometry is measured from: every [`ListItem`] child,
