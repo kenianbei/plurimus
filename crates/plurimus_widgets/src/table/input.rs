@@ -60,9 +60,8 @@ pub(crate) fn table_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    input.propagate(false);
-
     if action == TableAction::Select {
+        input.propagate(false);
         if input.input.repeat {
             return;
         }
@@ -70,12 +69,17 @@ pub(crate) fn table_key(
         commands.trigger(ValueChange::new(table, value, true));
         return;
     }
-    if action.moves_column() && selection.tracks_column() {
-        let count = column_count(columns, || widest_row(children, &rows));
-        column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)));
-        return;
+    let moved = if action.moves_column() {
+        selection.tracks_column() && {
+            let count = column_count(columns, || widest_row(children, &rows));
+            column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)))
+        }
+    } else {
+        move_row(action, (children, &rows, *area), &mut active)
+    };
+    if moved {
+        input.propagate(false);
     }
-    move_row(action, (children, &rows, *area), &mut active);
 }
 
 /// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set
@@ -108,10 +112,10 @@ fn move_row(
     action: TableAction,
     (children, rows, area): (&Children, &Rows, ComputedWidgetArea),
     active: &mut Mut<ActiveDescendant>,
-) {
+) -> bool {
     let body: Vec<Entity> = body_rows(children, rows).collect();
     let Some(last) = body.len().checked_sub(1) else {
-        return;
+        return false;
     };
     let current = active
         .0
@@ -121,7 +125,7 @@ fn move_row(
     // table, which keeps focus but has no area.
     let page = usize::from(body_height(area, (header, footer))).max(1);
     let index = moved_row(action, current, last, page);
-    active.set_if_neq(ActiveDescendant(Some(body[index])));
+    active.set_if_neq(ActiveDescendant(Some(body[index])))
 }
 
 /// What a pointer cell landed on, once the column layout has been solved.

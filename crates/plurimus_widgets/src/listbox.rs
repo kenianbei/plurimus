@@ -164,15 +164,22 @@ pub(crate) fn listbox_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    input.propagate(false);
     if action == ListBoxAction::Select {
-        if !input.input.repeat && row_spans(children, &items).next().is_some() {
+        if active.0.is_none() || row_spans(children, &items).next().is_none() {
+            return;
+        }
+        // A repeat selects nothing, but still must not reach a form's
+        // submit above the list.
+        input.propagate(false);
+        if !input.input.repeat {
             select_active(listbox, *active, &mut commands);
         }
         return;
     }
     let rows: Vec<RowSpan> = row_spans(children, &items).collect();
-    move_active(action, &rows, *area, &mut active);
+    if move_active(action, &rows, *area, &mut active) {
+        input.propagate(false);
+    }
 }
 
 /// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set
@@ -206,9 +213,9 @@ fn move_active(
     rows: &[RowSpan],
     area: ComputedWidgetArea,
     active: &mut Mut<ActiveDescendant>,
-) {
+) -> bool {
     let Some(last) = rows.len().checked_sub(1) else {
-        return;
+        return false;
     };
     let current = active
         .0
@@ -218,7 +225,7 @@ fn move_active(
     // floor is for a hidden list, which keeps focus but has no area.
     let page = usize::from(area.0.height).max(1);
     let index = moved_index(action, current, last, page);
-    active.set_if_neq(ActiveDescendant(Some(rows[index].entity)));
+    active.set_if_neq(ActiveDescendant(Some(rows[index].entity)))
 }
 
 fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {

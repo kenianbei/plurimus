@@ -225,9 +225,12 @@ pub(crate) fn slider_key(
         SliderAction::Decrease => -step.0,
         SliderAction::Increase => step.0,
     };
-    input.propagate(false);
     let target = range.clamp(value.0 + delta);
-    emit(input.focused_entity, value.0, target, true, &mut commands);
+    if (target - value.0).abs() <= f32::EPSILON {
+        return;
+    }
+    input.propagate(false);
+    commands.trigger(ValueChange::new(input.focused_entity, target, true));
 }
 
 fn track_value(area: Rect, range: SliderRange, x: u16) -> f32 {

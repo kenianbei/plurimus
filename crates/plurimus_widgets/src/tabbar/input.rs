@@ -61,6 +61,8 @@ pub(crate) fn tab_bar_key(
             if index >= count {
                 return;
             }
+            // A repeat selects nothing, but is the same intent as its press.
+            input.propagate(false);
             (!input.input.repeat).then_some(index)
         }
         TabBarAction::Previous => current.and_then(|index| index.checked_sub(1)),
@@ -71,8 +73,8 @@ pub(crate) fn tab_bar_key(
         TabBarAction::First => (count > 0).then_some(0).filter(|_| current != Some(0)),
         TabBarAction::Last => count.checked_sub(1).filter(|&last| current != Some(last)),
     };
-    input.propagate(false);
     if let Some(item) = target.and_then(|index| tabs.live(children).nth(index)) {
+        input.propagate(false);
         commands.trigger(ValueChange::new(bar, item, true));
     }
 }

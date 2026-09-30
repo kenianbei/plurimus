@@ -236,6 +236,30 @@ fn focused_slider_consumes_horizontal_arrows() {
 }
 
 #[test]
+fn a_slider_at_its_minimum_lets_left_move_focus() {
+    let mut app = app();
+    let root = app.world_mut().spawn(TabGroup::new(0)).id();
+    let left = spawn_focusable(
+        &mut app,
+        Rect::new(2, 1, 6, 1),
+        (TabIndex(0), ChildOf(root)),
+    );
+    let track = app
+        .world_mut()
+        .spawn((
+            slider(0.0, 1.0, 0.0),
+            UiArea::Fixed(Rect::new(12, 1, 8, 1)),
+            ChildOf(root),
+        ))
+        .id();
+    app.update();
+
+    set_focus(&mut app, track);
+    press_key(&mut app, KeyCode::Left);
+    assert_eq!(focused(&app), Some(left));
+}
+
+#[test]
 fn modal_group_traps_arrows() {
     let mut app = app();
     let root = app.world_mut().spawn(TabGroup::new(0)).id();
