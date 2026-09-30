@@ -29,9 +29,12 @@ use plurimus_term::{InputCapabilities, InputSystems};
 /// Requires [`plurimus_core::CorePlugin`] to be added first. Adding this
 /// plugin takes over the terminal: raw mode and the alternate screen stay
 /// active until the app exits, and a restore-on-panic hook is installed
-/// (restoration is idempotent). The kitty keyboard protocol is enabled
-/// whenever the terminal supports it, and the terminal's color support is
-/// detected from the environment (see [`CrosstermPlugin::detect_color_depth`]).
+/// (restoration is idempotent). A title an app sets through
+/// [`TerminalRequest::SetTitle`](plurimus_term::TerminalRequest::SetTitle)
+/// is handed back too, on terminals that keep a title stack; the others
+/// keep the app's title. The kitty keyboard protocol is enabled whenever the
+/// terminal supports it, and the terminal's color support is detected from
+/// the environment (see [`CrosstermPlugin::detect_color_depth`]).
 ///
 /// The writer defaults to stdout; [`CrosstermPlugin::with_writer`] presents
 /// through any writer instead (mirroring `CrosstermBackend<W: Write>`),

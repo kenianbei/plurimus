@@ -6,6 +6,7 @@
 //! than left to a `Drop`. Color depth is detected from the environment at the
 //! same time; what the keyboard reports is learned later, from what arrives.
 
+use std::fmt;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -17,14 +18,47 @@ use crossterm::event::{
     PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{execute, queue};
+use crossterm::{Command, execute, queue};
 use plurimus_core::{ColorDepth, TerminalSize};
 use ratatui_crossterm::CrosstermBackend;
 
 // Restore runs from panic hooks with no app state, so what it undoes only
-// if it was done - the kitty push, a cursor shape - is recorded here.
+// if it was done - the kitty push, a cursor shape, the title push - is
+// recorded here.
 static KITTY_PUSHED: AtomicBool = AtomicBool::new(false);
 static SHAPE_WRITTEN: AtomicBool = AtomicBool::new(false);
+static TITLE_PUSHED: AtomicBool = AtomicBool::new(false);
+
+/// XTWINOPS 22;0: saves the icon name and the window title, the pair
+/// crossterm's `SetTitle` replaces with OSC 0. No terminal can be asked what
+/// its title is, so saving it on the terminal's own stack is the only way to
+/// hand it back.
+struct PushTitle;
+
+impl Command for PushTitle {
+    fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
+        f.write_str("\x1b[22;0t")
+    }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// XTWINOPS 23;0: restores what [`PushTitle`] saved.
+struct PopTitle;
+
+impl Command for PopTitle {
+    fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
+        f.write_str("\x1b[23;0t")
+    }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Restores the terminal when the render world is torn down.
 #[derive(Resource)]
@@ -47,7 +81,8 @@ pub(crate) fn init<W: Write + Send + Sync + 'static>(
 ) -> io::Result<(CrosstermBackend<W>, TerminalSize, ColorDepth)> {
     terminal::enable_raw_mode()?;
     let kitty = terminal::supports_keyboard_enhancement().unwrap_or(false);
-    queue!(writer, EnterAlternateScreen, Hide)?;
+    queue!(writer, EnterAlternateScreen, Hide, PushTitle)?;
+    TITLE_PUSHED.store(true, Ordering::Relaxed);
     queue_input_modes(&mut writer, kitty, mouse, paste)?;
     writer.flush()?;
     let (cols, rows) = terminal::size()?;
@@ -135,6 +170,11 @@ pub fn restore() {
     if SHAPE_WRITTEN.load(Ordering::Relaxed) {
         let _ = queue!(writer, SetCursorStyle::DefaultUserShape);
     }
+    // Swapped, unlike the others: a panic restores twice, and a second pop
+    // would take the entry of whatever pushed before this process did.
+    if TITLE_PUSHED.swap(false, Ordering::Relaxed) {
+        let _ = queue!(writer, PopTitle);
+    }
     let _ = execute!(
         writer,
         DisableMouseCapture,
@@ -198,6 +238,22 @@ mod tests {
     fn missing_or_dumb_term_floors_at_ansi16() {
         assert_eq!(color_depth_from_env(None, None), ColorDepth::Ansi16);
         assert_eq!(color_depth_from_env(None, Some("dumb")), ColorDepth::Ansi16);
+    }
+
+    fn ansi(command: &impl Command) -> String {
+        let mut written = String::new();
+        command
+            .write_ansi(&mut written)
+            .expect("write into a String");
+        written
+    }
+
+    // OSC 0, which is what crossterm's `SetTitle` writes, sets the icon name
+    // too, so saving only the window title (22;2) would hand back half.
+    #[test]
+    fn the_title_stack_saves_and_restores_icon_and_window_together() {
+        assert_eq!(ansi(&PushTitle), "\x1b[22;0t");
+        assert_eq!(ansi(&PopTitle), "\x1b[23;0t");
     }
 
     fn queued(kitty: bool, mouse: bool, paste: bool) -> String {
