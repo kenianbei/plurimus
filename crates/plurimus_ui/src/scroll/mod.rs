@@ -176,6 +176,9 @@ pub struct WheelReceptive;
 /// offset moves. Defaults to both, which is what a widget the router
 /// cannot measure - a `TextEditor` scrolling its own
 /// viewport - should keep.
+///
+/// A focused [`ScrollKeys`](crate::ScrollKeys) carrier that is not a
+/// [`ScrollArea`] reads it too, passing on a key for an axis it rules out.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct WheelAxes {
