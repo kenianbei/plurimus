@@ -12,10 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{
-    Added, Commands, Component, EntityEvent, MessageWriter, On, Query, Res, Without,
-};
-use bevy_ecs::system::SystemParam;
+use bevy_ecs::prelude::{Added, Commands, Component, EntityEvent, On, Query, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
@@ -23,9 +20,10 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::{LastCopied, PasteMessage, TerminalRequest};
+use plurimus_term::PasteMessage;
 use ratatui_textarea::{CursorMove, DataCursor, TextArea};
 
+use super::clipboard::Clipboard;
 use super::editor_keys::{TextEditorAction, TextEditorKeys};
 use super::grapheme::{cluster_len_after, cluster_len_before};
 use super::keys::unbound_text;
@@ -48,11 +46,12 @@ use plurimus_ui::LiveWidget;
 /// focus navigation.
 ///
 /// Copy and cut act as the engine would and also ask the terminal for the
-/// text through [`TerminalRequest`], so a copy leaves the app; neither sends
-/// anything when there is no selection. Whether it reaches a system
-/// clipboard is the backend's business - `plurimus_crossterm` writes none
-/// until asked - but it always reaches [`LastCopied`], and paste inserts
-/// from there, so a copy in one editor is a paste in another.
+/// text through [`TerminalRequest`](plurimus_term::TerminalRequest), so a
+/// copy leaves the app; neither sends anything when there is no selection.
+/// Whether it reaches a system clipboard is the backend's business -
+/// `plurimus_crossterm` writes none until asked - but it always reaches
+/// [`LastCopied`](plurimus_term::LastCopied), and paste inserts from there,
+/// so a copy in one editor is a paste in another.
 ///
 /// Paste therefore means the app's clipboard, and
 /// [`Yank`](TextEditorAction::Yank) the engine's own kill ring, which the
@@ -101,14 +100,6 @@ pub(crate) fn install_editor_views(
             .entity(entity)
             .insert(UiWidget::new(SharedTextArea(Arc::clone(&editor.0))));
     }
-}
-
-/// The clipboard both ways: what an editor offers the terminal, and what
-/// it pastes from.
-#[derive(SystemParam)]
-pub(crate) struct Clipboard<'w> {
-    requests: MessageWriter<'w, TerminalRequest>,
-    copied: Res<'w, LastCopied>,
 }
 
 pub(crate) fn text_editor_key(
@@ -240,7 +231,7 @@ fn delete_cluster(
 fn copy(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
     if area.is_selecting() {
         area.copy();
-        offer_yank(area, &mut clipboard.requests);
+        clipboard.offer(&area.yank_text());
     }
     false
 }
@@ -248,7 +239,7 @@ fn copy(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
 fn cut(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
     let cut = area.cut();
     if cut {
-        offer_yank(area, &mut clipboard.requests);
+        clipboard.offer(&area.yank_text());
     }
     cut
 }
@@ -257,19 +248,8 @@ fn cut(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
 // engine's yank, which is what keeps a kill intact.
 fn paste(area: &mut TextArea<'static>, clipboard: &Clipboard) -> bool {
     clipboard
-        .copied
-        .0
-        .as_deref()
+        .last_copied()
         .is_some_and(|text| area.insert_str(text))
-}
-
-/// Sends what the engine just yanked to the terminal, unless it is empty -
-/// an empty copy would take away whatever the user last put there.
-fn offer_yank(area: &TextArea<'static>, requests: &mut MessageWriter<TerminalRequest>) {
-    let yanked = area.yank_text();
-    if !yanked.is_empty() {
-        requests.write(TerminalRequest::copy(yanked));
-    }
 }
 
 /// How many engine steps of `motion` cross one grapheme cluster.

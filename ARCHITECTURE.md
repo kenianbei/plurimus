@@ -248,53 +248,56 @@ widget focuses the widget - stopping at `PressFocusDisabled`, whose promise
 covers what is inside it, and at an open overlay's root, whose opener lies
 outside it. Every press also carries how many have run together on it,
 `PointerPress`, the `Pressed` it leaves on the widget, and the `Click`
-completing it all reporting the same number. The run behind it is this crate's
-own and private, because every fact keying it is this router's: which widget the
-press reached, and whether it reached one at all - a press that dismissed an
-overlay or that a disabled widget absorbed ends the run rather than counting, so
-the next press starts over rather than arriving as a second. Only
-`plurimus_term`'s `MultiClickWindow` bounds it from outside. The count rests on
-`Pressed` for the length of the gesture because a gesture outlives the message
-that started it: a same-batch release reads it from the router's own list, since
-a component inserted by command has not landed yet, and a `PointerDrag` observer
-reads it off the entity, which is the one gesture no event carries a count for.
-It installs focus via `bevy_input_focus` and pins the dispatch into that
-sequence - after `bevy_input`'s own update and between `Areas` and `Hover` - so
-a focused-input observer reads this frame's areas and settled key state rather
-than whatever the schedule happened to resolve; work that must see what one did
-is ordered after the dispatch, which is what `plurimus_widgets` does with
-`WidgetSystems::Layout`. It also builds the directional navigation map, and
-provides scrolling (`ScrollArea`, `ScrollOffset`, `ScrollIntoView`) with cached
-extraction of scrolled content, plus the generic modal-overlay primitives
-(`ModalOpen`, `ModalDismiss`) that menus and popovers are built from. What
-"inside a modal" means is the overlay's own rect, for the pointer and the wheel
-alike: a position an open overlay covers admits that overlay's subtree and
-nothing else, so an overlay confines input rather than depending on every child
-of it being marked, and a position outside every open overlay dismisses them. A
-press on a `ModalityToggle` is where geometry cannot answer, since an opener
-sits outside the menu it closes: it dismisses only the overlays it does not own,
-those rooted beneath it, so a menu button closes its own menu by toggling it and
-switches away from a neighbour's. Presses and ticks route as one ordered batch,
-and whatever follows a message that opens or closes an overlay waits a frame to
-hit-test the settled state. Taking the union of the overlays covering a position
-is what admits a submenu inside its parent without ordering modal roots against
-each other. Every scroll converges on one event: a wheel tick, arbitrated by
-z-order among the `WheelReceptive` widgets under the cursor whose `WheelAxes`
-can still use that axis and which an open overlay admits, and a key bound
-through `ScrollKeys` on whichever widget holds focus both become a `ScrollBy`,
-which whoever stores the scroll consumes - this crate's `ScrollOffset`, a
-bevy_ui node's own position, a text editor's engine viewport - each clamping the
-step against its own extent. `ScrollKeys` is the whole opt-in for the keyboard,
-carrying the `TabIndex` without which nothing can be sent a key, and it is one
-of the `(KeyBinding, Action)` bindings components sharing `first_bound`, the
-scan this crate owns so a widget family written elsewhere states "first match
-wins" by calling it rather than by copying it - eight of them across the
-workspace, one per widget that takes keys. Those that move something - a scroll
-area, a list box, a table, a tab bar, a slider - consume a bound key only when
-it changes something, so an arrow pressed at an edge falls through to
-directional navigation, which ignores repeats so that a held key stops there
-instead. A scroll key measures a `ScrollArea` against its offset, and any other
-scroll consumer only by its `WheelAxes`, whose extent this crate cannot see. A
+completing it all reporting the same number. A `PointerPress` carries the
+modifiers the terminal reported with it too, since held keys are learned from
+key messages alone and a shift sent with a click would otherwise go unseen. The
+run behind it is this crate's own and private, because every fact keying it is
+this router's: which widget the press reached, and whether it reached one at
+all - a press that dismissed an overlay or that a disabled widget absorbed ends
+the run rather than counting, so the next press starts over rather than arriving
+as a second. Only `plurimus_term`'s `MultiClickWindow` bounds it from outside.
+The count rests on `Pressed` for the length of the gesture because a gesture
+outlives the message that started it: a same-batch release reads it from the
+router's own list, since a component inserted by command has not landed yet, and
+a `PointerDrag` observer reads it off the entity, which is the one gesture no
+event carries a count for. It installs focus via `bevy_input_focus` and pins the
+dispatch into that sequence - after `bevy_input`'s own update and between
+`Areas` and `Hover` - so a focused-input observer reads this frame's areas and
+settled key state rather than whatever the schedule happened to resolve; work
+that must see what one did is ordered after the dispatch, which is what
+`plurimus_widgets` does with `WidgetSystems::Layout`. It also builds the
+directional navigation map, and provides scrolling (`ScrollArea`,
+`ScrollOffset`, `ScrollIntoView`) with cached extraction of scrolled content,
+plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
+menus and popovers are built from. What "inside a modal" means is the overlay's
+own rect, for the pointer and the wheel alike: a position an open overlay covers
+admits that overlay's subtree and nothing else, so an overlay confines input
+rather than depending on every child of it being marked, and a position outside
+every open overlay dismisses them. A press on a `ModalityToggle` is where
+geometry cannot answer, since an opener sits outside the menu it closes: it
+dismisses only the overlays it does not own, those rooted beneath it, so a menu
+button closes its own menu by toggling it and switches away from a neighbour's.
+Presses and ticks route as one ordered batch, and whatever follows a message
+that opens or closes an overlay waits a frame to hit-test the settled state.
+Taking the union of the overlays covering a position is what admits a submenu
+inside its parent without ordering modal roots against each other. Every scroll
+converges on one event: a wheel tick, arbitrated by z-order among the
+`WheelReceptive` widgets under the cursor whose `WheelAxes` can still use that
+axis and which an open overlay admits, and a key bound through `ScrollKeys` on
+whichever widget holds focus both become a `ScrollBy`, which whoever stores the
+scroll consumes - this crate's `ScrollOffset`, a bevy_ui node's own position, a
+text editor's engine viewport - each clamping the step against its own extent.
+`ScrollKeys` is the whole opt-in for the keyboard, carrying the `TabIndex`
+without which nothing can be sent a key, and it is one of the
+`(KeyBinding, Action)` bindings components sharing `first_bound`, the scan this
+crate owns so a widget family written elsewhere states "first match wins" by
+calling it rather than by copying it - eight of them across the workspace, one
+per widget that takes keys. Those that move something - a scroll area, a list
+box, a table, a tab bar, a slider - consume a bound key only when it changes
+something, so an arrow pressed at an edge falls through to directional
+navigation, which ignores repeats so that a held key stops there instead. A
+scroll key measures a `ScrollArea` against its offset, and any other scroll
+consumer only by its `WheelAxes`, whose extent this crate cannot see. A
 `KeyBinding` is a `Key` and the `KeyModifiers` it must be pressed under, and
 `KeyBinding::matches` is the one rule: every modifier but shift exactly, and
 shift exactly for a named key but only when asked for on a character, since a
@@ -316,23 +319,23 @@ depending on another widget library. `UiPlugin` initializes the `UiTheme`
 resource, `UiTheme::resolve` turns an `InteractionState` into the one `Style`
 its documented precedence gives - disabled over pressed over hovered over
 normal, focused patched over the winner - and `UiStyle` and `StylistDisabled`
-are the two escapes from it. `UiTheme::caret` is the one term `resolve` does not
-answer, a caret a widget draws into its own cells being a thing inside the
-widget rather than a state the widget is in; whoever draws one patches it over
-the character it covers. Beside that vocabulary sits the engine that consumes
-it: `StylistCache` records what a widget last drew and `StylistCache::redraws`
-is the compare-and-swap every stylist gates on, so a theme swap, an edited
-label, or a dirtied container repaints and an idle frame costs a comparison.
-Handing an entity back from `StylistDisabled` repaints it too, by a removal hook
-that resets its cache - the entity sat outside every stylist query and so missed
-whatever landed meanwhile. `observed` reads an entity's state through
-`StateQuery` and `StylistCache::with_value` carries the hash a widget's own
-value contributes, for a stylist that resolves its state rather than reading it;
-`restyle` runs the whole loop for the label-driven case, and a `UiLabel` is a
-ratatui `Line`, so a label carries per-span style of its own. Re-exports
-`tui_scrollview`; `bevy_input_focus`, whose focus types and dispatch set are
-part of this contract; and `bevy_input`'s `Key`, the type its bindings are
-written in.
+are the two escapes from it. `UiTheme::caret` and `UiTheme::selection` are the
+terms `resolve` does not answer, a caret or a selection a widget draws into its
+own cells being a thing inside the widget rather than a state the widget is in;
+whoever draws one patches it over the characters it covers. Beside that
+vocabulary sits the engine that consumes it: `StylistCache` records what a
+widget last drew and `StylistCache::redraws` is the compare-and-swap every
+stylist gates on, so a theme swap, an edited label, or a dirtied container
+repaints and an idle frame costs a comparison. Handing an entity back from
+`StylistDisabled` repaints it too, by a removal hook that resets its cache - the
+entity sat outside every stylist query and so missed whatever landed meanwhile.
+`observed` reads an entity's state through `StateQuery` and
+`StylistCache::with_value` carries the hash a widget's own value contributes,
+for a stylist that resolves its state rather than reading it; `restyle` runs the
+whole loop for the label-driven case, and a `UiLabel` is a ratatui `Line`, so a
+label carries per-span style of its own. Re-exports `tui_scrollview`;
+`bevy_input_focus`, whose focus types and dispatch set are part of this
+contract; and `bevy_input`'s `Key`, the type its bindings are written in.
 
 ### plurimus_widgets
 
@@ -341,40 +344,44 @@ its component vocabulary and event contract over terminal-native engines.
 Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tab bars,
 panes, menus, popovers, a single-line `EditableText`, and a multi-line
 `TextEditor` built on ratatui-textarea; `Table` and `TabBar` are past the parity
-list, upstream having neither to mirror. The editor is the one widget that talks
-to the clipboard, being the one with a selection to copy: its copy and cut offer
-the text to the terminal as well as to the engine, and its paste inserts
-`plurimus_term`'s `LastCopied`, read at the press, so the engine's own kill ring
-stays whatever a line or word deletion last put there, for its separate yank.
-The single-line field is the one whose engine is published instead: `TextInput`
-owns its value and a cursor resting on grapheme-cluster boundaries, and
+list, upstream having neither to mirror. The two text widgets are the ones that
+talk to the clipboard, being the ones with a selection to copy: their copy and
+cut offer the text to the terminal, and their paste inserts `plurimus_term`'s
+`LastCopied`, read at the press, so a copy in either is a paste in the other.
+The editor's copy and cut fill its engine's own kill ring as well, which only
+its separate yank reads, beside what a line or word deletion puts there; a
+masked field copies nothing. The single-line field is the one whose engine is
+published instead: `TextInput` owns its value, a cursor resting on
+grapheme-cluster boundaries and the selection's other end, and
 `TextInput::handle` and `TextInput::paste` apply a key or pasted text to it, so
 a host routing its own keys drives a field it never focuses rather than
 rewriting the cluster stepping that is the hard part. What the stock observers
 add around those two calls is dispatch and policy, which is why the core leaves
-Enter untaken: a press emits the final `ValueChange` and a `Submit` carrying the
-value, a repeat emits neither since one intent commits once, and focus loss
-still emits that final `ValueChange` alone - which is the whole of what tells
-committing an entry from abandoning one. Its caret is drawn only while it holds
-focus, so a screenful of fields shows the one the keys reach, and the same cell
-is published as its `WidgetCursor`, so the terminal's own caret - the one a
-screen reader follows - sits there too, as a bar by default, since a block
-inverting its cell cancels the reversed one drawn beneath it; an app taking the
-field's look with `StylistDisabled` takes that cell with it. Most widgets are
-stateless controllers emitting entity events (`Activate`, `ValueChange`); apps
-apply them, or attach the stock `*_self_update` observers for uncontrolled
-behavior. Which keys activate one is the app's: `Button`, `Checkbox` and
-`RadioButton` require `ActivateKeys`, defaulting to Enter and space, and a key
-the widget is not bound to activates nothing and propagates - so binding space
-alone is what lets the form around a checkbox keep Enter for its submit, and an
-empty list turns the keyboard path off while leaving the click. Consuming the
-key is what activating does, which is why a disabled widget passes its bound
-keys on too. It holds bare `KeyBinding`s rather than the `(KeyBinding, Action)`
-pairs a list box or table binds, activation having one action to name; a repeat
-never activates, one intent committing once. A menu binds its own Enter and
-space through `MenuKeys`, which sits on the popup rather than on every row of
-it: one table per menu, agreeing with `ActivateKeys`'s default and independent
-of it deliberately, since a menu's Enter is not a form's.
+Enter and the clipboard's keys untaken, the field having no clipboard to reach.
+Enter's press emits the final `ValueChange` and a `Submit` carrying the value, a
+repeat emits neither since one intent commits once, and focus loss still emits
+that final `ValueChange` alone - which is the whole of what tells committing an
+entry from abandoning one. Its caret is drawn only while it holds focus and
+nothing is selected, so a screenful of fields shows the one the keys reach, and
+the same cell is published as its `WidgetCursor`, so the terminal's own caret -
+the one a screen reader follows - sits there too, as a bar by default, since a
+block inverting its cell cancels the reversed one drawn beneath it; an app
+taking the field's look with `StylistDisabled` takes that cell with it. Most
+widgets are stateless controllers emitting entity events (`Activate`,
+`ValueChange`); apps apply them, or attach the stock `*_self_update` observers
+for uncontrolled behavior. Which keys activate one is the app's: `Button`,
+`Checkbox` and `RadioButton` require `ActivateKeys`, defaulting to Enter and
+space, and a key the widget is not bound to activates nothing and propagates -
+so binding space alone is what lets the form around a checkbox keep Enter for
+its submit, and an empty list turns the keyboard path off while leaving the
+click. Consuming the key is what activating does, which is why a disabled widget
+passes its bound keys on too. It holds bare `KeyBinding`s rather than the
+`(KeyBinding, Action)` pairs a list box or table binds, activation having one
+action to name; a repeat never activates, one intent committing once. A menu
+binds its own Enter and space through `MenuKeys`, which sits on the popup rather
+than on every row of it: one table per menu, agreeing with `ActivateKeys`'s
+default and independent of it deliberately, since a menu's Enter is not a
+form's.
 
 A `Popover` is placed against its anchor's resolved area every frame, so it
 follows a moving anchor without being told, and two fields say what that means:
@@ -483,13 +490,14 @@ the scan itself is `plurimus_ui`'s `first_bound`, the same one a focused scroll
 area's keys go through. Every widget here takes its keys that way. The two text
 widgets' tables - `TextInputKeys` and `TextEditorKeys` - bind editing rather
 than movement, so an unbound unchorded character still types itself and an
-unbound chord propagates. `TextInputAction::Submit` is the one action
-`TextInput::handle` refuses to apply - what committing means is the
-dispatcher's, so `handle` leaves it and whoever routes the key acts on it. The
-editor's actions carry the engine's own `CursorMove` and `Scrolling` rather than
-restating them, and apply through its public operations rather than its emacs
-keymap, which never runs: a table can unbind a key only if nothing behind it
-still answers.
+unbound chord propagates. `TextInputAction`'s `Submit`, `Copy`, `Cut` and
+`Paste` are the actions `TextInput::handle` refuses to apply - what committing
+means and where a copy goes are the dispatcher's, so `handle` leaves them and
+whoever routes the key acts on them, which is also why the enum stays closed.
+The editor's actions carry the engine's own `CursorMove` and `Scrolling` rather
+than restating them, and apply through its public operations rather than its
+emacs keymap, which never runs: a table can unbind a key only if nothing behind
+it still answers.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is

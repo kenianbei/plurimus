@@ -4,15 +4,18 @@
 //! component; [`TextEditor`] is a multi-line box whose text lives in a
 //! ratatui-textarea engine behind a lock. That difference is deliberate - a
 //! form field is read with `entity.get::<TextInput>()`, while an editor
-//! trades that for undo, selection and wrapping - and it is why the two do
-//! not share an implementation.
+//! trades that for undo, lines and wrapping - and it is why the two do not
+//! share an implementation.
 //!
 //! `grapheme` and `word` are shared between them so a keybinding stops at
-//! the same place in both, and `field` renders the single-line row; none of
-//! the three is reachable from outside this module. `edit` is the exception:
+//! the same place in both, and `clipboard` so a copy in one is a paste in
+//! the other; `field` renders the single-line row and `pointer` maps a press
+//! onto it. None of those is reachable from outside this module. `edit` is
+//! the exception:
 //! it holds [`TextInput`]'s own key and paste entry points, which are public
 //! so a host that routes its own keys drives a field without focusing it.
 
+mod clipboard;
 mod edit;
 mod editor;
 mod editor_keys;
@@ -20,6 +23,7 @@ mod field;
 mod grapheme;
 mod input;
 mod keys;
+mod pointer;
 mod state;
 mod word;
 
@@ -35,3 +39,4 @@ pub(crate) use editor::{
 pub(crate) use input::{
     release_text_input_caret, style_text_inputs, text_input_blur, text_input_key, text_input_paste,
 };
+pub(crate) use pointer::{text_input_drag, text_input_press};

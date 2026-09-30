@@ -121,6 +121,7 @@ fn arrows_move_the_listbox_selection() {
 fn typing_edits_the_single_line_field() {
     let mut app = headless_app();
     click(&mut app, 3, 16);
+    press_key(&mut app, KeyCode::End);
     press_key(&mut app, KeyCode::Char('!'));
 
     let frame = composed_frame(&app);

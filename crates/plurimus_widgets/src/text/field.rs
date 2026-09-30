@@ -6,7 +6,10 @@
 //! cursor leave the field. The caret is a style patched over the cluster it
 //! sits on, so a terminal drawing no cursor still shows where typing goes;
 //! the stylist publishes the same cell through `WidgetCursor` for the
-//! terminal's own, which is what a screen reader follows.
+//! terminal's own, which is what a screen reader follows. A selection is a
+//! style patched the same way, over every cluster it covers.
+
+use std::ops::Range;
 
 use plurimus_core::ratatui_core::buffer::{Buffer, CellWidth};
 use plurimus_core::ratatui_core::layout::Rect;
@@ -14,17 +17,27 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::widgets::Widget;
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::grapheme::char_to_byte;
+use super::grapheme::{char_to_byte, cluster_spans};
+use super::state::TextInput;
 
-/// The windowed single row: value, cursor as a char index, the fill style
-/// the row is painted with, and the caret's style - `None` for a field
-/// without focus, which draws no caret at all rather than one more block
-/// competing with whichever field the keys actually reach.
+/// The windowed single row: what it draws, the fill style the row is
+/// painted with, the caret's style - `None` for a field without focus,
+/// which draws no caret at all rather than one more block competing with
+/// whichever field the keys actually reach, and for one with a selection -
+/// and the selection's.
 pub(super) struct TextField {
-    pub(super) value: String,
-    pub(super) cursor: usize,
+    pub(super) row: DrawnRow,
     pub(super) style: Style,
     pub(super) caret: Option<Style>,
+    pub(super) selection_style: Style,
+}
+
+/// The text a row draws, with the cursor and selection as char indices
+/// into it.
+pub(super) struct DrawnRow {
+    pub(super) value: String,
+    pub(super) cursor: usize,
+    pub(super) selection: Option<Range<usize>>,
 }
 
 struct Window {
@@ -43,7 +56,8 @@ impl Widget for &TextField {
         if area.is_empty() {
             return;
         }
-        let caret_span = place_caret(&self.value, self.cursor, area.width);
+        let row = &self.row;
+        let caret_span = place_caret(&row.value, row.cursor, area.width);
         let window = Window {
             start: caret_span.start,
             area,
@@ -54,13 +68,26 @@ impl Widget for &TextField {
             }
         }
         buffer.set_style(area, self.style);
-        render_window(&self.value, &window, buffer);
+        render_window(&row.value, &window, buffer);
+        if let Some(selected) = selection_rect(row, &window) {
+            buffer.set_style(selected, self.selection_style);
+        }
         let Some(caret) = self.caret else {
             return;
         };
         let cursor = Rect::new(area.x + caret_span.column, area.y, caret_span.width, 1);
         buffer.set_style(cursor.intersection(area), caret);
     }
+}
+
+fn selection_rect(row: &DrawnRow, window: &Window) -> Option<Rect> {
+    let selection = row.selection.as_ref()?;
+    let [left, right] = [selection.start, selection.end].map(|index| {
+        let (column, _) = cursor_span(&row.value, index);
+        column.saturating_sub(window.start).min(window.area.width)
+    });
+    let area = window.area;
+    Some(Rect::new(area.x + left, area.y, right - left, 1))
 }
 
 /// Where the caret sits in its row: `column` cells in and `width` wide, with
@@ -99,12 +126,58 @@ fn cursor_span(value: &str, cursor: usize) -> (u16, u16) {
     (column, 1)
 }
 
-/// One `mask` per grapheme cluster. The cursor is a char index, and a
-/// multi-scalar cluster masks to one char, so it maps to a cluster count.
-pub(super) fn mask_value(value: &str, cursor: usize, mask: char) -> (String, usize) {
-    let masked = value.graphemes(true).map(|_| mask).collect();
-    let masked_cursor = value[..char_to_byte(value, cursor)].graphemes(true).count();
-    (masked, masked_cursor)
+/// The row `text` draws: its value, or one `mask` per grapheme cluster.
+///
+/// A multi-scalar cluster masks to one char, so under a mask a char index
+/// maps to the count of clusters before it.
+pub(super) fn drawn_row(text: &TextInput, mask: Option<char>) -> DrawnRow {
+    let value = text.value();
+    let Some(mask) = mask else {
+        return DrawnRow {
+            value: value.to_owned(),
+            cursor: text.cursor(),
+            selection: text.selection(),
+        };
+    };
+    let masked = |index| value[..char_to_byte(value, index)].graphemes(true).count();
+    DrawnRow {
+        value: value.graphemes(true).map(|_| mask).collect(),
+        cursor: masked(text.cursor()),
+        selection: text
+            .selection()
+            .map(|range| masked(range.start)..masked(range.end)),
+    }
+}
+
+/// The value's char index for the cluster drawn `cell` columns into a row
+/// `row_width` wide, or the value's end past its last cluster: `drawn_row`
+/// and `cursor_span` run backwards, the window placed by the same
+/// `place_caret` the row is drawn with.
+///
+/// A drawn cluster, masked or not, is one of the value's, which is what
+/// maps a column back through a mask.
+pub(super) fn char_at_cell(
+    text: &TextInput,
+    mask: Option<char>,
+    row_width: u16,
+    cell: u16,
+) -> usize {
+    let row = drawn_row(text, mask);
+    let column = place_caret(&row.value, row.cursor, row_width)
+        .start
+        .saturating_add(cell);
+    let mut end: u16 = 0;
+    let before = row
+        .value
+        .graphemes(true)
+        .take_while(|cluster| {
+            end = end.saturating_add(cluster.cell_width());
+            end <= column
+        })
+        .count();
+    cluster_spans(text.value())
+        .nth(before)
+        .map_or_else(|| text.value().chars().count(), |(start, _)| start)
 }
 
 fn render_window(value: &str, window: &Window, buffer: &mut Buffer) {

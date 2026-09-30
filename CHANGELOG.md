@@ -85,7 +85,65 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the kill ring, copy, cut, paste, select all, and cancelling the selection. An
   unbound unchorded character still types itself.
 
+- **A selection in the single-line text field.**
+  - **Keys.** `Shift` with the arrows, `Home` and `End` selects, `Ctrl+Shift`
+    with the arrows selects by word, and `Ctrl+a` selects everything. A plain
+    motion ends the selection and steps from the cursor, as the multi-line
+    editor does.
+  - **Mouse.** A click places the caret where it lands, a drag selects from the
+    press, a shifted click extends from the caret, a double click selects a
+    word, and a triple click selects everything. A double click on a masked
+    field selects everything, since a word would show where the hidden value
+    breaks.
+  - **Editing.** Typing, `Backspace`, `Delete`, the word deletions and a paste
+    all replace the selection. Losing focus ends it.
+  - **`TextInput`** gains `selection`, `selected_text`, `select_to`,
+    `select_all`, `clear_selection` and `delete_selection`. Its moves end the
+    selection, and its edits replace it.
+  - **Drawing.** The selection is drawn in `UiTheme::selection`, and the drawn
+    caret is left out while something is selected, so reversed text is not
+    patched over reversed text. The terminal's own cursor stays on the end that
+    moves.
+- **Copy, cut and paste in the single-line text field.** `Ctrl+c`, `Ctrl+x` and
+  `Ctrl+v` act as the multi-line editor's do.
+  - A copy goes to the terminal through `TerminalRequest` and to `LastCopied`,
+    and a paste inserts `LastCopied`, so text moves between the two text
+    widgets.
+  - With nothing selected, copy and cut send nothing.
+  - A field carrying `TextMask` copies and cuts nothing.
+  - `TextInput::handle` leaves the three actions to its caller, as it leaves
+    `Submit`, since the field cannot reach a clipboard. A host routing its own
+    keys acts on them through `selected_text`, `delete_selection` and `paste`.
+- **`UiTheme::selection`.** The style patched over the characters a text
+  selection covers, reversed by default, with `with_selection`. Like `caret`, it
+  reaches only a selection a widget draws into its own cells. The multi-line
+  editor's selection is its engine's, set with `set_selection_style`.
+- **`PointerPress::modifiers`.** The modifiers the terminal reported with the
+  press, with `with_modifiers`. They are read from the mouse event rather than
+  from the held keys. A terminal without modifier key events learns what is held
+  only from key messages, so a shift reported with a click would otherwise go
+  unseen.
+
 ### Changed
+
+- **Breaking: `TextInputAction` has eleven new variants.** They are
+  `SelectLeft`, `SelectRight`, `SelectWordLeft`, `SelectWordRight`,
+  `SelectHome`, `SelectEnd`, `SelectAll`, `CancelSelection`, `Copy`, `Cut` and
+  `Paste`.
+  - A `match` over every variant has to handle them. `Copy`, `Cut` and `Paste`
+    are left to the caller, like `Submit`.
+  - The enum stays closed, so the compiler points out every action a host
+    routing its own keys has to carry out.
+  - The select variants sit beside the motions, which moves the numeric
+    discriminants of `Backspace` through `Submit`.
+  - `CancelSelection` is not bound by default, so `Escape` still reaches
+    whatever holds the field.
+- **A focused text field takes `Ctrl+a`, `Ctrl+c`, `Ctrl+x` and `Ctrl+v`.**
+  These chords used to propagate from a field. An ancestor handling them no
+  longer sees them while a field has focus, even when nothing is selected.
+  Remove the bindings from the field's `TextInputKeys` to hand them back.
+- **A click on a text field places its caret.** A press used to focus the field
+  and leave the cursor where it was.
 
 - **The multi-line editor's default keys are conventional, not emacs.**
   `TextEditor` used to take ratatui-textarea's emacs keymap. Its default table

@@ -11,14 +11,15 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
+use bevy_ecs::prelude::{Commands, Component, EntityEvent, Has, On, Query, Res, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::{PasteMessage, TerminalCursorStyle};
 
-use super::field::{TextField, mask_value, place_caret};
+use super::clipboard::Clipboard;
+use super::field::{TextField, drawn_row, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
@@ -38,9 +39,18 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 /// Which keys edit and which submits is [`TextInputKeys`], required here and
 /// defaulting to what the field always bound.
 ///
-/// The caret is drawn into the row while the field has focus, and its cell
-/// is published in the required [`WidgetCursor`], so the terminal's own
-/// cursor sits on it too. That cursor is a steady bar unless an app sets
+/// Shifted motions, `Ctrl+a` and the pointer select - a press places the
+/// caret, a drag or a shifted press extends from it, and a double or triple
+/// press takes a word or everything - and every edit replaces the selection.
+/// `Ctrl+c`, `Ctrl+x` and `Ctrl+v` copy through
+/// [`TerminalRequest`](plurimus_term::TerminalRequest) and paste
+/// [`LastCopied`](plurimus_term::LastCopied), as the multi-line editor does;
+/// a field carrying [`TextMask`] copies nothing. Losing focus ends the
+/// selection.
+///
+/// The caret is drawn into the row while the field has focus and nothing is
+/// selected, and its cell is published in the required [`WidgetCursor`], so
+/// the terminal's own cursor sits on it too, selection or not. That cursor is a steady bar unless an app sets
 /// another shape with [`WidgetCursor::with_style`], which the field keeps: a
 /// block cursor drawn by inverting its cell would cancel the reversed caret
 /// beneath it. A field given [`StylistDisabled`]
@@ -102,36 +112,69 @@ pub(crate) fn text_input_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
     mut fields: Query<
-        (&mut TextInput, &TextInputKeys),
+        (&mut TextInput, &TextInputKeys, Has<TextMask>),
         (With<EditableText>, Without<ComputedDisabled>),
     >,
+    mut clipboard: Clipboard,
     mut commands: Commands,
 ) {
     let field = input.focused_entity;
-    let Ok((mut text, keys)) = fields.get_mut(field) else {
+    let Ok((mut text, keys, is_masked)) = fields.get_mut(field) else {
         return;
     };
     if input.input.state != ButtonState::Pressed {
         return;
     }
     let held = held.get();
-    if first_bound(&keys.0, &input.input, held) == Some(TextInputAction::Submit) {
-        // One intent commits once, however long the key is held; it is
-        // consumed either way, being the field's.
-        if !input.input.repeat {
-            emit(field, &text, true, &mut commands);
-            commands.trigger(Submit::new(field, text.value().to_owned()));
+    // Compared whole rather than by length, since typing over a selection
+    // can leave the length as it was.
+    let before = text.value().to_owned();
+    match first_bound(&keys.0, &input.input, held) {
+        Some(TextInputAction::Submit) => {
+            // One intent commits once, however long the key is held; it is
+            // consumed either way, being the field's.
+            if !input.input.repeat {
+                emit(field, &text, true, &mut commands);
+                commands.trigger(Submit::new(field, text.value().to_owned()));
+            }
         }
-        input.propagate(false);
-        return;
-    }
-    let length_before = text.value().len();
-    if !text.handle(keys, &input.input, held) {
-        return;
+        Some(action @ (TextInputAction::Copy | TextInputAction::Cut | TextInputAction::Paste)) => {
+            apply_clipboard(action, &mut text, is_masked, &mut clipboard);
+        }
+        _ => {
+            if !text.handle(keys, &input.input, held) {
+                return;
+            }
+        }
     }
     input.propagate(false);
-    if text.value().len() != length_before {
+    if text.value() != before {
         emit(field, &text, false, &mut commands);
+    }
+}
+
+/// Copy and cut refuse a masked field, whose value the app asked not to
+/// show; with nothing selected, they send nothing.
+fn apply_clipboard(
+    action: TextInputAction,
+    text: &mut TextInput,
+    is_masked: bool,
+    clipboard: &mut Clipboard,
+) {
+    if action == TextInputAction::Paste {
+        if let Some(copied) = clipboard.last_copied() {
+            text.paste(copied);
+        }
+        return;
+    }
+    if is_masked {
+        return;
+    }
+    if let Some(selected) = text.selected_text() {
+        clipboard.offer(selected);
+    }
+    if action == TextInputAction::Cut {
+        text.delete_selection();
     }
 }
 
@@ -156,11 +199,12 @@ pub(crate) fn text_input_paste(
 
 pub(crate) fn text_input_blur(
     lost: On<FocusLost>,
-    fields: Query<&TextInput, With<EditableText>>,
+    mut fields: Query<&mut TextInput, With<EditableText>>,
     mut commands: Commands,
 ) {
-    if let Ok(text) = fields.get(lost.entity) {
-        emit(lost.entity, text, true, &mut commands);
+    if let Ok(mut text) = fields.get_mut(lost.entity) {
+        text.clear_selection();
+        emit(lost.entity, &text, true, &mut commands);
     }
 }
 
@@ -186,16 +230,17 @@ pub(crate) fn style_text_inputs(
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        let (value, cursor) = match mask {
-            Some(TextMask(glyph)) => mask_value(text.value(), text.cursor(), *glyph),
-            None => (text.value().to_owned(), text.cursor()),
-        };
-        widget_cursor.cell = Some(Position::new(place_caret(&value, cursor, width).column, 0));
+        let row = drawn_row(text, mask.map(|TextMask(glyph)| *glyph));
+        let caret_column = place_caret(&row.value, row.cursor, width).column;
+        widget_cursor.cell = Some(Position::new(caret_column, 0));
+        // Left out over a selection, as `UiTheme::selection` asks; the
+        // terminal's own cursor still marks the end that moves.
+        let has_caret = next.state().focused && row.selection.is_none();
         *widget = UiWidget::new(TextField {
-            value,
-            cursor,
+            row,
             style: next.style(&theme),
-            caret: next.state().focused.then_some(theme.caret),
+            caret: has_caret.then_some(theme.caret),
+            selection_style: theme.selection,
         });
     }
 }
