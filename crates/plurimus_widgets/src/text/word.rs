@@ -5,6 +5,8 @@
 //! where the character class changes, which means an unspaced CJK run
 //! counts as a single word.
 
+use std::ops::Range;
+
 use super::grapheme::char_to_byte;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -88,6 +90,25 @@ pub(crate) fn word_start_backward(value: &str, position: usize) -> usize {
     0
 }
 
+/// The run of one character class holding the char at `position` - or the
+/// last char, for a `position` past the end: the word a double click
+/// selects, or the spacing or punctuation it lands on.
+pub(crate) fn word_around(value: &str, position: usize) -> Range<usize> {
+    let at = position.min(value.chars().count().saturating_sub(1));
+    let Some(held) = value.chars().nth(at) else {
+        return position..position;
+    };
+    let kind = CharKind::of(held);
+    let is_same = |character: &char| CharKind::of(*character) == kind;
+    let before = value[..char_to_byte(value, at)]
+        .chars()
+        .rev()
+        .take_while(is_same)
+        .count();
+    let after = value.chars().skip(at).take_while(is_same).count();
+    at - before..at + after
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +152,19 @@ mod tests {
         assert_eq!(word_end_forward("fn foo bar", 0), 2);
         assert_eq!(word_end_forward("fn foo(a)", 3), 6);
         assert_eq!(word_end_forward("fn", 2), 2);
+    }
+
+    #[test]
+    fn around_takes_the_run_the_position_is_in() {
+        assert_eq!(word_around("fn foo(a)", 4), 3..6);
+        assert_eq!(word_around("fn foo(a)", 3), 3..6, "from the word's start");
+        assert_eq!(word_around("a   b", 2), 1..4, "spacing is a run too");
+        assert_eq!(
+            word_around("fn foo", 6),
+            3..6,
+            "past the end, the last word"
+        );
+        assert_eq!(word_around("", 0), 0..0);
     }
 
     #[test]

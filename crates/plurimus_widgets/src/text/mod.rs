@@ -20,6 +20,7 @@ mod field;
 mod grapheme;
 mod input;
 mod keys;
+mod pointer;
 mod state;
 mod word;
 
@@ -35,3 +36,4 @@ pub(crate) use editor::{
 pub(crate) use input::{
     release_text_input_caret, style_text_inputs, text_input_blur, text_input_key, text_input_paste,
 };
+pub(crate) use pointer::{text_input_drag, text_input_press};

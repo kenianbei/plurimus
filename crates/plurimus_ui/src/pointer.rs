@@ -82,9 +82,7 @@ fn route_message(
     commands: &mut Commands,
 ) -> bool {
     match message.kind {
-        MouseKind::Down(MouseButton::Left) => {
-            route_press(message.position, routing, run_pressed, commands)
-        }
+        MouseKind::Down(MouseButton::Left) => route_press(message, routing, run_pressed, commands),
         MouseKind::Drag(MouseButton::Left) => {
             drag_pressed(&routing.pressed, run_pressed, message.position, commands);
             false
@@ -105,11 +103,12 @@ fn route_message(
 // which a dismissal would have swallowed - and pressing another switches,
 // deferring the rest of the batch past what it closed.
 fn route_press(
-    position: Position,
+    message: MouseMessage,
     routing: &mut PointerRouting,
     run_pressed: &mut Vec<(Entity, u8)>,
     commands: &mut Commands,
 ) -> bool {
+    let position = message.position;
     let target = topmost_at(position, &routing.targets, |entity| {
         routing.modal.admits(position, entity)
     });
@@ -135,11 +134,11 @@ fn route_press(
     let count = routing
         .run
         .step(entity, position, routing.time.elapsed(), routing.window.0);
-    commands.trigger(PointerPress {
-        entity,
-        position,
-        count,
-    });
+    commands.trigger(
+        PointerPress::new(entity, position)
+            .with_count(count)
+            .with_modifiers(message.modifiers),
+    );
     press(entity, count, routing, commands);
     run_pressed.push((entity, count));
     switched

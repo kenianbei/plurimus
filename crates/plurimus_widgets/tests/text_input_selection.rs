@@ -7,11 +7,15 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
-use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers, LastCopied};
-use plurimus_test::{clipboard_writes, press_key, press_key_with, set_focus};
-use plurimus_ui::{UiArea, ValueChange};
+use plurimus_term::{
+    InputCapabilities, KeyCode, KeyModifiers, LastCopied, MouseButton, MouseKind, MouseMessage,
+};
+use plurimus_test::{
+    click, clipboard_writes, press_at, press_key, press_key_with, release_at, send_mouse, set_focus,
+};
+use plurimus_ui::{InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
 
 const WIDTH: u16 = 12;
@@ -243,4 +247,118 @@ fn losing_focus_ends_the_selection() {
     app.update();
 
     assert_eq!(text(&app, field).selection(), None);
+}
+
+fn drag_to(app: &mut App, x: u16) {
+    send_mouse(app, MouseKind::Drag(MouseButton::Left), x, 0);
+}
+
+#[test]
+fn a_click_places_the_caret_and_ends_the_selection() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello world");
+    ctrl(&mut app, 'a');
+
+    click(&mut app, 3, 0);
+
+    assert_eq!(text(&app, field).cursor(), 3);
+    assert_eq!(text(&app, field).selection(), None);
+}
+
+// Seventeen chars in twelve cells, the cursor at the end: the row is drawn
+// from its seventh char, so that is what its first cell holds.
+#[test]
+fn a_click_on_a_scrolled_row_lands_on_what_it_draws() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "abcdefghijklmnopq");
+
+    click(&mut app, 0, 0);
+
+    assert_eq!(text(&app, field).cursor(), 6);
+}
+
+#[test]
+fn a_drag_selects_from_the_press() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello world");
+
+    press_at(&mut app, 0, 0);
+    drag_to(&mut app, 5);
+    release_at(&mut app, 5, 0);
+
+    assert_eq!(selected(&app, field).as_deref(), Some("hello"));
+}
+
+#[test]
+fn a_drag_past_the_edge_selects_to_the_last_cell() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello");
+
+    press_at(&mut app, 1, 0);
+    drag_to(&mut app, 40);
+
+    assert_eq!(selected(&app, field).as_deref(), Some("ello"));
+}
+
+// The shift comes from the press itself: on a terminal without modifier
+// key events, a click is the only thing that reports it.
+#[test]
+fn a_shifted_click_extends_from_the_caret() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello world");
+    click(&mut app, 0, 0);
+
+    let shift = KeyModifiers::default().with_shift(true);
+    let at = Position::new(5, 0);
+    app.world_mut().write_message(MouseMessage::new(
+        MouseKind::Down(MouseButton::Left),
+        at,
+        shift,
+    ));
+    app.update();
+    release_at(&mut app, 5, 0);
+
+    assert_eq!(selected(&app, field).as_deref(), Some("hello"));
+}
+
+#[test]
+fn a_double_click_selects_a_word_and_a_triple_click_everything() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello world");
+
+    click(&mut app, 7, 0);
+    click(&mut app, 7, 0);
+    assert_eq!(selected(&app, field).as_deref(), Some("world"));
+
+    click(&mut app, 7, 0);
+    assert_eq!(selected(&app, field).as_deref(), Some("hello world"));
+}
+
+// The family is five chars drawn as one glyph, and a double click would
+// show where the hidden value's words break.
+#[test]
+fn a_masked_field_maps_clicks_by_cluster_and_never_selects_a_word() {
+    const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+    let mut app = app();
+    let field = spawn_field(&mut app, &format!("a{FAMILY} b"));
+    app.world_mut().entity_mut(field).insert(TextMask('*'));
+
+    click(&mut app, 2, 0);
+    assert_eq!(text(&app, field).cursor(), 6);
+
+    click(&mut app, 2, 0);
+    assert_eq!(text(&app, field).selection(), Some(0..8));
+}
+
+#[test]
+fn a_disabled_field_ignores_the_pointer() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello");
+    app.world_mut()
+        .entity_mut(field)
+        .insert(InteractionDisabled);
+
+    click(&mut app, 0, 0);
+
+    assert_eq!(text(&app, field).cursor(), 5);
 }

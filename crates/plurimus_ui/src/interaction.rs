@@ -15,7 +15,7 @@ use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
     CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiOrder, UiWidget, resolve_area,
 };
-use plurimus_term::CursorCell;
+use plurimus_term::{CursorCell, KeyModifiers};
 
 /// Whether the cursor is over the widget. Opt-in: spawn it on widgets that
 /// should react to the pointer.
@@ -177,16 +177,24 @@ pub struct PointerPress {
     /// none at all starts the next press over at 1. It saturates rather than
     /// wrapping, so what a long run means is this widget's to decide.
     pub count: u8,
+    /// The modifiers the terminal reported with the press.
+    ///
+    /// Read from the mouse event rather than from the keys held, which a
+    /// terminal without modifier key events learns only from a key message:
+    /// a shift reported with a click would otherwise go unseen.
+    pub modifiers: KeyModifiers,
 }
 
 impl PointerPress {
-    /// A press on `entity` at `position`, the first of its run.
+    /// A press on `entity` at `position`, the first of its run, with nothing
+    /// held.
     #[must_use]
     pub const fn new(entity: Entity, position: Position) -> Self {
         Self {
             entity,
             position,
             count: 1,
+            modifiers: KeyModifiers::none(),
         }
     }
 
@@ -194,6 +202,13 @@ impl PointerPress {
     #[must_use]
     pub const fn with_count(mut self, count: u8) -> Self {
         self.count = count;
+        self
+    }
+
+    /// The same press, made with `modifiers` held.
+    #[must_use]
+    pub const fn with_modifiers(mut self, modifiers: KeyModifiers) -> Self {
+        self.modifiers = modifiers;
         self
     }
 }
