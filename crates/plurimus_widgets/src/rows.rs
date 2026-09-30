@@ -244,3 +244,28 @@ pub(crate) fn cursor_style(next: StylistCache, driven: bool, theme: &UiTheme) ->
 pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
     over.cloned().unwrap_or_else(|| Line::from(CURSOR_SYMBOL))
 }
+
+/// Narrows a container's rows, in child order, to the ones a copy takes:
+/// in a multi-select container every [`Checked`](plurimus_ui::Checked) row
+/// when any is, and otherwise the rows `fallback` keeps - the cursor's, or
+/// a whole column's worth.
+///
+/// Single-select is left to the cursor because its one `Checked` row is
+/// whatever was last picked, which stays behind as the cursor moves on.
+/// [`Marked`] is not selection, so it has no say.
+pub(crate) fn copied_rows<T>(
+    rows: Vec<(T, bool)>,
+    is_multi_select: bool,
+    fallback: impl Fn(&T) -> bool,
+) -> impl Iterator<Item = T> {
+    let is_checked_set = is_multi_select && rows.iter().any(|&(_, checked)| checked);
+    rows.into_iter()
+        .filter(move |(row, checked)| {
+            if is_checked_set {
+                *checked
+            } else {
+                fallback(row)
+            }
+        })
+        .map(|(row, _)| row)
+}

@@ -11,7 +11,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Changed, Children, Commands, Component, On, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Children, Commands, Component, Has, On, Query, With, Without};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -21,12 +21,13 @@ use plurimus_core::ratatui_core::text::Line;
 use plurimus_term::bevy_compat::HeldModifiers;
 
 use super::ValueChange;
-use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, row_height};
+use crate::clipboard::Clipboard;
+use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, copied_rows, row_height};
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{
-    Click, ComputedDisabled, ComputedWidgetArea, Hovered, PointerDrag, PointerPress,
+    Checked, Click, ComputedDisabled, ComputedWidgetArea, Hovered, PointerDrag, PointerPress,
 };
 use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
@@ -117,13 +118,16 @@ pub enum ListBoxAction {
     PageDown,
     /// Select the row the cursor is on.
     Select,
+    /// Copy the cursor row's text, or every checked row's in a
+    /// [`ListBoxMultiSelect`] list, one row per line.
+    Copy,
 }
 
 /// A [`ListBox`]'s key bindings, scanned in order so the first match wins.
 ///
 /// Replace it to remap: two keys may share an action by appearing twice.
-/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
-/// `Enter` and space to select.
+/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`,
+/// `Enter` and space to select, and `Ctrl+c` to copy.
 #[derive(Component, Debug, Clone)]
 pub struct ListBoxKeys(pub Vec<(KeyBinding, ListBoxAction)>);
 
@@ -138,6 +142,10 @@ impl Default for ListBoxKeys {
             (Key::PageDown.into(), ListBoxAction::PageDown),
             (Key::Enter.into(), ListBoxAction::Select),
             (Key::Character(" ".into()).into(), ListBoxAction::Select),
+            (
+                KeyBinding::new(Key::Character("c".into())).with_ctrl(),
+                ListBoxAction::Copy,
+            ),
         ])
     }
 }
@@ -164,6 +172,9 @@ pub(crate) fn listbox_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
+    if action == ListBoxAction::Copy {
+        return;
+    }
     if action == ListBoxAction::Select {
         let Some(item) = active.0.filter(|&row| items.contains(row)) else {
             return;
@@ -180,6 +191,70 @@ pub(crate) fn listbox_key(
     if move_active(action, &rows, *area, &mut active) {
         input.propagate(false);
     }
+}
+
+/// The rows a list copies from: what each would copy, and whether it is
+/// checked.
+type CopyRows<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Option<&'static ListItemText>,
+        Option<&'static UiLabel>,
+        Has<Checked>,
+    ),
+    With<ListItem>,
+>;
+
+/// Copies what [`copied_rows`] picks when the key is bound to
+/// [`ListBoxAction::Copy`], each row as it reads - its [`ListItemText`],
+/// else its label - one per line. With nothing to copy the key goes on to
+/// the list's ancestors.
+pub(crate) fn listbox_copy(
+    mut input: On<FocusedInput<KeyboardInput>>,
+    held: HeldModifiers,
+    boxes: Query<
+        (
+            &Children,
+            &ListBoxKeys,
+            &ActiveDescendant,
+            Has<ListBoxMultiSelect>,
+        ),
+        (With<ListBox>, Without<ComputedDisabled>),
+    >,
+    rows: CopyRows,
+    mut clipboard: Clipboard,
+) {
+    let Ok((children, keys, active, is_multi_select)) = boxes.get(input.focused_entity) else {
+        return;
+    };
+    if first_bound(&keys.0, &input.input, held.get()) != Some(ListBoxAction::Copy) {
+        return;
+    }
+    let listed = children
+        .iter()
+        .filter_map(|&child| {
+            let (text, label, checked) = rows.get(child).ok()?;
+            Some(((child, text, label), checked))
+        })
+        .collect();
+    let copied = copied_rows(listed, is_multi_select, |&(child, ..)| {
+        active.0 == Some(child)
+    })
+    .map(|(_, text, label)| row_text(text, label))
+    .collect::<Vec<_>>()
+    .join("\n");
+    if copied.is_empty() {
+        return;
+    }
+    clipboard.offer(&copied);
+    input.propagate(false);
+}
+
+fn row_text(text: Option<&ListItemText>, label: Option<&UiLabel>) -> String {
+    text.map(|text| text.0.to_string())
+        .or_else(|| label.map(|label| label.0.to_string()))
+        .unwrap_or_default()
 }
 
 /// Scrolls whichever row [`ActiveDescendant`] names into view, whoever set

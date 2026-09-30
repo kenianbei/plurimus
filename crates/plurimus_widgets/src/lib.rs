@@ -14,6 +14,7 @@
 mod activate;
 mod button;
 mod checkbox;
+mod clipboard;
 mod listbox;
 mod listbox_style;
 mod menu;
@@ -75,7 +76,7 @@ pub(crate) use activate::{widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{
-    listbox_click, listbox_drag, listbox_key, listbox_press, reveal_listbox_cursor,
+    listbox_click, listbox_copy, listbox_drag, listbox_key, listbox_press, reveal_listbox_cursor,
 };
 pub(crate) use listbox_style::{mark_list_content, style_listboxes};
 pub(crate) use menu::{
@@ -240,6 +241,7 @@ fn add_observers(app: &mut App) {
     app.add_observer(listbox_drag);
     app.add_observer(listbox_click);
     app.add_observer(listbox_key);
+    app.add_observer(listbox_copy);
     app.add_observer(table_click);
     app.add_observer(table_key);
     app.add_observer(tab_bar_key);

@@ -23,10 +23,10 @@ use plurimus_core::ratatui_core::widgets::Widget;
 use plurimus_term::PasteMessage;
 use ratatui_textarea::{CursorMove, DataCursor, TextArea};
 
-use super::clipboard::Clipboard;
 use super::editor_keys::{TextEditorAction, TextEditorKeys};
 use super::grapheme::{cluster_len_after, cluster_len_before};
 use super::keys::unbound_text;
+use crate::clipboard::Clipboard;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{ComputedDisabled, Hovered, first_bound};
