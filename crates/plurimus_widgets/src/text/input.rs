@@ -16,7 +16,7 @@ use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
-use plurimus_term::PasteMessage;
+use plurimus_term::{PasteMessage, TerminalCursorStyle};
 
 use super::field::{TextField, mask_value, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
@@ -40,11 +40,19 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 ///
 /// The caret is drawn into the row while the field has focus, and its cell
 /// is published in the required [`WidgetCursor`], so the terminal's own
-/// cursor sits on it too. Only the cell is written: a shape set with
-/// [`WidgetCursor::with_style`] is kept. A field given [`StylistDisabled`]
+/// cursor sits on it too. That cursor is a steady bar unless an app sets
+/// another shape with [`WidgetCursor::with_style`], which the field keeps: a
+/// block cursor drawn by inverting its cell would cancel the reversed caret
+/// beneath it. A field given [`StylistDisabled`]
 /// has its cell cleared, since an app drawing the row places its own caret.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, TextInput, TextInputKeys, WidgetCursor)]
+#[require(
+    Hovered,
+    StylistCache,
+    TextInput,
+    TextInputKeys,
+    WidgetCursor = WidgetCursor::nowhere().with_style(TerminalCursorStyle::SteadyBar),
+)]
 pub struct EditableText;
 
 /// Draws an [`EditableText`] as one of this glyph per grapheme cluster, the

@@ -93,20 +93,33 @@ fn a_narrower_row_moves_the_cursor() {
     );
 }
 
+// A block cursor inverts its cell on many terminals, which turns the
+// reversed caret beneath it back to plain.
+#[test]
+fn a_focused_field_asks_for_a_bar() {
+    let mut app = app();
+    spawn_focused(&mut app, "ab");
+    app.update();
+    assert_eq!(
+        *app.world().resource::<TerminalCursorStyle>(),
+        TerminalCursorStyle::SteadyBar
+    );
+}
+
 #[test]
 fn a_shape_the_app_set_survives_an_edit() {
     let mut app = app();
     let field = spawn_focused(&mut app, "ab");
     app.world_mut()
         .entity_mut(field)
-        .insert(WidgetCursor::nowhere().with_style(TerminalCursorStyle::SteadyBar));
+        .insert(WidgetCursor::nowhere().with_style(TerminalCursorStyle::SteadyUnderline));
 
     press_key(&mut app, KeyCode::Char('c'));
 
     assert_eq!(cursor(&mut app), Some(Position::new(ROW.x + 3, ROW.y)));
     assert_eq!(
         *app.world().resource::<TerminalCursorStyle>(),
-        TerminalCursorStyle::SteadyBar
+        TerminalCursorStyle::SteadyUnderline
     );
 }
 

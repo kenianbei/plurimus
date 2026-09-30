@@ -70,8 +70,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   method anchors to, is placed on the focused field. An app with a focused field
   therefore shows the terminal cursor where it showed none before. The drawn
   caret stays, so a terminal with its cursor hidden still shows where typing
-  goes. The terminal cursor takes the terminal's own shape unless the app sets
-  one with `WidgetCursor::with_style`, which the field keeps. Adding
+  goes. The terminal cursor is a steady bar, because a block cursor drawn by
+  inverting its cell would cancel the reversed caret. An app can set another
+  shape with `WidgetCursor::with_style`, which the field keeps, and the
+  terminal's own shape returns when the field loses focus. Adding
   `StylistDisabled` clears the cell, leaving the caret to the app that now draws
   the row. The multi-line `TextEditor` still draws only its engine's caret.
 

@@ -358,22 +358,23 @@ alone - which is the whole of what tells committing an entry from abandoning
 one. Its caret is drawn only while it holds focus, so a screenful of fields
 shows the one the keys reach, and the same cell is published as its
 `WidgetCursor`, so the terminal's own caret - the one a screen reader follows -
-sits there too; an app taking the field's look with `StylistDisabled` takes that
-cell with it. Most widgets are stateless controllers emitting entity events
-(`Activate`, `ValueChange`); apps apply them, or attach the stock
-`*_self_update` observers for uncontrolled behavior. Which keys activate one is
-the app's: `Button`, `Checkbox` and `RadioButton` require `ActivateKeys`,
-defaulting to Enter and space, and a key the widget is not bound to activates
-nothing and propagates - so binding space alone is what lets the form around a
-checkbox keep Enter for its submit, and an empty list turns the keyboard path
-off while leaving the click. Consuming the key is what activating does, which is
-why a disabled widget passes its bound keys on too. It holds bare `KeyBinding`s
-rather than the `(KeyBinding, Action)` pairs a list box or table binds,
-activation having one action to name; a repeat never activates, one intent
-committing once. A menu binds its own Enter and space through `MenuKeys`, which
-sits on the popup rather than on every row of it: one table per menu, agreeing
-with `ActivateKeys`'s default and independent of it deliberately, since a menu's
-Enter is not a form's.
+sits there too, as a bar by default, since a block inverting its cell cancels
+the reversed one drawn beneath it; an app taking the field's look with
+`StylistDisabled` takes that cell with it. Most widgets are stateless
+controllers emitting entity events (`Activate`, `ValueChange`); apps apply them,
+or attach the stock `*_self_update` observers for uncontrolled behavior. Which
+keys activate one is the app's: `Button`, `Checkbox` and `RadioButton` require
+`ActivateKeys`, defaulting to Enter and space, and a key the widget is not bound
+to activates nothing and propagates - so binding space alone is what lets the
+form around a checkbox keep Enter for its submit, and an empty list turns the
+keyboard path off while leaving the click. Consuming the key is what activating
+does, which is why a disabled widget passes its bound keys on too. It holds bare
+`KeyBinding`s rather than the `(KeyBinding, Action)` pairs a list box or table
+binds, activation having one action to name; a repeat never activates, one
+intent committing once. A menu binds its own Enter and space through `MenuKeys`,
+which sits on the popup rather than on every row of it: one table per menu,
+agreeing with `ActivateKeys`'s default and independent of it deliberately, since
+a menu's Enter is not a form's.
 
 A `Popover` is placed against its anchor's resolved area every frame, so it
 follows a moving anchor without being told, and two fields say what that means:
