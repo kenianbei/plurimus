@@ -47,6 +47,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the start of the frame and again in `Last`, and `ComputedDisabled` in
   `UiSystems::Areas`, so disabling a widget after that takes effect from the
   next frame.
+- **`TerminalRenderAppExt::terminal_backend`.** Reads the backend a
+  `PresenterPlugin` draws through back from the `App`, which is how a headless
+  app checks what it presented. It returns `None` when no presenter for that
+  backend type is installed, where reaching into the render sub-app by hand
+  panicked.
 
 ### Changed
 

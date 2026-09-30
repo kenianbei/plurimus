@@ -602,11 +602,14 @@ newtypes, where a second field is a redesign rather than an addition.
 
 Traits are sealed only where a downstream implementation would be a mistake.
 `TerminalRenderAppExt` is sealed, being an extension trait whose one sensible
-implementor is bevy's `App`; sealing it is what lets registration methods appear
-as sub-app phases land. `TerminalWidget` is deliberately open, because
-implementing it is how a widget outside ratatui's `Widget` convention joins the
-pipeline - the `headless` example does exactly that, and the blanket impl over
-`Widget for &Self` covers everything else.
+implementor is bevy's `App`; sealing it is what lets a method appear as the
+sub-app grows one - a registration as a phase lands, or `terminal_backend`, the
+read that hands a headless app back the backend its presenter drew into, since
+that backend lives in the sub-app where no main-world system can reach it.
+`TerminalWidget` is deliberately open, because implementing it is how a widget
+outside ratatui's `Widget` convention joins the pipeline - the `headless`
+example does exactly that, and the blanket impl over `Widget for &Self` covers
+everything else.
 
 ## Testing
 

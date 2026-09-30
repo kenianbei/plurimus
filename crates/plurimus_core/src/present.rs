@@ -22,6 +22,10 @@ use crate::cursor::{PreviousCursor, TerminalCursor};
 use crate::sub_app::{TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems};
 
 /// Owns the backend that the presenter draws through.
+///
+/// It lives in the render sub-app, so the main world has no `Res` of it;
+/// read it from an `App` through
+/// [`TerminalRenderAppExt::terminal_backend`].
 #[derive(Resource)]
 #[non_exhaustive]
 pub struct TerminalContext<B: Backend + Send + Sync + 'static> {
