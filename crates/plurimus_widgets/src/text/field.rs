@@ -6,7 +6,10 @@
 //! cursor leave the field. The caret is a style patched over the cluster it
 //! sits on, so a terminal drawing no cursor still shows where typing goes;
 //! the stylist publishes the same cell through `WidgetCursor` for the
-//! terminal's own, which is what a screen reader follows.
+//! terminal's own, which is what a screen reader follows. A selection is a
+//! style patched the same way, over every cluster it covers.
+
+use std::ops::Range;
 
 use plurimus_core::ratatui_core::buffer::{Buffer, CellWidth};
 use plurimus_core::ratatui_core::layout::Rect;
@@ -15,16 +18,25 @@ use plurimus_core::ratatui_core::widgets::Widget;
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::grapheme::char_to_byte;
+use super::state::TextInput;
 
-/// The windowed single row: value, cursor as a char index, the fill style
-/// the row is painted with, and the caret's style - `None` for a field
-/// without focus, which draws no caret at all rather than one more block
-/// competing with whichever field the keys actually reach.
+/// The windowed single row: what it draws, the fill style the row is
+/// painted with, the caret's style - `None` for a field without focus,
+/// which draws no caret at all rather than one more block competing with
+/// whichever field the keys actually reach - and the selection's.
 pub(super) struct TextField {
-    pub(super) value: String,
-    pub(super) cursor: usize,
+    pub(super) row: DrawnRow,
     pub(super) style: Style,
     pub(super) caret: Option<Style>,
+    pub(super) selection_style: Style,
+}
+
+/// The text a row draws, with the cursor and selection as char indices
+/// into it.
+pub(super) struct DrawnRow {
+    pub(super) value: String,
+    pub(super) cursor: usize,
+    pub(super) selection: Option<Range<usize>>,
 }
 
 struct Window {
@@ -43,7 +55,8 @@ impl Widget for &TextField {
         if area.is_empty() {
             return;
         }
-        let caret_span = place_caret(&self.value, self.cursor, area.width);
+        let row = &self.row;
+        let caret_span = place_caret(&row.value, row.cursor, area.width);
         let window = Window {
             start: caret_span.start,
             area,
@@ -54,7 +67,15 @@ impl Widget for &TextField {
             }
         }
         buffer.set_style(area, self.style);
-        render_window(&self.value, &window, buffer);
+        render_window(&row.value, &window, buffer);
+        if let Some(selection) = &row.selection {
+            let [left, right] = [selection.start, selection.end].map(|end| {
+                let (column, _) = cursor_span(&row.value, end);
+                column.saturating_sub(window.start).min(area.width)
+            });
+            let selected = Rect::new(area.x + left, area.y, right - left, 1);
+            buffer.set_style(selected, self.selection_style);
+        }
         let Some(caret) = self.caret else {
             return;
         };
@@ -99,12 +120,27 @@ fn cursor_span(value: &str, cursor: usize) -> (u16, u16) {
     (column, 1)
 }
 
-/// One `mask` per grapheme cluster. The cursor is a char index, and a
-/// multi-scalar cluster masks to one char, so it maps to a cluster count.
-pub(super) fn mask_value(value: &str, cursor: usize, mask: char) -> (String, usize) {
-    let masked = value.graphemes(true).map(|_| mask).collect();
-    let masked_cursor = value[..char_to_byte(value, cursor)].graphemes(true).count();
-    (masked, masked_cursor)
+/// The row `text` draws: its value, or one `mask` per grapheme cluster.
+///
+/// A multi-scalar cluster masks to one char, so under a mask a char index
+/// maps to the count of clusters before it.
+pub(super) fn drawn_row(text: &TextInput, mask: Option<char>) -> DrawnRow {
+    let value = text.value();
+    let Some(mask) = mask else {
+        return DrawnRow {
+            value: value.to_owned(),
+            cursor: text.cursor(),
+            selection: text.selection(),
+        };
+    };
+    let masked = |index| value[..char_to_byte(value, index)].graphemes(true).count();
+    DrawnRow {
+        value: value.graphemes(true).map(|_| mask).collect(),
+        cursor: masked(text.cursor()),
+        selection: text
+            .selection()
+            .map(|range| masked(range.start)..masked(range.end)),
+    }
 }
 
 fn render_window(value: &str, window: &Window, buffer: &mut Buffer) {

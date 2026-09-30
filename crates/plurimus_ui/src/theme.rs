@@ -34,8 +34,8 @@ pub struct InteractionState {
 /// Per-state styles for widgets. Replace the resource to restyle;
 /// `focused` is patched on top of the state style.
 ///
-/// `caret` is the one field that is not a state: it styles a caret a widget
-/// draws inside itself rather than the widget, which no state style reaches.
+/// `caret` and `selection` are not states: they style what a widget draws
+/// inside itself rather than the widget, which no state style reaches.
 #[derive(Resource, Debug, Clone)]
 #[non_exhaustive]
 pub struct UiTheme {
@@ -61,6 +61,14 @@ pub struct UiTheme {
     /// from [`TerminalCursorStyle`](plurimus_term::TerminalCursorStyle)
     /// rather than a style.
     pub caret: Style,
+    /// Patched over the characters a text selection covers.
+    ///
+    /// Reversed by default, for the reason the caret is. A widget drawing
+    /// both leaves its caret out while something is selected, since a patch
+    /// adds a modifier rather than toggling it and the caret would vanish.
+    /// Like the caret, this reaches only a selection the widget draws into
+    /// its own cells, not one belonging to a text engine.
+    pub selection: Style,
 }
 
 impl Default for UiTheme {
@@ -112,6 +120,7 @@ impl UiTheme {
             disabled: Style::new().fg(Color::DarkGray),
             focused: Style::new().add_modifier(Modifier::BOLD).fg(Color::Yellow),
             caret: Style::new().add_modifier(Modifier::REVERSED),
+            selection: Style::new().add_modifier(Modifier::REVERSED),
         }
     }
 
@@ -155,6 +164,13 @@ impl UiTheme {
     #[must_use]
     pub const fn with_caret(mut self, caret: Style) -> Self {
         self.caret = caret;
+        self
+    }
+
+    /// Sets the patch applied over the characters a text selection covers.
+    #[must_use]
+    pub const fn with_selection(mut self, selection: Style) -> Self {
+        self.selection = selection;
         self
     }
 

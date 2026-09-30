@@ -10,7 +10,7 @@ use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, 
 use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{UiArea, UiTheme};
-use plurimus_widgets::{TextMask, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
 
 const ACCENT: &str = "e\u{301}";
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
@@ -201,4 +201,65 @@ fn a_wide_mask_glyph_takes_two_cells() {
     spawn_masked(&mut app, "ab", '\u{FF0A}');
     let cells = symbols(&frame(&mut app));
     assert_eq!(cells[..5], ["\u{FF0A}", "", "\u{FF0A}", "", " "]);
+}
+
+fn edit(app: &mut App, field: Entity, change: impl FnOnce(&mut TextInput)) {
+    change(&mut app.world_mut().get_mut::<TextInput>(field).unwrap());
+}
+
+// The cursor ends the selection at column 2, outside it: a caret drawn
+// there would be a third reversed cell.
+#[test]
+fn a_selection_reverses_its_clusters_in_place_of_the_caret() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "abcdef");
+    edit(&mut app, field, |text| {
+        text.move_start();
+        text.select_to(2);
+    });
+    assert_eq!(reversed_columns(&frame(&mut app)), vec![0, 1]);
+
+    edit(&mut app, field, TextInput::clear_selection);
+    assert_eq!(
+        reversed_columns(&frame(&mut app)),
+        vec![2],
+        "the caret comes back with the selection gone"
+    );
+}
+
+#[test]
+fn a_selection_past_the_window_is_clipped_to_it() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "abcdefghijklmno");
+    edit(&mut app, field, TextInput::select_all);
+    assert_eq!(
+        reversed_columns(&frame(&mut app)),
+        (0..WIDTH - 1).collect::<Vec<_>>(),
+        "the window ends on the blank after the value, which is not selected"
+    );
+}
+
+// Selecting over the family is six chars but two masked glyphs.
+#[test]
+fn a_masked_selection_covers_its_clusters() {
+    let mut app = app();
+    let field = spawn_masked(&mut app, &format!("a{FAMILY}b"), MASK);
+    edit(&mut app, field, |text| {
+        text.move_start();
+        text.select_to(2);
+    });
+    assert_eq!(reversed_columns(&frame(&mut app)), vec![0, 1]);
+}
+
+#[test]
+fn the_theme_styles_the_selection() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "ab");
+    edit(&mut app, field, TextInput::select_all);
+
+    app.insert_resource(UiTheme::new().with_selection(Style::new().bg(Color::Blue)));
+    let buffer = frame(&mut app);
+
+    assert_eq!(buffer.cell((1, 0)).unwrap().style().bg, Some(Color::Blue));
+    assert!(reversed_columns(&buffer).is_empty());
 }

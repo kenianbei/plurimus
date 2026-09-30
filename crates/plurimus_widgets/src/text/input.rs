@@ -19,7 +19,7 @@ use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::{PasteMessage, TerminalCursorStyle, TerminalRequest};
 
 use super::editor::Clipboard;
-use super::field::{TextField, mask_value, place_caret};
+use super::field::{TextField, drawn_row, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
@@ -221,16 +221,17 @@ pub(crate) fn style_text_inputs(
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        let (value, cursor) = match mask {
-            Some(TextMask(glyph)) => mask_value(text.value(), text.cursor(), *glyph),
-            None => (text.value().to_owned(), text.cursor()),
-        };
-        widget_cursor.cell = Some(Position::new(place_caret(&value, cursor, width).column, 0));
+        let row = drawn_row(text, mask.map(|TextMask(glyph)| *glyph));
+        let caret_column = place_caret(&row.value, row.cursor, width).column;
+        widget_cursor.cell = Some(Position::new(caret_column, 0));
+        // A reversed caret on a reversed selection would not show; the
+        // terminal's own cursor still marks the end that moves.
+        let has_caret = next.state().focused && row.selection.is_none();
         *widget = UiWidget::new(TextField {
-            value,
-            cursor,
+            row,
             style: next.style(&theme),
-            caret: next.state().focused.then_some(theme.caret),
+            caret: has_caret.then_some(theme.caret),
+            selection_style: theme.selection,
         });
     }
 }
