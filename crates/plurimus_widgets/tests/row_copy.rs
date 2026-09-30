@@ -1,6 +1,6 @@
-//! A focused list box copies its rows on `Ctrl+c`: the cursor row, or every
-//! checked row of a multi-select list, and with nothing to copy the key
-//! reaches the list's ancestors.
+//! A focused list box or table copies its rows on `Ctrl+c`: the cursor
+//! row, or every checked row of a multi-select container, and with nothing
+//! to copy the key reaches the container's ancestors.
 
 use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
@@ -8,15 +8,16 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
-use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::ratatui_core::text::Text;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers};
 use plurimus_test::{clipboard_writes, press_key, press_key_with, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, KeyBinding, UiArea};
 use plurimus_widgets::{
-    ActiveDescendant, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItemText,
-    ListItemTrailing, Marked, WidgetsPlugin, list_item, listbox,
+    ActiveColumn, ActiveDescendant, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItemText,
+    ListItemTrailing, Marked, TableMultiSelect, TableSelection, WidgetsPlugin, list_item, listbox,
+    table, table_footer, table_header, table_row,
 };
 
 const AREA: Rect = Rect::new(0, 0, 20, 6);
@@ -218,5 +219,134 @@ fn copying_leaves_the_cursor_where_it_was() {
     copy(&mut app);
 
     let active = app.world().get::<ActiveDescendant>(list).unwrap();
+    assert_eq!(active.0, Some(rows[2]));
+}
+
+/// A focused table inside a form, banded by a header and a footer around
+/// three body rows.
+fn spawn_table(app: &mut App, selection: Option<TableSelection>) -> (Entity, [Entity; 3]) {
+    let form = spawn_form(app);
+    let world = app.world_mut();
+    let table = world
+        .spawn((
+            table([Constraint::Length(6), Constraint::Length(6)]),
+            UiArea::Fixed(AREA),
+            ChildOf(form),
+        ))
+        .id();
+    if let Some(selection) = selection {
+        world.entity_mut(table).insert(selection);
+    }
+    world.spawn((table_header(["name", "date"]), ChildOf(table)));
+    let rows = [["ann", "may"], ["bo", "jun"], ["cy", "jul"]]
+        .map(|cells| world.spawn((table_row(cells), ChildOf(table))).id());
+    world.spawn((table_footer(["all", "3"]), ChildOf(table)));
+    set_focus(app, table);
+    app.update();
+    (table, rows)
+}
+
+fn point_at_cell(app: &mut App, table: Entity, row: Option<Entity>, column: usize) {
+    app.world_mut()
+        .entity_mut(table)
+        .insert((ActiveDescendant(row), ActiveColumn(Some(column))));
+}
+
+#[test]
+fn a_row_table_copies_the_cursor_row_tab_separated() {
+    let mut app = app();
+    let (table, rows) = spawn_table(&mut app, Some(TableSelection::Row));
+    point_at(&mut app, table, rows[1]);
+
+    copy(&mut app);
+
+    assert_eq!(clipboard_writes(&mut app), ["bo\tjun"]);
+    assert!(propagated(&app).is_empty(), "{:?}", propagated(&app));
+}
+
+#[test]
+fn a_column_table_copies_the_body_column_without_its_bands() {
+    let mut app = app();
+    let (table, _) = spawn_table(&mut app, Some(TableSelection::Column));
+    point_at_cell(&mut app, table, None, 1);
+
+    copy(&mut app);
+
+    assert_eq!(clipboard_writes(&mut app), ["may\njun\njul"]);
+}
+
+#[test]
+fn a_cell_table_copies_the_one_cell() {
+    let mut app = app();
+    let (table, rows) = spawn_table(&mut app, Some(TableSelection::Cell));
+    point_at_cell(&mut app, table, Some(rows[2]), 0);
+
+    copy(&mut app);
+
+    assert_eq!(clipboard_writes(&mut app), ["cy"]);
+}
+
+#[test]
+fn a_multi_select_cell_table_copies_the_column_cell_of_each_checked_row() {
+    let mut app = app();
+    let (table, rows) = spawn_table(&mut app, Some(TableSelection::Cell));
+    app.world_mut().entity_mut(table).insert(TableMultiSelect);
+    app.world_mut().entity_mut(rows[0]).insert(Checked);
+    app.world_mut().entity_mut(rows[2]).insert(Checked);
+    point_at_cell(&mut app, table, Some(rows[1]), 1);
+
+    copy(&mut app);
+
+    assert_eq!(clipboard_writes(&mut app), ["may\njul"]);
+}
+
+#[test]
+fn a_column_table_with_no_column_copies_nothing_and_propagates() {
+    let mut app = app();
+    spawn_table(&mut app, Some(TableSelection::Column));
+
+    copy(&mut app);
+
+    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+}
+
+#[test]
+fn a_table_without_a_selection_copies_nothing() {
+    let mut app = app();
+    spawn_table(&mut app, None);
+
+    copy(&mut app);
+
+    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+}
+
+#[test]
+fn a_disabled_table_copies_nothing_and_propagates() {
+    let mut app = app();
+    let (table, rows) = spawn_table(&mut app, Some(TableSelection::Row));
+    point_at(&mut app, table, rows[0]);
+    app.world_mut()
+        .entity_mut(table)
+        .insert(InteractionDisabled);
+    app.update();
+
+    copy(&mut app);
+
+    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+}
+
+#[test]
+fn copying_leaves_the_table_cursor_where_it_was() {
+    let mut app = app();
+    let (table, rows) = spawn_table(&mut app, Some(TableSelection::Row));
+    point_at(&mut app, table, rows[2]);
+
+    copy(&mut app);
+
+    assert_eq!(clipboard_writes(&mut app), ["cy\tjul"]);
+    let active = app.world().get::<ActiveDescendant>(table).unwrap();
     assert_eq!(active.0, Some(rows[2]));
 }

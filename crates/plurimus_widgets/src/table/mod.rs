@@ -26,12 +26,14 @@
 //! sizes cells with taffy, at the cost of an entity and a layout node each,
 //! and knows nothing of headers, striping, or a cursor.
 
+mod copy;
 mod geometry;
 mod input;
 mod style;
 
 pub use geometry::TableGeometry;
 
+pub(crate) use copy::table_copy;
 pub(crate) use geometry::BodyRow as TableBodyRow;
 pub(crate) use input::{reveal_table_cursor, table_click, table_key};
 pub(crate) use style::{mark_table_content, style_tables};
@@ -236,6 +238,10 @@ pub enum TableAction {
     ColumnNext,
     /// Select what the cursor is on.
     Select,
+    /// Copy the body rows the cursor is on, or every checked one in a
+    /// [`TableMultiSelect`] table, one per line: a row's cells
+    /// tab-separated, or its one cell when the selection tracks a column.
+    Copy,
 }
 
 impl TableAction {
@@ -247,8 +253,8 @@ impl TableAction {
 /// A [`Table`]'s key bindings, scanned in order so the first match wins.
 ///
 /// Replace it to remap: two keys may share an action by appearing twice.
-/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`, and
-/// `Enter` and space to select.
+/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`,
+/// `Enter` and space to select, and `Ctrl+c` to copy.
 #[derive(Component, Debug, Clone)]
 pub struct TableKeys(pub Vec<(KeyBinding, TableAction)>);
 
@@ -265,6 +271,10 @@ impl Default for TableKeys {
             (Key::PageDown.into(), TableAction::PageDown),
             (Key::Enter.into(), TableAction::Select),
             (Key::Character(" ".into()).into(), TableAction::Select),
+            (
+                KeyBinding::new(Key::Character("c".into())).with_ctrl(),
+                TableAction::Copy,
+            ),
         ])
     }
 }

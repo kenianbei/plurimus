@@ -60,6 +60,9 @@ pub(crate) fn table_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
+    if action == TableAction::Copy {
+        return;
+    }
     if action == TableAction::Select {
         input.propagate(false);
         if input.input.repeat {

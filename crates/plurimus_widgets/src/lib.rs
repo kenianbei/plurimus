@@ -97,7 +97,8 @@ pub(crate) use tabbar::{
     tab_bar_key, tab_item_click,
 };
 pub(crate) use table::{
-    TableBodyRow, mark_table_content, reveal_table_cursor, style_tables, table_click, table_key,
+    TableBodyRow, mark_table_content, reveal_table_cursor, style_tables, table_click, table_copy,
+    table_key,
 };
 pub(crate) use text::{
     install_editor_views, release_text_input_caret, style_text_inputs, text_editor_key,
@@ -244,6 +245,7 @@ fn add_observers(app: &mut App) {
     app.add_observer(listbox_copy);
     app.add_observer(table_click);
     app.add_observer(table_key);
+    app.add_observer(table_copy);
     app.add_observer(tab_bar_key);
     app.add_observer(tab_item_click);
     app.add_observer(text_input_key);
