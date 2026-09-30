@@ -1,5 +1,6 @@
 //! `InteractionDisabled` disables the subtree beneath it on every path a
-//! widget takes input by: the press, its keys, and directional navigation.
+//! widget takes input by - the press, its keys, and directional navigation -
+//! and in how its stylist draws it.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
