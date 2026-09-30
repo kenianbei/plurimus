@@ -62,7 +62,7 @@ pub(crate) fn char_to_byte(value: &str, index: usize) -> usize {
 }
 
 /// Every cluster as `(start char index, char count)`, in order.
-fn cluster_spans(value: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
+pub(crate) fn cluster_spans(value: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
     let mut start = 0;
     value.graphemes(true).map(move |cluster| {
         let span = (start, cluster.chars().count());

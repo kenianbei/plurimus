@@ -16,9 +16,9 @@ use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
-use plurimus_term::{PasteMessage, TerminalCursorStyle, TerminalRequest};
+use plurimus_term::{PasteMessage, TerminalCursorStyle};
 
-use super::editor::Clipboard;
+use super::clipboard::Clipboard;
 use super::field::{TextField, drawn_row, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
@@ -153,7 +153,7 @@ fn apply_clipboard(
     clipboard: &mut Clipboard,
 ) {
     if action == TextInputAction::Paste {
-        if let Some(copied) = clipboard.copied.0.as_deref() {
+        if let Some(copied) = clipboard.last_copied() {
             text.paste(copied);
         }
         return;
@@ -162,7 +162,7 @@ fn apply_clipboard(
         return;
     }
     if let Some(selected) = text.selected_text() {
-        clipboard.requests.write(TerminalRequest::copy(selected));
+        clipboard.offer(selected);
     }
     if action == TextInputAction::Cut {
         text.delete_selection();
@@ -224,7 +224,7 @@ pub(crate) fn style_text_inputs(
         let row = drawn_row(text, mask.map(|TextMask(glyph)| *glyph));
         let caret_column = place_caret(&row.value, row.cursor, width).column;
         widget_cursor.cell = Some(Position::new(caret_column, 0));
-        // A reversed caret on a reversed selection would not show; the
+        // Left out over a selection, as `UiTheme::selection` asks; the
         // terminal's own cursor still marks the end that moves.
         let has_caret = next.state().focused && row.selection.is_none();
         *widget = UiWidget::new(TextField {

@@ -6,7 +6,7 @@ use plurimus_ui::KeyBinding;
 
 use bevy_ecs::prelude::Component;
 
-use super::editor_keys::ctrl_char;
+use super::editor_keys::{ctrl, ctrl_char};
 
 /// One editing step a [`TextInputKeys`] binding asks a
 /// [`TextInput`](super::TextInput) for.
@@ -103,12 +103,12 @@ pub struct TextInputKeys(pub Vec<(KeyBinding, TextInputAction)>);
 /// does with `Shift`.
 const MOTIONS: [(KeyBinding, TextInputAction, TextInputAction); 6] = [
     (
-        KeyBinding::new(Key::ArrowLeft).with_ctrl(),
+        ctrl(Key::ArrowLeft),
         TextInputAction::WordLeft,
         TextInputAction::SelectWordLeft,
     ),
     (
-        KeyBinding::new(Key::ArrowRight).with_ctrl(),
+        ctrl(Key::ArrowRight),
         TextInputAction::WordRight,
         TextInputAction::SelectWordRight,
     ),

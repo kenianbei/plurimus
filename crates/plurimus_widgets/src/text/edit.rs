@@ -49,24 +49,18 @@ impl TextInput {
             return false;
         }
         match first_bound(&keys.0, input, held) {
-            Some(
-                TextInputAction::Submit
-                | TextInputAction::Copy
-                | TextInputAction::Cut
-                | TextInputAction::Paste,
-            ) => return false,
             Some(action) => self.apply(action),
-            None => return self.insert_unbound(&input.logical_key, held),
+            None => self.insert_unbound(&input.logical_key, held),
         }
-        true
     }
 
-    /// Applies one [`TextInputAction`].
+    /// Applies one [`TextInputAction`], reporting whether the field took it:
+    /// the dispatcher's actions it leaves.
     ///
     /// Kept off the public API: rebuilding [`handle`](Self::handle) out of it
     /// would also need the unbound-character path beside it, which is
     /// private, so a host given this could not finish the job it implies.
-    pub(crate) fn apply(&mut self, action: TextInputAction) {
+    pub(crate) fn apply(&mut self, action: TextInputAction) -> bool {
         let cursor = self.cursor();
         match action {
             TextInputAction::WordLeft => self.move_to(word_start_backward(self.value(), cursor)),
@@ -98,8 +92,9 @@ impl TextInput {
             TextInputAction::Submit
             | TextInputAction::Copy
             | TextInputAction::Cut
-            | TextInputAction::Paste => {}
+            | TextInputAction::Paste => return false,
         }
+        true
     }
 
     fn insert_unbound(&mut self, key: &Key, held: KeyModifiers) -> bool {

@@ -2,12 +2,10 @@
 //! drag, a shifted press or a run of presses selects.
 
 use bevy_ecs::prelude::{On, Query, With, Without};
-use plurimus_core::ratatui_core::buffer::CellWidth;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, PointerDrag, PointerPress, content_cell};
-use unicode_segmentation::UnicodeSegmentation;
 
-use super::field::{drawn_row, place_caret};
+use super::field::char_at_cell;
 use super::input::{EditableText, TextMask};
 use super::state::TextInput;
 use super::word::word_around;
@@ -55,13 +53,6 @@ pub(crate) fn text_input_drag(event: On<PointerDrag>, mut fields: Pointed) {
     }
 }
 
-/// The char index of the cluster drawn under `position`, or the end of the
-/// value past its last cluster.
-///
-/// The row is windowed from the cursor, so the window's first column comes
-/// from the same `place_caret` the stylist draws with rather than being
-/// stored. A drawn cluster, masked or not, is one of the value's, which is
-/// what maps a column back through a mask.
 fn char_at(
     text: &TextInput,
     mask: Option<&TextMask>,
@@ -69,24 +60,6 @@ fn char_at(
     position: Position,
 ) -> Option<usize> {
     let cell = content_cell(position, area, Position::ORIGIN)?;
-    let row = drawn_row(text, mask.map(|TextMask(glyph)| *glyph));
-    let column = place_caret(&row.value, row.cursor, area.width)
-        .start
-        .saturating_add(cell.x);
-    let mut end = 0;
-    let before = row
-        .value
-        .graphemes(true)
-        .take_while(|cluster| {
-            end += cluster.cell_width();
-            end <= column
-        })
-        .count();
-    Some(
-        text.value()
-            .graphemes(true)
-            .take(before)
-            .map(|cluster| cluster.chars().count())
-            .sum(),
-    )
+    let mask = mask.map(|TextMask(glyph)| *glyph);
+    Some(char_at_cell(text, mask, area.width, cell.x))
 }

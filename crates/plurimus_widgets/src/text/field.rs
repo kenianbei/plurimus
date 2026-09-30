@@ -17,7 +17,7 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::widgets::Widget;
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::grapheme::char_to_byte;
+use super::grapheme::{char_to_byte, cluster_spans};
 use super::state::TextInput;
 
 /// The windowed single row: what it draws, the fill style the row is
@@ -68,12 +68,7 @@ impl Widget for &TextField {
         }
         buffer.set_style(area, self.style);
         render_window(&row.value, &window, buffer);
-        if let Some(selection) = &row.selection {
-            let [left, right] = [selection.start, selection.end].map(|end| {
-                let (column, _) = cursor_span(&row.value, end);
-                column.saturating_sub(window.start).min(area.width)
-            });
-            let selected = Rect::new(area.x + left, area.y, right - left, 1);
+        if let Some(selected) = selection_rect(row, &window) {
             buffer.set_style(selected, self.selection_style);
         }
         let Some(caret) = self.caret else {
@@ -82,6 +77,16 @@ impl Widget for &TextField {
         let cursor = Rect::new(area.x + caret_span.column, area.y, caret_span.width, 1);
         buffer.set_style(cursor.intersection(area), caret);
     }
+}
+
+fn selection_rect(row: &DrawnRow, window: &Window) -> Option<Rect> {
+    let selection = row.selection.as_ref()?;
+    let [left, right] = [selection.start, selection.end].map(|index| {
+        let (column, _) = cursor_span(&row.value, index);
+        column.saturating_sub(window.start).min(window.area.width)
+    });
+    let area = window.area;
+    Some(Rect::new(area.x + left, area.y, right - left, 1))
 }
 
 /// Where the caret sits in its row: `column` cells in and `width` wide, with
@@ -141,6 +146,37 @@ pub(super) fn drawn_row(text: &TextInput, mask: Option<char>) -> DrawnRow {
             .selection()
             .map(|range| masked(range.start)..masked(range.end)),
     }
+}
+
+/// The value's char index for the cluster drawn `cell` columns into a row
+/// `row_width` wide, or the value's end past its last cluster: `drawn_row`
+/// and `cursor_span` run backwards, the window placed by the same
+/// `place_caret` the row is drawn with.
+///
+/// A drawn cluster, masked or not, is one of the value's, which is what
+/// maps a column back through a mask.
+pub(super) fn char_at_cell(
+    text: &TextInput,
+    mask: Option<char>,
+    row_width: u16,
+    cell: u16,
+) -> usize {
+    let row = drawn_row(text, mask);
+    let column = place_caret(&row.value, row.cursor, row_width)
+        .start
+        .saturating_add(cell);
+    let mut end: u16 = 0;
+    let before = row
+        .value
+        .graphemes(true)
+        .take_while(|cluster| {
+            end = end.saturating_add(cluster.cell_width());
+            end <= column
+        })
+        .count();
+    cluster_spans(text.value())
+        .nth(before)
+        .map_or_else(|| text.value().chars().count(), |(start, _)| start)
 }
 
 fn render_window(value: &str, window: &Window, buffer: &mut Buffer) {

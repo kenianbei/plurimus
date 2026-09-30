@@ -141,7 +141,7 @@ impl Default for TextEditorKeys {
     }
 }
 
-const fn ctrl(key: Key) -> KeyBinding {
+pub(super) const fn ctrl(key: Key) -> KeyBinding {
     KeyBinding::new(key).with_ctrl()
 }
 

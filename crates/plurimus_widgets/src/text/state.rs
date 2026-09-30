@@ -26,7 +26,7 @@ use super::grapheme::{char_to_byte, snap_backward, snap_forward};
 pub struct TextInput {
     value: String,
     cursor: usize,
-    // Never equal to `cursor`, so an empty selection is unrepresentable.
+    // Every setter keeps this unequal to `cursor`, so no selection is empty.
     anchor: Option<usize>,
 }
 

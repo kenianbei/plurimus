@@ -13,6 +13,7 @@
 //! it holds [`TextInput`]'s own key and paste entry points, which are public
 //! so a host that routes its own keys drives a field without focusing it.
 
+mod clipboard;
 mod edit;
 mod editor;
 mod editor_keys;
