@@ -23,7 +23,7 @@ use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span};
 
-use crate::interaction::{Checked, Hovered, InteractionDisabled, Pressed};
+use crate::interaction::{Checked, ComputedDisabled, Hovered, Pressed};
 use crate::theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 
 /// A widget's text label, rendered by a widget library's stylists.
@@ -165,7 +165,7 @@ pub type StateQuery<'a> = (
     Entity,
     &'a Hovered,
     Has<Pressed>,
-    Has<InteractionDisabled>,
+    Has<ComputedDisabled>,
     Has<Checked>,
     Option<&'a UiStyle>,
 );

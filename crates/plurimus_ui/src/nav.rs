@@ -25,7 +25,7 @@ use bevy_math::{CompassOctant, Vec2};
 use bevy_window::Window;
 use plurimus_core::ratatui_core::layout::Rect;
 
-use crate::interaction::{ComputedWidgetArea, InteractionDisabled};
+use crate::interaction::{ComputedDisabled, ComputedWidgetArea};
 
 // Terminal layouts are gridded: rows and columns must not cross-connect.
 const GRID_MIN_ALIGNMENT: f32 = 0.5;
@@ -70,7 +70,7 @@ type FocusableQuery<'w, 's> = Query<
     'w,
     's,
     (Entity, Ref<'static, ComputedWidgetArea>),
-    (With<TabIndex>, Without<InteractionDisabled>),
+    (With<TabIndex>, Without<ComputedDisabled>),
 >;
 
 const ALL_OCTANTS: [CompassOctant; 8] = [

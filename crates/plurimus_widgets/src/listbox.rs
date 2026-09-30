@@ -26,7 +26,7 @@ use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{
-    Click, ComputedWidgetArea, Hovered, InteractionDisabled, PointerDrag, PointerPress,
+    Click, ComputedDisabled, ComputedWidgetArea, Hovered, PointerDrag, PointerPress,
 };
 use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
@@ -152,7 +152,7 @@ pub(crate) fn listbox_key(
             &ComputedWidgetArea,
             &mut ActiveDescendant,
         ),
-        (With<ListBox>, Without<InteractionDisabled>),
+        (With<ListBox>, Without<ComputedDisabled>),
     >,
     items: RowTexts,
     mut commands: Commands,
@@ -249,7 +249,7 @@ type Pointed<'w, 's> = Query<
         &'static Children,
         &'static mut ActiveDescendant,
     ),
-    (With<ListBox>, Without<InteractionDisabled>),
+    (With<ListBox>, Without<ComputedDisabled>),
 >;
 
 fn row_at(

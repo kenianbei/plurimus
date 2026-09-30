@@ -20,7 +20,7 @@ use super::{
 };
 use crate::rows::ActiveDescendant;
 use plurimus_ui::{
-    Click, ComputedWidgetArea, InteractionDisabled, ScrollIntoView, ValueChange, first_bound,
+    Click, ComputedDisabled, ComputedWidgetArea, ScrollIntoView, ValueChange, first_bound,
 };
 
 type Navigable<'a> = (
@@ -42,7 +42,7 @@ type Clickable<'a> = (
     &'a mut ActiveColumn,
 );
 
-type Interactive = (With<Table>, Without<InteractionDisabled>);
+type Interactive = (With<Table>, Without<ComputedDisabled>);
 
 pub(crate) fn table_key(
     mut input: On<FocusedInput<KeyboardInput>>,

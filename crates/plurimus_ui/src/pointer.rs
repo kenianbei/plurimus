@@ -15,7 +15,7 @@ use plurimus_term::{MouseButton, MouseKind, MouseMessage, MultiClickWindow};
 
 use crate::click::ClickRun;
 use crate::interaction::{
-    AreaTargetQuery, Click, Hovered, InteractionDisabled, PointerCancel, PointerDrag, PointerPress,
+    AreaTargetQuery, Click, ComputedDisabled, Hovered, PointerCancel, PointerDrag, PointerPress,
     PointerRelease, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
 };
 use crate::modal::ModalGuard;
@@ -26,7 +26,7 @@ use crate::scroll::{WheelRouting, route_tick};
 type PointerTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<Hovered>, Without<PressPassThrough>)>;
 
-type PressedQuery<'w, 's> = Query<'w, 's, (Entity, &'static Pressed, Has<InteractionDisabled>)>;
+type PressedQuery<'w, 's> = Query<'w, 's, (Entity, &'static Pressed, Has<ComputedDisabled>)>;
 
 type FocusableQuery<'w, 's> = Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>;
 
@@ -36,7 +36,7 @@ pub(crate) struct PointerRouting<'w, 's> {
     targets: PointerTargetQuery<'w, 's>,
     pressed: PressedQuery<'w, 's>,
     focusable: FocusableQuery<'w, 's>,
-    disabled: Query<'w, 's, (), With<InteractionDisabled>>,
+    disabled: Query<'w, 's, (), With<ComputedDisabled>>,
     modal: ModalGuard<'w, 's>,
     wheel: WheelRouting<'w, 's>,
     focus: ResMut<'w, InputFocus>,

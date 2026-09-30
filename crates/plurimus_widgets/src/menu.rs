@@ -33,7 +33,7 @@ use plurimus_core::{UiHidden, UiOrder, UiWidget};
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{
-    Click, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
+    Click, ComputedDisabled, Hovered, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
 };
 use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
 use plurimus_ui::{KeyBinding, first_bound};
@@ -146,7 +146,7 @@ pub(crate) struct MenuAccess<'w, 's> {
     parents: Query<'w, 's, &'static ChildOf>,
     popups: Query<'w, 's, Entity, With<MenuPopup>>,
     open: Query<'w, 's, Entity, With<MenuOpen>>,
-    items: Query<'w, 's, Has<InteractionDisabled>, With<MenuItem>>,
+    items: Query<'w, 's, Has<ComputedDisabled>, With<MenuItem>>,
     keys: Query<'w, 's, &'static MenuKeys>,
 }
 
@@ -238,7 +238,7 @@ pub(crate) fn menu_dismiss(
 
 pub(crate) fn menu_button_activate(
     activate: On<Activate>,
-    buttons: Query<(), (With<MenuButton>, Without<InteractionDisabled>)>,
+    buttons: Query<(), (With<MenuButton>, Without<ComputedDisabled>)>,
     menus: MenuAccess,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,

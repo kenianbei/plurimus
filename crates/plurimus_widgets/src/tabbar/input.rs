@@ -10,9 +10,7 @@ use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
 use plurimus_term::bevy_compat::HeldModifiers;
 
 use super::{TabBar, TabBarAction, TabBarKeys, TabItem};
-use plurimus_ui::{
-    Checked, Click, InteractionDisabled, PressFocusDisabled, ValueChange, first_bound,
-};
+use plurimus_ui::{Checked, Click, ComputedDisabled, PressFocusDisabled, ValueChange, first_bound};
 
 #[derive(SystemParam)]
 pub(crate) struct TabAccess<'w, 's> {
@@ -24,9 +22,9 @@ pub(crate) struct TabAccess<'w, 's> {
             &'static TabBarKeys,
             Has<PressFocusDisabled>,
         ),
-        (With<TabBar>, Without<InteractionDisabled>),
+        (With<TabBar>, Without<ComputedDisabled>),
     >,
-    items: Query<'w, 's, Has<Checked>, (With<TabItem>, Without<InteractionDisabled>)>,
+    items: Query<'w, 's, Has<Checked>, (With<TabItem>, Without<ComputedDisabled>)>,
     parents: Query<'w, 's, &'static ChildOf>,
 }
 
