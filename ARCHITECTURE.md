@@ -158,11 +158,11 @@ mode, alternate screen, mouse capture, bracketed paste, the kitty keyboard
 protocol when the terminal supports it, focus reporting - and restores all of it
 on exit or panic, a takeover failing partway included, resetting the cursor
 shape too when the app changed it and handing back the title through the
-terminal's own title stack, since no terminal can be asked what it was. A panic
-restores twice, from its hook and again as the app drops, and the second pops
-nothing. It detects color support from the environment, pumps crossterm events
-into input messages and `TerminalResized`, and hands a `CrosstermBackend` (via
-ratatui-crossterm) to core's presenter. The pump is where a terminal's own
+terminal's own title stack, since the escape reading it back is widely disabled.
+A panic restores twice, from its hook and again as the app drops, and the second
+pops nothing. It detects color support from the environment, pumps crossterm
+events into input messages and `TerminalResized`, and hands a `CrosstermBackend`
+(via ratatui-crossterm) to core's presenter. The pump is where a terminal's own
 encoding is normalized away, because a message cannot be un-written once emitted
 and only the writer still has the whole drained batch: a held key reported as a
 release followed by its own press becomes one `KeyKind::Repeat`, and a shifted

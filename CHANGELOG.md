@@ -55,9 +55,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The terminal's title handed back on exit.** `plurimus_crossterm` saves the
   terminal's title when it takes over and restores it on exit or panic, so a
   title set through `TerminalRequest::SetTitle` no longer outlives the app. It
-  uses the terminal's own title stack, since no terminal can be asked what its
-  title is; a terminal without one ignores both sequences and keeps the app's
-  title, as before.
+  uses the terminal's own title stack, since the escape that reads a title back
+  is widely disabled as a data-exfiltration risk; a terminal without a stack
+  ignores both sequences and keeps the app's title, as before.
 
 ### Changed
 

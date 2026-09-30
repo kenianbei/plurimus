@@ -31,9 +31,9 @@ static SHAPE_WRITTEN: AtomicBool = AtomicBool::new(false);
 static TITLE_PUSHED: AtomicBool = AtomicBool::new(false);
 
 /// XTWINOPS 22;0: saves the icon name and the window title, the pair
-/// crossterm's `SetTitle` replaces with OSC 0. No terminal can be asked what
-/// its title is, so saving it on the terminal's own stack is the only way to
-/// hand it back.
+/// crossterm's `SetTitle` replaces with OSC 0. The escape that reads a title
+/// back is widely disabled as a data-exfiltration risk, so the terminal's own
+/// stack is the only reliable way to hand it back.
 struct PushTitle;
 
 impl Command for PushTitle {
