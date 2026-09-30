@@ -52,6 +52,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   app checks what it presented. It returns `None` when no presenter for that
   backend type is installed, where reaching into the render sub-app by hand
   panicked.
+- **The terminal's title handed back on exit.** `plurimus_crossterm` saves the
+  terminal's title when it takes over and restores it on exit or panic, so a
+  title set through `TerminalRequest::SetTitle` no longer outlives the app. It
+  uses the terminal's own title stack, since the escape that reads a title back
+  is widely disabled as a data-exfiltration risk; a terminal without a stack
+  ignores both sequences and keeps the app's title, as before.
 
 ### Changed
 
@@ -149,6 +155,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   modifier-key event, so a terminal that answers the query but ignores those
   flags keeps release synthesis and modifier tracking instead of reading every
   key as held. Until then, an app reading `InputCapabilities` sees both off.
+- **A panic popping the shell's kitty keyboard flags.** A panic restores the
+  terminal twice, from the panic hook and again as the app drops, and the second
+  restore popped the kitty keyboard flags again - on the main screen by then,
+  taking whatever the shell had pushed. Each thing restore undoes is now undone
+  once.
 - **The last row and column of a scroll area hidden under its scrollbars.** A
   `ScrollArea` clamped its offset against its whole area while its scrollbars
   took a column and a row of it, so the wheel, `ScrollIntoView`, a `Scrollbar`
