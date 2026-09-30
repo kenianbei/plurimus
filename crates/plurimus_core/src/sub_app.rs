@@ -73,12 +73,12 @@ mod sealed {
     impl Sealed for bevy_app::App {}
 }
 
-/// Registers systems in the terminal render sub-app without exposing its
-/// internals.
+/// Registers systems in the terminal render sub-app, and reads its backend
+/// back, without exposing its internals.
 ///
 /// Sealed: bevy's `App` is the only sensible implementor, so a downstream
-/// one would be a mistake, and sealing is what lets a registration method
-/// appear as a sub-app phase lands.
+/// one would be a mistake, and sealing is what lets a method appear as the
+/// sub-app grows one.
 pub trait TerminalRenderAppExt: sealed::Sealed {
     /// Adds systems to `set` within the [`TerminalRender`] schedule.
     fn add_terminal_systems<M>(
