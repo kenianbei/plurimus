@@ -1,5 +1,5 @@
 //! The pointer router: mouse messages to press, drag, release, click and
-//! cancel events on the widgets they reach.
+//! cancel events, and wheel ticks to scrolls, on the widgets they reach.
 //!
 //! Modal state can swallow a hit entirely, which is why a batch of messages
 //! is routed one at a time instead of resolved together.

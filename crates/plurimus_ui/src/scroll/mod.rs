@@ -238,9 +238,8 @@ pub(crate) struct WheelRouting<'w, 's> {
     axes: Query<'w, 's, &'static WheelAxes>,
 }
 
-// A step of the pointer router's batch rather than a system of its own, so
-// a tick behind a modal flip waits with everything else. Returns true when
-// it dismissed, for the same reason a dismissing press does.
+// A step of the pointer router's batch, so a tick behind a modal flip waits
+// with the rest; true when it dismissed, deferring what follows likewise.
 pub(crate) fn route_tick(
     message: MouseMessage,
     wheel: &WheelRouting,

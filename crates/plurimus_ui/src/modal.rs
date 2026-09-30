@@ -1,13 +1,14 @@
 //! Generic modal-overlay primitives the input routers enforce.
 //!
 //! A modal overlay (a menu popup, a dialog) carries [`ModalOpen`] while it
-//! is showing, and the root's screen rect is the geometry both routers ask
-//! about. A pointer outside every open modal requests dismissal and is
-//! swallowed; a pointer inside one is confined to the subtrees of the
-//! modals containing it, so nothing an overlay covers is reachable through
-//! it. A press on a [`ModalityToggle`] entity outside the overlays dismisses
-//! only the modals it does not own, then routes, and a click on one defers
-//! the rest of the input batch a frame so it hit-tests the settled state.
+//! is showing, and the root's screen rect is the geometry a press and a
+//! wheel tick are both hit-tested against. A pointer outside every open
+//! modal requests dismissal and is swallowed; a pointer inside one is
+//! confined to the subtrees of the modals containing it, so nothing an
+//! overlay covers is reachable through it. A press on a [`ModalityToggle`]
+//! entity outside the overlays dismisses only the modals it does not own,
+//! then routes, and a click on one defers the rest of the input batch a
+//! frame so it hit-tests the settled state.
 
 use core::iter;
 
