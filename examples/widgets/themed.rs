@@ -28,9 +28,9 @@ use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
 use plurimus::widgets::{
     Activate, ListBoxSelectionMarker, ListBoxStripe, ListItemText, RadioGroup, SliderStep,
-    SliderValue, TextEditor, TextInput, button, checkbox, checkbox_self_update, editable_text,
-    list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup, pane, radio,
-    radio_self_update, scrollbar, slider, slider_self_update, text_editor,
+    SliderValue, TextEditor, TextInput, TextMask, button, checkbox, checkbox_self_update,
+    editable_text, list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup,
+    pane, radio, radio_self_update, scrollbar, slider, slider_self_update, text_editor,
 };
 
 use crate::{
@@ -51,7 +51,8 @@ const CHECKBOX_TAB_INDEX: i32 = 2;
 const RADIO_TAB_INDEX: i32 = 3;
 const LIST_TAB_INDEX: i32 = 6;
 const FIELD_TAB_INDEX: i32 = 7;
-const EDITOR_TAB_INDEX: i32 = 8;
+const MASKED_FIELD_TAB_INDEX: i32 = 8;
+const EDITOR_TAB_INDEX: i32 = 9;
 const MENU_TAB_INDEX: i32 = 20;
 pub(crate) const DISABLE_ITEM: &str = "toggle disabled";
 
@@ -70,12 +71,14 @@ const LISTBOX: Rect = Rect::new(2, 10, 32, 4);
 
 const TEXT_PANE: Rect = Rect::new(0, 15, 36, 7);
 const TEXT_FIELD: Rect = Rect::new(2, 16, 32, 1);
+const MASKED_FIELD: Rect = Rect::new(2, 17, 32, 1);
+const MASK: char = '\u{2022}';
 const TEXT_EDITOR: Rect = Rect::new(2, 18, 32, 3);
 
 const LOG_PANE: Rect = Rect::new(0, 22, 36, 6);
 const LOG_VIEW: Rect = Rect::new(2, 23, 30, 4);
 const LOG_SCROLLBAR: Rect = Rect::new(33, 23, 1, 4);
-const LOG_TAB_INDEX: i32 = 9;
+const LOG_TAB_INDEX: i32 = 10;
 
 /// Two lines per entry, which is what a [`ListItemText`] row is for: the
 /// heading is also the row's [`UiLabel`], the detail only the list can draw.
@@ -311,6 +314,15 @@ fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
             ChildOf(parent),
         ))
         .insert(TabIndex(FIELD_TAB_INDEX));
+    commands
+        .spawn((
+            editable_text(FIELD_TEXT),
+            TextMask(MASK),
+            UiArea::Fixed(MASKED_FIELD),
+            Stretched::Inset(MASKED_FIELD),
+            ChildOf(parent),
+        ))
+        .insert(TabIndex(MASKED_FIELD_TAB_INDEX));
     commands
         .spawn((
             text_editor(EDITOR_TEXT),

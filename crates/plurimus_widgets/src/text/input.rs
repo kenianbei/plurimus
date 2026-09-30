@@ -17,7 +17,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::PasteMessage;
 
-use super::field::TextField;
+use super::field::{TextField, mask_value};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
@@ -35,6 +35,15 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Hovered, StylistCache, TextInput, TextInputKeys)]
 pub struct EditableText;
+
+/// Draws an [`EditableText`] as one of this glyph per grapheme cluster, the
+/// way a password field is drawn.
+///
+/// Only the drawn row is masked: [`TextInput`], [`ValueChange<String>`] and
+/// [`Submit`] still carry the plaintext. The glyph is laid out like any other
+/// cluster, so a double-width glyph takes two cells.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TextMask(pub char);
 
 /// An [`EditableText`] was submitted with Enter, carrying the value at that
 /// moment.
@@ -140,18 +149,28 @@ pub(crate) fn style_text_inputs(
     theme: Res<UiTheme>,
     focus: Res<InputFocus>,
     mut fields: Query<
-        (StateQuery, &TextInput, &mut StylistCache, &mut UiWidget),
+        (
+            StateQuery,
+            &TextInput,
+            Option<&TextMask>,
+            &mut StylistCache,
+            &mut UiWidget,
+        ),
         Stylable<EditableText>,
     >,
 ) {
-    for (state, text, mut cache, mut widget) in &mut fields {
-        let next = observed(state, &focus, hashed_bits(text));
+    for (state, text, mask, mut cache, mut widget) in &mut fields {
+        let next = observed(state, &focus, hashed_bits((text, mask)));
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
+        let (value, cursor) = match mask {
+            Some(TextMask(glyph)) => mask_value(text.value(), text.cursor(), *glyph),
+            None => (text.value().to_owned(), text.cursor()),
+        };
         *widget = UiWidget::new(TextField {
-            value: text.value().to_owned(),
-            cursor: text.cursor(),
+            value,
+            cursor,
             style: next.style(&theme),
             caret: next.state().focused.then_some(theme.caret),
         });

@@ -58,6 +58,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   uses the terminal's own title stack, since the escape that reads a title back
   is widely disabled as a data-exfiltration risk; a terminal without a stack
   ignores both sequences and keeps the app's title, as before.
+- **`TextMask`, for a password field.** An `EditableText` carrying
+  `TextMask(char)` draws one of that glyph per grapheme cluster in place of its
+  text, with the caret on the glyph its cursor sits at. Only the drawn row
+  changes: `TextInput`, `ValueChange` and `Submit` still carry the plaintext,
+  and editing is unchanged. A double-width glyph takes two cells. The multi-line
+  `TextEditor` masks through its engine's own `set_mask_char`.
 
 ### Changed
 

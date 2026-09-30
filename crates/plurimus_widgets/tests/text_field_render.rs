@@ -10,7 +10,7 @@ use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, 
 use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{UiArea, UiTheme};
-use plurimus_widgets::{WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextMask, WidgetsPlugin, editable_text};
 
 const ACCENT: &str = "e\u{301}";
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
@@ -153,4 +153,52 @@ fn the_theme_styles_the_caret() {
         reversed_columns(&buffer).is_empty(),
         "the theme replaces the default rather than adding to it"
     );
+}
+
+const MASK: char = '\u{2022}';
+
+fn spawn_masked(app: &mut App, value: &str, mask: char) -> Entity {
+    let field = spawn_field(app, value);
+    app.world_mut().entity_mut(field).insert(TextMask(mask));
+    field
+}
+
+#[test]
+fn a_mask_draws_one_glyph_per_cluster() {
+    let mut app = app();
+    spawn_masked(&mut app, &format!("a{ACCENT}{FAMILY}b"), MASK);
+    let cells = symbols(&frame(&mut app));
+    assert_eq!(
+        cells[..5],
+        ["\u{2022}", "\u{2022}", "\u{2022}", "\u{2022}", " "]
+    );
+}
+
+// The cursor is a char index into the value, and the family alone is five
+// chars, so it has to be counted in clusters to land on the masked row.
+#[test]
+fn a_masked_caret_lands_on_its_cluster() {
+    let mut app = app();
+    spawn_masked(&mut app, &format!("a{ACCENT}{FAMILY}b"), MASK);
+    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, KeyCode::Left);
+    assert_eq!(reversed_columns(&frame(&mut app)), vec![2]);
+}
+
+#[test]
+fn removing_a_mask_repaints_the_value() {
+    let mut app = app();
+    let field = spawn_masked(&mut app, "secret", MASK);
+    assert_eq!(symbols(&frame(&mut app))[0], "\u{2022}");
+
+    app.world_mut().entity_mut(field).remove::<TextMask>();
+    assert_eq!(symbols(&frame(&mut app))[0], "s");
+}
+
+#[test]
+fn a_wide_mask_glyph_takes_two_cells() {
+    let mut app = app();
+    spawn_masked(&mut app, "ab", '\u{FF0A}');
+    let cells = symbols(&frame(&mut app));
+    assert_eq!(cells[..5], ["\u{FF0A}", "", "\u{FF0A}", "", " "]);
 }

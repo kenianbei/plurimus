@@ -18,6 +18,8 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::widgets::Widget;
 use unicode_segmentation::UnicodeSegmentation;
 
+use super::grapheme::char_to_byte;
+
 /// The windowed single row: value, cursor as a char index, the fill style
 /// the row is painted with, and the caret's style - `None` for a field
 /// without focus, which draws no caret at all rather than one more block
@@ -86,6 +88,14 @@ fn cursor_span(value: &str, cursor: usize) -> (u16, u16) {
         column = column.saturating_add(cluster.cell_width());
     }
     (column, 1)
+}
+
+/// One `mask` per grapheme cluster. The cursor is a char index, and a
+/// multi-scalar cluster masks to one char, so it maps to a cluster count.
+pub(super) fn mask_value(value: &str, cursor: usize, mask: char) -> (String, usize) {
+    let masked = value.graphemes(true).map(|_| mask).collect();
+    let masked_cursor = value[..char_to_byte(value, cursor)].graphemes(true).count();
+    (masked, masked_cursor)
 }
 
 fn render_window(value: &str, window: &Window, buffer: &mut Buffer) {
