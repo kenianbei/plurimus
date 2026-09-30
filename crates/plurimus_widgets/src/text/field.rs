@@ -47,12 +47,9 @@ impl Widget for &TextField {
         if area.is_empty() {
             return;
         }
-        let (cursor_column, cursor_width) = cursor_span(&self.value, self.cursor);
+        let caret_span = place_caret(&self.value, self.cursor, area.width);
         let window = Window {
-            start: cursor_column
-                .saturating_add(cursor_width)
-                .saturating_sub(area.width)
-                .min(cursor_column),
+            start: caret_span.start,
             area,
         };
         for x in area.left()..area.right() {
@@ -65,13 +62,31 @@ impl Widget for &TextField {
         let Some(caret) = self.caret else {
             return;
         };
-        let cursor = Rect::new(
-            area.x + (cursor_column - window.start),
-            area.y,
-            cursor_width,
-            1,
-        );
+        let cursor = Rect::new(area.x + caret_span.column, area.y, caret_span.width, 1);
         buffer.set_style(cursor.intersection(area), caret);
+    }
+}
+
+/// Where the caret sits in a row `row_width` cells wide: `column` cells into
+/// the row and `width` cells wide, with the value drawn from column `start`.
+pub(super) struct CaretSpan {
+    pub(super) start: u16,
+    pub(super) column: u16,
+    pub(super) width: u16,
+}
+
+/// Pins the window's right edge to the cursor's trailing column, so typing
+/// past the edge scrolls the value rather than losing the caret.
+pub(super) fn place_caret(value: &str, cursor: usize, row_width: u16) -> CaretSpan {
+    let (column, width) = cursor_span(value, cursor);
+    let start = column
+        .saturating_add(width)
+        .saturating_sub(row_width)
+        .min(column);
+    CaretSpan {
+        start,
+        column: column - start,
+        width,
     }
 }
 
