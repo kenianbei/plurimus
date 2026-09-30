@@ -81,7 +81,8 @@ use plurimus_term::InputSystems;
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum UiSystems {
-    /// Widget screen areas are attached and computed.
+    /// Widget screen areas are attached and computed, and
+    /// [`ComputedDisabled`] is resolved.
     Areas,
     /// Hover state resolves from the cursor.
     Hover,
