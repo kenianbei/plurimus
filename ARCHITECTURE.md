@@ -354,8 +354,11 @@ policy, which is why the core leaves Enter untaken: a press emits the final
 one intent commits once, and focus loss still emits that final `ValueChange`
 alone - which is the whole of what tells committing an entry from abandoning
 one. Its caret is drawn only while it holds focus, so a screenful of fields
-shows the one the keys reach. Most widgets are stateless controllers emitting
-entity events (`Activate`, `ValueChange`); apps apply them, or attach the stock
+shows the one the keys reach, and the same cell is published as its
+`WidgetCursor`, so the terminal's own caret - the one a screen reader follows -
+sits there too; an app taking the field's look with `StylistDisabled` takes that
+cell with it. Most widgets are stateless controllers emitting entity events
+(`Activate`, `ValueChange`); apps apply them, or attach the stock
 `*_self_update` observers for uncontrolled behavior. Which keys activate one is
 the app's: `Button`, `Checkbox` and `RadioButton` require `ActivateKeys`,
 defaulting to Enter and space, and a key the widget is not bound to activates

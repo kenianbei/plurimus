@@ -64,6 +64,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   changes: `TextInput`, `ValueChange` and `Submit` still carry the plaintext,
   and editing is unchanged. A double-width glyph takes two cells. The multi-line
   `TextEditor` masks through its engine's own `set_mask_char`.
+- **The terminal's cursor sits on a focused text field.** `EditableText` now
+  requires `WidgetCursor` and publishes its caret's cell there, masked or not,
+  so the terminal's own cursor, the one a screen reader follows and an input
+  method anchors to, is placed on the focused field. An app with a focused field
+  therefore shows the terminal cursor where it showed none before. The drawn
+  caret stays, so a terminal with its cursor hidden still shows where typing
+  goes. The terminal cursor takes the terminal's own shape unless the app sets
+  one with `WidgetCursor::with_style`, which the field keeps. Adding
+  `StylistDisabled` clears the cell, leaving the caret to the app that now draws
+  the row. The multi-line `TextEditor` still draws only its engine's caret.
 
 ### Changed
 
