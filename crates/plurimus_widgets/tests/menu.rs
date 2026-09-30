@@ -156,6 +156,20 @@ fn item_click_emits_activate_and_closes() {
     assert!(!is_open(&app, &menu));
 }
 
+// A row's first TabIndex ancestor is the opener, outside the popup: the
+// press stops at the open overlay rather than pulling focus out of it.
+#[test]
+fn a_press_on_an_item_keeps_focus_inside_the_open_menu() {
+    let mut app = app();
+    let menu = spawn_menu(&mut app);
+    click(&mut app, 2, 0);
+    app.update();
+
+    press_at(&mut app, 3, 3);
+
+    assert_eq!(focused(&app), Some(menu.items[0]));
+}
+
 #[test]
 fn arrows_wrap_enter_activates_escape_closes() {
     let mut app = app();

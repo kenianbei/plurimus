@@ -95,11 +95,16 @@ pub(crate) fn propagate_disabled(
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressPassThrough;
 
-/// Keeps a press on the widget from moving focus, while the press itself
-/// still lands - [`Pressed`], [`PointerDrag`], [`Click`] all arrive. For a
-/// toolbar control beside an editor: tab-reachable through its `TabIndex`,
-/// but a click on it leaves the keyboard - and any armed selection - where
-/// they were.
+/// Keeps a press on the widget, or on anything inside it, from moving
+/// focus, while the press itself still lands - [`Pressed`], [`PointerDrag`],
+/// [`Click`] all arrive. For a toolbar control beside an editor:
+/// tab-reachable through its `TabIndex`, but a click on it leaves the
+/// keyboard - and any armed selection - where they were.
+///
+/// A press otherwise focuses the first `TabIndex` carrier at or above what
+/// it lands on, so a part of a widget - a tab, a scrollbar - focuses the
+/// widget. The search stops here, and at an open overlay's
+/// [`ModalOpen`](crate::ModalOpen) root, whose opener lies outside it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressFocusDisabled;
 

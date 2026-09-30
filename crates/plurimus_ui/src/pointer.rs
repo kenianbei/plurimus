@@ -5,7 +5,9 @@
 //! is routed one at a time instead of resolved together.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Has, Local, MessageReader, Query, Res, ResMut, With, Without};
+use bevy_ecs::prelude::{
+    ChildOf, Commands, Has, Local, MessageReader, Query, Res, ResMut, With, Without,
+};
 use bevy_ecs::system::SystemParam;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusCause, InputFocus};
@@ -18,7 +20,7 @@ use crate::interaction::{
     AreaTargetQuery, Click, ComputedDisabled, Hovered, PointerCancel, PointerDrag, PointerPress,
     PointerRelease, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
 };
-use crate::modal::ModalGuard;
+use crate::modal::{ModalGuard, ModalOpen};
 use crate::scroll::{WheelRouting, route_tick};
 
 // Hovered marks participation by its presence: its value is the frame's
@@ -28,14 +30,18 @@ type PointerTargetQuery<'w, 's> =
 
 type PressedQuery<'w, 's> = Query<'w, 's, (Entity, &'static Pressed, Has<ComputedDisabled>)>;
 
-type FocusableQuery<'w, 's> = Query<'w, 's, (), (With<TabIndex>, Without<PressFocusDisabled>)>;
+/// What a press's focus walk reads at each step up: whether the entity can
+/// take focus, refuses a press's focus, or roots an open overlay.
+type FocusStopQuery<'w, 's> =
+    Query<'w, 's, (Has<TabIndex>, Has<PressFocusDisabled>, Has<ModalOpen>)>;
 
 /// Everything [`pointer_interaction`] routes against.
 #[derive(SystemParam)]
 pub(crate) struct PointerRouting<'w, 's> {
     targets: PointerTargetQuery<'w, 's>,
     pressed: PressedQuery<'w, 's>,
-    focusable: FocusableQuery<'w, 's>,
+    focus_stops: FocusStopQuery<'w, 's>,
+    parents: Query<'w, 's, &'static ChildOf>,
     disabled: Query<'w, 's, (), With<ComputedDisabled>>,
     modal: ModalGuard<'w, 's>,
     wheel: WheelRouting<'w, 's>,
@@ -157,9 +163,29 @@ fn drag_pressed(
 
 fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut Commands) {
     commands.entity(target).insert(Pressed(count));
-    if routing.focusable.contains(target) {
-        routing.focus.set(target, FocusCause::Pressed);
+    if let Some(focusable) = press_focus_of(target, routing) {
+        routing.focus.set(focusable, FocusCause::Pressed);
     }
+}
+
+// A press on a part of a widget - a tab, a scrollbar - focuses the widget:
+// the first `TabIndex` at or above it. The walk gives up at a
+// `PressFocusDisabled` carrier, whose promise covers what is inside it, and
+// at an open overlay's root, whose opener lies outside what was pressed.
+fn press_focus_of(target: Entity, routing: &PointerRouting) -> Option<Entity> {
+    for entity in std::iter::once(target).chain(routing.parents.iter_ancestors(target)) {
+        let (focusable, refuses, overlay) = routing.focus_stops.get(entity).ok()?;
+        if refuses {
+            return None;
+        }
+        if focusable {
+            return Some(entity);
+        }
+        if overlay {
+            return None;
+        }
+    }
+    None
 }
 
 /// Every gesture in flight, as `(entity, count, disabled)`: the settled
