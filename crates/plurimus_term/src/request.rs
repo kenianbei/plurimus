@@ -59,9 +59,8 @@ impl TerminalRequest {
 /// selection a moment later. What it does promise is one answer to "what
 /// was last copied" for every widget that asks, which is the thing none of
 /// them could arrange for itself while [`TerminalRequest`] stays one-way.
-/// Whether a widget asks is its own business: in this workspace
-/// `plurimus_widgets`' multi-line editor does, and the single-line field,
-/// having no selection to copy in the first place, does not.
+/// Whether a widget asks is its own business: in this workspace both of
+/// `plurimus_widgets`' text widgets do.
 ///
 /// Only [`ClipboardTarget::Clipboard`] lands here.
 /// [`Primary`](ClipboardTarget::Primary) is the X11 middle-click selection,

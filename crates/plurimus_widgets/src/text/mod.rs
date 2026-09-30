@@ -4,8 +4,8 @@
 //! component; [`TextEditor`] is a multi-line box whose text lives in a
 //! ratatui-textarea engine behind a lock. That difference is deliberate - a
 //! form field is read with `entity.get::<TextInput>()`, while an editor
-//! trades that for undo, selection and wrapping - and it is why the two do
-//! not share an implementation.
+//! trades that for undo, lines and wrapping - and it is why the two do not
+//! share an implementation.
 //!
 //! `grapheme` and `word` are shared between them so a keybinding stops at
 //! the same place in both, and `field` renders the single-line row; none of

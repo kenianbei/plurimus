@@ -11,13 +11,14 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::Add;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
+use bevy_ecs::prelude::{Commands, Component, EntityEvent, Has, On, Query, Res, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
-use plurimus_term::{PasteMessage, TerminalCursorStyle};
+use plurimus_term::{PasteMessage, TerminalCursorStyle, TerminalRequest};
 
+use super::editor::Clipboard;
 use super::field::{TextField, mask_value, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
@@ -102,36 +103,69 @@ pub(crate) fn text_input_key(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
     mut fields: Query<
-        (&mut TextInput, &TextInputKeys),
+        (&mut TextInput, &TextInputKeys, Has<TextMask>),
         (With<EditableText>, Without<ComputedDisabled>),
     >,
+    mut clipboard: Clipboard,
     mut commands: Commands,
 ) {
     let field = input.focused_entity;
-    let Ok((mut text, keys)) = fields.get_mut(field) else {
+    let Ok((mut text, keys, is_masked)) = fields.get_mut(field) else {
         return;
     };
     if input.input.state != ButtonState::Pressed {
         return;
     }
     let held = held.get();
-    if first_bound(&keys.0, &input.input, held) == Some(TextInputAction::Submit) {
-        // One intent commits once, however long the key is held; it is
-        // consumed either way, being the field's.
-        if !input.input.repeat {
-            emit(field, &text, true, &mut commands);
-            commands.trigger(Submit::new(field, text.value().to_owned()));
+    // Compared whole rather than by length, since typing over a selection
+    // can leave the length as it was.
+    let before = text.value().to_owned();
+    match first_bound(&keys.0, &input.input, held) {
+        Some(TextInputAction::Submit) => {
+            // One intent commits once, however long the key is held; it is
+            // consumed either way, being the field's.
+            if !input.input.repeat {
+                emit(field, &text, true, &mut commands);
+                commands.trigger(Submit::new(field, text.value().to_owned()));
+            }
         }
-        input.propagate(false);
-        return;
-    }
-    let length_before = text.value().len();
-    if !text.handle(keys, &input.input, held) {
-        return;
+        Some(action @ (TextInputAction::Copy | TextInputAction::Cut | TextInputAction::Paste)) => {
+            apply_clipboard(action, &mut text, is_masked, &mut clipboard);
+        }
+        _ => {
+            if !text.handle(keys, &input.input, held) {
+                return;
+            }
+        }
     }
     input.propagate(false);
-    if text.value().len() != length_before {
+    if text.value() != before {
         emit(field, &text, false, &mut commands);
+    }
+}
+
+/// Copy and cut refuse a masked field, whose value the app asked not to
+/// show; with nothing selected, they send nothing.
+fn apply_clipboard(
+    action: TextInputAction,
+    text: &mut TextInput,
+    is_masked: bool,
+    clipboard: &mut Clipboard,
+) {
+    if action == TextInputAction::Paste {
+        if let Some(copied) = clipboard.copied.0.as_deref() {
+            text.paste(copied);
+        }
+        return;
+    }
+    if is_masked {
+        return;
+    }
+    if let Some(selected) = text.selected_text() {
+        clipboard.requests.write(TerminalRequest::copy(selected));
+    }
+    if action == TextInputAction::Cut {
+        text.delete_selection();
     }
 }
 
@@ -156,11 +190,12 @@ pub(crate) fn text_input_paste(
 
 pub(crate) fn text_input_blur(
     lost: On<FocusLost>,
-    fields: Query<&TextInput, With<EditableText>>,
+    mut fields: Query<&mut TextInput, With<EditableText>>,
     mut commands: Commands,
 ) {
-    if let Ok(text) = fields.get(lost.entity) {
-        emit(lost.entity, text, true, &mut commands);
+    if let Ok(mut text) = fields.get_mut(lost.entity) {
+        text.clear_selection();
+        emit(lost.entity, &text, true, &mut commands);
     }
 }
 

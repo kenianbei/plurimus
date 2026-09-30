@@ -21,13 +21,15 @@ impl TextInput {
     /// Presses and repeats edit; a release never does. A key the field has no
     /// edit for is left untaken, [`Key::Enter`] among them - submitting is
     /// the dispatcher's decision rather than the field's, so a host binds it
-    /// beside this call. A character chorded with anything but shift is
-    /// untaken too, which is what lets ctrl+c reach whoever binds it instead
-    /// of typing a `c`.
+    /// beside this call. So are the clipboard's keys, since the field cannot
+    /// reach a clipboard: a host acts on [`TextInputAction::Copy`], `Cut` and
+    /// `Paste` itself, through [`selected_text`](Self::selected_text),
+    /// [`delete_selection`](Self::delete_selection) and
+    /// [`paste`](Self::paste). An unbound character chorded with anything but
+    /// shift is untaken too, rather than typing a `c` for ctrl+c.
     ///
     /// `keys` is the table scanned first; an unbound unchorded character
-    /// inserts itself, and [`TextInputAction::Submit`] is left untaken along
-    /// with everything unbound, since committing is the dispatcher's. `held`
+    /// inserts itself in place of the selection. `held`
     /// is the modifier state a chord is matched against;
     /// [`HeldModifiers`](plurimus_term::bevy_compat::HeldModifiers) is where
     /// a bevy app gets it.
@@ -47,7 +49,12 @@ impl TextInput {
             return false;
         }
         match first_bound(&keys.0, input, held) {
-            Some(TextInputAction::Submit) => return false,
+            Some(
+                TextInputAction::Submit
+                | TextInputAction::Copy
+                | TextInputAction::Cut
+                | TextInputAction::Paste,
+            ) => return false,
             Some(action) => self.apply(action),
             None => return self.insert_unbound(&input.logical_key, held),
         }
@@ -76,7 +83,22 @@ impl TextInput {
             TextInputAction::Delete => self.delete_to(cursor + 1),
             TextInputAction::Home => self.move_start(),
             TextInputAction::End => self.move_end(),
-            TextInputAction::Submit => {}
+            TextInputAction::SelectLeft => self.select_to(cursor.saturating_sub(1)),
+            TextInputAction::SelectRight => self.select_to(cursor + 1),
+            TextInputAction::SelectWordLeft => {
+                self.select_to(word_start_backward(self.value(), cursor));
+            }
+            TextInputAction::SelectWordRight => {
+                self.select_to(word_start_forward(self.value(), cursor));
+            }
+            TextInputAction::SelectHome => self.select_to(0),
+            TextInputAction::SelectEnd => self.select_to(usize::MAX),
+            TextInputAction::SelectAll => self.select_all(),
+            TextInputAction::CancelSelection => self.clear_selection(),
+            TextInputAction::Submit
+            | TextInputAction::Copy
+            | TextInputAction::Cut
+            | TextInputAction::Paste => {}
         }
     }
 
@@ -88,8 +110,9 @@ impl TextInput {
         true
     }
 
-    /// Inserts `text` at the cursor, dropping the control characters a
-    /// bracketed paste can carry, and reports whether anything was inserted.
+    /// Inserts `text` at the cursor in place of the selection, dropping the
+    /// control characters a bracketed paste can carry, and reports whether
+    /// anything was inserted.
     pub fn paste(&mut self, text: &str) -> bool {
         let insertable: String = text.chars().filter(|c| !c.is_control()).collect();
         if insertable.is_empty() {

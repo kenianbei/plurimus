@@ -107,8 +107,8 @@ pub(crate) fn install_editor_views(
 /// it pastes from.
 #[derive(SystemParam)]
 pub(crate) struct Clipboard<'w> {
-    requests: MessageWriter<'w, TerminalRequest>,
-    copied: Res<'w, LastCopied>,
+    pub(super) requests: MessageWriter<'w, TerminalRequest>,
+    pub(super) copied: Res<'w, LastCopied>,
 }
 
 pub(crate) fn text_editor_key(

@@ -145,6 +145,6 @@ const fn ctrl(key: Key) -> KeyBinding {
     KeyBinding::new(key).with_ctrl()
 }
 
-fn ctrl_char(character: &str) -> KeyBinding {
+pub(super) fn ctrl_char(character: &str) -> KeyBinding {
     ctrl(Key::Character(character.into()))
 }
