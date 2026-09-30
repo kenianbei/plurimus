@@ -6,13 +6,16 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiWidget};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiHidden, UiWidget};
 use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, send_mouse, write_mouse, write_release_at};
-use plurimus_ui::{ComputedWidgetArea, Hovered, PointerPress, ScrollArea, ScrollOffset, UiArea};
+use plurimus_test::{click, press_at, release_at, send_mouse, write_mouse, write_release_at};
+use plurimus_ui::bevy_input_focus::InputFocus;
+use plurimus_ui::{
+    ComputedWidgetArea, Hovered, ModalOpen, PointerPress, ScrollArea, ScrollOffset, UiArea,
+};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
 
@@ -180,6 +183,48 @@ fn a_wheel_tick_inside_a_modal_with_nothing_to_scroll_dies() {
     assert!(is_open(&app, popup), "and it dismissed nothing");
 }
 
+// The tick sits behind the click that opens the menu, so it waits for the
+// open with the rest of the batch rather than scrolling what the popup is
+// about to cover.
+#[test]
+fn a_tick_behind_an_opening_click_lands_on_the_open_menu() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    let beneath = spawn_scroller(&mut app, COVERED, None);
+    app.update();
+
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    write_release_at(&mut app, 2, 0);
+    write_mouse(&mut app, MouseKind::ScrollDown, 3, 2);
+    app.update();
+    app.update();
+
+    assert!(is_open(&app, popup));
+    assert_eq!(offset_of(&app, beneath), Position::new(0, 0));
+}
+
+// Behind a dismissing tick the menu is still open until its dismissal
+// lands, so a press routed in the same pass would dismiss again and be
+// swallowed.
+#[test]
+fn a_dismissing_tick_defers_the_rest_of_the_batch() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    click(&mut app, 2, 0);
+    let outside = spawn_pressable(&mut app, Rect::new(15, 6, 4, 1), None);
+    app.update();
+
+    write_mouse(&mut app, MouseKind::ScrollDown, 16, 6);
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 16, 6);
+    write_release_at(&mut app, 16, 6);
+    app.update();
+    assert!(!is_open(&app, popup), "the tick dismissed");
+    assert!(!was_pressed(&app, outside), "and the press waited");
+    app.update();
+
+    assert!(was_pressed(&app, outside), "then landed");
+}
+
 // A press the overlay swallows is not a modal flip, so the rest of the
 // batch still hit-tests a state nothing is about to change.
 #[test]
@@ -206,16 +251,19 @@ fn a_swallowed_press_does_not_defer_the_rest_of_the_batch() {
 
 // Admission is the union of the modals containing the pointer, not of
 // every open modal: an entity belonging to the menu next door is as
-// unreachable as one belonging to no modal at all.
+// unreachable as one belonging to no modal at all. Clicking the second
+// button would close the first, so the second is opened by hand.
 #[test]
 fn a_modal_the_pointer_is_outside_admits_nothing() {
     let mut app = app();
     let near = spawn_menu(&mut app);
     let far = spawn_menu_at(&mut app, Rect::new(11, 0, 8, 1));
     click(&mut app, 2, 0);
-    click(&mut app, 12, 0);
+    app.world_mut()
+        .entity_mut(far)
+        .insert((MenuOpen, ModalOpen))
+        .remove::<UiHidden>();
     app.update();
-    assert!(is_open(&app, near) && is_open(&app, far), "both are open");
     let frame = popup_area(&app, near);
     let stray = spawn_pressable(&mut app, footer_of(frame), Some(far));
     app.update();
@@ -227,6 +275,76 @@ fn a_modal_the_pointer_is_outside_admits_nothing() {
         "the far menu's child is not here"
     );
     assert!(is_open(&app, near) && is_open(&app, far), "and none closed");
+}
+
+fn button_of(app: &App, popup: Entity) -> Entity {
+    app.world().get::<ChildOf>(popup).unwrap().parent()
+}
+
+fn focused(app: &App) -> Option<Entity> {
+    app.world().resource::<InputFocus>().get()
+}
+
+// A toggle owns only the modals beneath it, so the other menu's button
+// closes this one and opens its own in the one click.
+#[test]
+fn a_press_on_another_menus_button_switches_to_it() {
+    let mut app = app();
+    let near = spawn_menu(&mut app);
+    let far = spawn_menu_at(&mut app, Rect::new(11, 0, 8, 1));
+    click(&mut app, 2, 0);
+    app.update();
+
+    click(&mut app, 12, 0);
+    app.update();
+
+    assert!(!is_open(&app, near), "the first menu closed");
+    assert!(is_open(&app, far), "and the second opened");
+    let first_item = app.world().get::<Children>(far).unwrap()[0];
+    assert_eq!(focused(&app), Some(first_item), "with the keys in it");
+}
+
+// The closing menu is still open until its dismissal lands, so a press
+// inside it later in the same batch must wait rather than reach its rows.
+#[test]
+fn a_switching_press_defers_the_rest_of_the_batch() {
+    let mut app = app();
+    let near = spawn_menu(&mut app);
+    spawn_menu_at(&mut app, Rect::new(11, 0, 8, 1));
+    click(&mut app, 2, 0);
+    app.update();
+    let row = app.world().get::<Children>(near).unwrap()[0];
+    let cell = popup_area(&app, row).as_position();
+
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 12, 0);
+    write_release_at(&mut app, 15, 6);
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), cell.x, cell.y);
+    write_release_at(&mut app, cell.x, cell.y);
+    app.update();
+    app.update();
+
+    assert!(!is_open(&app, near));
+    assert!(
+        !was_pressed(&app, row),
+        "the closing menu's row was reached"
+    );
+}
+
+// The dismissal lands after the press has focused the other button, so
+// the closing menu must not take focus back to its own.
+#[test]
+fn a_switching_press_released_elsewhere_keeps_focus_on_the_pressed_button() {
+    let mut app = app();
+    let near = spawn_menu(&mut app);
+    let far = spawn_menu_at(&mut app, Rect::new(11, 0, 8, 1));
+    click(&mut app, 2, 0);
+    app.update();
+
+    press_at(&mut app, 12, 0);
+    release_at(&mut app, 15, 6);
+
+    assert!(!is_open(&app, near) && !is_open(&app, far), "nothing open");
+    assert_eq!(focused(&app), Some(button_of(&app, far)));
 }
 
 #[test]

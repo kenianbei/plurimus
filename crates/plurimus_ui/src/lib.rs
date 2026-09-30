@@ -24,6 +24,7 @@ mod interaction;
 mod keys;
 mod modal;
 mod nav;
+mod pointer;
 mod scroll;
 mod scroll_keys;
 mod scrolled;
@@ -121,8 +122,7 @@ impl Plugin for UiPlugin {
                 (
                     nav::build_navigation_map,
                     scroll::sync_scroll_area_axes,
-                    scroll::route_wheel,
-                    interaction::pointer_interaction,
+                    pointer::pointer_interaction,
                 )
                     .chain()
                     .in_set(UiSystems::Route),

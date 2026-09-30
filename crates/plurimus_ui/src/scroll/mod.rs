@@ -11,9 +11,8 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
-use bevy_ecs::prelude::{
-    Commands, Component, EntityEvent, MessageReader, Mut, On, Query, With, Without,
-};
+use bevy_ecs::prelude::{Commands, Component, EntityEvent, Mut, On, Query, With, Without};
+use bevy_ecs::system::SystemParam;
 use bevy_ecs::world::DeferredWorld;
 use plurimus_core::RasterDeferred;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
@@ -232,32 +231,39 @@ impl ScrollBy {
 type WheelTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<InteractionDisabled>)>;
 
-pub(crate) fn route_wheel(
-    mut mouse: MessageReader<MouseMessage>,
-    targets: WheelTargetQuery,
-    axes: Query<&WheelAxes>,
-    modal: ModalGuard,
-    mut commands: Commands,
-) {
-    for message in mouse.read() {
-        let Some(step) = wheel_step(message.kind) else {
-            continue;
-        };
-        let position = message.position;
-        if modal.dismisses(position) {
-            modal.dismiss_all(&mut commands);
-            continue;
-        }
-        // Letting a covered tick through would scroll what the overlay is
-        // drawn on top of.
-        let consumes = |entity| {
-            axes.get(entity).is_ok_and(|axes| axes.consumes(step)) && modal.admits(position, entity)
-        };
-        let Some(entity) = topmost_at(position, &targets, consumes) else {
-            continue;
-        };
+/// Everything a wheel tick routes against beside the modal state.
+#[derive(SystemParam)]
+pub(crate) struct WheelRouting<'w, 's> {
+    targets: WheelTargetQuery<'w, 's>,
+    axes: Query<'w, 's, &'static WheelAxes>,
+}
+
+// A step of the pointer router's batch, so a tick behind a modal flip waits
+// with the rest; true when it dismissed, deferring what follows likewise.
+pub(crate) fn route_tick(
+    message: MouseMessage,
+    wheel: &WheelRouting,
+    modal: &ModalGuard,
+    commands: &mut Commands,
+) -> bool {
+    let Some(step) = wheel_step(message.kind) else {
+        return false;
+    };
+    let position = message.position;
+    if modal.dismisses(position) {
+        modal.dismiss_all(commands);
+        return true;
+    }
+    // Letting a covered tick through would scroll what the overlay is
+    // drawn on top of.
+    let consumes = |entity| {
+        wheel.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
+            && modal.admits(position, entity)
+    };
+    if let Some(entity) = topmost_at(position, &wheel.targets, consumes) {
         commands.trigger(ScrollBy { entity, step });
     }
+    false
 }
 
 // Only a widget's own extents tell the router which ticks it can use;

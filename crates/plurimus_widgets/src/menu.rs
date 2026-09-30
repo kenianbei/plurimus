@@ -71,8 +71,10 @@ pub enum MenuAction {
 /// match wins.
 ///
 /// One table per menu rather than one per row, and read from the popup the
-/// focused item sits in. Defaults to the up and down arrows, `Escape` to
-/// close, and `Enter` and space to activate. That last pair is what
+/// focused item sits in. Defaults to the up and down arrows, `Escape`, `Tab`
+/// and `Shift+Tab` to close, and `Enter` and space to activate. Tab closes
+/// rather than moving on because focus leaving an open menu would leave its
+/// popup open behind it. That last pair is what
 /// [`ActivateKeys`](crate::ActivateKeys) defaults to as well, and the two
 /// stay independent deliberately - a menu's Enter is not a form's, focus
 /// sitting inside the popup while it is open - but a menu's copy is now data
@@ -86,6 +88,8 @@ impl Default for MenuKeys {
             (Key::ArrowUp.into(), MenuAction::Previous),
             (Key::ArrowDown.into(), MenuAction::Next),
             (Key::Escape.into(), MenuAction::Close),
+            (Key::Tab.into(), MenuAction::Close),
+            (KeyBinding::new(Key::Tab).with_shift(), MenuAction::Close),
             (Key::Enter.into(), MenuAction::Activate),
             (Key::Character(" ".into()).into(), MenuAction::Activate),
         ])
@@ -203,6 +207,17 @@ impl MenuAccess<'_, '_> {
             .insert(UiHidden);
         for item in self.item_rows(popup) {
             commands.entity(item).insert(UiHidden);
+        }
+        // A press that switched menus has already moved focus on.
+        let is_focus_inside = focus.get().is_some_and(|focused| {
+            focused == popup
+                || self
+                    .parents
+                    .iter_ancestors(focused)
+                    .any(|ancestor| ancestor == popup)
+        });
+        if !is_focus_inside {
+            return;
         }
         match self.parents.get(popup) {
             Ok(parent) => focus.set(parent.parent(), FocusCause::Navigated),

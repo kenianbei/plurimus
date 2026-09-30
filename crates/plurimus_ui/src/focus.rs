@@ -58,7 +58,7 @@ pub(crate) fn install(app: &mut App) {
         PreUpdate,
         sync_focus_within
             .after(InputFocusSystems::Dispatch)
-            .after(crate::interaction::pointer_interaction),
+            .after(crate::pointer::pointer_interaction),
     );
     app.add_systems(PreStartup, spawn_virtual_window);
 }

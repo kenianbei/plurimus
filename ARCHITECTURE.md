@@ -255,37 +255,41 @@ extraction of scrolled content, plus the generic modal-overlay primitives
 "inside a modal" means is the overlay's own rect, for the pointer and the wheel
 alike: a position an open overlay covers admits that overlay's subtree and
 nothing else, so an overlay confines input rather than depending on every child
-of it being marked, and a position outside every open overlay dismisses them -
-except on a `ModalityToggle`, the marker that survives where geometry cannot
-answer, since an opener sits outside the menu it closes. Taking the union of the
-overlays covering a position is what admits a submenu inside its parent without
-ordering modal roots against each other. Every scroll converges on one event: a
-wheel tick, arbitrated by z-order among the `WheelReceptive` widgets under the
-cursor whose `WheelAxes` can still use that axis and which an open overlay
-admits, and a key bound through `ScrollKeys` on whichever widget holds focus
-both become a `ScrollBy`, which whoever stores the scroll consumes - this
-crate's `ScrollOffset`, a bevy_ui node's own position, a text editor's engine
-viewport - each clamping the step against its own extent. `ScrollKeys` is the
-whole opt-in for the keyboard, carrying the `TabIndex` without which nothing can
-be sent a key, and it is one of the `(KeyBinding, Action)` bindings components
-sharing `first_bound`, the scan this crate owns so a widget family written
-elsewhere states "first match wins" by calling it rather than by copying it -
-seven of them across the workspace, one per widget that takes keys. A
-`KeyBinding` is a `Key` and the `KeyModifiers` it must be pressed under, and
-`KeyBinding::matches` is the one rule: every modifier but shift exactly, and
-shift exactly for a named key but only when asked for on a character, since a
-shifted symbol carries the bit on some terminals and not others. The modifiers
-it is checked against are polled through `plurimus_term`'s `HeldModifiers`,
-bevy's `KeyboardInput` carrying none of its own. `content_cell` is where a
-pointer cell becomes a content cell for any of it, clamping into the area so a
-captured drag past an edge keeps addressing the nearest one; `screen_cell` is
-the way back, refusing rather than clamping, and it is what places the focused
-widget's `WidgetCursor` on the terminal - a cursor whose cell is `None` names
-none, which is how a widget with nowhere to put its caret says so without
-discarding the shape an app gave it. Both take that offset as a bare `Position`,
-and `ScrollOffset::resolve` is where a caller holding the component gets one: a
-widget carrying no `ScrollOffset` is scrolled to the origin, which is the
-crate's rule to state rather than every caller's to know.
+of it being marked, and a position outside every open overlay dismisses them. A
+press on a `ModalityToggle` is where geometry cannot answer, since an opener
+sits outside the menu it closes: it dismisses only the overlays it does not own,
+those rooted beneath it, so a menu button closes its own menu by toggling it and
+switches away from a neighbour's. Presses and ticks route as one ordered batch,
+and whatever follows a message that opens or closes an overlay waits a frame to
+hit-test the settled state. Taking the union of the overlays covering a position
+is what admits a submenu inside its parent without ordering modal roots against
+each other. Every scroll converges on one event: a wheel tick, arbitrated by
+z-order among the `WheelReceptive` widgets under the cursor whose `WheelAxes`
+can still use that axis and which an open overlay admits, and a key bound
+through `ScrollKeys` on whichever widget holds focus both become a `ScrollBy`,
+which whoever stores the scroll consumes - this crate's `ScrollOffset`, a
+bevy_ui node's own position, a text editor's engine viewport - each clamping the
+step against its own extent. `ScrollKeys` is the whole opt-in for the keyboard,
+carrying the `TabIndex` without which nothing can be sent a key, and it is one
+of the `(KeyBinding, Action)` bindings components sharing `first_bound`, the
+scan this crate owns so a widget family written elsewhere states "first match
+wins" by calling it rather than by copying it - seven of them across the
+workspace, one per widget that takes keys. A `KeyBinding` is a `Key` and the
+`KeyModifiers` it must be pressed under, and `KeyBinding::matches` is the one
+rule: every modifier but shift exactly, and shift exactly for a named key but
+only when asked for on a character, since a shifted symbol carries the bit on
+some terminals and not others. The modifiers it is checked against are polled
+through `plurimus_term`'s `HeldModifiers`, bevy's `KeyboardInput` carrying none
+of its own. `content_cell` is where a pointer cell becomes a content cell for
+any of it, clamping into the area so a captured drag past an edge keeps
+addressing the nearest one; `screen_cell` is the way back, refusing rather than
+clamping, and it is what places the focused widget's `WidgetCursor` on the
+terminal - a cursor whose cell is `None` names none, which is how a widget with
+nowhere to put its caret says so without discarding the shape an app gave it.
+Both take that offset as a bare `Position`, and `ScrollOffset::resolve` is where
+a caller holding the component gets one: a widget carrying no `ScrollOffset` is
+scrolled to the origin, which is the crate's rule to state rather than every
+caller's to know.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
