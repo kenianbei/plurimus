@@ -204,8 +204,6 @@ fn a_plain_arrow_ends_the_selection_even_at_the_edge() {
     assert!(!is_selecting(&app, editor));
 }
 
-// An empty selection left behind would make the Backspace after it delete
-// nothing.
 #[test]
 fn a_shift_arrow_that_cannot_move_starts_no_selection() {
     let mut app = app();

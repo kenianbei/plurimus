@@ -221,9 +221,8 @@ fn select(area: &mut TextArea<'static>, motion: CursorMove) {
 /// Deletes the selection, or selects the cluster `motion` crosses and
 /// deletes that, so the engine records the cluster as one edit.
 ///
-/// `delete` is the engine's deletion in the same direction: each takes an
-/// empty selection as none, and only the forward one then finds nothing
-/// to delete at the end of the text.
+/// `delete` has to be the engine's deletion in the same direction: an empty
+/// selection, left where `motion` could not move, falls through to it.
 fn delete_cluster(
     area: &mut TextArea<'static>,
     motion: CursorMove,
