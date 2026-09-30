@@ -63,16 +63,14 @@ impl Widget for &TextField {
     }
 }
 
-/// Where the caret sits in a row `row_width` cells wide: `column` cells into
-/// the row and `width` cells wide, with the value drawn from column `start`.
+/// Where the caret sits in its row: `column` cells in and `width` wide, with
+/// the value drawn from its column `start`.
 pub(super) struct CaretSpan {
     pub(super) start: u16,
     pub(super) column: u16,
     pub(super) width: u16,
 }
 
-/// Pins the window's right edge to the cursor's trailing column, so typing
-/// past the edge scrolls the value rather than losing the caret.
 pub(super) fn place_caret(value: &str, cursor: usize, row_width: u16) -> CaretSpan {
     let (column, width) = cursor_span(value, cursor);
     let start = column
