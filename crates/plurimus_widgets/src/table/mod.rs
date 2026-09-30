@@ -244,12 +244,6 @@ pub enum TableAction {
     Copy,
 }
 
-impl TableAction {
-    pub(crate) const fn moves_column(self) -> bool {
-        matches!(self, Self::ColumnPrev | Self::ColumnNext)
-    }
-}
-
 /// A [`Table`]'s key bindings, scanned in order so the first match wins.
 ///
 /// Replace it to remap: two keys may share an action by appearing twice.

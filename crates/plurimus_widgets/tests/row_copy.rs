@@ -11,8 +11,8 @@ use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::ratatui_core::text::Text;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers};
-use plurimus_test::{clipboard_writes, press_key, press_key_with, set_focus};
+use plurimus_term::{KeyCode, ModifierKey};
+use plurimus_test::{clipboard_writes, press_chord, press_key, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, KeyBinding, UiArea};
 use plurimus_widgets::{
     ActiveColumn, ActiveDescendant, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItemText,
@@ -28,9 +28,6 @@ struct Propagated(Vec<Key>);
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
-    // The legacy tier reads a modifier from the bits on the key, which is
-    // all `press_key_with` sends.
-    app.insert_resource(InputCapabilities::none());
     app.insert_resource(TerminalSize::new(20, 6));
     app.init_resource::<Propagated>();
     app.world_mut().spawn(TerminalCamera::default());
@@ -79,15 +76,17 @@ fn point_at(app: &mut App, list: Entity, row: Entity) {
 }
 
 fn copy(app: &mut App) {
-    press_key_with(
-        app,
-        KeyCode::Char('c'),
-        KeyModifiers::default().with_ctrl(true),
-    );
+    press_chord(app, ModifierKey::ControlLeft, KeyCode::Char('c'));
 }
 
 fn propagated(app: &App) -> &[Key] {
     &app.world().resource::<Propagated>().0
+}
+
+/// Nothing was copied, and the key reached the form.
+fn assert_passed_on(app: &mut App) {
+    assert!(clipboard_writes(app).is_empty());
+    assert_eq!(propagated(app), [Key::Character("c".into())]);
 }
 
 #[test]
@@ -163,8 +162,7 @@ fn a_list_with_no_cursor_row_copies_nothing_and_propagates() {
 
     copy(&mut app);
 
-    assert!(clipboard_writes(&mut app).is_empty());
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+    assert_passed_on(&mut app);
 }
 
 #[test]
@@ -174,8 +172,7 @@ fn an_empty_list_copies_nothing_and_propagates() {
 
     copy(&mut app);
 
-    assert!(clipboard_writes(&mut app).is_empty());
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+    assert_passed_on(&mut app);
 }
 
 #[test]
@@ -188,8 +185,7 @@ fn a_disabled_list_copies_nothing_and_propagates() {
 
     copy(&mut app);
 
-    assert!(clipboard_writes(&mut app).is_empty());
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+    assert_passed_on(&mut app);
 }
 
 #[test]
@@ -307,8 +303,17 @@ fn a_column_table_with_no_column_copies_nothing_and_propagates() {
 
     copy(&mut app);
 
-    assert!(clipboard_writes(&mut app).is_empty());
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+    assert_passed_on(&mut app);
+}
+
+#[test]
+fn a_row_table_with_no_cursor_row_copies_nothing_and_propagates() {
+    let mut app = app();
+    spawn_table(&mut app, Some(TableSelection::Row));
+
+    copy(&mut app);
+
+    assert_passed_on(&mut app);
 }
 
 #[test]
@@ -318,8 +323,7 @@ fn a_table_without_a_selection_copies_nothing() {
 
     copy(&mut app);
 
-    assert!(clipboard_writes(&mut app).is_empty());
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+    assert_passed_on(&mut app);
 }
 
 #[test]
@@ -334,8 +338,7 @@ fn a_disabled_table_copies_nothing_and_propagates() {
 
     copy(&mut app);
 
-    assert!(clipboard_writes(&mut app).is_empty());
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
+    assert_passed_on(&mut app);
 }
 
 #[test]
@@ -349,4 +352,16 @@ fn copying_leaves_the_table_cursor_where_it_was() {
     assert_eq!(clipboard_writes(&mut app), ["cy\tjul"]);
     let active = app.world().get::<ActiveDescendant>(table).unwrap();
     assert_eq!(active.0, Some(rows[2]));
+}
+
+// A table switched from cell to row selection keeps its old column.
+#[test]
+fn a_row_table_copies_the_whole_row_past_a_leftover_column() {
+    let mut app = app();
+    let (table, rows) = spawn_table(&mut app, Some(TableSelection::Row));
+    point_at_cell(&mut app, table, Some(rows[0]), 1);
+
+    copy(&mut app);
+
+    assert_eq!(clipboard_writes(&mut app), ["ann\tmay"]);
 }

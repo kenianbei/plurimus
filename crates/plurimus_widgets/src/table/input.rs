@@ -42,7 +42,7 @@ type Clickable<'a> = (
     &'a mut ActiveColumn,
 );
 
-type Interactive = (With<Table>, Without<ComputedDisabled>);
+pub(super) type Interactive = (With<Table>, Without<ComputedDisabled>);
 
 pub(crate) fn table_key(
     mut input: On<FocusedInput<KeyboardInput>>,
@@ -60,25 +60,27 @@ pub(crate) fn table_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    if action == TableAction::Copy {
-        return;
-    }
-    if action == TableAction::Select {
-        input.propagate(false);
-        if input.input.repeat {
+    let moved = match action {
+        TableAction::Select => {
+            input.propagate(false);
+            if !input.input.repeat {
+                let value = position(*selection, *active, *column);
+                commands.trigger(ValueChange::new(table, value, true));
+            }
             return;
         }
-        let value = position(*selection, *active, *column);
-        commands.trigger(ValueChange::new(table, value, true));
-        return;
-    }
-    let moved = if !action.moves_column() {
-        move_row(action, (children, &rows, *area), &mut active)
-    } else if selection.tracks_column() {
-        let count = column_count(columns, || widest_row(children, &rows));
-        column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)))
-    } else {
-        false
+        TableAction::Copy => return,
+        TableAction::ColumnPrev | TableAction::ColumnNext if selection.tracks_column() => {
+            let count = column_count(columns, || widest_row(children, &rows));
+            column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)))
+        }
+        TableAction::ColumnPrev | TableAction::ColumnNext => false,
+        TableAction::RowPrev
+        | TableAction::RowNext
+        | TableAction::RowFirst
+        | TableAction::RowLast
+        | TableAction::PageUp
+        | TableAction::PageDown => move_row(action, (children, &rows, *area), &mut active),
     };
     if moved {
         input.propagate(false);

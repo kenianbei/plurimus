@@ -15,11 +15,14 @@ pub(crate) struct Clipboard<'w> {
 
 impl Clipboard<'_> {
     /// Sends `text` to the terminal, unless it is empty - an empty copy
-    /// would take away whatever the user last put there.
-    pub(crate) fn offer(&mut self, text: &str) {
-        if !text.is_empty() {
+    /// would take away whatever the user last put there. Answers whether
+    /// anything was sent.
+    pub(crate) fn offer(&mut self, text: &str) -> bool {
+        let is_sent = !text.is_empty();
+        if is_sent {
             self.requests.write(TerminalRequest::copy(text));
         }
+        is_sent
     }
 
     /// What was last copied, by any widget, for a paste to insert.

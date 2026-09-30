@@ -22,7 +22,7 @@ use plurimus_term::bevy_compat::HeldModifiers;
 
 use super::ValueChange;
 use crate::clipboard::Clipboard;
-use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, copied_rows, row_height};
+use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, copied_text, row_height};
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
@@ -172,44 +172,37 @@ pub(crate) fn listbox_key(
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    if action == ListBoxAction::Copy {
-        return;
-    }
-    if action == ListBoxAction::Select {
-        let Some(item) = active.0.filter(|&row| items.contains(row)) else {
-            return;
-        };
-        // A repeat selects nothing, but still must not reach a form's
-        // submit above the list.
-        input.propagate(false);
-        if !input.input.repeat {
-            commands.trigger(ValueChange::new(listbox, item, true));
+    match action {
+        ListBoxAction::Select => {
+            let Some(item) = active.0.filter(|&row| items.contains(row)) else {
+                return;
+            };
+            // A repeat selects nothing, but still must not reach a form's
+            // submit above the list.
+            input.propagate(false);
+            if !input.input.repeat {
+                commands.trigger(ValueChange::new(listbox, item, true));
+            }
         }
-        return;
-    }
-    let rows: Vec<RowSpan> = row_spans(children, &items).collect();
-    if move_active(action, &rows, *area, &mut active) {
-        input.propagate(false);
+        ListBoxAction::Copy => {}
+        ListBoxAction::Up
+        | ListBoxAction::Down
+        | ListBoxAction::First
+        | ListBoxAction::Last
+        | ListBoxAction::PageUp
+        | ListBoxAction::PageDown => {
+            let rows: Vec<RowSpan> = row_spans(children, &items).collect();
+            if move_active(action, &rows, *area, &mut active) {
+                input.propagate(false);
+            }
+        }
     }
 }
 
-/// The rows a list copies from: what each would copy, and whether it is
-/// checked.
-type CopyRows<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Option<&'static ListItemText>,
-        Option<&'static UiLabel>,
-        Has<Checked>,
-    ),
-    With<ListItem>,
->;
-
-/// Copies what [`copied_rows`] picks when the key is bound to
+/// Copies what [`copied_text`] picks when the key is bound to
 /// [`ListBoxAction::Copy`], each row as it reads - its [`ListItemText`],
-/// else its label - one per line. With nothing to copy the key goes on to
-/// the list's ancestors.
+/// else its label. With nothing to copy the key goes on to the list's
+/// ancestors.
 pub(crate) fn listbox_copy(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
@@ -222,7 +215,7 @@ pub(crate) fn listbox_copy(
         ),
         (With<ListBox>, Without<ComputedDisabled>),
     >,
-    rows: CopyRows,
+    rows: Query<(Option<&ListItemText>, Option<&UiLabel>, Has<Checked>), With<ListItem>>,
     mut clipboard: Clipboard,
 ) {
     let Ok((children, keys, active, is_multi_select)) = boxes.get(input.focused_entity) else {
@@ -233,25 +226,19 @@ pub(crate) fn listbox_copy(
     }
     let listed = children
         .iter()
-        .filter_map(|&child| {
-            let (text, label, checked) = rows.get(child).ok()?;
-            Some(((child, text, label), checked))
-        })
-        .collect();
-    let copied = copied_rows(listed, is_multi_select, |&(child, ..)| {
-        active.0 == Some(child)
-    })
-    .map(|(_, text, label)| row_text(text, label))
-    .collect::<Vec<_>>()
-    .join("\n");
-    if copied.is_empty() {
-        return;
+        .filter_map(|&child| Some((child, rows.get(child).ok()?.2)));
+    let copied = copied_text(
+        listed,
+        is_multi_select,
+        |child| active.0 == Some(child),
+        |child| rows.get(child).map_or_else(|_| String::new(), row_text),
+    );
+    if clipboard.offer(&copied) {
+        input.propagate(false);
     }
-    clipboard.offer(&copied);
-    input.propagate(false);
 }
 
-fn row_text(text: Option<&ListItemText>, label: Option<&UiLabel>) -> String {
+fn row_text((text, label, _): (Option<&ListItemText>, Option<&UiLabel>, bool)) -> String {
     text.map(|text| text.0.to_string())
         .or_else(|| label.map(|label| label.0.to_string()))
         .unwrap_or_default()
