@@ -183,6 +183,48 @@ fn a_wheel_tick_inside_a_modal_with_nothing_to_scroll_dies() {
     assert!(is_open(&app, popup), "and it dismissed nothing");
 }
 
+// The tick sits behind the click that opens the menu, so it waits for the
+// open with the rest of the batch rather than scrolling what the popup is
+// about to cover.
+#[test]
+fn a_tick_behind_an_opening_click_lands_on_the_open_menu() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    let beneath = spawn_scroller(&mut app, COVERED, None);
+    app.update();
+
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    write_release_at(&mut app, 2, 0);
+    write_mouse(&mut app, MouseKind::ScrollDown, 3, 2);
+    app.update();
+    app.update();
+
+    assert!(is_open(&app, popup));
+    assert_eq!(offset_of(&app, beneath), Position::new(0, 0));
+}
+
+// Behind a dismissing tick the menu is still open until its dismissal
+// lands, so a press routed in the same pass would dismiss again and be
+// swallowed.
+#[test]
+fn a_dismissing_tick_defers_the_rest_of_the_batch() {
+    let mut app = app();
+    let popup = spawn_menu(&mut app);
+    click(&mut app, 2, 0);
+    let outside = spawn_pressable(&mut app, Rect::new(15, 6, 4, 1), None);
+    app.update();
+
+    write_mouse(&mut app, MouseKind::ScrollDown, 16, 6);
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 16, 6);
+    write_release_at(&mut app, 16, 6);
+    app.update();
+    assert!(!is_open(&app, popup), "the tick dismissed");
+    assert!(!was_pressed(&app, outside), "and the press waited");
+    app.update();
+
+    assert!(was_pressed(&app, outside), "then landed");
+}
+
 // A press the overlay swallows is not a modal flip, so the rest of the
 // batch still hit-tests a state nothing is about to change.
 #[test]

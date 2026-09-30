@@ -122,7 +122,6 @@ impl Plugin for UiPlugin {
                 (
                     nav::build_navigation_map,
                     scroll::sync_scroll_area_axes,
-                    scroll::route_wheel,
                     pointer::pointer_interaction,
                 )
                     .chain()

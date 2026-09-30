@@ -19,6 +19,7 @@ use crate::interaction::{
     PointerRelease, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
 };
 use crate::modal::ModalGuard;
+use crate::scroll::{WheelRouting, route_tick};
 
 // Hovered marks participation by its presence: its value is the frame's
 // last cursor cell, but arbitration needs each message's own position.
@@ -37,6 +38,7 @@ pub(crate) struct PointerRouting<'w, 's> {
     focusable: FocusableQuery<'w, 's>,
     disabled: Query<'w, 's, (), With<InteractionDisabled>>,
     modal: ModalGuard<'w, 's>,
+    wheel: WheelRouting<'w, 's>,
     focus: ResMut<'w, InputFocus>,
     run: ResMut<'w, ClickRun>,
     window: Res<'w, MultiClickWindow>,
@@ -64,7 +66,7 @@ pub(crate) fn pointer_interaction(
     }
 }
 
-// Returns true when the message flipped menu modality; the rest of the
+// Returns true when the message flipped modality; the rest of the
 // batch then waits a frame, hit-testing the settled state instead of the
 // one the flip is about to replace.
 fn route_message(
@@ -88,7 +90,7 @@ fn route_message(
             cancel_all(routing, run_pressed, commands);
             false
         }
-        _ => false,
+        _ => route_tick(message, &routing.wheel, &routing.modal, commands),
     }
 }
 
