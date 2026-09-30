@@ -101,6 +101,16 @@ impl ScrollArea {
             ..area
         }
     }
+
+    /// Where `step` moves `offset` in this area drawn at `area`, clamped
+    /// to the content's extent.
+    pub(crate) fn stepped(self, area: Rect, offset: Position, step: (i32, i32)) -> Position {
+        let max = max_offset(self.content_size, self.viewport(area));
+        Position::new(
+            stepped_offset(offset.x, step.0, max.x),
+            stepped_offset(offset.y, step.1, max.y),
+        )
+    }
 }
 
 // Bevy leaves required components behind. `try_`, since a despawn runs
@@ -298,11 +308,7 @@ pub(crate) fn scroll_area_scrolled(
     let Ok((computed, scroll, mut offset)) = areas.get_mut(event.entity) else {
         return;
     };
-    let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
-    let stepped = Position::new(
-        stepped_offset(offset.0.x, event.step.0, max.x),
-        stepped_offset(offset.0.y, event.step.1, max.y),
-    );
+    let stepped = scroll.stepped(computed.0, offset.0, event.step);
     apply_offset(event.entity, stepped, &mut offset, &mut commands);
 }
 
