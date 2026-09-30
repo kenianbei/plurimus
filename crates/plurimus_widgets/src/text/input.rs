@@ -39,6 +39,15 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 /// Which keys edit and which submits is [`TextInputKeys`], required here and
 /// defaulting to what the field always bound.
 ///
+/// Shifted motions, `Ctrl+a` and the pointer select - a press places the
+/// caret, a drag or a shifted press extends from it, and a double or triple
+/// press takes a word or everything - and every edit replaces the selection.
+/// `Ctrl+c`, `Ctrl+x` and `Ctrl+v` copy through
+/// [`TerminalRequest`](plurimus_term::TerminalRequest) and paste
+/// [`LastCopied`](plurimus_term::LastCopied), as the multi-line editor does;
+/// a field carrying [`TextMask`] copies nothing. Losing focus ends the
+/// selection.
+///
 /// The caret is drawn into the row while the field has focus and nothing is
 /// selected, and its cell is published in the required [`WidgetCursor`], so
 /// the terminal's own cursor sits on it too, selection or not. That cursor is a steady bar unless an app sets
