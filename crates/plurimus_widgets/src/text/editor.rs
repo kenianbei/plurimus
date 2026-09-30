@@ -46,11 +46,12 @@ use plurimus_ui::LiveWidget;
 /// focus navigation.
 ///
 /// Copy and cut act as the engine would and also ask the terminal for the
-/// text through [`TerminalRequest`], so a copy leaves the app; neither sends
-/// anything when there is no selection. Whether it reaches a system
-/// clipboard is the backend's business - `plurimus_crossterm` writes none
-/// until asked - but it always reaches [`LastCopied`], and paste inserts
-/// from there, so a copy in one editor is a paste in another.
+/// text through [`TerminalRequest`](plurimus_term::TerminalRequest), so a
+/// copy leaves the app; neither sends anything when there is no selection.
+/// Whether it reaches a system clipboard is the backend's business -
+/// `plurimus_crossterm` writes none until asked - but it always reaches
+/// [`LastCopied`](plurimus_term::LastCopied), and paste inserts from there,
+/// so a copy in one editor is a paste in another.
 ///
 /// Paste therefore means the app's clipboard, and
 /// [`Yank`](TextEditorAction::Yank) the engine's own kill ring, which the
