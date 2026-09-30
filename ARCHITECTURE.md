@@ -91,8 +91,10 @@ composed frame and writes changed cells through any ratatui-core `Backend`, and
 applies `TerminalCursor` - the terminal's own caret, which a screen reader
 follows and an input method anchors to - outside that diff, because a caret
 crossing a cell changes no cell's content and the diff skips a frame where
-nothing differs. Position and visibility go through `Backend`; the shape is a
-backend's to serve. Re-exports `ratatui_core`.
+nothing differs. Drawing moves the terminal's cursor to the last cell written,
+so a frame that draws puts a shown cursor back as well, in the same flush.
+Position and visibility go through `Backend`; the shape is a backend's to serve.
+Re-exports `ratatui_core`.
 
 ### plurimus_term
 

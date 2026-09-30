@@ -120,6 +120,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The terminal cursor stays where it was placed.** Drawing changed cells moves
+  a terminal's cursor to the last cell written, and the presenter only placed
+  the cursor again when `TerminalCursor` changed, so a frame redrawing any other
+  widget left the cursor there. That showed a second cursor away from the caret,
+  or none on it. The presenter now puts a shown cursor back after every frame
+  that draws, and writes the cells and the move in one flush, so the cursor no
+  longer shows for a moment where the drawing stopped.
 - **Left and Right in a row-selection table.** In a `TableSelection::Row` table,
   the column keys jumped the cursor to the first row. They now leave it where it
   is and pass the key on.
