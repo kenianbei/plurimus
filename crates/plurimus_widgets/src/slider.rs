@@ -203,7 +203,9 @@ fn seek(
         return;
     };
     let target = track_value(area.0, *range, x);
-    emit(entity, value.0, target, is_final, commands);
+    if is_final || (target - value.0).abs() > f32::EPSILON {
+        commands.trigger(ValueChange::new(entity, target, is_final));
+    }
 }
 
 pub(crate) fn slider_key(
@@ -236,12 +238,6 @@ pub(crate) fn slider_key(
 fn track_value(area: Rect, range: SliderRange, x: u16) -> f32 {
     let ratio = super::track_ratio(area.x, area.width, x);
     range.clamp(range.start + ratio * (range.end - range.start))
-}
-
-fn emit(entity: Entity, current: f32, value: f32, is_final: bool, commands: &mut Commands) {
-    if is_final || (value - current).abs() > f32::EPSILON {
-        commands.trigger(ValueChange::new(entity, value, is_final));
-    }
 }
 
 pub(crate) fn style_sliders(

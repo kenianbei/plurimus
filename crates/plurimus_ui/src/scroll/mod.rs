@@ -195,7 +195,7 @@ impl WheelAxes {
         }
     }
 
-    const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
+    pub(crate) const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
         (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
     }
 }

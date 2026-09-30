@@ -69,13 +69,13 @@ pub(crate) fn table_key(
         commands.trigger(ValueChange::new(table, value, true));
         return;
     }
-    let moved = if action.moves_column() {
-        selection.tracks_column() && {
-            let count = column_count(columns, || widest_row(children, &rows));
-            column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)))
-        }
-    } else {
+    let moved = if !action.moves_column() {
         move_row(action, (children, &rows, *area), &mut active)
+    } else if selection.tracks_column() {
+        let count = column_count(columns, || widest_row(children, &rows));
+        column.set_if_neq(ActiveColumn(moved_column(action, column.0, count)))
+    } else {
+        false
     };
     if moved {
         input.propagate(false);

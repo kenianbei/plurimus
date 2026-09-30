@@ -4,7 +4,6 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
-use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::{FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
@@ -13,7 +12,7 @@ use plurimus_term::{KeyCode, ModifierKey};
 use plurimus_test::{press_chord, press_key, set_focus};
 use plurimus_ui::{
     InteractionDisabled, Key, KeyBinding, ScrollAction, ScrollArea, ScrollKeys, ScrollOffset,
-    UiArea, UiPlugin,
+    UiArea, UiPlugin, WheelAxes,
 };
 
 const AREA: Rect = Rect::new(0, 0, 10, 4);
@@ -167,26 +166,57 @@ fn a_pane_its_content_fits_across_passes_the_side_arrows_on() {
 #[derive(Resource, Default)]
 struct Propagated(Vec<Key>);
 
-#[test]
-fn only_a_key_that_moves_nothing_reaches_the_ancestors() {
-    let mut app = app();
+/// Focuses `widget` under a parent recording every key that propagates
+/// past it.
+fn focus_under_recorder(app: &mut App, widget: Entity) {
     app.init_resource::<Propagated>();
-    let pane = spawn_pane(&mut app);
-    let parent = app.world_mut().spawn_empty().add_child(pane).id();
+    let parent = app.world_mut().spawn_empty().add_child(widget).id();
     app.world_mut().entity_mut(parent).observe(
         |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Propagated>| {
-            if input.input.state == ButtonState::Pressed {
+            if input.input.state.is_pressed() {
                 seen.0.push(input.input.logical_key.clone());
             }
         },
     );
-    set_focus(&mut app, pane);
+    set_focus(app, widget);
+}
+
+fn propagated(app: &App) -> &[Key] {
+    &app.world().resource::<Propagated>().0
+}
+
+#[test]
+fn only_a_key_that_moves_nothing_reaches_the_ancestors() {
+    let mut app = app();
+    let pane = spawn_pane(&mut app);
+    focus_under_recorder(&mut app, pane);
 
     press_key(&mut app, KeyCode::Home);
     press_key(&mut app, KeyCode::PageDown);
 
-    assert_eq!(app.world().resource::<Propagated>().0, [Key::Home]);
+    assert_eq!(propagated(&app), [Key::Home]);
     assert_eq!(row(&app, pane), PAGE);
+}
+
+// A bevy_ui node or an app's own consumer: its extent is out of sight, so
+// only the axes it publishes can rule a key out.
+#[test]
+fn an_unmeasured_scroller_passes_on_the_axis_its_wheel_axes_rule_out() {
+    let mut app = app();
+    let scroller = app
+        .world_mut()
+        .spawn((
+            ScrollKeys::default(),
+            WheelAxes::new(false, true),
+            UiArea::Fixed(AREA),
+        ))
+        .id();
+    focus_under_recorder(&mut app, scroller);
+
+    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, KeyCode::Down);
+
+    assert_eq!(propagated(&app), [Key::ArrowRight]);
 }
 
 #[test]

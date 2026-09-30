@@ -165,14 +165,14 @@ pub(crate) fn listbox_key(
         return;
     };
     if action == ListBoxAction::Select {
-        if active.0.is_none() || row_spans(children, &items).next().is_none() {
+        let Some(item) = active.0.filter(|&row| items.contains(row)) else {
             return;
-        }
+        };
         // A repeat selects nothing, but still must not reach a form's
         // submit above the list.
         input.propagate(false);
         if !input.input.repeat {
-            select_active(listbox, *active, &mut commands);
+            commands.trigger(ValueChange::new(listbox, item, true));
         }
         return;
     }
@@ -236,12 +236,6 @@ fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page:
         (ListBoxAction::PageDown, Some(index)) => index.saturating_add(page).min(last),
         (ListBoxAction::Last, _) => last,
         _ => 0,
-    }
-}
-
-fn select_active(listbox: Entity, active: ActiveDescendant, commands: &mut Commands) {
-    if let Some(item) = active.0 {
-        commands.trigger(ValueChange::new(listbox, item, true));
     }
 }
 
@@ -315,7 +309,7 @@ pub(crate) fn listbox_click(
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
-    select_active(listbox, *active, &mut commands);
+    commands.trigger(ValueChange::new(listbox, row, true));
 }
 
 /// The rows a list's geometry is measured from: every [`ListItem`] child,
