@@ -95,6 +95,23 @@ fn delete_removes_a_whole_cluster() {
 }
 
 #[test]
+fn undoing_a_deleted_cluster_restores_it_whole() {
+    for cluster in [ACCENT, FAMILY, FLAG] {
+        let mut app = app();
+        let editor = spawn_editor(&mut app, &format!("a{cluster}b"));
+        press_key(&mut app, KeyCode::End);
+        press_key(&mut app, KeyCode::Left);
+        press_key(&mut app, KeyCode::Backspace);
+        press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('z'));
+        assert_eq!(
+            lines(&app, editor),
+            [format!("a{cluster}b")],
+            "one undo restores {cluster:?}"
+        );
+    }
+}
+
+#[test]
 fn left_still_wraps_to_the_previous_line() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab\ncd");

@@ -17,17 +17,18 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
-use bevy_input::keyboard::{Key, KeyboardInput};
+use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_term::{KeyModifiers, LastCopied, PasteMessage, TerminalRequest};
+use plurimus_term::{LastCopied, PasteMessage, TerminalRequest};
 use ratatui_textarea::{CursorMove, DataCursor, TextArea};
 
 use super::editor_keys::{TextEditorAction, TextEditorKeys};
 use super::grapheme::{cluster_len_after, cluster_len_before};
+use super::keys::unbound_text;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{ComputedDisabled, Hovered, first_bound};
@@ -59,9 +60,8 @@ use plurimus_ui::LiveWidget;
 /// anywhere in the app would otherwise displace a kill the user has not yet
 /// put back.
 ///
-/// Movement and deletion step whole grapheme clusters, but the engine
-/// records one history entry per scalar, so undoing a deleted multi-scalar
-/// cluster restores it one scalar at a time.
+/// Movement and deletion step whole grapheme clusters, and a deleted cluster
+/// is one edit to undo.
 #[derive(Component, Clone)]
 #[require(Hovered, WheelReceptive, LiveWidget, TextEditorKeys)]
 pub struct TextEditor(Arc<Mutex<TextArea<'static>>>);
@@ -126,15 +126,15 @@ pub(crate) fn text_editor_key(
         return;
     }
     let held = held.get();
-    let mut area = editor.lock();
-    let edited = if let Some(action) = first_bound(&keys.0, &input.input, held) {
-        (0..cluster_steps(&area, action)).fold(false, |edited, _| {
-            apply(&mut area, action, &mut clipboard) | edited
-        })
-    } else if let Some(text) = unbound_text(&input.input.logical_key, held) {
-        area.insert_str(text)
-    } else {
+    let bound = first_bound(&keys.0, &input.input, held);
+    let typed = unbound_text(&input.input.logical_key, held);
+    if bound.is_none() && typed.is_none() {
         return;
+    }
+    let mut area = editor.lock();
+    let edited = match bound {
+        Some(action) => apply(&mut area, action, &mut clipboard),
+        None => typed.is_some_and(|text| area.insert_str(text)),
     };
     input.propagate(false);
     if edited {
@@ -142,20 +142,7 @@ pub(crate) fn text_editor_key(
     }
 }
 
-/// What an unbound key types, which is nothing unless it is an unchorded
-/// character. Shift is not a chord, or capitals would stop.
-fn unbound_text(key: &Key, held: KeyModifiers) -> Option<&str> {
-    if held.ctrl || held.alt || held.super_key || held.hyper || held.meta {
-        return None;
-    }
-    match key {
-        Key::Character(characters) => Some(characters.as_str()),
-        Key::Space => Some(" "),
-        _ => None,
-    }
-}
-
-/// Applies one step of `action` and reports whether the text changed.
+/// Applies `action` and reports whether the text changed.
 fn apply(
     area: &mut TextArea<'static>,
     action: TextEditorAction,
@@ -164,7 +151,7 @@ fn apply(
     match action {
         TextEditorAction::Move(motion) => {
             area.cancel_selection();
-            area.move_cursor(motion);
+            step(area, motion);
             false
         }
         TextEditorAction::Select(motion) => {
@@ -181,8 +168,12 @@ fn apply(
             true
         }
         TextEditorAction::InsertTab => area.insert_tab(),
-        TextEditorAction::Backspace => area.delete_char(),
-        TextEditorAction::Delete => area.delete_next_char(),
+        TextEditorAction::Backspace => {
+            delete_cluster(area, CursorMove::Back, TextArea::delete_char)
+        }
+        TextEditorAction::Delete => {
+            delete_cluster(area, CursorMove::Forward, TextArea::delete_next_char)
+        }
         TextEditorAction::DeleteWord => area.delete_word(),
         TextEditorAction::DeleteNextWord => area.delete_next_word(),
         TextEditorAction::DeleteToLineEnd => area.delete_line_by_end(),
@@ -190,9 +181,9 @@ fn apply(
         TextEditorAction::Undo => area.undo(),
         TextEditorAction::Redo => area.redo(),
         TextEditorAction::Yank => area.paste(),
-        TextEditorAction::Copy | TextEditorAction::Cut | TextEditorAction::Paste => {
-            apply_clipboard(area, action, clipboard)
-        }
+        TextEditorAction::Copy => copy(area, clipboard),
+        TextEditorAction::Cut => cut(area, clipboard),
+        TextEditorAction::Paste => paste(area, clipboard),
         TextEditorAction::SelectAll => {
             area.select_all();
             false
@@ -204,53 +195,73 @@ fn apply(
     }
 }
 
-/// Extends the selection by `motion`, starting one if there is none - unless
-/// the cursor could not move, which the engine answers by starting none.
+/// Moves by `motion`, across a whole grapheme cluster where the engine
+/// steps one scalar.
+fn step(area: &mut TextArea<'static>, motion: CursorMove) {
+    for _ in 0..cluster_steps(area, motion) {
+        area.move_cursor(motion);
+    }
+}
+
+/// Extends the selection by `motion`, starting one if there is none -
+/// unless the cursor could not move, so no empty selection is left behind.
 fn select(area: &mut TextArea<'static>, motion: CursorMove) {
     if area.is_selecting() {
-        area.move_cursor(motion);
+        step(area, motion);
         return;
     }
     let before = area.cursor();
     area.start_selection();
-    area.move_cursor(motion);
+    step(area, motion);
     if area.cursor() == before {
         area.cancel_selection();
     }
 }
 
-/// Applies a clipboard action and reports whether the text changed.
-fn apply_clipboard(
+/// Deletes the selection, or selects the cluster `motion` crosses and
+/// deletes that, so the engine records the cluster as one edit.
+///
+/// `delete` is the engine's deletion in the same direction: each takes an
+/// empty selection as none, and only the forward one then finds nothing
+/// to delete at the end of the text.
+fn delete_cluster(
     area: &mut TextArea<'static>,
-    action: TextEditorAction,
-    clipboard: &mut Clipboard,
+    motion: CursorMove,
+    delete: fn(&mut TextArea<'static>) -> bool,
 ) -> bool {
-    match action {
-        // `copy` cancels the selection and reports nothing, so whether
-        // there was one has to be asked before the call rather than after.
-        TextEditorAction::Copy => {
-            if area.is_selecting() {
-                area.copy();
-                offer_yank(area, &mut clipboard.requests);
-            }
-            false
-        }
-        TextEditorAction::Cut => {
-            let cut = area.cut();
-            if cut {
-                offer_yank(area, &mut clipboard.requests);
-            }
-            cut
-        }
-        // `insert_str` is `paste` with the text supplied rather than taken
-        // from the engine's yank, which is what keeps a kill intact.
-        TextEditorAction::Paste => clipboard
-            .copied
-            .0
-            .as_deref()
-            .is_some_and(|text| area.insert_str(text)),
-        _ => false,
+    if !area.is_selecting() {
+        area.start_selection();
+        step(area, motion);
     }
+    delete(area)
+}
+
+// `copy` cancels the selection and reports nothing, so whether there was
+// one has to be asked before the call rather than after.
+fn copy(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
+    if area.is_selecting() {
+        area.copy();
+        offer_yank(area, &mut clipboard.requests);
+    }
+    false
+}
+
+fn cut(area: &mut TextArea<'static>, clipboard: &mut Clipboard) -> bool {
+    let cut = area.cut();
+    if cut {
+        offer_yank(area, &mut clipboard.requests);
+    }
+    cut
+}
+
+// `insert_str` is `paste` with the text supplied rather than taken from the
+// engine's yank, which is what keeps a kill intact.
+fn paste(area: &mut TextArea<'static>, clipboard: &Clipboard) -> bool {
+    clipboard
+        .copied
+        .0
+        .as_deref()
+        .is_some_and(|text| area.insert_str(text))
 }
 
 /// Sends what the engine just yanked to the terminal, unless it is empty -
@@ -262,26 +273,17 @@ fn offer_yank(area: &TextArea<'static>, requests: &mut MessageWriter<TerminalReq
     }
 }
 
-/// How many times one step of `action` should repeat to cross a whole
-/// grapheme cluster.
+/// How many engine steps of `motion` cross one grapheme cluster.
 ///
 /// Never zero: the engine owns line wrapping and joining at column edges.
-/// Never above one for a deletion while selecting: the first step eats the
-/// whole selection.
-fn cluster_steps(area: &TextArea<'static>, action: TextEditorAction) -> usize {
+fn cluster_steps(area: &TextArea<'static>, motion: CursorMove) -> usize {
     let DataCursor(row, column) = area.cursor();
     let Some(line) = area.lines().get(row) else {
         return 1;
     };
-    let deleting_selection = area.is_selecting();
-    let steps = match action {
-        TextEditorAction::Move(CursorMove::Back) | TextEditorAction::Select(CursorMove::Back) => {
-            cluster_len_before(line, column)
-        }
-        TextEditorAction::Move(CursorMove::Forward)
-        | TextEditorAction::Select(CursorMove::Forward) => cluster_len_after(line, column),
-        TextEditorAction::Backspace if !deleting_selection => cluster_len_before(line, column),
-        TextEditorAction::Delete if !deleting_selection => cluster_len_after(line, column),
+    let steps = match motion {
+        CursorMove::Back => cluster_len_before(line, column),
+        CursorMove::Forward => cluster_len_after(line, column),
         _ => return 1,
     };
     steps.max(1)

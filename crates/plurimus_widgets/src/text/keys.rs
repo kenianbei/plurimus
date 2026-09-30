@@ -1,6 +1,7 @@
 //! What a key does to a [`TextInput`], as data rather than a closed match.
 
 use bevy_input::keyboard::Key;
+use plurimus_term::KeyModifiers;
 use plurimus_ui::KeyBinding;
 
 use bevy_ecs::prelude::Component;
@@ -82,5 +83,21 @@ impl Default for TextInputKeys {
             (Key::End.into(), TextInputAction::End),
             (Key::Enter.into(), TextInputAction::Submit),
         ])
+    }
+}
+
+/// What an unbound key types into either text widget, which is nothing
+/// unless it is an unchorded character.
+///
+/// Shift is not a chord: the kitty protocol reports a shifted letter with
+/// the bit set, so blocking it would stop capitals.
+pub(super) fn unbound_text(key: &Key, held: KeyModifiers) -> Option<&str> {
+    if held.ctrl || held.alt || held.super_key || held.hyper || held.meta {
+        return None;
+    }
+    match key {
+        Key::Character(characters) => Some(characters.as_str()),
+        Key::Space => Some(" "),
+        _ => None,
     }
 }

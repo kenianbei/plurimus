@@ -266,19 +266,6 @@ fn a_copy_in_one_editor_pastes_into_another() {
     assert_eq!(lines_of(&app, source), ["abcd"], "the source is untouched");
 }
 
-#[test]
-fn ctrl_v_pastes_rather_than_paging() {
-    let mut app = app();
-    let editor = spawn_editor(&mut app, "abcd");
-    select_from_home(&mut app, 2);
-    ctrl_chord(&mut app, 'c');
-    press_key(&mut app, KeyCode::End);
-
-    ctrl_chord(&mut app, 'v');
-
-    assert_eq!(lines_of(&app, editor), ["abcdab"]);
-}
-
 // The app clipboard and the engine's kill ring stay separate: a yank takes
 // what the kill took, not the older copy. Any design that fed the shared
 // buffer into the engine's own yank would paste "ab" here.

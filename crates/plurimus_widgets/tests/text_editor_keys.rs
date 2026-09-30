@@ -235,3 +235,14 @@ fn ctrl_shift_home_selects_to_the_start_of_the_document() {
 
     assert_eq!(clipboard_writes(&mut app), ["ab\ncd"]);
 }
+
+#[test]
+fn delete_at_the_end_of_the_text_deletes_nothing() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "ab");
+    press_key(&mut app, KeyCode::End);
+
+    press_key(&mut app, KeyCode::Delete);
+
+    assert_eq!(lines(&app, editor), ["ab"]);
+}
