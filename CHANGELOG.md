@@ -48,9 +48,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `press_chord` already did, so a keystroke no longer stays held in
   `ButtonInput<KeyCode>` for the rest of the app. A test that needs a key held
   queues it with `write_key` and ticks.
+- **A press on a `ModalityToggle` closes the overlays it does not own.** Pressed
+  outside the open overlays, a toggle used to leave every one of them open, so
+  clicking one menu's button with another menu open left both open. It now
+  dismisses each open overlay whose `ModalOpen` root is not beneath it, then
+  takes the press, so one click switches from File to Edit. A menu that closes
+  returns focus to its button only if focus was still inside it, so the press
+  that switched keeps the focus it moved.
 
 ### Fixed
 
+- **Tab out of an open menu.** Tab moved focus to another tab stop and left the
+  popup open behind it, still swallowing the pointer. `MenuKeys` now binds Tab
+  and Shift+Tab to close the menu by default, returning focus to its button as
+  Escape does.
+- **A wheel tick routed ahead of the click before it.** In one batch of input, a
+  tick after a click that opened a menu scrolled whatever the popup was about to
+  cover. Ticks now route in order with presses, so a tick behind a click that
+  opens or closes an overlay waits a frame for it. A tick that closes an overlay
+  now makes the rest of its batch wait a frame too, as a press that closes one
+  does.
 - **A pointer press surviving a focus loss.** A widget pressed when the terminal
   lost focus stayed `Pressed`, kept receiving drags, and clicked if the release
   that eventually arrived landed inside it; `ButtonInput<MouseButton>` kept the
