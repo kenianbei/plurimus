@@ -182,15 +182,15 @@ fn ctrl_c_copies_the_selection_and_edits_nothing() {
 #[test]
 fn ctrl_x_cuts_and_notifies() {
     let mut app = app();
-    let field = spawn_field(&mut app, "hello");
+    let field = spawn_field(&mut app, "abcde");
 
     shift(&mut app, KeyCode::Left);
     shift(&mut app, KeyCode::Left);
     ctrl(&mut app, 'x');
 
-    assert_eq!(clipboard_writes(&mut app), ["lo"]);
-    assert_eq!(text(&app, field).value(), "hel");
-    assert_eq!(edits(&app), ["hel"]);
+    assert_eq!(clipboard_writes(&mut app), ["de"]);
+    assert_eq!(text(&app, field).value(), "abc");
+    assert_eq!(edits(&app), ["abc"]);
 }
 
 #[test]
