@@ -4,13 +4,9 @@
 //! visible: the window's right edge is pinned to the cursor's trailing
 //! column, so typing past the edge scrolls the text instead of letting the
 //! cursor leave the field. The caret is a style patched over the cluster it
-//! sits on rather than the terminal's own cursor, so the field looks the
-//! same whether or not the terminal is drawing a caret.
-//!
-//! That is a choice rather than the only option: `WidgetCursor` places the
-//! terminal's own caret, which is what a screen reader follows. Moving to it
-//! would change how every existing field looks, so it wants deciding on its
-//! own rather than riding along with the seam that made it possible.
+//! sits on, so a terminal drawing no cursor still shows where typing goes;
+//! the stylist publishes the same cell through `WidgetCursor` for the
+//! terminal's own, which is what a screen reader follows.
 
 use plurimus_core::ratatui_core::buffer::{Buffer, CellWidth};
 use plurimus_core::ratatui_core::layout::Rect;

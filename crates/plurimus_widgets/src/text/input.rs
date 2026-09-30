@@ -17,13 +17,16 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::PasteMessage;
 
-use super::field::{TextField, mask_value};
+use super::field::{TextField, mask_value, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
 use plurimus_core::UiWidget;
+use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{ComputedDisabled, Hovered, UiTheme, first_bound};
+use plurimus_ui::{
+    ComputedDisabled, ComputedWidgetArea, Hovered, UiTheme, WidgetCursor, first_bound,
+};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A single-line editable text field. Edits mutate [`TextInput`] directly
@@ -32,8 +35,13 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 ///
 /// Which keys edit and which submits is [`TextInputKeys`], required here and
 /// defaulting to what the field always bound.
+///
+/// The caret is drawn into the row while the field has focus, and its cell
+/// is published in the required [`WidgetCursor`], so the terminal's own
+/// cursor sits on it too. Only the cell is written: a shape set with
+/// [`WidgetCursor::with_style`] is kept.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, TextInput, TextInputKeys)]
+#[require(Hovered, StylistCache, TextInput, TextInputKeys, WidgetCursor)]
 pub struct EditableText;
 
 /// Draws an [`EditableText`] as one of this glyph per grapheme cluster, the
@@ -153,14 +161,17 @@ pub(crate) fn style_text_inputs(
             StateQuery,
             &TextInput,
             Option<&TextMask>,
+            &ComputedWidgetArea,
             &mut StylistCache,
             &mut UiWidget,
+            &mut WidgetCursor,
         ),
         Stylable<EditableText>,
     >,
 ) {
-    for (state, text, mask, mut cache, mut widget) in &mut fields {
-        let next = observed(state, &focus, hashed_bits((text, mask)));
+    for (state, text, mask, area, mut cache, mut widget, mut caret) in &mut fields {
+        let row = area.0;
+        let next = observed(state, &focus, hashed_bits((text, mask, row.as_size())));
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
@@ -168,6 +179,8 @@ pub(crate) fn style_text_inputs(
             Some(TextMask(glyph)) => mask_value(text.value(), text.cursor(), *glyph),
             None => (text.value().to_owned(), text.cursor()),
         };
+        caret.cell = (!row.is_empty())
+            .then(|| Position::new(place_caret(&value, cursor, row.width).column, 0));
         *widget = UiWidget::new(TextField {
             value,
             cursor,
