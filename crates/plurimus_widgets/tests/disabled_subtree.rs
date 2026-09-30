@@ -9,7 +9,7 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyCode;
 use plurimus_test::{click, press_at, press_key, set_focus};
-use plurimus_ui::{ComputedDisabled, InteractionDisabled, Pressed, UiArea};
+use plurimus_ui::{ComputedDisabled, InteractionDisabled, Pressed, StylistCache, UiArea};
 use plurimus_widgets::{Activate, WidgetsPlugin, button, tab_bar, tab_item};
 
 #[derive(Resource, Default)]
@@ -32,6 +32,14 @@ fn spawn_button(app: &mut App, x: u16) -> Entity {
 
 fn focused(app: &App) -> Option<Entity> {
     app.world().resource::<InputFocus>().get()
+}
+
+fn drawn_disabled(app: &App, entity: Entity) -> bool {
+    app.world()
+        .get::<StylistCache>(entity)
+        .unwrap()
+        .state()
+        .disabled
 }
 
 fn activations(app: &App) -> u32 {
@@ -66,6 +74,7 @@ fn a_button_in_a_disabled_container_is_inert_until_it_is_enabled() {
 
     assert_eq!(try_every_path(&mut app, inner, outer), 0);
     assert!(app.world().get::<ComputedDisabled>(inner).is_some());
+    assert!(drawn_disabled(&app, inner));
 
     app.world_mut()
         .entity_mut(container)
@@ -73,10 +82,11 @@ fn a_button_in_a_disabled_container_is_inert_until_it_is_enabled() {
     app.update();
 
     assert_eq!(try_every_path(&mut app, inner, outer), 3);
+    assert!(!drawn_disabled(&app, inner));
 }
 
 #[test]
-fn an_item_of_a_disabled_bar_is_never_pressed() {
+fn an_item_of_a_disabled_bar_is_drawn_disabled_and_never_pressed() {
     let mut app = app();
     let bar = app
         .world_mut()
@@ -92,4 +102,5 @@ fn an_item_of_a_disabled_bar_is_never_pressed() {
     press_at(&mut app, 1, 0);
 
     assert!(app.world().get::<Pressed>(item).is_none());
+    assert!(drawn_disabled(&app, item));
 }
