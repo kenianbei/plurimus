@@ -40,6 +40,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`bevy_input_focus` re-exported.** `plurimus_ui` and `plurimus_widgets`
   re-export it, so `InputFocus`, `TabIndex`, `FocusedInput` and
   `InputFocusSystems` are reachable without a dependency pinned by hand.
+- **`ComputedHidden` and `ComputedDisabled`.** Markers on every entity that
+  `UiHidden` or `InteractionDisabled` reaches, its own or an ancestor's through
+  `ChildOf`. The authored markers still mean "set here"; read the computed ones
+  to ask whether an entity is hidden or disabled. `ComputedHidden` resolves at
+  the start of the frame and again in `Last`, and `ComputedDisabled` in
+  `UiSystems::Areas`, so disabling a widget after that takes effect from the
+  next frame.
 
 ### Changed
 
@@ -69,6 +76,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   such as a bevy_ui node, lets a key through for an axis its `WheelAxes` rules
   out. `ScrollKeys` now binds Left and Right to `LineLeft` and `LineRight` by
   default.
+- **`UiHidden` hides a whole subtree.** Everything beneath a hidden entity is
+  neither drawn, its scrolled content included, nor hit-tested, so hiding a
+  `Popover` hides its content too. A menu now hides its popup alone; `menu_item`
+  no longer spawns with `UiHidden`.
+- **`InteractionDisabled` disables a whole subtree.** Everything beneath a
+  disabled entity absorbs presses, ignores its keys and the wheel, drops out of
+  directional navigation and is drawn disabled - a button inside a disabled
+  container included. A tab item of a disabled bar is no longer `Pressed`.
+- **A press focuses the nearest focusable ancestor.** A press on an entity with
+  no `TabIndex` focuses the first one at or above it, so a press on a tab
+  focuses its bar on the way down rather than on the click. The search stops at
+  `PressFocusDisabled`, which now covers everything inside the widget carrying
+  it, and at an open overlay's `ModalOpen` root, so a press on a menu row keeps
+  focus in the menu.
 
 ### Fixed
 
