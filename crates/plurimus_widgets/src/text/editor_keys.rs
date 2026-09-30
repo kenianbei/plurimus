@@ -64,8 +64,8 @@ pub enum TextEditorAction {
 /// an unbound chord propagates. Defaults to the conventional set: the arrows,
 /// `Home` and `End`, and `Ctrl` with them to move by word, paragraph and to
 /// either end, each selecting with `Shift`; `PageUp` and `PageDown`; `Enter`;
-/// `Backspace` and `Delete`, by word with `Alt` as the single-line field
-/// binds them; `Ctrl` with `z` and `y` to undo and redo, `c`, `x` and `v` for
+/// `Backspace` and `Delete`, shifted or not, and by word with `Alt` as the
+/// single-line field binds them; `Ctrl` with `z` and `y` to undo and redo, `c`, `x` and `v` for
 /// the clipboard, and `a` to select all; and `Escape` to end a selection.
 /// `Tab` is left to focus navigation.
 #[derive(Component, Debug, Clone)]
@@ -121,6 +121,14 @@ impl Default for TextEditorKeys {
             ),
             (Key::Backspace.into(), TextEditorAction::Backspace),
             (Key::Delete.into(), TextEditorAction::Delete),
+            (
+                KeyBinding::new(Key::Backspace).with_shift(),
+                TextEditorAction::Backspace,
+            ),
+            (
+                KeyBinding::new(Key::Delete).with_shift(),
+                TextEditorAction::Delete,
+            ),
             (ctrl_char("z"), TextEditorAction::Undo),
             (ctrl_char("y"), TextEditorAction::Redo),
             (ctrl_char("c"), TextEditorAction::Copy),

@@ -242,3 +242,16 @@ fn delete_at_the_end_of_the_text_deletes_nothing() {
 
     assert_eq!(lines(&app, editor), ["ab"]);
 }
+
+// A capital's shift released a beat late still deletes: the kitty tier and
+// the browser report shift with Backspace.
+#[test]
+fn shift_backspace_still_deletes() {
+    let mut app = app();
+    let editor = spawn_editor(&mut app, "ab");
+    press_key(&mut app, KeyCode::End);
+
+    shift(&mut app, KeyCode::Backspace);
+
+    assert_eq!(lines(&app, editor), ["a"]);
+}

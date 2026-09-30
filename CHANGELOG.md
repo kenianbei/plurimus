@@ -92,17 +92,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   now binds the arrows, `Home` and `End`, and `Ctrl` with them to move by word,
   by paragraph and to either end of the text, each selecting with `Shift`.
   `PageUp` and `PageDown` scroll, `Enter` breaks the line, and `Backspace` and
-  `Delete` delete, by word with `Alt`. `Ctrl+z` undoes, `Ctrl+y` redoes,
-  `Ctrl+c`, `Ctrl+x` and `Ctrl+v` copy, cut and paste as before, `Ctrl+a`
-  selects all, and `Escape` ends a selection. The emacs chords (`Ctrl+a`, `e`,
-  `f`, `b`, `n`, `p`, `h`, `d`, `k`, `j`, `w`, `u`, `r` and `y` in their emacs
-  meanings, and every `Alt` chord but word deletion) no longer act unless an app
-  binds them. `Shift` with `PageUp` or `PageDown` no longer extends a selection.
-  A chord the table does not bind now reaches the editor's ancestors instead of
-  being swallowed. A plain motion always ends the selection, even where the
-  cursor cannot move. Deleting a multi-scalar grapheme cluster is now one edit
-  to undo.
-
+  `Delete` delete, shifted or not, and by word with `Alt`. `Ctrl+z` undoes,
+  `Ctrl+y` redoes, `Ctrl+c`, `Ctrl+x` and `Ctrl+v` copy, cut and paste as
+  before, `Ctrl+a` selects all, and `Escape` ends a selection. The emacs chords
+  (`Ctrl+a`, `e`, `f`, `b`, `n`, `p`, `h`, `d`, `k`, `j`, `w`, `u`, `r` and `y`
+  in their emacs meanings, and every `Alt` chord but word deletion) no longer
+  act unless an app binds them. `Shift` with `PageUp` or `PageDown` no longer
+  extends a selection. A chord the table does not bind now reaches the editor's
+  ancestors instead of being swallowed, and `Enter` with `Shift`, `Ctrl` or
+  `Alt` is such a chord rather than a line break. A plain motion always ends the
+  selection, even where the cursor cannot move. Deleting a multi-scalar grapheme
+  cluster is now one edit to undo.
 - **`plurimus_test`'s key injectors release what they press.** `press_key`,
   `press_key_with` and `repeat_key` send the key's release on a second tick, as
   `press_chord` already did, so a keystroke no longer stays held in
