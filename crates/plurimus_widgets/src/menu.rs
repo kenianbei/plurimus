@@ -135,7 +135,6 @@ pub fn menu_item(label: impl Into<Line<'static>>) -> impl Bundle {
         MenuItem,
         UiLabel(label.into()),
         ITEM_ORDER,
-        UiHidden,
         UiWidget::default(),
     )
 }
@@ -191,11 +190,7 @@ impl MenuAccess<'_, '_> {
             .entity(popup)
             .insert((MenuOpen, ModalOpen))
             .remove::<UiHidden>();
-        let rows = self.item_rows(popup);
-        for &item in &rows {
-            commands.entity(item).remove::<UiHidden>();
-        }
-        if let Some(&first) = rows.first() {
+        if let Some(&first) = self.item_rows(popup).first() {
             focus.set(first, FocusCause::Navigated);
         }
     }
@@ -205,9 +200,6 @@ impl MenuAccess<'_, '_> {
             .entity(popup)
             .remove::<(MenuOpen, ModalOpen)>()
             .insert(UiHidden);
-        for item in self.item_rows(popup) {
-            commands.entity(item).insert(UiHidden);
-        }
         // A press that switched menus has already moved focus on.
         let is_focus_inside = focus.get().is_some_and(|focused| {
             focused == popup

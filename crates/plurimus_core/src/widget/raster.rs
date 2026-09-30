@@ -14,7 +14,7 @@ use std::sync::Arc;
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Res, ResMut, With, Without};
 use bevy_ecs::schedule::SystemSet;
 
-use super::placement::{ComputedUiCamera, UiArea, UiHidden, UiOrder, resolve_area};
+use super::placement::{ComputedHidden, ComputedUiCamera, UiArea, UiOrder, resolve_area};
 use super::{TerminalWidget, UiWidget};
 use crate::camera::{CameraBuffer, DefaultCamera, SourceCamera, camera_buffer_mut};
 use crate::extract::MainWorld;
@@ -98,7 +98,7 @@ pub(crate) fn extract_widgets(
         &UiArea,
         Option<&UiOrder>,
         &ComputedUiCamera,
-    ), (Without<UiHidden>, Without<RasterDeferred>)>();
+    ), (Without<ComputedHidden>, Without<RasterDeferred>)>();
     for (source, widget, area, order, camera) in widgets.iter(&main_world) {
         commands.spawn(ExtractedWidget {
             widget: widget.content(),

@@ -12,7 +12,7 @@ use bevy_ecs::prelude::{Commands, Component, EntityEvent, Has, Query, Res, With,
 use bevy_ecs::query::QueryFilter;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{
-    CameraViewports, ComputedUiCamera, UiArea, UiHidden, UiOrder, UiWidget, resolve_area,
+    CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiOrder, UiWidget, resolve_area,
 };
 use plurimus_term::CursorCell;
 
@@ -249,7 +249,7 @@ pub(crate) fn compute_widget_areas(
         &UiArea,
         &ComputedUiCamera,
         &mut ComputedWidgetArea,
-        Has<UiHidden>,
+        Has<ComputedHidden>,
     )>,
 ) {
     for (area, target, mut computed, hidden) in &mut widgets {
