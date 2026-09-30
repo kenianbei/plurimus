@@ -168,10 +168,6 @@ fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut
     }
 }
 
-// A press on a part of a widget - a tab, a scrollbar - focuses the widget:
-// the first `TabIndex` at or above it. The walk gives up at a
-// `PressFocusDisabled` carrier, whose promise covers what is inside it, and
-// at an open overlay's root, whose opener lies outside what was pressed.
 fn press_focus_of(target: Entity, routing: &PointerRouting) -> Option<Entity> {
     for entity in std::iter::once(target).chain(routing.parents.iter_ancestors(target)) {
         let (focusable, refuses, overlay) = routing.focus_stops.get(entity).ok()?;

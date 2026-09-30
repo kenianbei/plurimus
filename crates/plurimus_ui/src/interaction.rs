@@ -77,14 +77,12 @@ pub(crate) fn propagate_disabled(
         reached.extend(children.iter_descendants(root));
     }
     for entity in &marked {
-        if !reached.contains(&entity) {
+        if !reached.remove(&entity) {
             commands.entity(entity).try_remove::<ComputedDisabled>();
         }
     }
-    for &entity in &*reached {
-        if !marked.contains(entity) {
-            commands.entity(entity).try_insert(ComputedDisabled);
-        }
+    for entity in reached.drain() {
+        commands.entity(entity).try_insert(ComputedDisabled);
     }
 }
 
@@ -102,8 +100,8 @@ pub struct PressPassThrough;
 /// keyboard - and any armed selection - where they were.
 ///
 /// A press otherwise focuses the first `TabIndex` carrier at or above what
-/// it lands on, so a part of a widget - a tab, a scrollbar - focuses the
-/// widget. The search stops here, and at an open overlay's
+/// it lands on through `ChildOf`, so a part of a widget - a tab of a tab
+/// bar - focuses the widget. The search stops here, and at an open overlay's
 /// [`ModalOpen`](crate::ModalOpen) root, whose opener lies outside it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressFocusDisabled;

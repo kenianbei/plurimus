@@ -75,14 +75,12 @@ pub(crate) fn propagate_hidden(
         reached.extend(children.iter_descendants(root));
     }
     for entity in &marked {
-        if !reached.contains(&entity) {
+        if !reached.remove(&entity) {
             commands.entity(entity).try_remove::<ComputedHidden>();
         }
     }
-    for &entity in &*reached {
-        if !marked.contains(entity) {
-            commands.entity(entity).try_insert(ComputedHidden);
-        }
+    for entity in reached.drain() {
+        commands.entity(entity).try_insert(ComputedHidden);
     }
 }
 

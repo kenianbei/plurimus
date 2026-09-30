@@ -4,7 +4,7 @@
 use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Commands, Res, Resource};
+use bevy_ecs::prelude::Commands;
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::{ComputedHidden, CorePlugin, TerminalCamera, TerminalSize, UiHidden};
 use plurimus_test::composed_frame;
@@ -71,9 +71,6 @@ fn a_hidden_parent_hides_its_whole_subtree_until_shown() {
     assert!(app.world().get::<ComputedHidden>(scrolled).is_none());
 }
 
-#[derive(Resource)]
-struct HideInUpdate(Entity);
-
 // Hiding happens in observers and systems long after the frame's first
 // resolve; the frame that hides must not draw what it hid.
 #[test]
@@ -83,9 +80,8 @@ fn a_subtree_hidden_mid_frame_is_not_drawn_by_that_frame() {
     app.update();
     assert_eq!(composed_frame(&app), "abcd");
 
-    app.insert_resource(HideInUpdate(parent));
-    app.add_systems(Update, |hide: Res<HideInUpdate>, mut commands: Commands| {
-        commands.entity(hide.0).insert(UiHidden);
+    app.add_systems(Update, move |mut commands: Commands| {
+        commands.entity(parent).insert(UiHidden);
     });
     app.update();
 

@@ -190,7 +190,13 @@ impl MenuAccess<'_, '_> {
             .entity(popup)
             .insert((MenuOpen, ModalOpen))
             .remove::<UiHidden>();
-        if let Some(&first) = self.item_rows(popup).first() {
+        let first = self.children.get(popup).ok().and_then(|children| {
+            children
+                .iter()
+                .copied()
+                .find(|&child| self.items.contains(child))
+        });
+        if let Some(first) = first {
             focus.set(first, FocusCause::Navigated);
         }
     }

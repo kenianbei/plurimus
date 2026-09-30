@@ -51,13 +51,11 @@ fn activations(app: &App) -> u32 {
 fn try_every_path(app: &mut App, inner: Entity, outer: Entity) -> u32 {
     let before = activations(app);
     click(app, 1, 0);
-    let pressed = activations(app) - before;
     set_focus(app, inner);
     press_key(app, KeyCode::Enter);
-    let keyed = activations(app) - before - pressed;
     set_focus(app, outer);
     press_key(app, KeyCode::Left);
-    pressed + keyed + u32::from(focused(app) == Some(inner))
+    activations(app) - before + u32::from(focused(app) == Some(inner))
 }
 
 #[test]
