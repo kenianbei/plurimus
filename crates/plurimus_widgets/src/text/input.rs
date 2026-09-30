@@ -10,20 +10,25 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
-use plurimus_term::PasteMessage;
+use plurimus_term::{PasteMessage, TerminalCursorStyle};
 
-use super::field::{TextField, mask_value};
+use super::field::{TextField, mask_value, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
 use plurimus_core::UiWidget;
+use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{ComputedDisabled, Hovered, UiTheme, first_bound};
+use plurimus_ui::{
+    ComputedDisabled, ComputedWidgetArea, Hovered, StylistDisabled, UiTheme, WidgetCursor,
+    first_bound,
+};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
 /// A single-line editable text field. Edits mutate [`TextInput`] directly
@@ -32,8 +37,22 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 ///
 /// Which keys edit and which submits is [`TextInputKeys`], required here and
 /// defaulting to what the field always bound.
+///
+/// The caret is drawn into the row while the field has focus, and its cell
+/// is published in the required [`WidgetCursor`], so the terminal's own
+/// cursor sits on it too. That cursor is a steady bar unless an app sets
+/// another shape with [`WidgetCursor::with_style`], which the field keeps: a
+/// block cursor drawn by inverting its cell would cancel the reversed caret
+/// beneath it. A field given [`StylistDisabled`]
+/// has its cell cleared, since an app drawing the row places its own caret.
 #[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, TextInput, TextInputKeys)]
+#[require(
+    Hovered,
+    StylistCache,
+    TextInput,
+    TextInputKeys,
+    WidgetCursor = WidgetCursor::nowhere().with_style(TerminalCursorStyle::SteadyBar),
+)]
 pub struct EditableText;
 
 /// Draws an [`EditableText`] as one of this glyph per grapheme cluster, the
@@ -153,14 +172,17 @@ pub(crate) fn style_text_inputs(
             StateQuery,
             &TextInput,
             Option<&TextMask>,
+            &ComputedWidgetArea,
             &mut StylistCache,
             &mut UiWidget,
+            &mut WidgetCursor,
         ),
         Stylable<EditableText>,
     >,
 ) {
-    for (state, text, mask, mut cache, mut widget) in &mut fields {
-        let next = observed(state, &focus, hashed_bits((text, mask)));
+    for (state, text, mask, area, mut cache, mut widget, mut widget_cursor) in &mut fields {
+        let width = area.0.width;
+        let next = observed(state, &focus, hashed_bits((text, mask, width)));
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
@@ -168,11 +190,21 @@ pub(crate) fn style_text_inputs(
             Some(TextMask(glyph)) => mask_value(text.value(), text.cursor(), *glyph),
             None => (text.value().to_owned(), text.cursor()),
         };
+        widget_cursor.cell = Some(Position::new(place_caret(&value, cursor, width).column, 0));
         *widget = UiWidget::new(TextField {
             value,
             cursor,
             style: next.style(&theme),
             caret: next.state().focused.then_some(theme.caret),
         });
+    }
+}
+
+pub(crate) fn release_text_input_caret(
+    taken: On<Add, StylistDisabled>,
+    mut fields: Query<&mut WidgetCursor, With<EditableText>>,
+) {
+    if let Ok(mut widget_cursor) = fields.get_mut(taken.entity) {
+        widget_cursor.cell = None;
     }
 }

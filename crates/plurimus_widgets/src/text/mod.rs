@@ -30,4 +30,6 @@ pub use state::TextInput;
 pub(crate) use editor::{
     install_editor_views, text_editor_key, text_editor_paste, text_editor_scrolled,
 };
-pub(crate) use input::{style_text_inputs, text_input_blur, text_input_key, text_input_paste};
+pub(crate) use input::{
+    release_text_input_caret, style_text_inputs, text_input_blur, text_input_key, text_input_paste,
+};

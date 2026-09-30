@@ -64,6 +64,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   changes: `TextInput`, `ValueChange` and `Submit` still carry the plaintext,
   and editing is unchanged. A double-width glyph takes two cells. The multi-line
   `TextEditor` masks through its engine's own `set_mask_char`.
+- **The terminal's cursor sits on a focused text field.** `EditableText` now
+  requires `WidgetCursor` and publishes its caret's cell there, masked or not,
+  so the terminal's own cursor, the one a screen reader follows and an input
+  method anchors to, is placed on the focused field. An app with a focused field
+  therefore shows the terminal cursor where it showed none before. The drawn
+  caret stays, so a terminal with its cursor hidden still shows where typing
+  goes. The terminal cursor is a steady bar, because a block cursor drawn by
+  inverting its cell would cancel the reversed caret. An app can set another
+  shape with `WidgetCursor::with_style`, which the field keeps, and the
+  terminal's own shape returns when the field loses focus. Adding
+  `StylistDisabled` clears the cell, leaving the caret to the app that now draws
+  the row. The multi-line `TextEditor` still draws only its engine's caret.
 
 ### Changed
 
@@ -110,6 +122,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The terminal cursor stays where it was placed.** Drawing changed cells moves
+  a terminal's cursor to the last cell written, and the presenter only placed
+  the cursor again when `TerminalCursor` changed, so a frame redrawing any other
+  widget left the cursor there. That showed a second cursor away from the caret,
+  or none on it. The presenter now puts a shown cursor back after every frame
+  that draws, and writes the cells and the move in one flush, so the cursor no
+  longer shows for a moment where the drawing stopped.
 - **Left and Right in a row-selection table.** In a `TableSelection::Row` table,
   the column keys jumped the cursor to the first row. They now leave it where it
   is and pass the key on.

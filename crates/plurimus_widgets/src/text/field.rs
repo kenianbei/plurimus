@@ -4,13 +4,9 @@
 //! visible: the window's right edge is pinned to the cursor's trailing
 //! column, so typing past the edge scrolls the text instead of letting the
 //! cursor leave the field. The caret is a style patched over the cluster it
-//! sits on rather than the terminal's own cursor, so the field looks the
-//! same whether or not the terminal is drawing a caret.
-//!
-//! That is a choice rather than the only option: `WidgetCursor` places the
-//! terminal's own caret, which is what a screen reader follows. Moving to it
-//! would change how every existing field looks, so it wants deciding on its
-//! own rather than riding along with the seam that made it possible.
+//! sits on, so a terminal drawing no cursor still shows where typing goes;
+//! the stylist publishes the same cell through `WidgetCursor` for the
+//! terminal's own, which is what a screen reader follows.
 
 use plurimus_core::ratatui_core::buffer::{Buffer, CellWidth};
 use plurimus_core::ratatui_core::layout::Rect;
@@ -47,12 +43,9 @@ impl Widget for &TextField {
         if area.is_empty() {
             return;
         }
-        let (cursor_column, cursor_width) = cursor_span(&self.value, self.cursor);
+        let caret_span = place_caret(&self.value, self.cursor, area.width);
         let window = Window {
-            start: cursor_column
-                .saturating_add(cursor_width)
-                .saturating_sub(area.width)
-                .min(cursor_column),
+            start: caret_span.start,
             area,
         };
         for x in area.left()..area.right() {
@@ -65,13 +58,29 @@ impl Widget for &TextField {
         let Some(caret) = self.caret else {
             return;
         };
-        let cursor = Rect::new(
-            area.x + (cursor_column - window.start),
-            area.y,
-            cursor_width,
-            1,
-        );
+        let cursor = Rect::new(area.x + caret_span.column, area.y, caret_span.width, 1);
         buffer.set_style(cursor.intersection(area), caret);
+    }
+}
+
+/// Where the caret sits in its row: `column` cells in and `width` wide, with
+/// the value drawn from its column `start`.
+pub(super) struct CaretSpan {
+    pub(super) start: u16,
+    pub(super) column: u16,
+    pub(super) width: u16,
+}
+
+pub(super) fn place_caret(value: &str, cursor: usize, row_width: u16) -> CaretSpan {
+    let (column, width) = cursor_span(value, cursor);
+    let start = column
+        .saturating_add(width)
+        .saturating_sub(row_width)
+        .min(column);
+    CaretSpan {
+        start,
+        column: column - start,
+        width,
     }
 }
 

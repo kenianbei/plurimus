@@ -99,8 +99,8 @@ pub(crate) use table::{
     TableBodyRow, mark_table_content, reveal_table_cursor, style_tables, table_click, table_key,
 };
 pub(crate) use text::{
-    install_editor_views, style_text_inputs, text_editor_key, text_editor_paste,
-    text_editor_scrolled, text_input_blur, text_input_key, text_input_paste,
+    install_editor_views, release_text_input_caret, style_text_inputs, text_editor_key,
+    text_editor_paste, text_editor_scrolled, text_input_blur, text_input_key, text_input_paste,
 };
 
 use bevy_app::{App, Plugin, PreUpdate, Update};
@@ -246,6 +246,7 @@ fn add_observers(app: &mut App) {
     app.add_observer(text_input_key);
     app.add_observer(text_input_paste);
     app.add_observer(text_input_blur);
+    app.add_observer(release_text_input_caret);
     app.add_observer(text_editor_key);
     app.add_observer(text_editor_paste);
     app.add_observer(text_editor_scrolled);
