@@ -27,8 +27,8 @@ use bevy_app::{App, AppExit};
 use plurimus::core::ratatui_core::backend::TestBackend;
 use plurimus::core::ratatui_core::layout::{Position, Rect};
 use plurimus::core::{
-    ColorDepth, CorePlugin, PresenterPlugin, TerminalCamera, TerminalContext, TerminalCursor,
-    TerminalRenderApp, TerminalSize, UiArea, UiCamera, UiWidget, Viewport,
+    ColorDepth, CorePlugin, PresenterPlugin, TerminalCamera, TerminalCursor, TerminalRenderAppExt,
+    TerminalSize, UiArea, UiCamera, UiWidget, Viewport,
 };
 
 use widget::Waveform;
@@ -95,12 +95,10 @@ fn demo() -> App {
 /// by hand because `TestBackend`'s own `Display` quotes each row, which
 /// suits a snapshot assertion and not a frame.
 fn composed(app: &App) -> String {
-    let backend = &app
-        .sub_app(TerminalRenderApp)
-        .world()
-        .resource::<TerminalContext<TestBackend>>()
-        .backend;
-    let buffer = backend.buffer();
+    let buffer = app
+        .terminal_backend::<TestBackend>()
+        .expect("the demo installs a TestBackend presenter")
+        .buffer();
     let mut out = String::new();
     for y in 0..buffer.area.height {
         for x in 0..buffer.area.width {

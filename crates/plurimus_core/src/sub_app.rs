@@ -11,8 +11,10 @@
 use bevy_app::{App, AppLabel, SubApp};
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
 use bevy_ecs::system::ScheduleSystem;
+use ratatui_core::backend::Backend;
 
 use crate::compositor::{self, FrameBuffer};
+use crate::present::TerminalContext;
 use crate::{camera, extract, raster, size};
 
 /// Label of the terminal render sub-app.
@@ -90,6 +92,15 @@ pub trait TerminalRenderAppExt: sealed::Sealed {
         &mut self,
         systems: impl IntoScheduleConfigs<ScheduleSystem, M>,
     ) -> &mut Self;
+
+    /// The backend a [`PresenterPlugin<B>`](crate::PresenterPlugin) draws
+    /// through, which is how a headless app reads back what it presented.
+    ///
+    /// `None` when no presenter for `B` is installed: none was added, it
+    /// was given a different backend type, or
+    /// [`CorePlugin`](crate::CorePlugin) is missing.
+    #[must_use]
+    fn terminal_backend<B: Backend + Send + Sync + 'static>(&self) -> Option<&B>;
 }
 
 impl TerminalRenderAppExt for App {
@@ -110,6 +121,11 @@ impl TerminalRenderAppExt for App {
         self.sub_app_mut(TerminalRenderApp)
             .add_systems(ExtractSchedule, systems);
         self
+    }
+
+    fn terminal_backend<B: Backend + Send + Sync + 'static>(&self) -> Option<&B> {
+        let world = self.get_sub_app(TerminalRenderApp)?.world();
+        Some(&world.get_resource::<TerminalContext<B>>()?.backend)
     }
 }
 
@@ -164,4 +180,23 @@ pub(crate) fn install(app: &mut App) {
     );
     sub_app.set_extract(extract::extract);
     app.insert_sub_app(TerminalRenderApp, sub_app);
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_app::App;
+    use ratatui_core::backend::TestBackend;
+
+    use super::TerminalRenderAppExt;
+    use crate::CorePlugin;
+
+    #[test]
+    fn no_backend_is_read_back_before_a_presenter_owns_one() {
+        let mut app = App::new();
+        assert!(app.terminal_backend::<TestBackend>().is_none());
+
+        app.add_plugins(CorePlugin);
+
+        assert!(app.terminal_backend::<TestBackend>().is_none());
+    }
 }

@@ -6,6 +6,8 @@
 //! the example's own code compiles with core alone, which
 //! `cargo check -p plurimus --no-default-features --examples` enforces.
 
+use plurimus::core::TerminalRenderAppExt;
+use plurimus::core::ratatui_core::backend::TestBackend;
 use plurimus::core::ratatui_core::layout::Position;
 
 use super::{BOTTOM, SIZE, TOP, composed, demo};
@@ -83,12 +85,8 @@ fn the_cursor_is_placed_without_a_terminal() {
 }
 
 fn cursor(app: &bevy_app::App) -> (bool, Position) {
-    let backend = &app
-        .sub_app(plurimus::core::TerminalRenderApp)
-        .world()
-        .resource::<plurimus::core::TerminalContext<
-            plurimus::core::ratatui_core::backend::TestBackend,
-        >>()
-        .backend;
+    let backend = app
+        .terminal_backend::<TestBackend>()
+        .expect("the demo installs a TestBackend presenter");
     (backend.cursor_visible(), backend.cursor_position())
 }

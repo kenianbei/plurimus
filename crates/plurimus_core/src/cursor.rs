@@ -80,8 +80,8 @@ mod tests {
     use ratatui_core::backend::TestBackend;
 
     use super::*;
-    use crate::present::{PresenterPlugin, TerminalContext};
-    use crate::sub_app::TerminalRenderApp;
+    use crate::present::PresenterPlugin;
+    use crate::sub_app::TerminalRenderAppExt;
     use crate::{CorePlugin, TerminalSize};
 
     fn app() -> App {
@@ -93,10 +93,7 @@ mod tests {
     }
 
     fn backend(app: &App) -> &TestBackend {
-        &app.sub_app(TerminalRenderApp)
-            .world()
-            .resource::<TerminalContext<TestBackend>>()
-            .backend
+        app.terminal_backend().expect("a TestBackend presenter")
     }
 
     #[test]
