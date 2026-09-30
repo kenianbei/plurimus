@@ -64,10 +64,13 @@ fn a_wide_mask_glyph_moves_the_cursor_two_cells() {
 }
 
 #[test]
-fn an_unfocused_field_places_no_cursor() {
+fn a_field_losing_focus_takes_the_cursor_with_it() {
     let mut app = app();
     spawn_focused(&mut app, "ab");
+    assert!(cursor(&mut app).is_some());
+
     app.world_mut().resource_mut::<InputFocus>().clear();
+
     assert_eq!(cursor(&mut app), None);
 }
 
@@ -107,11 +110,15 @@ fn a_shape_the_app_set_survives_an_edit() {
     );
 }
 
-// An app drawing the row itself places its own caret.
+// An app drawing the row itself places its own caret, so the cell the
+// stylist last published must not stay standing once the app takes over.
 #[test]
-fn a_field_the_app_styles_places_no_cursor() {
+fn a_field_handed_to_the_app_releases_its_cursor() {
     let mut app = app();
     let field = spawn_focused(&mut app, "ab");
+    assert!(cursor(&mut app).is_some());
+
     app.world_mut().entity_mut(field).insert(StylistDisabled);
+
     assert_eq!(cursor(&mut app), None);
 }

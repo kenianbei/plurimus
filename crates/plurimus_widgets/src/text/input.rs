@@ -10,6 +10,7 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::lifecycle::Add;
 use bevy_ecs::prelude::{Commands, Component, EntityEvent, On, Query, Res, With, Without};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
@@ -25,7 +26,8 @@ use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::{
-    ComputedDisabled, ComputedWidgetArea, Hovered, UiTheme, WidgetCursor, first_bound,
+    ComputedDisabled, ComputedWidgetArea, Hovered, StylistDisabled, UiTheme, WidgetCursor,
+    first_bound,
 };
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
@@ -39,7 +41,8 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 /// The caret is drawn into the row while the field has focus, and its cell
 /// is published in the required [`WidgetCursor`], so the terminal's own
 /// cursor sits on it too. Only the cell is written: a shape set with
-/// [`WidgetCursor::with_style`] is kept.
+/// [`WidgetCursor::with_style`] is kept. A field given [`StylistDisabled`]
+/// has its cell cleared, since an app drawing the row places its own caret.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(Hovered, StylistCache, TextInput, TextInputKeys, WidgetCursor)]
 pub struct EditableText;
@@ -169,9 +172,9 @@ pub(crate) fn style_text_inputs(
         Stylable<EditableText>,
     >,
 ) {
-    for (state, text, mask, area, mut cache, mut widget, mut caret) in &mut fields {
-        let row = area.0;
-        let next = observed(state, &focus, hashed_bits((text, mask, row.as_size())));
+    for (state, text, mask, area, mut cache, mut widget, mut widget_cursor) in &mut fields {
+        let width = area.0.width;
+        let next = observed(state, &focus, hashed_bits((text, mask, width)));
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
@@ -179,13 +182,21 @@ pub(crate) fn style_text_inputs(
             Some(TextMask(glyph)) => mask_value(text.value(), text.cursor(), *glyph),
             None => (text.value().to_owned(), text.cursor()),
         };
-        caret.cell = (!row.is_empty())
-            .then(|| Position::new(place_caret(&value, cursor, row.width).column, 0));
+        widget_cursor.cell = Some(Position::new(place_caret(&value, cursor, width).column, 0));
         *widget = UiWidget::new(TextField {
             value,
             cursor,
             style: next.style(&theme),
             caret: next.state().focused.then_some(theme.caret),
         });
+    }
+}
+
+pub(crate) fn release_text_input_caret(
+    taken: On<Add, StylistDisabled>,
+    mut fields: Query<&mut WidgetCursor, With<EditableText>>,
+) {
+    if let Ok(mut widget_cursor) = fields.get_mut(taken.entity) {
+        widget_cursor.cell = None;
     }
 }
