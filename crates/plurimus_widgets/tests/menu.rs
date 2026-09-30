@@ -4,17 +4,19 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
+use bevy_input_focus::tab_navigation::TabGroup;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseKind};
-use plurimus_test::{click, composed_frame, press_at, press_key, send_mouse};
+use plurimus_term::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseKind};
+use plurimus_test::{click, composed_frame, press_at, press_chord, press_key, send_mouse};
 use plurimus_ui::Key;
 use plurimus_ui::{
     Hovered, InteractionDisabled, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget,
 };
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
-    Activate, MenuAction, MenuKeys, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup,
+    Activate, MenuAction, MenuKeys, MenuOpen, WidgetsPlugin, button, menu_button, menu_item,
+    menu_popup,
 };
 
 fn app() -> App {
@@ -183,6 +185,35 @@ fn arrows_wrap_enter_activates_escape_closes() {
     press_key(&mut app, KeyCode::Esc);
     assert!(!is_open(&app, &menu));
     assert_eq!(focused(&app), Some(menu.button));
+}
+
+// Tab would otherwise move focus to another tab stop and leave the popup
+// open behind it, still swallowing the pointer.
+#[test]
+fn tab_either_way_closes_the_menu_and_refocuses_its_button() {
+    let mut app = app();
+    let group = app.world_mut().spawn(TabGroup::new(0)).id();
+    app.world_mut().spawn((
+        button("other"),
+        UiArea::Fixed(Rect::new(10, 0, 6, 1)),
+        ChildOf(group),
+    ));
+    let menu = spawn_menu(&mut app);
+    app.world_mut()
+        .entity_mut(menu.button)
+        .insert(ChildOf(group));
+
+    for shift in [false, true] {
+        click(&mut app, 2, 0);
+        assert!(is_open(&app, &menu));
+        if shift {
+            press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Tab);
+        } else {
+            press_key(&mut app, KeyCode::Tab);
+        }
+        assert!(!is_open(&app, &menu), "shift {shift}: closed");
+        assert_eq!(focused(&app), Some(menu.button), "shift {shift}");
+    }
 }
 
 // The table lives on the popup, so one component remaps the whole menu.
