@@ -10,7 +10,7 @@ use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, 
 use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{UiArea, UiTheme};
-use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextMask, WidgetsPlugin, editable_text};
 
 const ACCENT: &str = "e\u{301}";
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
@@ -186,17 +186,13 @@ fn a_masked_caret_lands_on_its_cluster() {
 }
 
 #[test]
-fn a_mask_hides_the_row_and_not_the_value() {
+fn removing_a_mask_repaints_the_value() {
     let mut app = app();
     let field = spawn_masked(&mut app, "secret", MASK);
-    frame(&mut app);
-    assert_eq!(
-        app.world().get::<TextInput>(field).unwrap().value(),
-        "secret"
-    );
+    assert_eq!(symbols(&frame(&mut app))[0], "\u{2022}");
 
     app.world_mut().entity_mut(field).remove::<TextMask>();
-    assert_eq!(symbols(&frame(&mut app))[0], "s", "unmasking repaints");
+    assert_eq!(symbols(&frame(&mut app))[0], "s");
 }
 
 #[test]
