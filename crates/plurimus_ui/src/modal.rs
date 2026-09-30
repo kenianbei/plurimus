@@ -5,9 +5,9 @@
 //! about. A pointer outside every open modal requests dismissal and is
 //! swallowed; a pointer inside one is confined to the subtrees of the
 //! modals containing it, so nothing an overlay covers is reachable through
-//! it. Interacting with a [`ModalityToggle`] entity outside the overlays
-//! routes rather than dismissing, and a click on one defers the rest of the
-//! input batch a frame so it hit-tests the settled state.
+//! it. A press on a [`ModalityToggle`] entity outside the overlays dismisses
+//! only the modals it does not own, then routes, and a click on one defers
+//! the rest of the input batch a frame so it hit-tests the settled state.
 
 use core::iter;
 
@@ -28,14 +28,17 @@ pub struct ModalOpen;
 
 /// Marks an entity whose activation changes modal state. It answers two
 /// questions, and a widget usually wants one of them: a press on one
-/// outside every open modal routes instead of dismissing, which is how an
-/// opener closes what it opened, and a click on one defers the rest of the
-/// pointer batch, which is what a row inside an overlay needs.
+/// outside every open modal dismisses only the modals it does not own - those
+/// whose [`ModalOpen`] root descends from it - and then routes, which is how
+/// an opener closes what it opened and a neighbouring opener switches to its
+/// own; and a click on one defers the rest of the pointer batch, which is
+/// what a row inside an overlay needs.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct ModalityToggle;
 
-/// A press or wheel tick landed outside every open modal: the modal's
-/// owner closes it (and restores focus) in response.
+/// A press or wheel tick landed outside every open modal, or a press on a
+/// [`ModalityToggle`] that does not own this one: the modal's owner closes
+/// it (and restores focus) in response.
 #[derive(EntityEvent, Debug, Clone, Copy)]
 pub struct ModalDismiss {
     /// The open modal root to dismiss.
@@ -75,6 +78,18 @@ impl ModalGuard<'_, '_> {
     pub(crate) fn dismiss_all(&self, commands: &mut Commands) {
         for (root, _) in self.open.iter() {
             commands.trigger(ModalDismiss { entity: root });
+        }
+    }
+
+    pub(crate) fn dismiss_unowned(&self, toggle: Entity, commands: &mut Commands) {
+        for (root, _) in self.open.iter() {
+            if !self
+                .parents
+                .iter_ancestors(root)
+                .any(|owner| owner == toggle)
+            {
+                commands.trigger(ModalDismiss { entity: root });
+            }
         }
     }
 

@@ -92,9 +92,9 @@ fn route_message(
     }
 }
 
-// A toggle outside the overlays is exempt from dismissal so that pressing
-// an opener closes what it opened, rather than the dismissal swallowing
-// the press that would have toggled it.
+// A toggle outside the overlays dismisses only what it does not own, so
+// pressing an opener closes what it opened - by the press that toggles it,
+// which a dismissal would have swallowed - and pressing another switches.
 fn route_press(
     position: Position,
     routing: &mut PointerRouting,
@@ -107,11 +107,14 @@ fn route_press(
     let inert = target.is_some_and(|entity| routing.disabled.contains(entity));
     // A disabled opener cannot activate, so exempting it would leave the
     // menu open with the press dead.
-    let opener = !inert && target.is_some_and(|entity| routing.modal.affects_modality(entity));
-    if routing.modal.dismisses(position) && !opener {
-        routing.modal.dismiss_all(commands);
-        routing.run.reset();
-        return true;
+    let opener = target.filter(|&entity| !inert && routing.modal.affects_modality(entity));
+    if routing.modal.dismisses(position) {
+        let Some(opener) = opener else {
+            routing.modal.dismiss_all(commands);
+            routing.run.reset();
+            return true;
+        };
+        routing.modal.dismiss_unowned(opener, commands);
     }
     // A press that reaches no widget ends the run: what it dismissed or
     // what absorbed it is not what the next press will land on.

@@ -204,6 +204,17 @@ impl MenuAccess<'_, '_> {
         for item in self.item_rows(popup) {
             commands.entity(item).insert(UiHidden);
         }
+        // A press that switched menus has already moved focus on.
+        let is_focus_inside = focus.get().is_some_and(|focused| {
+            focused == popup
+                || self
+                    .parents
+                    .iter_ancestors(focused)
+                    .any(|ancestor| ancestor == popup)
+        });
+        if !is_focus_inside {
+            return;
+        }
         match self.parents.get(popup) {
             Ok(parent) => focus.set(parent.parent(), FocusCause::Navigated),
             Err(_) => focus.clear(),
