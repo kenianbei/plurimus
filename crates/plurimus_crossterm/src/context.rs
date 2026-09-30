@@ -23,8 +23,9 @@ use plurimus_core::{ColorDepth, TerminalSize};
 use ratatui_crossterm::CrosstermBackend;
 
 // Restore runs from panic hooks with no app state, so what it undoes only
-// if it was done - the kitty push, a cursor shape, the title push - is
-// recorded here.
+// if it was done is recorded here. Restore takes each rather than reading
+// it: a panic restores from the hook and again as the world drops, and a
+// second pop would take an entry pushed by whatever ran before this process.
 static KITTY_PUSHED: AtomicBool = AtomicBool::new(false);
 static SHAPE_WRITTEN: AtomicBool = AtomicBool::new(false);
 static TITLE_PUSHED: AtomicBool = AtomicBool::new(false);
@@ -164,14 +165,12 @@ pub fn install_panic_hook() {
 /// applies raw mode - restoration works even when stdout is redirected.
 pub fn restore() {
     let mut writer = restore_writer();
-    if KITTY_PUSHED.load(Ordering::Relaxed) {
+    if KITTY_PUSHED.swap(false, Ordering::Relaxed) {
         let _ = queue!(writer, PopKeyboardEnhancementFlags);
     }
-    if SHAPE_WRITTEN.load(Ordering::Relaxed) {
+    if SHAPE_WRITTEN.swap(false, Ordering::Relaxed) {
         let _ = queue!(writer, SetCursorStyle::DefaultUserShape);
     }
-    // Swapped, unlike the others: a panic restores twice, and a second pop
-    // would take the entry of whatever pushed before this process did.
     if TITLE_PUSHED.swap(false, Ordering::Relaxed) {
         let _ = queue!(writer, PopTitle);
     }
@@ -248,8 +247,6 @@ mod tests {
         written
     }
 
-    // OSC 0, which is what crossterm's `SetTitle` writes, sets the icon name
-    // too, so saving only the window title (22;2) would hand back half.
     #[test]
     fn the_title_stack_saves_and_restores_icon_and_window_together() {
         assert_eq!(ansi(&PushTitle), "\x1b[22;0t");
