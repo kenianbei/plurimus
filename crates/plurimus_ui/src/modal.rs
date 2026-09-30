@@ -82,7 +82,10 @@ impl ModalGuard<'_, '_> {
         }
     }
 
-    pub(crate) fn dismiss_unowned(&self, toggle: Entity, commands: &mut Commands) {
+    /// Dismisses the open modals `toggle` does not own, returning whether
+    /// there were any.
+    pub(crate) fn dismiss_unowned(&self, toggle: Entity, commands: &mut Commands) -> bool {
+        let mut dismissed = false;
         for (root, _) in self.open.iter() {
             if !self
                 .parents
@@ -90,8 +93,10 @@ impl ModalGuard<'_, '_> {
                 .any(|owner| owner == toggle)
             {
                 commands.trigger(ModalDismiss { entity: root });
+                dismissed = true;
             }
         }
+        dismissed
     }
 
     fn confines(&self, position: Position) -> bool {

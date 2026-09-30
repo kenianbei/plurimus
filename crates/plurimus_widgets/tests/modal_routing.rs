@@ -304,6 +304,32 @@ fn a_press_on_another_menus_button_switches_to_it() {
     assert_eq!(focused(&app), Some(first_item), "with the keys in it");
 }
 
+// The closing menu is still open until its dismissal lands, so a press
+// inside it later in the same batch must wait rather than reach its rows.
+#[test]
+fn a_switching_press_defers_the_rest_of_the_batch() {
+    let mut app = app();
+    let near = spawn_menu(&mut app);
+    spawn_menu_at(&mut app, Rect::new(11, 0, 8, 1));
+    click(&mut app, 2, 0);
+    app.update();
+    let row = app.world().get::<Children>(near).unwrap()[0];
+    let cell = popup_area(&app, row).as_position();
+
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 12, 0);
+    write_release_at(&mut app, 15, 6);
+    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), cell.x, cell.y);
+    write_release_at(&mut app, cell.x, cell.y);
+    app.update();
+    app.update();
+
+    assert!(!is_open(&app, near));
+    assert!(
+        !was_pressed(&app, row),
+        "the closing menu's row was reached"
+    );
+}
+
 // The dismissal lands after the press has focused the other button, so
 // the closing menu must not take focus back to its own.
 #[test]

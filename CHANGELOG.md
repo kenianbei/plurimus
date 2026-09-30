@@ -52,9 +52,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   outside the open overlays, a toggle used to leave every one of them open, so
   clicking one menu's button with another menu open left both open. It now
   dismisses each open overlay whose `ModalOpen` root is not beneath it, then
-  takes the press, so one click switches from File to Edit. A menu that closes
-  returns focus to its button only if focus was still inside it, so the press
-  that switched keeps the focus it moved.
+  takes the press, so one click switches from File to Edit; the rest of that
+  batch of input waits a frame for the close. A menu that closes returns focus
+  to its button only if focus was still inside it, so the press that switched
+  keeps the focus it moved.
 
 ### Fixed
 
