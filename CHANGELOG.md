@@ -123,6 +123,23 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   from the held keys. A terminal without modifier key events learns what is held
   only from key messages, so a shift reported with a click would otherwise go
   unseen.
+- **Copying rows from a list box or a table.** `Ctrl+c` on a focused `ListBox`
+  or an interactive `Table` copies to the terminal through `TerminalRequest` and
+  to `LastCopied`, so the text pastes into either text widget. It is bound
+  through the new `ListBoxAction::Copy` and `TableAction::Copy`, so an app can
+  remap or remove it.
+  - **Which rows.** The cursor row. A `ListBoxMultiSelect` list or
+    `TableMultiSelect` table with checked rows copies all of them instead, in
+    child order. A single-select container copies the cursor row even when
+    another row is checked, and `Marked` rows are never copied.
+  - **List rows** copy their `ListItemText` when they have one, else their
+    label. `ListItemTrailing` is left out.
+  - **Table rows** copy their cells tab-separated, one row per line. A table
+    selecting columns copies the cursor's column from every body row, and one
+    selecting cells copies the cursor's cell. The header and footer are never
+    copied.
+  - **Nothing to copy.** With no cursor row, or no column in a table that
+    selects columns, the key goes on to the container's ancestors.
 
 ### Changed
 
@@ -144,6 +161,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Remove the bindings from the field's `TextInputKeys` to hand them back.
 - **A click on a text field places its caret.** A press used to focus the field
   and leave the cursor where it was.
+- **A focused list box or interactive table takes `Ctrl+c`** when it has
+  something to copy. An ancestor handling that chord no longer sees it then.
+  Remove the binding from `ListBoxKeys` or `TableKeys` to hand it back.
 
 - **The multi-line editor's default keys are conventional, not emacs.**
   `TextEditor` used to take ratatui-textarea's emacs keymap. Its default table

@@ -8,14 +8,12 @@
 //! share an implementation.
 //!
 //! `grapheme` and `word` are shared between them so a keybinding stops at
-//! the same place in both, and `clipboard` so a copy in one is a paste in
-//! the other; `field` renders the single-line row and `pointer` maps a press
-//! onto it. None of those is reachable from outside this module. `edit` is
-//! the exception:
-//! it holds [`TextInput`]'s own key and paste entry points, which are public
-//! so a host that routes its own keys drives a field without focusing it.
+//! the same place in both; `field` renders the single-line row and
+//! `pointer` maps a press onto it. None of those is reachable from outside
+//! this module. `edit` is the exception: it holds [`TextInput`]'s own key
+//! and paste entry points, which are public so a host that routes its own
+//! keys drives a field without focusing it.
 
-mod clipboard;
 mod edit;
 mod editor;
 mod editor_keys;

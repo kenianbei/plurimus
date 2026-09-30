@@ -18,11 +18,11 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
 use plurimus_term::{PasteMessage, TerminalCursorStyle};
 
-use super::clipboard::Clipboard;
 use super::field::{TextField, drawn_row, place_caret};
 use super::keys::{TextInputAction, TextInputKeys};
 use super::state::TextInput;
 use crate::ValueChange;
+use crate::clipboard::Clipboard;
 use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::bevy_compat::HeldModifiers;

@@ -2,8 +2,9 @@
 //! footer of totals, and columns the app sorts by clicking their header.
 //!
 //! Up/Down or `j`/`k` move the cursor, ctrl-d/ctrl-u page, Enter selects
-//! the row, the wheel scrolls, and clicking a header cell sorts by that
-//! column - descending the second time. `q` or ctrl-c quits.
+//! the row, ctrl-c copies it tab-separated, the wheel scrolls, and clicking
+//! a header cell sorts by that column - descending the second time. `q`
+//! quits.
 //!
 //! Sorting lives here rather than in the widget on purpose. The crate
 //! reports which column was clicked; how a column compares - text here,
@@ -100,7 +101,7 @@ fn main() -> AppExit {
     app.add_plugins((
         ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)),
         CorePlugin,
-        CrosstermPlugin::default(),
+        CrosstermPlugin::default().clipboard(true),
     ));
     add_demo(&mut app);
     app.run()
