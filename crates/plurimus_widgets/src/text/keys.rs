@@ -50,8 +50,8 @@ pub enum TextInputAction {
 /// a key bound to nothing inserts itself if it is an unchorded character and
 /// propagates otherwise. Defaults to the arrows and `Home`/`End`, `Ctrl` with
 /// the arrows for word motion and `Alt` with `Backspace`/`Delete` for word
-/// deletion - which mirror the multi-line editor's engine - and `Enter` to
-/// submit.
+/// deletion - as [`TextEditorKeys`](super::TextEditorKeys) binds them - and
+/// `Enter` to submit.
 #[derive(Component, Debug, Clone)]
 pub struct TextInputKeys(pub Vec<(KeyBinding, TextInputAction)>);
 

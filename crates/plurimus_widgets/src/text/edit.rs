@@ -62,9 +62,6 @@ impl TextInput {
     pub(crate) fn apply(&mut self, action: TextInputAction) {
         let cursor = self.cursor();
         match action {
-            // Word bindings mirror TextEditor's, whose engine binds
-            // ctrl+arrows to word motion and alt+Backspace/Delete to word
-            // deletion.
             TextInputAction::WordLeft => self.move_to(word_start_backward(self.value(), cursor)),
             TextInputAction::WordRight => self.move_to(word_start_forward(self.value(), cursor)),
             TextInputAction::WordBackspace => {
