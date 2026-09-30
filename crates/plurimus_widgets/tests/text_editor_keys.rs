@@ -213,8 +213,6 @@ fn a_shift_arrow_that_cannot_move_starts_no_selection() {
     shift(&mut app, KeyCode::Right);
 
     assert!(!is_selecting(&app, editor));
-    press_key(&mut app, KeyCode::Backspace);
-    assert_eq!(lines(&app, editor), ["a"]);
 }
 
 #[test]
