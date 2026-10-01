@@ -59,7 +59,7 @@ fn char_at(
     area: Rect,
     position: Position,
 ) -> Option<usize> {
-    let cell = content_cell(position, area, Position::ORIGIN)?;
+    let cell = content_cell(position, area, None)?;
     let mask = mask.map(|TextMask(glyph)| *glyph);
     Some(char_at_cell(text, mask, area.width, cell.x))
 }

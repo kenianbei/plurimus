@@ -133,18 +133,6 @@ fn release_scroll_area(mut world: DeferredWorld, context: HookContext) {
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScrollOffset(pub Position);
 
-impl ScrollOffset {
-    /// What a widget is scrolled by, given whether it carries an offset at
-    /// all: a widget without a [`ScrollOffset`] is not scrolled.
-    #[must_use]
-    pub const fn resolve(offset: Option<&Self>) -> Position {
-        match offset {
-            Some(offset) => offset.0,
-            None => Position::ORIGIN,
-        }
-    }
-}
-
 /// Reveals a content-space rect by minimally adjusting the entity's
 /// [`ScrollOffset`]. Emits [`ValueChange<Position>`] when it moves.
 #[derive(EntityEvent, Debug, Clone, Copy)]
@@ -377,7 +365,8 @@ pub fn apply_offset(
 }
 
 /// Where a screen cell lands in the content of a widget drawn at `area`
-/// and scrolled by `offset`.
+/// and scrolled by `offset`; a widget carrying no [`ScrollOffset`] is not
+/// scrolled.
 ///
 /// Clamps into the area rather than refusing, because a drag is captured
 /// to the widget it began on: the cursor may be well outside by now, and
@@ -385,10 +374,15 @@ pub fn apply_offset(
 /// inside the area before it is routed, so for one the clamp never binds.
 /// `None` only for an empty area, which addresses no cell at all.
 #[must_use]
-pub fn content_cell(screen: Position, area: Rect, offset: Position) -> Option<Position> {
+pub fn content_cell(
+    screen: Position,
+    area: Rect,
+    offset: Option<&ScrollOffset>,
+) -> Option<Position> {
     if area.is_empty() {
         return None;
     }
+    let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
     let x = screen.x.clamp(area.x, area.right() - 1) - area.x;
     let y = screen.y.clamp(area.y, area.bottom() - 1) - area.y;
     Some(Position::new(
@@ -398,17 +392,23 @@ pub fn content_cell(screen: Position, area: Rect, offset: Position) -> Option<Po
 }
 
 /// Where a content cell lands on screen, for a widget drawn at `area` and
-/// scrolled by `offset`.
+/// scrolled by `offset`; a widget carrying no [`ScrollOffset`] is not
+/// scrolled.
 ///
 /// The inverse of [`content_cell`], and unlike it this refuses rather than
 /// clamps: a content cell scrolled out of the area is not on screen at all,
 /// and answering with the nearest edge would put a caret where its
 /// character is not. `None` for an empty area too.
 #[must_use]
-pub fn screen_cell(content: Position, area: Rect, offset: Position) -> Option<Position> {
+pub fn screen_cell(
+    content: Position,
+    area: Rect,
+    offset: Option<&ScrollOffset>,
+) -> Option<Position> {
     if area.is_empty() {
         return None;
     }
+    let offset = offset.map_or(Position::ORIGIN, |offset| offset.0);
     let x = content.x.checked_sub(offset.x)?;
     let y = content.y.checked_sub(offset.y)?;
     (x < area.width && y < area.height).then(|| Position::new(area.x + x, area.y + y))
