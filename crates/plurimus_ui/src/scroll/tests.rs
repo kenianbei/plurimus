@@ -5,19 +5,6 @@ use plurimus_core::ratatui_core::widgets::StatefulWidget;
 use tui_scrollview::{ScrollView, ScrollViewState, ScrollbarVisibility};
 
 const AREA: Rect = Rect::new(4, 2, 10, 5);
-const UNSCROLLED: Position = Position::new(0, 0);
-
-#[test]
-fn a_widget_carrying_no_offset_is_scrolled_to_the_origin() {
-    assert_eq!(ScrollOffset::resolve(None), Position::ORIGIN);
-}
-
-#[test]
-fn a_widget_carrying_one_is_scrolled_by_it() {
-    let offset = ScrollOffset(Position::new(3, 7));
-
-    assert_eq!(ScrollOffset::resolve(Some(&offset)), Position::new(3, 7));
-}
 
 #[test]
 fn a_step_moves_the_offset_and_stops_at_either_bound() {
@@ -39,7 +26,7 @@ fn a_step_past_the_offsets_own_range_still_lands_on_the_bound() {
 #[test]
 fn a_cell_inside_the_area_is_its_offset_from_the_origin() {
     assert_eq!(
-        content_cell(Position::new(6, 3), AREA, UNSCROLLED),
+        content_cell(Position::new(6, 3), AREA, None),
         Some(Position::new(2, 1))
     );
 }
@@ -47,7 +34,11 @@ fn a_cell_inside_the_area_is_its_offset_from_the_origin() {
 #[test]
 fn the_scroll_offset_is_added_to_what_the_area_resolves() {
     assert_eq!(
-        content_cell(Position::new(6, 3), AREA, Position::new(7, 20)),
+        content_cell(
+            Position::new(6, 3),
+            AREA,
+            Some(&ScrollOffset(Position::new(7, 20)))
+        ),
         Some(Position::new(9, 21))
     );
 }
@@ -57,12 +48,12 @@ fn the_scroll_offset_is_added_to_what_the_area_resolves() {
 #[test]
 fn a_cell_outside_the_area_clamps_to_the_nearest_edge() {
     assert_eq!(
-        content_cell(Position::new(0, 0), AREA, UNSCROLLED),
+        content_cell(Position::new(0, 0), AREA, None),
         Some(Position::new(0, 0)),
         "above and left of the area"
     );
     assert_eq!(
-        content_cell(Position::new(99, 99), AREA, UNSCROLLED),
+        content_cell(Position::new(99, 99), AREA, None),
         Some(Position::new(9, 4)),
         "the last cell, not one past it"
     );
@@ -75,9 +66,10 @@ fn a_content_cell_maps_back_to_the_screen_cell_it_came_from() {
         Position::new(9, 5),
         Position::new(6, 3),
     ] {
-        let offset = Position::new(7, 20);
-        let content = content_cell(screen, AREA, offset).expect("inside the area");
-        assert_eq!(screen_cell(content, AREA, offset), Some(screen));
+        for offset in [None, Some(&ScrollOffset(Position::new(7, 20)))] {
+            let content = content_cell(screen, AREA, offset).expect("inside the area");
+            assert_eq!(screen_cell(content, AREA, offset), Some(screen));
+        }
     }
 }
 
@@ -85,7 +77,7 @@ fn a_content_cell_maps_back_to_the_screen_cell_it_came_from() {
 // with the nearest edge would draw it beside the wrong character.
 #[test]
 fn a_content_cell_outside_the_window_is_on_no_screen_cell() {
-    let offset = Position::new(3, 4);
+    let offset = Some(&ScrollOffset(Position::new(3, 4)));
     assert_eq!(screen_cell(Position::new(2, 5), AREA, offset), None, "left");
     assert_eq!(
         screen_cell(Position::new(5, 3), AREA, offset),
@@ -106,19 +98,13 @@ fn a_content_cell_outside_the_window_is_on_no_screen_cell() {
 
 #[test]
 fn an_empty_area_addresses_no_cell() {
+    assert_eq!(content_cell(Position::new(4, 2), Rect::ZERO, None), None);
     assert_eq!(
-        content_cell(Position::new(4, 2), Rect::ZERO, UNSCROLLED),
-        None
-    );
-    assert_eq!(
-        content_cell(Position::new(4, 2), Rect::new(4, 2, 0, 5), UNSCROLLED),
+        content_cell(Position::new(4, 2), Rect::new(4, 2, 0, 5), None),
         None,
         "zero width alone is enough"
     );
-    assert_eq!(
-        screen_cell(Position::new(0, 0), Rect::ZERO, UNSCROLLED),
-        None
-    );
+    assert_eq!(screen_cell(Position::new(0, 0), Rect::ZERO, None), None);
 }
 
 // tui-scrollview keeps this rule private, so the viewport is checked

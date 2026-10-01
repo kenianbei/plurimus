@@ -20,7 +20,7 @@ use super::{
     TableSelection, cursor_gutter,
 };
 use crate::rows::ActiveDescendant;
-use plurimus_ui::{ComputedWidgetArea, ScrollArea, ScrollOffset, content_cell, screen_cell};
+use plurimus_ui::{ComputedWidgetArea, ScrollArea, ScrollOffset, screen_cell};
 
 pub(super) type Rows<'w, 's> =
     Query<'w, 's, (&'static TableRow, Has<TableHeader>, Has<TableFooter>)>;
@@ -47,7 +47,6 @@ pub(super) struct Placed<'a> {
     pub(super) area: &'a ComputedWidgetArea,
     pub(super) layout: Option<&'a TableLayout>,
     pub(super) scroll: Option<&'a ScrollArea>,
-    pub(super) offset: Option<&'a ScrollOffset>,
 }
 
 impl Placed<'_> {
@@ -60,18 +59,6 @@ impl Placed<'_> {
     pub(super) fn height(&self) -> u16 {
         self.scroll
             .map_or(self.area.0.height, |scroll| scroll.content_size.height)
-    }
-
-    // Both axes: a scrolled table's columns are laid out against its
-    // content width, not the area they show through.
-    pub(super) fn content_cell(&self, at: Position) -> Option<Position> {
-        content_cell(at, self.area.0, ScrollOffset::resolve(self.offset))
-    }
-
-    // Refuses rather than clamps: a cell scrolled out of view is not at the
-    // nearest visible one.
-    pub(super) fn screen_cell(&self, at: Position) -> Option<Position> {
-        screen_cell(at, self.area.0, ScrollOffset::resolve(self.offset))
     }
 
     // Only an unscrolled table needs bounding; see `clicked_row`.
@@ -210,7 +197,6 @@ impl TableGeometry<'_, '_> {
             area,
             layout,
             scroll,
-            offset,
         };
         let line = row_line(row, children, &self.rows, &placed)?;
         let widths = resolved_widths(columns, || widest_row(children, &self.rows), placed.width());
@@ -218,7 +204,7 @@ impl TableGeometry<'_, '_> {
             cursor_gutter(*selection, active.and_then(|active| active.0), cursor)
         });
         let cell = *column_rects(&placed.columns(widths, gutter)).get(column)?;
-        let origin = placed.screen_cell(Position::new(cell.x, line))?;
+        let origin = screen_cell(Position::new(cell.x, line), area.0, offset)?;
         let width = cell.width.min(area.0.right().saturating_sub(origin.x));
         Some(Rect::new(origin.x, origin.y, width, 1))
     }

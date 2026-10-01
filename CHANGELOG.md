@@ -155,6 +155,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     discriminants of `Backspace` through `Submit`.
   - `CancelSelection` is not bound by default, so `Escape` still reaches
     whatever holds the field.
+- **Breaking: `content_cell` and `screen_cell` take the scroll offset as
+  `Option<&ScrollOffset>`.** Both took a bare `Position`. Pass the component a
+  query hands back, or `None` for a widget that is not scrolled: a widget
+  carrying no `ScrollOffset` is scrolled to the origin, and the two functions
+  now apply that rule themselves.
+  - `ScrollOffset::resolve` is removed with it, having had no other use. Code
+    that called it before either function drops the call.
+  - Scroll state held somewhere other than the component goes in as
+    `Some(&ScrollOffset(position))`.
 - **A focused text field takes `Ctrl+a`, `Ctrl+c`, `Ctrl+x` and `Ctrl+v`.**
   These chords used to propagate from a field. An ancestor handling them no
   longer sees them while a field has focus, even when nothing is selected.

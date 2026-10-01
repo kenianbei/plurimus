@@ -20,7 +20,8 @@ use super::{
 };
 use crate::rows::ActiveDescendant;
 use plurimus_ui::{
-    Click, ComputedDisabled, ComputedWidgetArea, ScrollIntoView, ValueChange, first_bound,
+    Click, ComputedDisabled, ComputedWidgetArea, ScrollIntoView, ValueChange, content_cell,
+    first_bound,
 };
 
 type Navigable<'a> = (
@@ -159,9 +160,10 @@ impl Geometry<'_> {
             area,
             layout,
             scroll,
-            offset,
         };
-        let cell = placed.content_cell(cell)?;
+        // Both axes: a scrolled table's columns are laid out against its
+        // content width, not the area they show through.
+        let cell = content_cell(cell, area.0, offset)?;
         let widths = resolved_widths(
             self.columns,
             || widest_row(self.children, rows),
