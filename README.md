@@ -128,7 +128,7 @@ stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
 uncontrolled. Every widget takes its keys from a bindings component -
 `ActivateKeys`, `ListBoxKeys`, `TableKeys`, `TabBarKeys`, `SliderKeys`,
-`MenuKeys`, `TextInputKeys` - each defaulting to what it always bound, so
+`MenuKeys`, `TextInputKeys`, `TextEditorKeys` - each with a default table, so
 remapping a list to vim keys is a component swap rather than a rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
@@ -169,7 +169,7 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.7"
+plurimus = "0.8"
 bevy_app = "0.19"
 bevy_ecs = "0.19"
 ratatui-widgets = "0.3"
@@ -177,7 +177,9 @@ ratatui-widgets = "0.3"
 
 Plurimus does not re-export the bevy crates, the same way `bevy_pbr` does not
 re-export `bevy_reflect`: add whichever you use at bevy 0.19 and cargo unifies
-them with plurimus's. `ratatui_core` is re-exported as
+them with plurimus's. The exception is what its own contracts are written in:
+`bevy_input_focus` and `bevy_input`'s `Key` from the `ui` and `widgets` tiers,
+`ButtonInput` and `MouseButton` from `term`. `ratatui_core` is re-exported as
 `plurimus::core::ratatui_core`; the stock widget set is your own dependency
 unless the `widgets` feature is on, which re-exports it.
 
@@ -405,7 +407,7 @@ than crawl.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.7      | 0.19 | 0.1          |
+| 0.8      | 0.19 | 0.1          |
 
 - **Rust 1.95** or newer, edition 2024.
 - **Bevy 0.19** for any bevy crates added alongside.
