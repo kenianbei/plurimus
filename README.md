@@ -169,14 +169,14 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.8"
-bevy_app = "0.19"
-bevy_ecs = "0.19"
+plurimus = "0.9"
+bevy_app = "0.20"
+bevy_ecs = "0.20"
 ratatui-widgets = "0.3"
 ```
 
 Plurimus does not re-export the bevy crates, the same way `bevy_pbr` does not
-re-export `bevy_reflect`: add whichever you use at bevy 0.19 and cargo unifies
+re-export `bevy_reflect`: add whichever you use at bevy 0.20 and cargo unifies
 them with plurimus's. The exception is what its own contracts are written in:
 `bevy_input_focus` and `bevy_input`'s `Key` from the `ui` and `widgets` tiers,
 `ButtonInput` and `MouseButton` from `term`. `ratatui_core` is re-exported as
@@ -407,10 +407,10 @@ than crawl.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.8      | 0.19 | 0.1          |
+| 0.9      | 0.20 | 0.1          |
 
-- **Rust 1.95** or newer, edition 2024.
-- **Bevy 0.19** for any bevy crates added alongside.
+- **Rust 1.97.1** or newer, edition 2024.
+- **Bevy 0.20** for any bevy crates added alongside.
 - **A terminal.** Anything crossterm supports; the kitty keyboard protocol adds
   real key releases. Truecolor, 256-color, and 16-color terminals are detected
   and composited down.
