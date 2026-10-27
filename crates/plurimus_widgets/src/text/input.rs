@@ -246,7 +246,7 @@ pub(crate) fn style_text_inputs(
 }
 
 pub(crate) fn release_text_input_caret(
-    taken: On<Add, StylistDisabled>,
+    taken: On<Add<StylistDisabled>>,
     mut fields: Query<&mut WidgetCursor, With<EditableText>>,
 ) {
     if let Ok(mut widget_cursor) = fields.get_mut(taken.entity) {

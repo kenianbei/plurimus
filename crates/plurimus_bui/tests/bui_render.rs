@@ -6,8 +6,7 @@ use bevy_ecs::prelude::ChildOf;
 use bevy_ui::{
     BackgroundColor, BorderColor, FlexDirection, Node, Overflow, ScrollPosition, UiRect, Val,
 };
-use plurimus_bui::BuiPlugin;
-use plurimus_bui::{Text, TextStyle};
+use plurimus_bui::{BuiPlugin, ComputedNodeRect, Text, TextStyle};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
 use plurimus_term::MouseKind;
 use plurimus_test::{composed_styled_frame, send_mouse};
@@ -233,4 +232,23 @@ fn styled_spans_paint_per_segment_and_wrap() {
     app.update();
 
     insta::assert_snapshot!("bui_text_spans", composed_styled_frame(&app));
+}
+
+#[test]
+fn an_em_and_a_rem_are_each_one_cell() {
+    let mut app = app(10, 4);
+    let node = app
+        .world_mut()
+        .spawn(Node {
+            width: Val::Em(2.0),
+            height: Val::Rem(3.0),
+            ..Node::default()
+        })
+        .id();
+
+    app.update();
+    app.update();
+
+    let rect = app.world().get::<ComputedNodeRect>(node).unwrap().rect;
+    assert_eq!((rect.width, rect.height), (2, 3));
 }

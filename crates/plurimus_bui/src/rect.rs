@@ -11,7 +11,9 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_math::Vec2;
-use bevy_ui::{CalculatedClip, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform};
+use bevy_ui::{
+    CalculatedClip, CalculatedClipRect, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform,
+};
 use plurimus_core::ResolvedViewport;
 use plurimus_core::ratatui_core::layout::Rect;
 
@@ -62,8 +64,7 @@ impl CellBox {
     }
 }
 
-// Each edge rounds on its own, which keeps adjacent nodes gapless. Edge-wise
-// since a scroll clip is infinite on its free axis; the cast saturates it.
+// Each edge rounds on its own, which keeps adjacent nodes gapless.
 fn cell_box(min: Vec2, max: Vec2, viewport: Rect) -> CellBox {
     let edge = |position: f32, origin: u16| (position + f32::from(origin)).round() as i32;
     CellBox {
@@ -116,9 +117,9 @@ fn node_rects(
         return None;
     }
     let content = content.clamped(viewport);
-    let visible = clip.map_or(rect, |clip| {
-        rect.intersection(clip_cells(clip.clip, viewport))
-    });
+    let visible = clip
+        .and_then(|clip| clip_cells(clip, viewport))
+        .map_or(rect, |clip| rect.intersection(clip));
     Some(ComputedNodeRect {
         rect,
         content,
@@ -126,8 +127,35 @@ fn node_rects(
     })
 }
 
-pub(crate) fn clip_cells(clip: bevy_math::Rect, viewport: Rect) -> Rect {
-    cell_box(clip.min, clip.max, viewport).clamped(viewport)
+/// The inherited clip in cells, every clipping ancestor intersected; `None`
+/// when nothing clips the node.
+pub(crate) fn clip_cells(clip: &CalculatedClip, viewport: Rect) -> Option<Rect> {
+    let Some(rects) = clip.rects() else {
+        return Some(Rect::ZERO);
+    };
+    rects
+        .iter()
+        .map(|clip| clip_rect_cells(clip, viewport))
+        .reduce(Rect::intersection)
+}
+
+// An axis that does not clip is infinite, and 0 * inf in the transform would
+// be NaN; past this bound an edge is off every screen anyway.
+const CLIP_EDGE_BOUND: f32 = 1e9;
+
+// Bounds the clip rect's corners in world space, so a rotated clip widens
+// to its bounding box rather than vanishing.
+fn clip_rect_cells(clip: &CalculatedClipRect, viewport: Rect) -> Rect {
+    let bound = Vec2::splat(CLIP_EDGE_BOUND);
+    let (min, max) = (clip.rect.min.max(-bound), clip.rect.max.min(bound));
+    let to_world = clip.world_to_clip_local.inverse();
+    let corners = [min, max, Vec2::new(min.x, max.y), Vec2::new(max.x, min.y)]
+        .map(|corner| to_world.transform_point2(corner));
+    let (low, high) = corners.iter().fold(
+        (Vec2::INFINITY, Vec2::NEG_INFINITY),
+        |(low, high), &corner| (low.min(corner), high.max(corner)),
+    );
+    cell_box(low, high, viewport).clamped(viewport)
 }
 
 pub(crate) fn compute_node_rects(
@@ -151,7 +179,9 @@ pub(crate) fn compute_node_rects(
 
 #[cfg(test)]
 mod tests {
-    use super::CellBox;
+    use super::{CellBox, clip_cells};
+    use bevy_math::{Affine2, Vec2};
+    use bevy_ui::CalculatedClip;
     use plurimus_core::ratatui_core::layout::Rect;
 
     const VIEWPORT: Rect = Rect::new(2, 1, 6, 4);
@@ -178,5 +208,41 @@ mod tests {
         };
 
         assert_eq!(beside.clamped(VIEWPORT), Rect::ZERO);
+    }
+
+    fn clip_around(center: Vec2, size: Vec2) -> CalculatedClip {
+        let mut clip = CalculatedClip::default();
+        clip.push_rect(
+            bevy_math::Rect::from_center_size(Vec2::ZERO, size),
+            Affine2::from_translation(-center),
+        );
+        clip
+    }
+
+    #[test]
+    fn no_clipping_ancestor_is_no_clip() {
+        assert_eq!(clip_cells(&CalculatedClip::default(), VIEWPORT), None);
+    }
+
+    #[test]
+    fn a_fully_clipped_node_has_no_visible_cells() {
+        assert_eq!(
+            clip_cells(&CalculatedClip::FullyClipped, VIEWPORT),
+            Some(Rect::ZERO)
+        );
+    }
+
+    #[test]
+    fn nested_clips_intersect_and_an_unclipped_axis_spans_the_viewport() {
+        let mut clip = clip_around(Vec2::new(3.0, 2.0), Vec2::new(4.0, 2.0));
+        let scroll_row = clip_around(Vec2::new(0.0, 2.5), Vec2::new(f32::INFINITY, 1.0));
+        let row = scroll_row.rects().unwrap()[0];
+        clip.push_rect(row.rect, row.world_to_clip_local);
+
+        assert_eq!(
+            clip_cells(&scroll_row, VIEWPORT),
+            Some(Rect::new(2, 3, 6, 1))
+        );
+        assert_eq!(clip_cells(&clip, VIEWPORT), Some(Rect::new(3, 3, 4, 1)));
     }
 }

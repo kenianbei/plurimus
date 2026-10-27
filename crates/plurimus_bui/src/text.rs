@@ -78,15 +78,21 @@ fn line_width(line: &[Seg]) -> usize {
 
 struct GraphemeMeasure {
     spans: Vec<Seg>,
+    longest_word: usize,
 }
 
 impl Measure for GraphemeMeasure {
+    // `known_width` is the border box; taffy narrows a known width to the
+    // content box in `available_width`, which is what text wraps inside.
+    // Min-content is the longest word, as in CSS: an auto grid track sizes to
+    // it, so the unwrapped line would widen the track past the viewport.
     fn measure(&mut self, args: MeasureArgs<'_>) -> Vec2 {
-        let limit = args.known_width.or(match args.available_width {
-            AvailableSpace::Definite(width) => Some(width),
-            AvailableSpace::MinContent | AvailableSpace::MaxContent => None,
-        });
-        let lines = wrap_spans(&self.spans, limit.map(|width| width.floor() as usize));
+        let limit = match args.available_width {
+            AvailableSpace::Definite(width) => Some(width.floor() as usize),
+            AvailableSpace::MinContent => Some(self.longest_word),
+            AvailableSpace::MaxContent => None,
+        };
+        let lines = wrap_spans(&self.spans, limit);
         let width = lines.iter().map(|line| line_width(line)).max().unwrap_or(0);
         Vec2::new(width as f32, lines.len().max(1) as f32)
     }
@@ -94,8 +100,16 @@ impl Measure for GraphemeMeasure {
 
 pub(crate) fn measure_bui_text(mut texts: Query<(&Text, &mut ContentSize), Changed<Text>>) {
     for (text, mut content) in &mut texts {
+        let spans = resolved_spans(text, Style::default());
+        let longest_word = split_newlines(&spans)
+            .iter()
+            .flat_map(|line| split_words(line))
+            .map(|word| word.width)
+            .max()
+            .unwrap_or(0);
         content.set(NodeMeasure::Custom(Box::new(GraphemeMeasure {
-            spans: resolved_spans(text, Style::default()),
+            spans,
+            longest_word,
         })));
     }
 }

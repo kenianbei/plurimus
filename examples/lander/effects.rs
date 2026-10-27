@@ -7,9 +7,10 @@ use bevy_ecs::prelude::{
     Commands, Component, Entity, IntoScheduleConfigs, Query, Res, ResMut, Resource, With,
     any_with_component, resource_changed,
 };
-use bevy_math::{FloatExt, Vec3, primitives::Sphere};
+use bevy_math::{FloatExt, Vec3};
 use bevy_mesh::{Mesh, Mesh3d};
 use bevy_pbr::{MeshMaterial3d, StandardMaterial};
+use bevy_shape::Sphere;
 use bevy_time::{Time, Timer, TimerMode};
 use bevy_transform::components::Transform;
 

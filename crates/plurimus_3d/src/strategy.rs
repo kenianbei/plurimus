@@ -9,6 +9,11 @@ use bevy_ecs::prelude::Component;
 use bevy_math::UVec2;
 
 /// How a 3d camera's rendered pixels become terminal cells.
+///
+/// Adding it turns off the camera's `DebandDither`, whose noise would flip
+/// a ramp's glyph at its thresholds. Dithering comes back by inserting
+/// `DebandDither::Enabled` once the camera exists; one in the same bundle is
+/// overwritten.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Strategy3d {

@@ -3,18 +3,18 @@
 //!
 //! [`Render3dPlugins`] assembles a headless bevy render stack, so a scene
 //! is built from bevy's own crates rather than through this one. Depend on
-//! the ones the scene needs at the same version plurimus uses (bevy 0.19) -
+//! the ones the scene needs at the same version plurimus uses (bevy 0.20) -
 //! cargo resolves both to a single crate:
 //!
 //! ```toml
-//! bevy_asset = "0.19"          # Assets, Handle
-//! bevy_camera = "0.19"         # Camera3d
-//! bevy_core_pipeline = "0.19"  # Tonemapping
-//! bevy_light = "0.19"          # DirectionalLight
-//! bevy_math = "0.19"           # primitives
-//! bevy_mesh = "0.19"           # Mesh, Mesh3d
-//! bevy_pbr = "0.19"            # PbrPlugin, StandardMaterial, custom Materials
-//! bevy_transform = "0.19"      # Transform
+//! bevy_asset = "0.20"          # Assets, Handle
+//! bevy_camera = "0.20"         # Camera3d
+//! bevy_core_pipeline = "0.20"  # Tonemapping
+//! bevy_light = "0.20"          # DirectionalLight
+//! bevy_mesh = "0.20"           # Mesh, Mesh3d
+//! bevy_pbr = "0.20"            # PbrPlugin, StandardMaterial, custom Materials
+//! bevy_shape = "0.20"          # primitives
+//! bevy_transform = "0.20"      # Transform
 //! ```
 //!
 //! [`Render3dPlugins`] stops at the render stack: the app adds its own
@@ -63,6 +63,7 @@ impl Plugin for Plugin3d {
             (target::sync_render_targets, depth::sync_depth_targets).chain(),
         );
         app.add_observer(target::store_readback);
+        app.add_observer(target::disable_dither);
         app.add_observer(depth::store_depth_readback);
         app.add_plugins(ExtractComponentPlugin::<depth_copy::DepthCopyTarget>::default());
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {

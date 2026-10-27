@@ -12,6 +12,7 @@ use std::f32::consts::TAU;
 
 use bevy_color::{Alpha, LinearRgba, Mix, Srgba};
 use bevy_math::Vec2;
+use bevy_text::{EmSize, RemSize};
 use bevy_ui::{BoxShadow, ColorStop, Gradient, ResolvedBorderRadius, ShadowStyle};
 use plurimus_core::raster::linear_cell_color;
 use plurimus_core::ratatui_core::style::Color as CellColor;
@@ -47,13 +48,24 @@ pub(crate) struct Decoration {
     pub(crate) shadows: Vec<ResolvedShadow>,
 }
 
+// An elliptical corner rounds only when its flatter radius still does.
 pub(crate) fn rounded_corners(radius: ResolvedBorderRadius) -> RoundedCorners {
+    let rounds = |corner: Vec2| corner.min_element() >= ROUND_RADIUS_MIN;
     RoundedCorners {
-        top_left: radius.top_left >= ROUND_RADIUS_MIN,
-        top_right: radius.top_right >= ROUND_RADIUS_MIN,
-        bottom_right: radius.bottom_right >= ROUND_RADIUS_MIN,
-        bottom_left: radius.bottom_left >= ROUND_RADIUS_MIN,
+        top_left: rounds(radius.top_left),
+        top_right: rounds(radius.top_right),
+        bottom_right: rounds(radius.bottom_right),
+        bottom_left: rounds(radius.bottom_left),
     }
+}
+
+/// What a node's `Val`s resolve against: its camera's viewport and its font
+/// units.
+#[derive(Clone, Copy)]
+pub(crate) struct ValBasis {
+    pub(crate) target: Vec2,
+    pub(crate) em: EmSize,
+    pub(crate) rem: RemSize,
 }
 
 pub(crate) struct ResolvedGradient {
@@ -77,34 +89,44 @@ enum GradientKind {
 pub(crate) fn resolve_gradients(
     gradients: &[Gradient],
     size: Vec2,
-    target: Vec2,
+    basis: ValBasis,
 ) -> Vec<ResolvedGradient> {
     gradients
         .iter()
         .map(|gradient| match gradient {
-            Gradient::Linear(linear) => resolve_linear(linear, size, target),
-            Gradient::Radial(radial) => resolve_radial(radial, size, target),
-            Gradient::Conic(conic) => resolve_conic(conic, size, target),
+            Gradient::Linear(linear) => resolve_linear(linear, size, basis),
+            Gradient::Radial(radial) => resolve_radial(radial, size, basis),
+            Gradient::Conic(conic) => resolve_conic(conic, size, basis),
         })
         .collect()
 }
 
-fn resolve_linear(linear: &bevy_ui::LinearGradient, size: Vec2, target: Vec2) -> ResolvedGradient {
+fn resolve_linear(
+    linear: &bevy_ui::LinearGradient,
+    size: Vec2,
+    basis: ValBasis,
+) -> ResolvedGradient {
     let direction = Vec2::new(linear.angle.sin(), -linear.angle.cos());
     let length = (size.x * direction.x).abs() + (size.y * direction.y).abs();
     let start = size / 2.0 - direction * (length / 2.0);
     ResolvedGradient {
         kind: GradientKind::Linear { start, direction },
-        stops: resolve_stops(&linear.stops, length, target),
+        stops: resolve_stops(&linear.stops, length, basis),
         length,
     }
 }
 
-fn resolve_radial(radial: &bevy_ui::RadialGradient, size: Vec2, target: Vec2) -> ResolvedGradient {
-    let offset = radial.position.resolve(CELL_SCALE, size, target);
+fn resolve_radial(
+    radial: &bevy_ui::RadialGradient,
+    size: Vec2,
+    basis: ValBasis,
+) -> ResolvedGradient {
+    let offset = radial
+        .position
+        .resolve(CELL_SCALE, size, basis.target, basis.em, basis.rem);
     let extents = radial
         .shape
-        .resolve(offset, CELL_SCALE, size, target)
+        .resolve(offset, CELL_SCALE, size, basis.target, basis.em, basis.rem)
         .max(Vec2::splat(f32::EPSILON));
     let length = extents.x;
     ResolvedGradient {
@@ -112,13 +134,15 @@ fn resolve_radial(radial: &bevy_ui::RadialGradient, size: Vec2, target: Vec2) ->
             center: size / 2.0 + offset,
             extents,
         },
-        stops: resolve_stops(&radial.stops, length, target),
+        stops: resolve_stops(&radial.stops, length, basis),
         length,
     }
 }
 
-fn resolve_conic(conic: &bevy_ui::ConicGradient, size: Vec2, target: Vec2) -> ResolvedGradient {
-    let offset = conic.position.resolve(CELL_SCALE, size, target);
+fn resolve_conic(conic: &bevy_ui::ConicGradient, size: Vec2, basis: ValBasis) -> ResolvedGradient {
+    let offset = conic
+        .position
+        .resolve(CELL_SCALE, size, basis.target, basis.em, basis.rem);
     let points = conic
         .stops
         .iter()
@@ -135,10 +159,14 @@ fn resolve_conic(conic: &bevy_ui::ConicGradient, size: Vec2, target: Vec2) -> Re
     }
 }
 
-fn resolve_stops(stops: &[ColorStop], length: f32, target: Vec2) -> Vec<GradientStop> {
+fn resolve_stops(stops: &[ColorStop], length: f32, basis: ValBasis) -> Vec<GradientStop> {
     let points = stops
         .iter()
-        .map(|stop| stop.point.resolve(CELL_SCALE, length, target).ok())
+        .map(|stop| {
+            stop.point
+                .resolve(CELL_SCALE, length, basis.target, basis.em, basis.rem)
+                .ok()
+        })
         .collect();
     let styled = stops.iter().map(|stop| (stop.color, stop.hint));
     finalize_stops(points, length, styled)
@@ -260,12 +288,12 @@ pub(crate) fn resolve_shadows(
     shadow: &BoxShadow,
     node_rect: CellBox,
     size: Vec2,
-    target: Vec2,
+    basis: ValBasis,
 ) -> Vec<ResolvedShadow> {
     shadow
         .0
         .iter()
-        .filter_map(|style| resolve_shadow(style, node_rect, size, target))
+        .filter_map(|style| resolve_shadow(style, node_rect, size, basis))
         .collect()
 }
 
@@ -274,10 +302,13 @@ fn resolve_shadow(
     style: &ShadowStyle,
     node_rect: CellBox,
     size: Vec2,
-    target: Vec2,
+    basis: ValBasis,
 ) -> Option<ResolvedShadow> {
-    let resolve =
-        |value: bevy_ui::Val, base: f32| value.resolve(CELL_SCALE, base, target).unwrap_or(0.0);
+    let resolve = |value: bevy_ui::Val, base: f32| {
+        value
+            .resolve(CELL_SCALE, base, basis.target, basis.em, basis.rem)
+            .unwrap_or(0.0)
+    };
     let offset_x = resolve(style.x_offset, size.x);
     let offset_y = resolve(style.y_offset, size.y);
     let grow = resolve(style.spread_radius, size.x) + resolve(style.blur_radius, size.x) / 2.0;

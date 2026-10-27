@@ -23,7 +23,7 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
 
-use super::decorate::{Decoration, resolve_gradients, resolve_shadows, rounded_corners};
+use super::decorate::{Decoration, ValBasis, resolve_gradients, resolve_shadows, rounded_corners};
 use super::rect::{CellBox, clip_cells, node_boxes};
 use super::text::{Seg, Text, TextStyle, resolved_spans};
 
@@ -119,7 +119,7 @@ fn convert(
     }
     let clip = world
         .get::<CalculatedClip>(entity)
-        .map(|clip| clip_cells(clip.clip, viewport));
+        .and_then(|clip| clip_cells(clip, viewport));
     let on_screen = rect.clamped(viewport);
     let on_screen = clip.map_or(on_screen, |clip| on_screen.intersection(clip));
     // Only a shadow can reach the screen from a node that is not on it.
@@ -175,12 +175,16 @@ fn node_decoration(
     frame: NodeFrame,
 ) -> Decoration {
     let size = computed.size;
-    let target = Vec2::new(
-        f32::from(frame.viewport.width),
-        f32::from(frame.viewport.height),
-    );
+    let basis = ValBasis {
+        target: Vec2::new(
+            f32::from(frame.viewport.width),
+            f32::from(frame.viewport.height),
+        ),
+        em: computed.em_size,
+        rem: computed.rem_size,
+    };
     let gradients = |list: Option<&Vec<Gradient>>| {
-        list.map(|list| resolve_gradients(list, size, target))
+        list.map(|list| resolve_gradients(list, size, basis))
             .unwrap_or_default()
     };
     Decoration {
@@ -189,7 +193,7 @@ fn node_decoration(
         border_gradients: gradients(world.get::<BorderGradient>(entity).map(|g| &g.0)),
         shadows: world
             .get::<BoxShadow>(entity)
-            .map(|shadow| resolve_shadows(shadow, frame.rect, size, target))
+            .map(|shadow| resolve_shadows(shadow, frame.rect, size, basis))
             .unwrap_or_default(),
     }
 }
