@@ -11,7 +11,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`Val::Em` and `Val::Rem` in `bevy_ui` trees.** bevy 0.20's new font-relative
   units each resolve to one cell under `BuiPlugin`, since layout runs at one
   pixel per cell and text is one row tall. `Val::Em(2.)` is two cells.
-  - An app can rescale both by setting `RemSize` before adding the plugin.
+  - An app can rescale both through the `RemSize` resource.
   - Every node's `EmSize` follows the rem, because bridged text has no font size
     to derive one from.
 
