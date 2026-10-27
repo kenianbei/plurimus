@@ -22,7 +22,6 @@ jobs:
       - name: Install
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
-          toolchain: stable
           components: rustfmt, clippy
 
       - name: Fmt
@@ -47,8 +46,6 @@ jobs:
 
       - name: Install
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
-        with:
-          toolchain: stable
 
       - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
         with:
@@ -98,7 +95,6 @@ jobs:
       - name: Install
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
-          toolchain: stable
           target: wasm32-unknown-unknown
           components: clippy
 

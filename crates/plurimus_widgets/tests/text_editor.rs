@@ -216,7 +216,7 @@ fn a_copy_with_no_selection_offers_nothing() {
     ctrl_chord(&mut app, 'c');
     ctrl_chord(&mut app, 'x');
 
-    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(clipboard_writes(&mut app), [] as [String; 0]);
     assert_eq!(lines_of(&app, editor), ["abcd"], "and cuts nothing");
 }
 

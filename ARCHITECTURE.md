@@ -531,10 +531,10 @@ Re-exports `ratatui_widgets`, `ratatui_textarea`, `bevy_input_focus`, and
 The bevy_ui bridge. `BuiPlugin` runs bevy_ui's real layout stack - `Node` trees
 computed by taffy - against terminal cameras at one pixel per cell. Only layout
 runs: bevy_ui's text, focus, picking, and asset systems stay out, and text is
-measured by grapheme width instead of fonts. Computed nodes rasterize in the
-terminal sub-app beneath all widgets, and node areas and wheel targets bridge
-into plurimus_ui's routers so bevy_ui trees are hoverable, clickable, and
-scrollable like any widget.
+measured by grapheme width instead of fonts, so an em and a rem are each one
+cell. Computed nodes rasterize in the terminal sub-app beneath all widgets, and
+node areas and wheel targets bridge into plurimus_ui's routers so bevy_ui trees
+are hoverable, clickable, and scrollable like any widget.
 
 ### plurimus_2d
 
@@ -572,14 +572,14 @@ redraw from a skipped one.
 
 ## External Crates
 
-- **Bevy** (0.19) - the ECS and app foundation, consumed as granular crates and
+- **Bevy** (0.20) - the ECS and app foundation, consumed as granular crates and
   never the `bevy` umbrella: `bevy_app` and `bevy_ecs` everywhere; `bevy_input`
   and `bevy_time` for the input contract; `bevy_input_focus` and `bevy_window`
   for focus; `bevy_ui`, `bevy_text`, and `bevy_camera` for the layout bridge;
   `bevy_transform` and `bevy_math` for 2d; the render stack (`bevy_render`,
-  `bevy_core_pipeline`, `bevy_image`, `bevy_mesh`, `bevy_light`, and friends)
-  only in `plurimus_3d`. Apps add whatever further bevy crates their scenes need
-  at the same version, and cargo unifies them.
+  `bevy_extract`, `bevy_core_pipeline`, `bevy_image`, `bevy_mesh`, `bevy_light`,
+  and friends) only in `plurimus_3d`. Apps add whatever further bevy crates
+  their scenes need at the same version, and cargo unifies them.
 - **Ratatui** - the cell model and widget ecosystem: `ratatui-core` (0.1)
   supplies `Buffer`, `Cell`, `Rect`, `Style`, and the `Backend` seam;
   `ratatui-widgets` (0.3) the stock widget set; `ratatui-textarea` (0.9) the
@@ -595,8 +595,8 @@ redraw from a skipped one.
 - **unicode-segmentation** / **unicode-width** - grapheme segmentation and width
   measurement for text handling in cells.
 
-The minimum supported Rust version is 1.95, declared once in `workspace.package`
-and verified in CI.
+The minimum supported Rust version is 1.97.1, the floor bevy 0.20's shader
+compiler sets, declared once in `workspace.package` and verified in CI.
 
 ## Public API
 
@@ -649,10 +649,12 @@ plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
 MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` and the
 `web`, `ratman` and `lander` examples (whose browser code no native job
 compiles), a check of `plurimus_web` on the MSRV, prettier and markdownlint over
-the markdown, typos, cargo-deny, and cargo-semver-checks. The GPU smoke tests
-are `#[ignore]`d because they need a wgpu adapter; run
-`cargo test --workspace --all-features -- --ignored` when touching the 3d
-stack - they are the only coverage of the headless render stack's plugin
+the markdown, typos, cargo-deny, and cargo-semver-checks. Every Rust job but the
+MSRV checks runs on the exact toolchain `rust-toolchain.toml` pins, with every
+rustc warning denied, so a new clippy arrives as a deliberate bump rather than
+as a red build. The GPU smoke tests are `#[ignore]`d because they need a wgpu
+adapter; run `cargo test --workspace --all-features -- --ignored` when touching
+the 3d stack - they are the only coverage of the headless render stack's plugin
 composition.
 
 Because clippy runs with `-D warnings`, the lint configuration is a gate rather

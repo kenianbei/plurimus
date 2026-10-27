@@ -87,7 +87,7 @@ pub(crate) fn sync_depth_targets(
         let reader = match current {
             Some(depth) => depth.reader,
             None => commands
-                .spawn((DepthReaderOf(camera), SyncToRenderWorld))
+                .spawn((DepthReaderOf(camera), SyncToRenderWorld::default()))
                 .id(),
         };
         commands
@@ -119,9 +119,11 @@ fn missing_copy_usages(camera3d: &Camera3d) -> Option<Camera3dDepthTextureUsage>
 /// texture-to-buffer copy writes.
 fn create_depth_buffer(size: UVec2) -> ShaderBuffer {
     let stride = depth_row_stride(size.x);
-    let mut buffer =
-        ShaderBuffer::with_size(stride * size.y as usize, RenderAssetUsages::default());
-    buffer.buffer_description.usage = BufferUsages::COPY_DST | BufferUsages::COPY_SRC;
+    let mut buffer = ShaderBuffer::with_size(
+        (stride * size.y as usize) as u64,
+        RenderAssetUsages::default(),
+    );
+    buffer.buffer_usage = BufferUsages::COPY_DST | BufferUsages::COPY_SRC;
     buffer
 }
 

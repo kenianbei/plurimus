@@ -197,7 +197,7 @@ mod tests {
             Duration::from_millis(100),
             Duration::from_millis(600),
         );
-        assert!(before.is_empty());
+        assert_eq!(before, []);
 
         let after = expire_held(
             &mut held,
@@ -219,7 +219,7 @@ mod tests {
             Duration::from_millis(700),
             Duration::from_millis(600),
         );
-        assert!(expired.is_empty());
+        assert_eq!(expired, []);
         assert_eq!(held.0.len(), 1);
     }
 
@@ -305,12 +305,12 @@ mod tests {
 
     #[test]
     fn focus_arriving_releases_nothing() {
-        assert!(on_focus_change(true, &[KeyCode::Char('w')]).is_empty());
+        assert_eq!(on_focus_change(true, &[KeyCode::Char('w')]), []);
     }
 
     #[test]
     fn losing_focus_with_nothing_held_is_silent() {
-        assert!(on_focus_change(false, &[]).is_empty());
+        assert_eq!(on_focus_change(false, &[]), []);
     }
 
     // A terminal reports the state an event leaves behind, so the real
@@ -366,11 +366,11 @@ mod tests {
 
     #[test]
     fn losing_focus_before_any_pointer_cancels_nothing() {
-        assert!(cancels(false, None, &[]).is_empty());
+        assert_eq!(cancels(false, None, &[]), []);
     }
 
     #[test]
     fn focus_arriving_cancels_nothing() {
-        assert!(cancels(true, Some(Position::new(1, 1)), &[]).is_empty());
+        assert_eq!(cancels(true, Some(Position::new(1, 1)), &[]), []);
     }
 }

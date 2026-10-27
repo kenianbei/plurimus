@@ -21,11 +21,13 @@ pub use rect::ComputedNodeRect;
 pub use text::{Text, TextSpan, TextStyle};
 
 use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet};
-use bevy_ecs::prelude::IntoScheduleConfigs;
+use bevy_camera::visibility::InheritedVisibility;
+use bevy_ecs::prelude::{DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res};
+use bevy_text::{EmSize, RemSize};
 use bevy_ui::ui_surface::UiSurface;
 use bevy_ui::update::{propagate_ui_target_cameras, update_clipping_system};
 use bevy_ui::{
-    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, UiScale, UiSystems, ui_layout_system,
+    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiScale, UiSystems, ui_layout_system,
 };
 use plurimus_core::{
     CameraSystems, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
@@ -36,6 +38,8 @@ use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
 // Below all unordered widgets: the rasterizer draws every node under every
 // widget, so input arbitration has to agree with what the user sees.
 const BUI_ORDER: plurimus_core::UiOrder = plurimus_core::UiOrder(i32::MIN / 2);
+// One pixel per cell, and text one row tall: a rem is a cell.
+const CELL_REM: RemSize = RemSize(1.0);
 
 /// Runs `bevy_ui`'s layout systems against terminal cameras, one pixel per
 /// cell.
@@ -46,9 +50,7 @@ impl Plugin for BuiPlugin {
         if !app.is_plugin_added::<UiPlugin>() {
             app.add_plugins(UiPlugin);
         }
-        app.init_resource::<UiSurface>();
-        app.init_resource::<UiScale>();
-        app.init_resource::<bevy_text::FontCx>();
+        stand_in_for_omitted_plugins(app);
         app.configure_sets(
             PostUpdate,
             (
@@ -67,7 +69,7 @@ impl Plugin for BuiPlugin {
                 (camera::sync_bui_cameras, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
-                text::measure_bui_text.in_set(UiSystems::Content),
+                (text::measure_bui_text, sync_em_sizes).in_set(UiSystems::Content),
                 ui_layout_system.in_set(UiSystems::Layout),
                 (update_clipping_system, rect::compute_node_rects).in_set(UiSystems::PostLayout),
             ),
@@ -92,6 +94,29 @@ impl Plugin for BuiPlugin {
                 .in_set(RasterizeSystems::Ui)
                 .before(plurimus_core::WidgetRasterize),
         );
+    }
+}
+
+fn stand_in_for_omitted_plugins(app: &mut App) {
+    app.init_resource::<UiSurface>();
+    app.init_resource::<UiScale>();
+    app.init_resource::<bevy_text::FontCx>();
+    app.world_mut().get_resource_or_insert_with(|| CELL_REM);
+    // Tab navigation skips what is not inherited-visible, which bui never
+    // computes; the rasterizer ignores `Visibility` too.
+    app.register_required_components_with::<Node, InheritedVisibility>(|| {
+        InheritedVisibility::VISIBLE
+    });
+}
+
+// bevy_ui derives an em only from a `TextFont`, which bridged text never has,
+// so every node's em is the rem.
+fn sync_em_sizes(rem: Res<RemSize>, mut nodes: Query<(&mut EmSize, Ref<Node>)>) {
+    let (em_size, is_rem_changed) = (EmSize(rem.0), rem.is_changed());
+    for (mut em, node) in &mut nodes {
+        if is_rem_changed || node.is_added() {
+            em.set_if_neq(em_size);
+        }
     }
 }
 

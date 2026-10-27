@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`Val::Em` and `Val::Rem` in `bevy_ui` trees.** bevy 0.20's new font-relative
+  units each resolve to one cell under `BuiPlugin`, since layout runs at one
+  pixel per cell and text is one row tall. `Val::Em(2.)` is two cells.
+  - An app can rescale both through the `RemSize` resource.
+  - Every node's `EmSize` follows the rem, because bridged text has no font size
+    to derive one from.
+
+### Changed
+
+- **Breaking: plurimus is built on bevy 0.20.** Every bevy crate an app adds
+  alongside has to move to 0.20 too.
+  - Shape primitives such as `Cuboid` and `Sphere` now come from `bevy_shape`,
+    not `bevy_math::primitives`.
+  - A `Camera3d` with `Tonemapping::None` now logs a warning unless it also
+    carries `DebandDither::Disabled`, since dither has no effect without a
+    tonemapper.
+- **Breaking: the minimum supported Rust version is 1.97.1.** bevy 0.20's shader
+  compiler requires it.
+- **`bevy_ui` text wraps to its own content box.** A text node no longer widens
+  its parent past the viewport to fit an unwrapped line. Its minimum width is
+  its longest word, as in CSS.
+  - A `height: 100%` node whose wrapped text needs more rows now grows to fit
+    them rather than dropping the extra lines. This follows bevy 0.20's layout
+    engine.
+- **`bevy_ui` nodes stay reachable by Tab.** bevy 0.20's tab navigation skips
+  entities that are not inherited-visible. Nothing computes that for a bridged
+  tree, so `BuiPlugin` makes nodes visible by default. As before, `Visibility`
+  hides nothing in a bridged tree unless the app runs bevy's visibility plugin.
+
 ## [0.8.0] - 2026-09-30
 
 ### Added

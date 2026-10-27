@@ -11,7 +11,9 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_math::Vec2;
-use bevy_ui::{CalculatedClip, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform};
+use bevy_ui::{
+    CalculatedClip, CalculatedClipRect, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform,
+};
 use plurimus_core::ResolvedViewport;
 use plurimus_core::ratatui_core::layout::Rect;
 
@@ -62,8 +64,7 @@ impl CellBox {
     }
 }
 
-// Each edge rounds on its own, which keeps adjacent nodes gapless. Edge-wise
-// since a scroll clip is infinite on its free axis; the cast saturates it.
+// Each edge rounds on its own, which keeps adjacent nodes gapless.
 fn cell_box(min: Vec2, max: Vec2, viewport: Rect) -> CellBox {
     let edge = |position: f32, origin: u16| (position + f32::from(origin)).round() as i32;
     CellBox {
@@ -116,9 +117,7 @@ fn node_rects(
         return None;
     }
     let content = content.clamped(viewport);
-    let visible = clip.map_or(rect, |clip| {
-        rect.intersection(clip_cells(clip.clip, viewport))
-    });
+    let visible = clip.map_or(rect, |clip| rect.intersection(clip_cells(clip, viewport)));
     Some(ComputedNodeRect {
         rect,
         content,
@@ -126,8 +125,32 @@ fn node_rects(
     })
 }
 
-pub(crate) fn clip_cells(clip: bevy_math::Rect, viewport: Rect) -> Rect {
-    cell_box(clip.min, clip.max, viewport).clamped(viewport)
+/// The inherited clip in cells, every clipping ancestor intersected.
+pub(crate) fn clip_cells(clip: &CalculatedClip, viewport: Rect) -> Rect {
+    clip.rects().map_or(Rect::ZERO, |rects| {
+        rects
+            .iter()
+            .map(|clip| clip_rect_cells(clip, viewport))
+            .fold(viewport, Rect::intersection)
+    })
+}
+
+// An axis that does not clip is infinite, and 0 * inf in the transform would
+// be NaN; past this bound an edge is off every screen anyway.
+const CLIP_EDGE_BOUND: f32 = 1e9;
+
+// Bounds the clip rect's corners in world space, so a rotated clip widens
+// to its bounding box rather than vanishing.
+fn clip_rect_cells(clip: &CalculatedClipRect, viewport: Rect) -> Rect {
+    let bound = Vec2::splat(CLIP_EDGE_BOUND);
+    let (min, max) = (clip.rect.min.max(-bound), clip.rect.max.min(bound));
+    let to_world = clip.world_to_clip_local.inverse();
+    let world = [min, max, Vec2::new(min.x, max.y), Vec2::new(max.x, min.y)]
+        .into_iter()
+        .fold(bevy_math::Rect::EMPTY, |bounds, corner| {
+            bounds.union_point(to_world.transform_point2(corner))
+        });
+    cell_box(world.min, world.max, viewport).clamped(viewport)
 }
 
 pub(crate) fn compute_node_rects(
@@ -151,7 +174,9 @@ pub(crate) fn compute_node_rects(
 
 #[cfg(test)]
 mod tests {
-    use super::CellBox;
+    use super::{CellBox, clip_cells};
+    use bevy_math::{Affine2, Vec2};
+    use bevy_ui::CalculatedClip;
     use plurimus_core::ratatui_core::layout::Rect;
 
     const VIEWPORT: Rect = Rect::new(2, 1, 6, 4);
@@ -178,5 +203,39 @@ mod tests {
         };
 
         assert_eq!(beside.clamped(VIEWPORT), Rect::ZERO);
+    }
+
+    fn push_clip(clip: &mut CalculatedClip, center: Vec2, size: Vec2) {
+        clip.push_rect(
+            bevy_math::Rect::from_center_size(Vec2::ZERO, size),
+            Affine2::from_translation(-center),
+        );
+    }
+
+    #[test]
+    fn no_clipping_ancestor_leaves_the_viewport() {
+        assert_eq!(clip_cells(&CalculatedClip::default(), VIEWPORT), VIEWPORT);
+    }
+
+    #[test]
+    fn a_fully_clipped_node_has_no_visible_cells() {
+        assert_eq!(
+            clip_cells(&CalculatedClip::FullyClipped, VIEWPORT),
+            Rect::ZERO
+        );
+    }
+
+    #[test]
+    fn nested_clips_intersect_and_an_unclipped_axis_spans_the_viewport() {
+        let mut clip = CalculatedClip::default();
+        push_clip(
+            &mut clip,
+            Vec2::new(0.0, 2.5),
+            Vec2::new(f32::INFINITY, 1.0),
+        );
+        assert_eq!(clip_cells(&clip, VIEWPORT), Rect::new(2, 3, 6, 1));
+
+        push_clip(&mut clip, Vec2::new(3.0, 2.0), Vec2::new(4.0, 2.0));
+        assert_eq!(clip_cells(&clip, VIEWPORT), Rect::new(3, 3, 4, 1));
     }
 }

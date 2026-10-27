@@ -212,7 +212,7 @@ fn paste_without_focus_is_dropped() {
     send_paste(&mut app, "hi");
 
     assert_eq!(value_of(&app, field), "");
-    assert!(app.world().resource::<Edits>().0.is_empty());
+    assert_eq!(app.world().resource::<Edits>().0, []);
 }
 
 #[test]
