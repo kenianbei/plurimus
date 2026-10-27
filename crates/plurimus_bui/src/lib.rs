@@ -97,7 +97,6 @@ impl Plugin for BuiPlugin {
     }
 }
 
-// What the bevy plugins left out would otherwise have provided.
 fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
     app.init_resource::<UiScale>();
