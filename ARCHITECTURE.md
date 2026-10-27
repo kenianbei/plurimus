@@ -649,10 +649,12 @@ plus `cargo hack check --each-feature` on the facade, a `cargo check` on the
 MSRV toolchain, clippy on `wasm32-unknown-unknown` for `plurimus_web` and the
 `web`, `ratman` and `lander` examples (whose browser code no native job
 compiles), a check of `plurimus_web` on the MSRV, prettier and markdownlint over
-the markdown, typos, cargo-deny, and cargo-semver-checks. The GPU smoke tests
-are `#[ignore]`d because they need a wgpu adapter; run
-`cargo test --workspace --all-features -- --ignored` when touching the 3d
-stack - they are the only coverage of the headless render stack's plugin
+the markdown, typos, cargo-deny, and cargo-semver-checks. Every Rust job but the
+MSRV checks runs on the exact toolchain `rust-toolchain.toml` pins, with every
+rustc warning denied, so a new clippy arrives as a deliberate bump rather than
+as a red build. The GPU smoke tests are `#[ignore]`d because they need a wgpu
+adapter; run `cargo test --workspace --all-features -- --ignored` when touching
+the 3d stack - they are the only coverage of the headless render stack's plugin
 composition.
 
 Because clippy runs with `-D warnings`, the lint configuration is a gate rather

@@ -1,3 +1,6 @@
+# CI installs from this file, so a new clippy arrives as a deliberate bump
+# here rather than as a red build.
 [toolchain]
-channel = "stable"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

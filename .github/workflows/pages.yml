@@ -20,7 +20,6 @@ jobs:
       - name: Install
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
-          toolchain: stable
           target: wasm32-unknown-unknown
 
       # The CLI has to match the wasm-bindgen crate the lockfile pins.
