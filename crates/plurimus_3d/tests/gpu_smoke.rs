@@ -7,7 +7,7 @@
 use bevy_app::{App, PluginsState};
 use bevy_asset::Assets;
 use bevy_camera::Camera3d;
-use bevy_core_pipeline::tonemapping::Tonemapping;
+use bevy_core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy_gltf::extensions::GltfExtensionHandlers;
 use bevy_light::DirectionalLight;
 use bevy_math::Vec3;
@@ -46,6 +46,7 @@ fn spawn_cube_scene(app: &mut App) {
     app.world_mut().spawn((
         Camera3d::default(),
         Tonemapping::None,
+        DebandDither::Disabled,
         TerminalCamera::default(),
         Strategy3d::default(),
         Transform::from_xyz(0.0, 4.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),

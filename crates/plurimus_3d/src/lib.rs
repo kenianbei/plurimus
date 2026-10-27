@@ -63,7 +63,6 @@ impl Plugin for Plugin3d {
             (target::sync_render_targets, depth::sync_depth_targets).chain(),
         );
         app.add_observer(target::store_readback);
-        app.add_observer(target::disable_dither);
         app.add_observer(depth::store_depth_readback);
         app.add_plugins(ExtractComponentPlugin::<depth_copy::DepthCopyTarget>::default());
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {

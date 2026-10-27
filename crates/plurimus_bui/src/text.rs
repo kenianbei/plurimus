@@ -78,38 +78,51 @@ fn line_width(line: &[Seg]) -> usize {
 
 struct GraphemeMeasure {
     spans: Vec<Seg>,
-    longest_word: usize,
+    min_content: Vec2,
 }
 
 impl Measure for GraphemeMeasure {
-    // `known_width` is the border box; taffy narrows a known width to the
-    // content box in `available_width`, which is what text wraps inside.
-    // Min-content is the longest word, as in CSS: an auto grid track sizes to
-    // it, so the unwrapped line would widen the track past the viewport.
+    // `known_width` is the border box; `available_width` is already the
+    // content box the text wraps inside.
     fn measure(&mut self, args: MeasureArgs<'_>) -> Vec2 {
-        let limit = match args.available_width {
-            AvailableSpace::Definite(width) => Some(width.floor() as usize),
-            AvailableSpace::MinContent => Some(self.longest_word),
-            AvailableSpace::MaxContent => None,
-        };
-        let lines = wrap_spans(&self.spans, limit);
-        let width = lines.iter().map(|line| line_width(line)).max().unwrap_or(0);
-        Vec2::new(width as f32, lines.len().max(1) as f32)
+        match args.available_width {
+            AvailableSpace::Definite(width) => {
+                wrapped_size(&self.spans, Some(width.floor() as usize))
+            }
+            AvailableSpace::MinContent => self.min_content,
+            AvailableSpace::MaxContent => wrapped_size(&self.spans, None),
+        }
     }
+}
+
+fn wrapped_size(spans: &[Seg], limit: Option<usize>) -> Vec2 {
+    let lines = wrap_spans(spans, limit);
+    let width = lines.iter().map(|line| line_width(line)).max().unwrap_or(0);
+    Vec2::new(width as f32, lines.len().max(1) as f32)
+}
+
+// Min-content is the longest word, as in CSS; the unwrapped line would widen
+// an auto grid track past the viewport.
+fn longest_word(spans: &[Seg]) -> usize {
+    let (mut longest, mut current) = (0, 0);
+    for (ch, _) in styled_chars(spans) {
+        current = if ch.is_whitespace() {
+            0
+        } else {
+            current + ch.width().unwrap_or(0)
+        };
+        longest = longest.max(current);
+    }
+    longest
 }
 
 pub(crate) fn measure_bui_text(mut texts: Query<(&Text, &mut ContentSize), Changed<Text>>) {
     for (text, mut content) in &mut texts {
         let spans = resolved_spans(text, Style::default());
-        let longest_word = split_newlines(&spans)
-            .iter()
-            .flat_map(|line| split_words(line))
-            .map(|word| word.width)
-            .max()
-            .unwrap_or(0);
+        let min_content = wrapped_size(&spans, Some(longest_word(&spans)));
         content.set(NodeMeasure::Custom(Box::new(GraphemeMeasure {
             spans,
-            longest_word,
+            min_content,
         })));
     }
 }

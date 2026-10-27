@@ -10,13 +10,12 @@ use core::num::NonZeroU32;
 
 use bevy_asset::Assets;
 use bevy_camera::{ImageRenderTarget, RenderTarget};
-use bevy_ecs::prelude::{Add, Commands, Component, Entity, On, Query, ResMut};
+use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut};
 use bevy_image::Image;
 use bevy_math::UVec2;
 use bevy_render::gpu_readback::{Readback, ReadbackComplete};
 use bevy_render::render_resource::{TextureFormat, TextureUsages};
 use bevy_render::renderer::RenderDevice;
-use bevy_render::view::DebandDither;
 use plurimus_core::ResolvedViewport;
 
 use crate::strategy::Strategy3d;
@@ -166,37 +165,11 @@ pub(crate) fn unpadded_rows(
     Some((0..rows).map(move |row| &bytes[row * stride..row * stride + row_bytes]))
 }
 
-// Dither noise flips a ramp glyph at its threshold. `Camera3d` requires it
-// enabled, so the default can only be replaced once the camera exists.
-pub(crate) fn disable_dither(added: On<Add<Strategy3d>>, mut commands: Commands) {
-    commands.entity(added.entity).insert(DebandDither::Disabled);
-}
-
 #[cfg(test)]
 mod tests {
-    use bevy_app::App;
-    use bevy_camera::Camera3d;
     use bevy_math::UVec2;
-    use bevy_render::view::DebandDither;
-    use plurimus_core::CorePlugin;
 
     use super::{ReadbackFrame, aspect_fit_cells, copy_unpadded};
-    use crate::{Plugin3d, Strategy3d};
-
-    #[test]
-    fn a_readback_camera_spawns_without_dither() {
-        let mut app = App::new();
-        app.add_plugins((CorePlugin, Plugin3d));
-        let camera = app
-            .world_mut()
-            .spawn((Camera3d::default(), Strategy3d::default()))
-            .id();
-
-        assert_eq!(
-            app.world().get::<DebandDither>(camera),
-            Some(&DebandDither::Disabled)
-        );
-    }
 
     #[test]
     fn aspect_fit_pillarboxes_wide_viewports() {

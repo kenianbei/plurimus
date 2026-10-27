@@ -1,7 +1,7 @@
 use bevy_asset::{AssetServer, Assets};
 use bevy_camera::{Camera, Camera3d, ClearColorConfig, PerspectiveProjection, Projection};
 use bevy_color::Color;
-use bevy_core_pipeline::tonemapping::Tonemapping;
+use bevy_core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy_ecs::prelude::{Commands, Res, ResMut};
 use bevy_gltf::GltfAssetLabel;
 use bevy_light::{CascadeShadowConfigBuilder, DirectionalLight, GlobalAmbientLight};
@@ -79,6 +79,7 @@ fn spawn_camera(commands: &mut Commands) {
             ..Camera::default()
         },
         Tonemapping::None,
+        DebandDither::Disabled,
         Projection::Perspective(PerspectiveProjection {
             fov: CAMERA_FOV_DEGREES.to_radians(),
             ..PerspectiveProjection::default()

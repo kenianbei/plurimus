@@ -22,7 +22,7 @@ pub use text::{Text, TextSpan, TextStyle};
 
 use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet};
 use bevy_camera::visibility::InheritedVisibility;
-use bevy_ecs::prelude::{DetectChanges, IntoScheduleConfigs, Query, Ref, Res};
+use bevy_ecs::prelude::{DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res};
 use bevy_text::{EmSize, RemSize};
 use bevy_ui::ui_surface::UiSurface;
 use bevy_ui::update::{propagate_ui_target_cameras, update_clipping_system};
@@ -50,7 +50,7 @@ impl Plugin for BuiPlugin {
         if !app.is_plugin_added::<UiPlugin>() {
             app.add_plugins(UiPlugin);
         }
-        init_layout_state(app);
+        stand_in_for_omitted_plugins(app);
         app.configure_sets(
             PostUpdate,
             (
@@ -98,14 +98,13 @@ impl Plugin for BuiPlugin {
 }
 
 // What the bevy plugins left out would otherwise have provided.
-fn init_layout_state(app: &mut App) {
+fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
     app.init_resource::<UiScale>();
     app.init_resource::<bevy_text::FontCx>();
     app.world_mut().get_resource_or_insert_with(|| CELL_REM);
-    // Tab navigation skips what is not inherited-visible, and only bevy's
-    // visibility plugin, absent here, would compute it; the rasterizer
-    // ignores `Visibility` too.
+    // Tab navigation skips what is not inherited-visible, which bui never
+    // computes; the rasterizer ignores `Visibility` too.
     app.register_required_components_with::<Node, InheritedVisibility>(|| {
         InheritedVisibility::VISIBLE
     });
@@ -114,10 +113,10 @@ fn init_layout_state(app: &mut App) {
 // bevy_ui derives an em only from a `TextFont`, which bridged text never has,
 // so every node's em is the rem.
 fn sync_em_sizes(rem: Res<RemSize>, mut nodes: Query<(&mut EmSize, Ref<Node>)>) {
-    use bevy_ecs::change_detection::DetectChangesMut;
+    let (em_size, is_rem_changed) = (EmSize(rem.0), rem.is_changed());
     for (mut em, node) in &mut nodes {
-        if rem.is_changed() || node.is_added() {
-            em.set_if_neq(EmSize(rem.0));
+        if is_rem_changed || node.is_added() {
+            em.set_if_neq(em_size);
         }
     }
 }

@@ -119,7 +119,7 @@ fn convert(
     }
     let clip = world
         .get::<CalculatedClip>(entity)
-        .and_then(|clip| clip_cells(clip, viewport));
+        .map(|clip| clip_cells(clip, viewport));
     let on_screen = rect.clamped(viewport);
     let on_screen = clip.map_or(on_screen, |clip| on_screen.intersection(clip));
     // Only a shadow can reach the screen from a node that is not on it.

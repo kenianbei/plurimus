@@ -117,9 +117,7 @@ fn node_rects(
         return None;
     }
     let content = content.clamped(viewport);
-    let visible = clip
-        .and_then(|clip| clip_cells(clip, viewport))
-        .map_or(rect, |clip| rect.intersection(clip));
+    let visible = clip.map_or(rect, |clip| rect.intersection(clip_cells(clip, viewport)));
     Some(ComputedNodeRect {
         rect,
         content,
@@ -127,16 +125,14 @@ fn node_rects(
     })
 }
 
-/// The inherited clip in cells, every clipping ancestor intersected; `None`
-/// when nothing clips the node.
-pub(crate) fn clip_cells(clip: &CalculatedClip, viewport: Rect) -> Option<Rect> {
-    let Some(rects) = clip.rects() else {
-        return Some(Rect::ZERO);
-    };
-    rects
-        .iter()
-        .map(|clip| clip_rect_cells(clip, viewport))
-        .reduce(Rect::intersection)
+/// The inherited clip in cells, every clipping ancestor intersected.
+pub(crate) fn clip_cells(clip: &CalculatedClip, viewport: Rect) -> Rect {
+    clip.rects().map_or(Rect::ZERO, |rects| {
+        rects
+            .iter()
+            .map(|clip| clip_rect_cells(clip, viewport))
+            .fold(viewport, Rect::intersection)
+    })
 }
 
 // An axis that does not clip is infinite, and 0 * inf in the transform would
@@ -149,13 +145,12 @@ fn clip_rect_cells(clip: &CalculatedClipRect, viewport: Rect) -> Rect {
     let bound = Vec2::splat(CLIP_EDGE_BOUND);
     let (min, max) = (clip.rect.min.max(-bound), clip.rect.max.min(bound));
     let to_world = clip.world_to_clip_local.inverse();
-    let corners = [min, max, Vec2::new(min.x, max.y), Vec2::new(max.x, min.y)]
-        .map(|corner| to_world.transform_point2(corner));
-    let (low, high) = corners.iter().fold(
-        (Vec2::INFINITY, Vec2::NEG_INFINITY),
-        |(low, high), &corner| (low.min(corner), high.max(corner)),
-    );
-    cell_box(low, high, viewport).clamped(viewport)
+    let world = [min, max, Vec2::new(min.x, max.y), Vec2::new(max.x, min.y)]
+        .into_iter()
+        .fold(bevy_math::Rect::EMPTY, |bounds, corner| {
+            bounds.union_point(to_world.transform_point2(corner))
+        });
+    cell_box(world.min, world.max, viewport).clamped(viewport)
 }
 
 pub(crate) fn compute_node_rects(
@@ -210,39 +205,37 @@ mod tests {
         assert_eq!(beside.clamped(VIEWPORT), Rect::ZERO);
     }
 
-    fn clip_around(center: Vec2, size: Vec2) -> CalculatedClip {
-        let mut clip = CalculatedClip::default();
+    fn push_clip(clip: &mut CalculatedClip, center: Vec2, size: Vec2) {
         clip.push_rect(
             bevy_math::Rect::from_center_size(Vec2::ZERO, size),
             Affine2::from_translation(-center),
         );
-        clip
     }
 
     #[test]
-    fn no_clipping_ancestor_is_no_clip() {
-        assert_eq!(clip_cells(&CalculatedClip::default(), VIEWPORT), None);
+    fn no_clipping_ancestor_leaves_the_viewport() {
+        assert_eq!(clip_cells(&CalculatedClip::default(), VIEWPORT), VIEWPORT);
     }
 
     #[test]
     fn a_fully_clipped_node_has_no_visible_cells() {
         assert_eq!(
             clip_cells(&CalculatedClip::FullyClipped, VIEWPORT),
-            Some(Rect::ZERO)
+            Rect::ZERO
         );
     }
 
     #[test]
     fn nested_clips_intersect_and_an_unclipped_axis_spans_the_viewport() {
-        let mut clip = clip_around(Vec2::new(3.0, 2.0), Vec2::new(4.0, 2.0));
-        let scroll_row = clip_around(Vec2::new(0.0, 2.5), Vec2::new(f32::INFINITY, 1.0));
-        let row = scroll_row.rects().unwrap()[0];
-        clip.push_rect(row.rect, row.world_to_clip_local);
-
-        assert_eq!(
-            clip_cells(&scroll_row, VIEWPORT),
-            Some(Rect::new(2, 3, 6, 1))
+        let mut clip = CalculatedClip::default();
+        push_clip(
+            &mut clip,
+            Vec2::new(0.0, 2.5),
+            Vec2::new(f32::INFINITY, 1.0),
         );
-        assert_eq!(clip_cells(&clip, VIEWPORT), Some(Rect::new(3, 3, 4, 1)));
+        assert_eq!(clip_cells(&clip, VIEWPORT), Rect::new(2, 3, 6, 1));
+
+        push_clip(&mut clip, Vec2::new(3.0, 2.0), Vec2::new(4.0, 2.0));
+        assert_eq!(clip_cells(&clip, VIEWPORT), Rect::new(3, 3, 4, 1));
     }
 }
