@@ -119,7 +119,7 @@ fn shift_selects_by_cluster_and_ctrl_shift_by_word() {
 
     shift(&mut app, KeyCode::Home);
     assert_eq!(selected(&app, field).as_deref(), Some("one two"));
-    assert!(propagated(&app).is_empty());
+    assert_eq!(propagated(&app), []);
 }
 
 #[test]
@@ -175,8 +175,8 @@ fn ctrl_c_copies_the_selection_and_edits_nothing() {
 
     assert_eq!(clipboard_writes(&mut app), ["hello"]);
     assert_eq!(text(&app, field).value(), "hello");
-    assert!(edits(&app).is_empty());
-    assert!(propagated(&app).is_empty());
+    assert_eq!(edits(&app), [] as [String; 0]);
+    assert_eq!(propagated(&app), []);
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn a_masked_field_copies_and_cuts_nothing() {
     ctrl(&mut app, 'c');
     ctrl(&mut app, 'x');
 
-    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(clipboard_writes(&mut app), [] as [String; 0]);
     assert_eq!(text(&app, field).value(), "secret");
     assert!(
         propagated(&app).is_empty(),
@@ -232,7 +232,7 @@ fn an_empty_copy_is_consumed_and_escape_still_propagates() {
     ctrl(&mut app, 'c');
     press_key(&mut app, KeyCode::Esc);
 
-    assert!(clipboard_writes(&mut app).is_empty());
+    assert_eq!(clipboard_writes(&mut app), [] as [String; 0]);
     assert_eq!(propagated(&app), [Key::Escape]);
 }
 

@@ -135,7 +135,7 @@ fn only_a_focused_field_draws_its_caret() {
     app.world_mut().resource_mut::<InputFocus>().clear();
     let buffer = frame(&mut app);
 
-    assert!(reversed_columns(&buffer).is_empty());
+    assert_eq!(reversed_columns(&buffer), []);
     assert_eq!(symbols(&buffer)[0], "a", "though the value stays drawn");
 }
 
@@ -261,5 +261,5 @@ fn the_theme_styles_the_selection() {
     let buffer = frame(&mut app);
 
     assert_eq!(buffer.cell((1, 0)).unwrap().style().bg, Some(Color::Blue));
-    assert!(reversed_columns(&buffer).is_empty());
+    assert_eq!(reversed_columns(&buffer), []);
 }

@@ -70,7 +70,7 @@ fn wheel_outside_area_is_ignored() {
     send_mouse(&mut app, MouseKind::ScrollDown, 15, 5);
 
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
-    assert!(app.world().resource::<OffsetChanges>().0.is_empty());
+    assert_eq!(app.world().resource::<OffsetChanges>().0, []);
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn wheel_clamps_at_both_extremes() {
 
     send_mouse(&mut app, MouseKind::ScrollUp, 5, 1);
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
-    assert!(app.world().resource::<OffsetChanges>().0.is_empty());
+    assert_eq!(app.world().resource::<OffsetChanges>().0, []);
 
     for _ in 0..3 {
         send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
@@ -119,7 +119,7 @@ fn wheel_arbitrates_across_widget_families() {
     send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
 
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
-    assert!(app.world().resource::<OffsetChanges>().0.is_empty());
+    assert_eq!(app.world().resource::<OffsetChanges>().0, []);
 }
 
 #[test]

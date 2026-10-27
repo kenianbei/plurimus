@@ -111,7 +111,7 @@ fn arrows_step_on_both_axes_and_home_end_jump() {
         ]
     );
     assert!(is_checked(&app, bar.items[2]));
-    assert!(unconsumed(&app).is_empty());
+    assert_eq!(unconsumed(&app), []);
 }
 
 #[test]
@@ -201,7 +201,7 @@ fn select_activates_its_item_every_press_and_never_on_a_repeat() {
     repeat_key(&mut app, KeyCode::Char('2'));
 
     assert_eq!(activated(&app), [bar.items[1], bar.items[1]]);
-    assert!(unconsumed(&app).is_empty());
+    assert_eq!(unconsumed(&app), []);
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn select_past_the_last_item_activates_nothing_and_propagates() {
 
     press_key(&mut app, KeyCode::Char('9'));
 
-    assert!(activated(&app).is_empty());
+    assert_eq!(activated(&app), []);
     assert_eq!(unconsumed(&app), [Key::Character("9".into())]);
 }
 
@@ -226,6 +226,6 @@ fn a_disabled_bar_consumes_nothing() {
 
     press_key(&mut app, KeyCode::Right);
 
-    assert!(activated(&app).is_empty());
+    assert_eq!(activated(&app), []);
     assert_eq!(unconsumed(&app), [Key::ArrowRight]);
 }

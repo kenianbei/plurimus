@@ -231,7 +231,7 @@ fn enter_selects_the_active_descendant() {
     let (container, items) = spawn_listbox(&mut app);
 
     press_key(&mut app, KeyCode::Enter);
-    assert!(app.world().resource::<Selections>().0.is_empty());
+    assert_eq!(app.world().resource::<Selections>().0, []);
 
     press_key(&mut app, KeyCode::Down);
     press_key(&mut app, KeyCode::Down);
@@ -308,7 +308,7 @@ fn a_press_moves_the_cursor_without_selecting() {
     press_at(&mut app, 2, 1);
 
     assert_eq!(active(&app, container), Some(items[1]));
-    assert!(app.world().resource::<Selections>().0.is_empty());
+    assert_eq!(app.world().resource::<Selections>().0, []);
 }
 
 #[test]
@@ -338,7 +338,7 @@ fn a_held_pointer_drags_the_cursor_with_it() {
     send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 2, 2);
 
     assert_eq!(active(&app, container), Some(items[2]));
-    assert!(app.world().resource::<Selections>().0.is_empty());
+    assert_eq!(app.world().resource::<Selections>().0, []);
 }
 
 #[test]
@@ -348,7 +348,7 @@ fn a_release_below_every_row_selects_nothing() {
 
     click(&mut app, 2, 3);
 
-    assert!(app.world().resource::<Selections>().0.is_empty());
+    assert_eq!(app.world().resource::<Selections>().0, []);
     assert_eq!(active(&app, container), None);
 }
 
@@ -365,7 +365,7 @@ fn press_on_an_overlay_does_not_reach_the_listbox_beneath() {
     press_at(&mut app, 2, 1);
 
     assert_eq!(active(&app, container), None);
-    assert!(app.world().resource::<Selections>().0.is_empty());
+    assert_eq!(app.world().resource::<Selections>().0, []);
 }
 
 #[test]

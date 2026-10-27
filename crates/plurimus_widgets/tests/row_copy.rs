@@ -85,7 +85,7 @@ fn propagated(app: &App) -> &[Key] {
 
 /// Nothing was copied, and the key reached the form.
 fn assert_passed_on(app: &mut App) {
-    assert!(clipboard_writes(app).is_empty());
+    assert_eq!(clipboard_writes(app), [] as [String; 0]);
     assert_eq!(propagated(app), [Key::Character("c".into())]);
 }
 

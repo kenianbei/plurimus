@@ -84,7 +84,7 @@ fn a_press_on_an_item_focuses_the_bar_before_the_release() {
     press_at(&mut app, 1, 0);
 
     assert_eq!(focused(&app), Some(bar.bar));
-    assert!(activated(&app).is_empty());
+    assert_eq!(activated(&app), []);
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn a_disabled_item_activates_nothing() {
 
     click(&mut app, 1, 0);
 
-    assert!(activated(&app).is_empty());
+    assert_eq!(activated(&app), []);
 }
 
 #[test]
@@ -136,6 +136,6 @@ fn a_disabled_bar_activates_nothing() {
 
     click(&mut app, 1, 0);
 
-    assert!(activated(&app).is_empty());
+    assert_eq!(activated(&app), []);
     assert_ne!(focused(&app), Some(bar.bar));
 }

@@ -95,7 +95,7 @@ fn a_list_with_no_cursor_highlights_nothing() {
 
     let buffer = frame(&mut app);
 
-    assert!(bold_rows(&buffer).is_empty());
+    assert_eq!(bold_rows(&buffer), []);
 }
 
 #[test]

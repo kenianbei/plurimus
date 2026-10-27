@@ -198,7 +198,7 @@ mod tests {
 
         let writer: Vec<u8> = plugin.take_writer();
 
-        assert!(writer.is_empty());
+        assert_eq!(writer, []);
     }
 
     #[test]

@@ -185,7 +185,7 @@ mod tests {
     fn trackpad_deltas_accumulate_into_notches() {
         let mut residue = WheelResidue::default();
         for _ in 0..3 {
-            assert!(residue.notches((0.0, 30.0), DELTA_PIXEL).is_empty());
+            assert_eq!(residue.notches((0.0, 30.0), DELTA_PIXEL), []);
         }
         assert_eq!(
             residue.notches((0.0, 30.0), DELTA_PIXEL),
