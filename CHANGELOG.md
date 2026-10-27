@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-10-27
 
 ### Added
 
@@ -1114,6 +1114,7 @@ A complete rebuild as a multi-crate workspace. Nothing carries over from 0.1.0.
 
 Initial proof of concept: components and systems layered over bevy_ratatui.
 
+[0.9.0]: https://crates.io/crates/plurimus/0.9.0
 [0.8.0]: https://crates.io/crates/plurimus/0.8.0
 [0.7.2]: https://crates.io/crates/plurimus/0.7.2
 [0.7.1]: https://crates.io/crates/plurimus/0.7.1
