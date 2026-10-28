@@ -11,7 +11,8 @@
 use bevy_color::Color;
 use bevy_ecs::entity::{Entity, EntityHashSet};
 use bevy_ecs::prelude::{
-    Added, Changed, ChildOf, Children, Commands, Component, Has, Or, Query, RemovedComponents, With,
+    Added, Changed, ChildOf, Children, Commands, Component, DetectChanges, Has, Or, Query,
+    RemovedComponents, Res, With,
 };
 use bevy_ecs::system::SystemParam;
 use bevy_math::Vec2;
@@ -25,6 +26,7 @@ use plurimus_core::ratatui_core::style::{Modifier, Style};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::extract::cell_color;
+use super::rect::CellSize;
 
 /// A `Text` root's spans as cell styles, kept from the last change to any
 /// of them so neither measurement nor extraction walks the spans again.
@@ -76,11 +78,16 @@ pub(crate) struct TextDirt<'w, 's> {
     struck: RemovedComponents<'w, 's, Strikethrough>,
     underlined: RemovedComponents<'w, 's, Underline>,
     parents: Query<'w, 's, &'static ChildOf>,
-    is_root: Query<'w, 's, (), With<Text>>,
+    is_root: Query<'w, 's, Entity, With<Text>>,
+    cell: Res<'w, CellSize>,
 }
 
 impl TextDirt<'_, '_> {
+    // A new cell size remeasures everything, every measure being in pixels.
     fn roots(&mut self) -> EntityHashSet {
+        if self.cell.is_changed() {
+            return self.is_root.iter().collect();
+        }
         let mut dirty: EntityHashSet = self.roots.iter().collect();
         let spans: Vec<Entity> = self
             .spans
@@ -106,17 +113,19 @@ pub(crate) fn resolve_bui_text(
     mut roots: Query<(&TextLayout, &mut ContentSize), With<Text>>,
     mut commands: Commands,
 ) {
+    let cell = dirt.cell.vec();
     for root in dirt.roots() {
         let Ok((layout, mut content)) = roots.get_mut(root) else {
             continue;
         };
         let spans = resolved_spans(&mut reader, &decorations, root);
         let is_wrapping = layout.linebreak != LineBreak::NoWrap;
-        let min_content = wrapped_size(&spans, Some(longest_word(&spans)));
+        let min_content = wrapped_size(&spans, Some(longest_word(&spans))) * cell;
         content.set(NodeMeasure::Custom(Box::new(GraphemeMeasure {
             spans: spans.clone(),
             min_content,
             is_wrapping,
+            cell,
         })));
         commands.entity(root).insert(ResolvedText {
             spans,
@@ -165,10 +174,13 @@ pub(crate) fn line_width(line: &[Seg]) -> usize {
     line.iter().map(|(content, _)| content.width()).sum()
 }
 
+/// Measures in pixels, as taffy asks, a grapheme being one cell wide and a
+/// line one cell tall.
 struct GraphemeMeasure {
     spans: Vec<Seg>,
     min_content: Vec2,
     is_wrapping: bool,
+    cell: Vec2,
 }
 
 impl Measure for GraphemeMeasure {
@@ -177,12 +189,13 @@ impl Measure for GraphemeMeasure {
     fn measure(&mut self, args: MeasureArgs<'_>) -> Vec2 {
         match args.available_width {
             AvailableSpace::Definite(width) if self.is_wrapping => {
-                wrapped_size(&self.spans, Some(width.floor() as usize))
+                let columns = (width / self.cell.x).floor() as usize;
+                wrapped_size(&self.spans, Some(columns)) * self.cell
             }
             AvailableSpace::MinContent if self.is_wrapping => self.min_content,
             AvailableSpace::Definite(_)
             | AvailableSpace::MinContent
-            | AvailableSpace::MaxContent => wrapped_size(&self.spans, None),
+            | AvailableSpace::MaxContent => wrapped_size(&self.spans, None) * self.cell,
         }
     }
 }

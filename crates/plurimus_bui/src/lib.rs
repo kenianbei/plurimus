@@ -1,5 +1,6 @@
 //! `bevy_ui` layout translated to terminal cells: real `Node` trees, taffy
-//! layout at one pixel per cell, rasterized by the terminal pipeline.
+//! layout at [`CellSize`] pixels per cell, rasterized by the terminal
+//! pipeline.
 //!
 //! Only `bevy_ui`'s layout and picking stacks run; its text, focus and asset
 //! systems stay out. Text is measured by grapheme width instead of fonts, and
@@ -25,12 +26,14 @@ mod visibility;
 pub use bevy_picking;
 pub use bevy_text;
 pub use bevy_ui_widgets;
-pub use rect::ComputedNodeRect;
+pub use rect::{CellSize, ComputedNodeRect};
 
 use bevy_app::{
     App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet, Startup,
 };
-use bevy_ecs::prelude::{DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res};
+use bevy_ecs::prelude::{
+    DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
+};
 use bevy_input::mouse::MouseScrollPixelsPerLine;
 use bevy_input_focus::pointer_focus::PointerFocusPlugin;
 use bevy_picking::{InteractionPlugin, PickingPlugin, PickingSettings, PickingSystems};
@@ -53,11 +56,9 @@ use plurimus_core::{
 use plurimus_term::InputSystems;
 use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
 
-// One pixel per cell, and text one row tall: a rem is a cell.
-const CELL_REM: RemSize = RemSize(1.0);
-
-/// Runs `bevy_ui`'s layout and picking against terminal cameras, one pixel
-/// per cell, with the fontless `bevy_ui_widgets` plugins installed.
+/// Runs `bevy_ui`'s layout and picking against terminal cameras, at
+/// [`CellSize`] pixels per cell, with the fontless `bevy_ui_widgets` plugins
+/// installed.
 pub struct BuiPlugin;
 
 impl Plugin for BuiPlugin {
@@ -88,7 +89,11 @@ impl Plugin for BuiPlugin {
                     .chain()
                     .in_set(UiSystems::Prepare),
                 visibility::propagate_visibility.in_set(UiSystems::Propagate),
-                (text::resolve_bui_text, sync_em_sizes).in_set(UiSystems::Content),
+                (
+                    text::resolve_bui_text,
+                    (sync_rem_size, sync_em_sizes).chain(),
+                )
+                    .in_set(UiSystems::Content),
                 ui_layout_system.in_set(UiSystems::Layout),
                 stack::compute_ui_stack.in_set(UiSystems::Stack),
                 (update_clipping_system, rect::compute_node_rects).in_set(UiSystems::PostLayout),
@@ -165,8 +170,17 @@ fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
     app.init_resource::<UiScale>();
     app.init_resource::<UiStack>();
+    app.init_resource::<CellSize>();
+    app.init_resource::<RemSize>();
     app.init_resource::<bevy_text::FontCx>();
-    app.world_mut().get_resource_or_insert_with(|| CELL_REM);
+}
+
+// Text is one row tall, so a rem is a row, as `Val::Rem(1)` is one line of
+// text on a window.
+fn sync_rem_size(cell: Res<CellSize>, mut rem: ResMut<RemSize>) {
+    if cell.is_changed() {
+        rem.set_if_neq(RemSize(cell.y));
+    }
 }
 
 // bevy_ui derives an em from a `TextFont` in a system this crate does not

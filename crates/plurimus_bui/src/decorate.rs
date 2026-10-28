@@ -49,8 +49,8 @@ pub(crate) struct Decoration {
 }
 
 // An elliptical corner rounds only when its flatter radius still does.
-pub(crate) fn rounded_corners(radius: ResolvedBorderRadius) -> RoundedCorners {
-    let rounds = |corner: Vec2| corner.min_element() >= ROUND_RADIUS_MIN;
+pub(crate) fn rounded_corners(radius: ResolvedBorderRadius, cell: Vec2) -> RoundedCorners {
+    let rounds = |corner: Vec2| (corner / cell).min_element() >= ROUND_RADIUS_MIN;
     RoundedCorners {
         top_left: rounds(radius.top_left),
         top_right: rounds(radius.top_right),
@@ -289,11 +289,12 @@ pub(crate) fn resolve_shadows(
     node_rect: CellBox,
     size: Vec2,
     basis: ValBasis,
+    cell: Vec2,
 ) -> Vec<ResolvedShadow> {
     shadow
         .0
         .iter()
-        .filter_map(|style| resolve_shadow(style, node_rect, size, basis))
+        .filter_map(|style| resolve_shadow(style, node_rect, size, basis, cell))
         .collect()
 }
 
@@ -303,6 +304,7 @@ fn resolve_shadow(
     node_rect: CellBox,
     size: Vec2,
     basis: ValBasis,
+    cell: Vec2,
 ) -> Option<ResolvedShadow> {
     let resolve = |value: bevy_ui::Val, base: f32| {
         value
@@ -312,19 +314,23 @@ fn resolve_shadow(
     let offset_x = resolve(style.x_offset, size.x);
     let offset_y = resolve(style.y_offset, size.y);
     let grow = resolve(style.spread_radius, size.x) + resolve(style.blur_radius, size.x) / 2.0;
-    let rect = offset_and_inflate(node_rect, Vec2::new(offset_x, offset_y), grow)?;
+    let rect = offset_and_inflate(
+        node_rect,
+        Vec2::new(offset_x, offset_y) / cell,
+        Vec2::splat(grow) / cell,
+    )?;
     let color = style.color.to_linear();
     (color.alpha > f32::EPSILON).then_some(ResolvedShadow { rect, color })
 }
 
-fn offset_and_inflate(rect: CellBox, offset: Vec2, grow: f32) -> Option<CellBox> {
-    let grow = grow.round() as i32;
+fn offset_and_inflate(rect: CellBox, offset: Vec2, grow: Vec2) -> Option<CellBox> {
+    let (grow_x, grow_y) = (grow.x.round() as i32, grow.y.round() as i32);
     let (dx, dy) = (offset.x.round() as i32, offset.y.round() as i32);
     let shadow = CellBox {
-        left: rect.left + dx - grow,
-        top: rect.top + dy - grow,
-        right: rect.right + dx + grow,
-        bottom: rect.bottom + dy + grow,
+        left: rect.left + dx - grow_x,
+        top: rect.top + dy - grow_y,
+        right: rect.right + dx + grow_x,
+        bottom: rect.bottom + dy + grow_y,
     };
     (!shadow.is_empty()).then_some(shadow)
 }

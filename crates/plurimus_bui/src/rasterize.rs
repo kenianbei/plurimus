@@ -28,15 +28,15 @@ pub(crate) fn rasterize_bui(
     nodes: Res<ExtractedBuiNodes>,
     mut cameras: Query<(&SourceCamera, &mut CameraBuffer)>,
 ) {
-    for node in &nodes.0 {
+    for node in &nodes.nodes {
         let Some(mut buffer) = camera_buffer_mut(&mut cameras, node.camera) else {
             continue;
         };
-        paint(node, &mut buffer.0);
+        paint(node, &mut buffer.0, nodes.cell);
     }
 }
 
-fn paint(node: &ExtractedBuiNode, buffer: &mut Buffer) {
+fn paint(node: &ExtractedBuiNode, buffer: &mut Buffer, cell: Vec2) {
     draw_shadows(node, buffer);
     let bounds = clipped(node.rect, buffer.area, node.clip);
     if bounds.is_empty() {
@@ -45,8 +45,8 @@ fn paint(node: &ExtractedBuiNode, buffer: &mut Buffer) {
     if let Some(background) = node.background {
         fill(buffer, bounds, background);
     }
-    draw_gradient_background(node, buffer, bounds);
-    BorderPainter { node, bounds }.paint(buffer);
+    draw_gradient_background(node, buffer, bounds, cell);
+    BorderPainter { node, bounds, cell }.paint(buffer);
     if let Some(ring) = &node.outline {
         draw_outline(buffer, ring, clipped(ring.rect, buffer.area, node.clip));
     }
@@ -114,12 +114,17 @@ fn dim_cell(buffer: &mut Buffer, position: Position, color: LinearRgba) {
     cell.set_bg(dim_toward(existing, color));
 }
 
-fn draw_gradient_background(node: &ExtractedBuiNode, buffer: &mut Buffer, bounds: Rect) {
+fn draw_gradient_background(
+    node: &ExtractedBuiNode,
+    buffer: &mut Buffer,
+    bounds: Rect,
+    cell: Vec2,
+) {
     if node.decoration.background_gradients.is_empty() {
         return;
     }
     for position in bounds.positions() {
-        let point = cell_center(node.rect, position);
+        let point = cell_center(node.rect, position, cell);
         let Some(color) = sample_gradients(&node.decoration.background_gradients, point) else {
             continue;
         };
@@ -130,16 +135,18 @@ fn draw_gradient_background(node: &ExtractedBuiNode, buffer: &mut Buffer, bounds
     }
 }
 
-fn cell_center(rect: CellBox, position: Position) -> Vec2 {
+// Gradients are laid out in pixels, so a cell samples at its center in them.
+fn cell_center(rect: CellBox, position: Position, cell: Vec2) -> Vec2 {
     Vec2::new(
         (i32::from(position.x) - rect.left) as f32 + 0.5,
         (i32::from(position.y) - rect.top) as f32 + 0.5,
-    )
+    ) * cell
 }
 
 struct BorderPainter<'a> {
     node: &'a ExtractedBuiNode,
     bounds: Rect,
+    cell: Vec2,
 }
 
 impl BorderPainter<'_> {
@@ -206,8 +213,11 @@ impl BorderPainter<'_> {
         if gradients.is_empty() {
             return side;
         }
-        sample_gradients(gradients, cell_center(self.node.rect, Position::new(x, y)))
-            .map_or(side, linear_cell_color)
+        sample_gradients(
+            gradients,
+            cell_center(self.node.rect, Position::new(x, y), self.cell),
+        )
+        .map_or(side, linear_cell_color)
     }
 }
 

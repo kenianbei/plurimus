@@ -13,7 +13,7 @@
 use bevy_camera::NormalizedRenderTarget;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::{Commands, Local, MessageReader, MessageWriter, Query, ResMut, With};
+use bevy_ecs::prelude::{Commands, Local, MessageReader, MessageWriter, Query, Res, ResMut, With};
 use bevy_input::mouse::MouseScrollUnit;
 use bevy_input::touch::TouchPhase;
 use bevy_math::Vec2;
@@ -25,6 +25,8 @@ use bevy_window::{PrimaryWindow, WindowRef};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{MouseButton, MouseKind, MouseMessage};
 use plurimus_ui::PointerTargets;
+
+use super::rect::CellSize;
 
 // A cell's center, so a pointer never sits on an edge two nodes share.
 const CELL_CENTER: f32 = 0.5;
@@ -38,6 +40,7 @@ pub(crate) fn spawn_pointer(mut commands: Commands) {
 pub(crate) fn feed_pointer(
     mut messages: MessageReader<MouseMessage>,
     windows: Query<Entity, With<PrimaryWindow>>,
+    cell: Res<CellSize>,
     mut last: Local<Vec2>,
     mut inputs: MessageWriter<PointerInput>,
 ) {
@@ -50,7 +53,7 @@ pub(crate) fn feed_pointer(
         return;
     };
     for message in messages.read() {
-        let position = pointer_position(message.position);
+        let position = pointer_position(message.position, cell.vec());
         let Some(action) = pointer_action(message.kind, position - *last) else {
             continue;
         };
@@ -74,15 +77,13 @@ pub(crate) fn feed_pointer(
     }
 }
 
-fn pointer_position(cell: Position) -> Vec2 {
-    Vec2::new(
-        f32::from(cell.x) + CELL_CENTER,
-        f32::from(cell.y) + CELL_CENTER,
-    )
+fn pointer_position(at: Position, cell: Vec2) -> Vec2 {
+    Vec2::new(f32::from(at.x) + CELL_CENTER, f32::from(at.y) + CELL_CENTER) * cell
 }
 
-const fn pointer_cell(position: Vec2) -> Position {
-    Position::new(position.x as u16, position.y as u16)
+fn pointer_cell(position: Vec2, cell: Vec2) -> Position {
+    let at = position / cell;
+    Position::new(at.x as u16, at.y as u16)
 }
 
 fn pointer_action(kind: MouseKind, delta: Vec2) -> Option<PointerAction> {
@@ -117,6 +118,7 @@ const fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 pub(crate) fn gate_hits(
     mut hits: ResMut<Messages<PointerHits>>,
     pointers: Query<(&PointerId, &PointerLocation)>,
+    cell: Res<CellSize>,
     widgets: PointerTargets,
 ) {
     if hits.is_empty() {
@@ -127,7 +129,7 @@ pub(crate) fn gate_hits(
         .filter(|(_, location)| {
             location
                 .location()
-                .is_some_and(|location| widgets.covers(pointer_cell(location.position)))
+                .is_some_and(|location| widgets.covers(pointer_cell(location.position, cell.vec())))
         })
         .map(|(pointer, _)| *pointer)
         .collect();

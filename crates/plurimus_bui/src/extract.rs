@@ -23,11 +23,24 @@ use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
 
 use super::decorate::{Decoration, ValBasis, resolve_gradients, resolve_shadows, rounded_corners};
-use super::rect::{CellBox, clip_cells, node_boxes};
+use super::rect::{CellBox, CellSize, clip_cells, node_boxes};
 use super::text::ResolvedText;
 
-#[derive(Resource, Default)]
-pub(crate) struct ExtractedBuiNodes(pub(crate) Vec<ExtractedBuiNode>);
+#[derive(Resource)]
+pub(crate) struct ExtractedBuiNodes {
+    pub(crate) nodes: Vec<ExtractedBuiNode>,
+    /// The frame's [`CellSize`], for sampling pixel geometry at cell centers.
+    pub(crate) cell: Vec2,
+}
+
+impl Default for ExtractedBuiNodes {
+    fn default() -> Self {
+        Self {
+            nodes: Vec::new(),
+            cell: CellSize::default().vec(),
+        }
+    }
+}
 
 pub(crate) struct ExtractedBuiNode {
     pub(crate) camera: Entity,
@@ -63,7 +76,9 @@ pub(crate) fn extract_bui_nodes(
     mut main_world: ResMut<MainWorld>,
     mut out: ResMut<ExtractedBuiNodes>,
 ) {
-    out.0.clear();
+    out.nodes.clear();
+    out.cell = main_world.resource::<CellSize>().vec();
+    let cell = out.cell;
     let viewports: HashMap<Entity, Rect> = {
         let mut cameras = main_world.query::<(Entity, &TerminalCamera, &ResolvedViewport)>();
         cameras
@@ -73,11 +88,11 @@ pub(crate) fn extract_bui_nodes(
             .collect()
     };
     let stack = main_world.resource::<UiStack>();
-    out.0.extend(
+    out.nodes.extend(
         stack
             .uinodes
             .iter()
-            .filter_map(|&entity| convert(&main_world, entity, &viewports)),
+            .filter_map(|&entity| convert(&main_world, entity, &viewports, cell)),
     );
 }
 
@@ -85,6 +100,7 @@ fn convert(
     world: &World,
     entity: Entity,
     viewports: &HashMap<Entity, Rect>,
+    cell: Vec2,
 ) -> Option<ExtractedBuiNode> {
     if !world
         .get::<InheritedVisibility>(entity)
@@ -96,20 +112,24 @@ fn convert(
     let camera = world.get::<ComputedUiTargetCamera>(entity)?.get()?;
     let viewport = *viewports.get(&camera)?;
     let transform = world.get::<UiGlobalTransform>(entity)?;
-    let (rect, content) = node_boxes(computed, transform, viewport);
+    let (rect, content) = node_boxes(computed, transform, viewport, cell);
     if rect.is_empty() {
         return None;
     }
     let clip = world
         .get::<CalculatedClip>(entity)
-        .map(|clip| clip_cells(clip, viewport));
+        .map(|clip| clip_cells(clip, viewport, cell));
     let on_screen = rect.clamped(viewport);
     let on_screen = clip.map_or(on_screen, |clip| on_screen.intersection(clip));
     // Only a shadow can reach the screen from a node that is not on it.
     if on_screen.is_empty() && !world.entity(entity).contains::<BoxShadow>() {
         return None;
     }
-    let frame = NodeFrame { rect, viewport };
+    let frame = NodeFrame {
+        rect,
+        viewport,
+        cell,
+    };
     let decoration = node_decoration(world, entity, computed, frame);
     let (background, border) = solid_colors(
         world,
@@ -123,7 +143,7 @@ fn convert(
         clip,
         background,
         border,
-        outline: outline_ring(world, entity, computed, rect),
+        outline: outline_ring(world, entity, computed, rect, cell),
         text: text_run(world, entity, content),
         decoration,
     })
@@ -134,18 +154,20 @@ fn outline_ring(
     entity: Entity,
     computed: &ComputedNode,
     rect: CellBox,
+    cell: Vec2,
 ) -> Option<OutlineRing> {
     if computed.outline_width() <= 0.0 {
         return None;
     }
     let color = cell_color(world.get::<Outline>(entity)?.color)?;
-    let gap = 1 + computed.outline_offset().round() as i32;
+    let gap = Vec2::splat(computed.outline_offset()) / cell;
+    let (gap_x, gap_y) = (1 + gap.x.round() as i32, 1 + gap.y.round() as i32);
     Some(OutlineRing {
         rect: CellBox {
-            left: rect.left - gap,
-            top: rect.top - gap,
-            right: rect.right + gap,
-            bottom: rect.bottom + gap,
+            left: rect.left - gap_x,
+            top: rect.top - gap_y,
+            right: rect.right + gap_x,
+            bottom: rect.bottom + gap_y,
         },
         color,
     })
@@ -171,6 +193,7 @@ fn solid_colors(
 struct NodeFrame {
     rect: CellBox,
     viewport: Rect,
+    cell: Vec2,
 }
 
 fn node_decoration(
@@ -184,7 +207,7 @@ fn node_decoration(
         target: Vec2::new(
             f32::from(frame.viewport.width),
             f32::from(frame.viewport.height),
-        ),
+        ) * frame.cell,
         em: computed.em_size,
         rem: computed.rem_size,
     };
@@ -193,12 +216,12 @@ fn node_decoration(
             .unwrap_or_default()
     };
     Decoration {
-        corners: rounded_corners(computed.border_radius),
+        corners: rounded_corners(computed.border_radius, frame.cell),
         background_gradients: gradients(world.get::<BackgroundGradient>(entity).map(|g| &g.0)),
         border_gradients: gradients(world.get::<BorderGradient>(entity).map(|g| &g.0)),
         shadows: world
             .get::<BoxShadow>(entity)
-            .map(|shadow| resolve_shadows(shadow, frame.rect, size, basis))
+            .map(|shadow| resolve_shadows(shadow, frame.rect, size, basis, frame.cell))
             .unwrap_or_default(),
     }
 }
