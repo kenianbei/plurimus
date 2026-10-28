@@ -1,6 +1,7 @@
-//! The right half: the same widget logic driven by a real `bevy_ui` node
-//! tree, laid out by taffy at one cell per pixel. Nothing here is styled
-//! by the stock stylists - node colors are mutated by the systems below.
+//! The right half: bevy's own `bevy_ui_widgets` on a real `bevy_ui` node
+//! tree, laid out by taffy at one cell per pixel and picked by
+//! `bevy_picking`. Nothing here is styled by the stock stylists - node
+//! colors are mutated by the systems below.
 
 mod style;
 
@@ -15,15 +16,15 @@ use bevy_ui::{
     UiTargetCamera, Val,
 };
 use plurimus::bui::ComputedNodeRect;
+use plurimus::bui::bevy_ui_widgets::{
+    Button, Checkbox, RadioButton, RadioGroup, Slider, SliderRange, SliderStep, SliderValue,
+    TrackClick, checkbox_self_update, radio_self_update, slider_self_update,
+};
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{ResolvedViewport, UiArea, UiCamera, local_area};
 use plurimus::ui::bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
-use plurimus::ui::{UiLabel, ValueChange};
-use plurimus::widgets::{
-    Activate, Button, Checkbox, EditableText, RadioButton, RadioGroup, Slider, SliderRange,
-    SliderStep, SliderValue, checkbox_self_update, editable_text, radio_self_update,
-    slider_self_update,
-};
+use plurimus::ui::{Activate, Hovered, UiLabel, ValueChange};
+use plurimus::widgets::{EditableText, editable_text};
 
 use crate::{
     BuiCamera, CHECKBOX_LABEL, DemoState, FIELD_TEXT, RADIO_LABELS, SLIDER_KEY_STEP, SLIDER_START,
@@ -89,6 +90,7 @@ fn spawn_button(commands: &mut Commands, root: Entity) {
                 ..Node::default()
             },
             Button,
+            Hovered::default(),
             TabIndex(BUTTON_TAB_INDEX),
             Text::from("press me"),
             BackgroundColor(NORMAL),
@@ -109,10 +111,14 @@ fn spawn_slider(commands: &mut Commands, root: Entity) {
                 padding: UiRect::horizontal(Val::Px(1.0)),
                 ..Node::default()
             },
-            Slider,
+            Slider {
+                track_click: TrackClick::Snap,
+                ..Slider::default()
+            },
             SliderRange::new(0.0, 100.0),
             SliderValue(SLIDER_START),
             SliderStep(SLIDER_KEY_STEP),
+            Hovered::default(),
             TabIndex(SLIDER_TAB_INDEX),
             Text::default(),
             BackgroundColor(Color::NONE),
@@ -129,6 +135,7 @@ fn spawn_checkbox(commands: &mut Commands, root: Entity) {
         .spawn((
             Node::default(),
             Checkbox,
+            Hovered::default(),
             TabIndex(CHECKBOX_TAB_INDEX),
             UiLabel(CHECKBOX_LABEL.into()),
             Text::default(),
@@ -161,6 +168,7 @@ fn spawn_radio_group(commands: &mut Commands, root: Entity) {
         commands.spawn((
             Node::default(),
             RadioButton,
+            Hovered::default(),
             TabIndex(RADIO_TAB_INDEX + index as i32),
             UiLabel((*label).into()),
             Text::default(),

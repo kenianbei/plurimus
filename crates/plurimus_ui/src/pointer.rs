@@ -36,6 +36,38 @@ type PressedQuery<'w, 's> =
 type FocusStopQuery<'w, 's> =
     Query<'w, 's, (Has<TabIndex>, Has<PressFocusDisabled>, Has<ModalOpen>)>;
 
+/// What this crate's routers would reach at a cell, for a crate routing a
+/// pointer of its own beneath the widgets.
+///
+/// `bevy_ui` nodes are picked by `bevy_picking`, which knows nothing of
+/// the widgets drawn over them; this is how that stack asks whether a cell
+/// is already spoken for, so one press or tick reaches one thing.
+#[derive(SystemParam)]
+pub struct PointerTargets<'w, 's> {
+    targets: PointerTargetQuery<'w, 's>,
+    wheel: WheelRouting<'w, 's>,
+    modal: ModalGuard<'w, 's>,
+    open: Query<'w, 's, (), With<ModalOpen>>,
+}
+
+impl PointerTargets<'_, '_> {
+    /// The widget a press at `cell` would land on, if any.
+    #[must_use]
+    pub fn topmost(&self, cell: Position) -> Option<Entity> {
+        topmost_at(cell, &self.targets, |entity| {
+            self.modal.admits(cell, entity)
+        })
+    }
+
+    /// Whether a pointer at `cell` is this crate's: a widget there takes
+    /// presses or ticks, or an overlay is open, which a press anywhere
+    /// dismisses.
+    #[must_use]
+    pub fn covers(&self, cell: Position) -> bool {
+        !self.open.is_empty() || self.topmost(cell).is_some() || self.wheel.covers(cell)
+    }
+}
+
 /// Everything [`pointer_interaction`] routes against.
 #[derive(SystemParam)]
 pub(crate) struct PointerRouting<'w, 's> {

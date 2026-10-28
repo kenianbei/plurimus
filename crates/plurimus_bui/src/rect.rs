@@ -8,6 +8,7 @@
 //! hit-tests, so a node scrolled out of its container stops being clickable
 //! even though it still has a rect.
 
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Component, Query};
 use bevy_math::Vec2;
@@ -16,8 +17,6 @@ use bevy_ui::{
 };
 use plurimus_core::ResolvedViewport;
 use plurimus_core::ratatui_core::layout::Rect;
-
-use super::upsert;
 
 /// The node's laid-out rects in terminal cells, cut to its camera's viewport.
 /// Zero until the first layout pass, when no target camera resolves, or when
@@ -168,7 +167,14 @@ pub(crate) fn compute_node_rects(
     for (entity, computed, transform, camera, clip, rect) in &mut nodes {
         let resolved =
             node_rects((computed, transform, camera, clip), &cameras).unwrap_or_default();
-        upsert(&mut commands, entity, rect, resolved);
+        match rect {
+            Some(mut rect) => {
+                rect.set_if_neq(resolved);
+            }
+            None => {
+                commands.entity(entity).insert(resolved);
+            }
+        }
     }
 }
 

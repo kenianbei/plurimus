@@ -47,6 +47,7 @@ pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
 pub use nav::NavigationConfig;
 pub use plurimus_core::{TerminalWidget, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
+pub use pointer::PointerTargets;
 pub use scroll::{
     ScrollArea, ScrollBy, ScrollIntoView, ScrollOffset, WheelAxes, WheelReceptive, apply_offset,
     content_cell, max_offset, screen_cell,

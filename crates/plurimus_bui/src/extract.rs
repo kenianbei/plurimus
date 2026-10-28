@@ -3,21 +3,19 @@
 //! Each camera's node tree is walked once and every [`ComputedNode`] becomes
 //! a cell rect with its colors, gradients, shadows, corner glyphs and clip
 //! already resolved, so the rasterizer only has to paint what it is handed.
-//! Paint order is settled here as well - siblings by [`ZIndex`], then the
-//! whole list by [`GlobalZIndex`] - which is why nothing downstream has to
-//! reason about the tree.
+//! Paint order is `bevy_ui`'s own [`UiStack`], back to front, so what is
+//! drawn over what agrees with what is picked over what.
 
 use std::collections::HashMap;
 
 use bevy_color::ColorToPacked;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{ResMut, Resource, With, Without};
+use bevy_ecs::prelude::{ResMut, Resource};
 use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
     BackgroundColor, BackgroundGradient, BorderColor, BorderGradient, BoxShadow, CalculatedClip,
-    ComputedNode, ComputedUiTargetCamera, GlobalZIndex, Gradient, UiGlobalTransform, ZIndex,
+    ComputedNode, ComputedUiTargetCamera, Gradient, UiGlobalTransform, UiStack,
 };
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
@@ -38,7 +36,6 @@ pub(crate) struct ExtractedBuiNode {
     pub(crate) border: Option<BorderSides>,
     pub(crate) text: Option<TextRun>,
     pub(crate) decoration: Decoration,
-    global_z: i32,
 }
 
 pub(crate) struct BorderSides {
@@ -66,42 +63,13 @@ pub(crate) fn extract_bui_nodes(
             .map(|(entity, _, resolved)| (entity, resolved.0))
             .collect()
     };
-    let mut roots = main_world.query_filtered::<Entity, (With<ComputedNode>, Without<ChildOf>)>();
-    let mut root_list: Vec<Entity> = roots.iter(&main_world).collect();
-    root_list.sort();
-    let mut queue = PaintQueue {
-        viewports: &viewports,
-        nodes: &mut out.0,
-    };
-    for root in root_list {
-        visit(&main_world, root, 0, &mut queue);
-    }
-    out.0.sort_by_key(|node| node.global_z);
-}
-
-struct PaintQueue<'a> {
-    viewports: &'a HashMap<Entity, Rect>,
-    nodes: &'a mut Vec<ExtractedBuiNode>,
-}
-
-// A node's GlobalZIndex re-keys its whole subtree; the final sort must
-// stay stable so traversal order survives within equal z.
-fn visit(world: &World, entity: Entity, inherited_z: i32, queue: &mut PaintQueue) {
-    let global_z = world
-        .get::<GlobalZIndex>(entity)
-        .map_or(inherited_z, |z| z.0);
-    if let Some(mut node) = convert(world, entity, queue.viewports) {
-        node.global_z = global_z;
-        queue.nodes.push(node);
-    }
-    let Some(children) = world.get::<Children>(entity) else {
-        return;
-    };
-    let mut ordered: Vec<Entity> = children.iter().copied().collect();
-    ordered.sort_by_key(|&child| (world.get::<ZIndex>(child).map_or(0, |z| z.0), child));
-    for child in ordered {
-        visit(world, child, global_z, queue);
-    }
+    let stack = main_world.resource::<UiStack>();
+    out.0.extend(
+        stack
+            .uinodes
+            .iter()
+            .filter_map(|&entity| convert(&main_world, entity, &viewports)),
+    );
 }
 
 fn convert(
@@ -142,7 +110,6 @@ fn convert(
         border,
         text: text_run(world, entity, content),
         decoration,
-        global_z: 0,
     })
 }
 

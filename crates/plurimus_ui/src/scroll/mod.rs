@@ -240,6 +240,12 @@ pub(crate) struct WheelRouting<'w, 's> {
     axes: Query<'w, 's, &'static WheelAxes>,
 }
 
+impl WheelRouting<'_, '_> {
+    pub(crate) fn covers(&self, position: Position) -> bool {
+        topmost_at(position, &self.targets, |_| true).is_some()
+    }
+}
+
 // A step of the pointer router's batch, so a tick behind a modal flip waits
 // with the rest; true when it dismissed, deferring what follows likewise.
 pub(crate) fn route_tick(

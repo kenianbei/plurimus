@@ -23,6 +23,10 @@ use bevy_ecs::prelude::{
     Query, Res, ResMut, Resource, With, Without,
 };
 use plurimus::bui::BuiPlugin;
+use plurimus::bui::bevy_ui_widgets::{
+    Button as NodeButton, Checkbox as NodeCheckbox, RadioButton as NodeRadioButton,
+    Slider as NodeSlider,
+};
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{
     CameraSystems, CorePlugin, ResolvedViewport, TerminalCamera, TerminalSize, UiArea, UiWidget,
@@ -207,6 +211,10 @@ type Interactive = (
         With<ListBox>,
         With<EditableText>,
         With<TextEditor>,
+        With<NodeButton>,
+        With<NodeSlider>,
+        With<NodeCheckbox>,
+        With<NodeRadioButton>,
     )>,
     Without<MenuButton>,
 );

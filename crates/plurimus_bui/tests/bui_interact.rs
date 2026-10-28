@@ -1,23 +1,23 @@
-//! Widget logic driven by `bevy_ui` layout: nodes activate like widgets.
+//! Upstream widgets on `bevy_ui` nodes, picked through the terminal's mouse.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_ui::{FlexDirection, Node, Val};
+use bevy_ui::{FlexDirection, Node, PositionType, UiRect, Val};
 use plurimus_bui::BuiPlugin;
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_bui::bevy_picking::Pickable;
+use plurimus_bui::bevy_ui_widgets::Button;
+use plurimus_core::ratatui_core::layout::Rect;
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{press_at, press_key, release_at, send_mouse, set_focus};
-use plurimus_ui::{Hovered, InteractionDisabled, PointerPress};
-use plurimus_widgets::{Activate, Button, WidgetsPlugin};
+use plurimus_test::{click, press_key, release_at, send_mouse, set_focus};
+use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen, UiLabel};
+use plurimus_widgets::WidgetsPlugin;
 
 #[derive(Resource, Default)]
-struct Activations(u32);
-
-#[derive(Resource, Default)]
-struct Presses(Vec<Entity>);
+struct Activations(Vec<Entity>);
 
 fn app() -> App {
     let mut app = App::new();
@@ -28,25 +28,30 @@ fn app() -> App {
     app
 }
 
-#[test]
-#[expect(
-    clippy::too_many_lines,
-    reason = "one arrange-drive-assert body; splitting it hides what the test drives"
-)]
-fn node_button_activates_by_click_and_enter() {
-    let mut app = app();
+fn count_activations(app: &mut App, entity: Entity) {
+    app.world_mut()
+        .entity_mut(entity)
+        .observe(|on: On<Activate>, mut log: ResMut<Activations>| {
+            log.0.push(on.entity);
+        });
+}
 
-    let root = app
-        .world_mut()
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            padding: bevy_ui::UiRect::all(Val::Px(1.0)),
-            ..Node::default()
-        })
-        .id();
-    let button: Entity = app
+fn activations(app: &App) -> &[Entity] {
+    &app.world().resource::<Activations>().0
+}
+
+fn full_screen() -> Node {
+    Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        flex_direction: FlexDirection::Column,
+        ..Node::default()
+    }
+}
+
+/// A one-row button at the top-left of `parent`, hoverable and a tab stop.
+fn button(app: &mut App, parent: Entity) -> Entity {
+    let button = app
         .world_mut()
         .spawn((
             Node {
@@ -56,197 +61,147 @@ fn node_button_activates_by_click_and_enter() {
             },
             Button,
             TabIndex(0),
-            ChildOf(root),
+            Hovered::default(),
+            ChildOf(parent),
         ))
         .id();
-    app.world_mut()
-        .entity_mut(button)
-        .observe(|_on: On<Activate>, mut count: ResMut<Activations>| count.0 += 1);
+    count_activations(app, button);
+    button
+}
 
+fn settle(app: &mut App) {
     app.update();
     app.update();
-
-    send_mouse(&mut app, MouseKind::Moved, 2, 1);
-    assert_eq!(
-        app.world()
-            .get::<plurimus_ui::ComputedWidgetArea>(button)
-            .map(|area| area.0),
-        Some(plurimus_core::ratatui_core::layout::Rect::new(1, 1, 8, 1)),
-        "bridge should mirror the node rect"
-    );
-    assert_eq!(
-        app.world().get::<plurimus_ui::Hovered>(button),
-        Some(&plurimus_ui::Hovered(true)),
-        "cursor at 2,1 should hover the node"
-    );
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
-    assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(button),
-        "click on the node should focus it"
-    );
-    release_at(&mut app, 2, 1);
-    assert_eq!(app.world().resource::<Activations>().0, 1);
-
-    set_focus(&mut app, button);
-    press_key(&mut app, KeyCode::Enter);
-    assert_eq!(app.world().resource::<Activations>().0, 2);
 }
 
 #[test]
-fn node_text_field_edits_after_click_focus() {
-    let mut app = app();
-    let field = app
-        .world_mut()
-        .spawn((
-            Node {
-                width: Val::Px(10.0),
-                height: Val::Px(1.0),
-                ..Node::default()
-            },
-            plurimus_widgets::EditableText,
-            TabIndex(0),
-        ))
-        .id();
-    app.update();
-    app.update();
-
-    press_at(&mut app, 2, 0);
-    assert_eq!(
-        app.world().resource::<InputFocus>().get(),
-        Some(field),
-        "click on the node should focus the field"
-    );
-
-    press_key(&mut app, KeyCode::Char('z'));
-    let text = app
-        .world()
-        .get::<plurimus_widgets::TextInput>(field)
-        .unwrap();
-    assert_eq!(text.value(), "z");
-}
-
-#[test]
-fn tab_index_only_nodes_join_directional_navigation() {
+fn a_node_button_activates_by_click_and_enter() {
     let mut app = app();
     let root = app
         .world_mut()
         .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Row,
-            column_gap: Val::Px(2.0),
-            ..Node::default()
+            padding: UiRect::all(Val::Px(1.0)),
+            ..full_screen()
         })
         .id();
-    let focusable = |app: &mut App, index: i32| {
-        app.world_mut()
-            .spawn((
-                Node {
-                    width: Val::Px(4.0),
-                    height: Val::Px(1.0),
-                    ..Node::default()
-                },
-                TabIndex(index),
-                ChildOf(root),
-            ))
-            .id()
-    };
-    let left = focusable(&mut app, 0);
-    let right = focusable(&mut app, 1);
-    app.update();
-    app.update();
+    let button = button(&mut app, root);
+    settle(&mut app);
 
+    send_mouse(&mut app, MouseKind::Moved, 2, 1);
+    assert_eq!(app.world().get::<Hovered>(button), Some(&Hovered(true)));
+
+    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
     assert_eq!(
-        app.world()
-            .get::<plurimus_bui::ComputedNodeRect>(left)
-            .map(|rect| rect.rect),
-        Some(plurimus_core::ratatui_core::layout::Rect::new(0, 0, 4, 1)),
-        "layout should publish the laid-out cell rect"
+        app.world().resource::<InputFocus>().get(),
+        Some(button),
+        "a press focuses the node"
     );
-    assert!(
-        app.world().get::<plurimus_ui::Hovered>(left).is_none(),
-        "node never opted into hover"
-    );
+    release_at(&mut app, 2, 1);
+    assert_eq!(activations(&app), [button]);
 
-    set_focus(&mut app, left);
-    press_key(&mut app, KeyCode::Right);
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(right));
+    set_focus(&mut app, button);
+    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(activations(&app), [button, button]);
+}
+
+#[test]
+fn a_plurimus_widget_over_a_node_takes_the_click() {
+    let mut app = app();
+    let root = app.world_mut().spawn(full_screen()).id();
+    let node = button(&mut app, root);
+    let widget = app
+        .world_mut()
+        .spawn((
+            plurimus_widgets::Button,
+            UiLabel("over".into()),
+            UiWidget::default(),
+            UiArea::Fixed(Rect::new(0, 0, 20, 3)),
+        ))
+        .id();
+    count_activations(&mut app, widget);
+    settle(&mut app);
+
+    click(&mut app, 2, 0);
+
+    assert_eq!(activations(&app), [widget]);
+    assert_eq!(
+        app.world().get::<Hovered>(node),
+        Some(&Hovered(false)),
+        "the node beneath is never hovered"
+    );
+}
+
+#[test]
+fn an_open_plurimus_overlay_blocks_node_hits() {
+    let mut app = app();
+    let root = app.world_mut().spawn(full_screen()).id();
+    button(&mut app, root);
+    app.world_mut()
+        .spawn((ModalOpen, UiArea::Fixed(Rect::new(12, 4, 8, 2))));
+    settle(&mut app);
+
+    click(&mut app, 2, 0);
+
+    assert_eq!(activations(&app), &[] as &[Entity]);
+}
+
+#[test]
+fn a_pickable_ignore_node_falls_through() {
+    let mut app = app();
+    let root = app.world_mut().spawn(full_screen()).id();
+    let node = button(&mut app, root);
+    app.world_mut().spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            ..full_screen()
+        },
+        Pickable::IGNORE,
+        ChildOf(root),
+    ));
+    settle(&mut app);
+
+    click(&mut app, 2, 0);
+
+    assert_eq!(activations(&app), [node]);
 }
 
 #[test]
 fn content_rect_excludes_border_and_padding() {
-    use bevy_ui::UiRect;
-
     let mut app = app();
     let node = app
         .world_mut()
-        .spawn((
-            Node {
-                width: Val::Px(10.0),
-                height: Val::Px(5.0),
-                border: UiRect::all(Val::Px(1.0)),
-                padding: UiRect::all(Val::Px(1.0)),
-                ..Node::default()
-            },
-            TabIndex(0),
-        ))
+        .spawn(Node {
+            width: Val::Px(10.0),
+            height: Val::Px(5.0),
+            border: UiRect::all(Val::Px(1.0)),
+            padding: UiRect::all(Val::Px(1.0)),
+            ..Node::default()
+        })
         .id();
-    app.update();
-    app.update();
+    settle(&mut app);
 
     let rects = *app
         .world()
         .get::<plurimus_bui::ComputedNodeRect>(node)
         .unwrap();
-    assert_eq!(
-        rects.rect,
-        plurimus_core::ratatui_core::layout::Rect::new(0, 0, 10, 5)
-    );
-    assert_eq!(
-        rects.content,
-        plurimus_core::ratatui_core::layout::Rect::new(2, 2, 6, 1)
-    );
+    assert_eq!(rects.rect, Rect::new(0, 0, 10, 5));
+    assert_eq!(rects.content, Rect::new(2, 2, 6, 1));
 }
 
-// The same absorb rule the widget router applies: a disabled node blocks
-// the press instead of letting it fall to the node beneath it.
+// A disabled node still blocks what is beneath it, as on desktop: the
+// press reaches it and stops there.
 #[test]
 fn a_disabled_node_absorbs_the_press() {
     let mut app = app();
-    app.init_resource::<Presses>();
-    app.add_observer(|press: On<PointerPress>, mut log: ResMut<Presses>| log.0.push(press.entity));
+    let root = app.world_mut().spawn((full_screen(), Button)).id();
+    count_activations(&mut app, root);
+    let cover = button(&mut app, root);
+    app.world_mut()
+        .entity_mut(cover)
+        .insert(InteractionDisabled);
+    settle(&mut app);
 
-    let root = app
-        .world_mut()
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                ..Node::default()
-            },
-            Hovered::default(),
-        ))
-        .id();
-    let cover = app
-        .world_mut()
-        .spawn((
-            Node {
-                width: Val::Px(8.0),
-                height: Val::Px(1.0),
-                ..Node::default()
-            },
-            Hovered::default(),
-            InteractionDisabled,
-            ChildOf(root),
-        ))
-        .id();
-    app.update();
-    app.update();
+    click(&mut app, 2, 0);
 
-    press_at(&mut app, 2, 0);
-
-    let presses = &app.world().resource::<Presses>().0;
-    assert!(!presses.contains(&root), "nothing beneath was pressed");
-    assert!(!presses.contains(&cover), "and the disabled node is inert");
+    assert_eq!(activations(&app), &[] as &[Entity]);
 }

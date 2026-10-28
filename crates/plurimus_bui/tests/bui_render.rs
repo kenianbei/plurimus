@@ -115,13 +115,16 @@ fn wheel_scrolls_overflow_scroll_node() {
     let mut app = app(6, 2);
     let root = app
         .world_mut()
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            overflow: Overflow::scroll_y(),
-            ..Node::default()
-        })
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::scroll_y(),
+                ..Node::default()
+            },
+            plurimus_bui::bevy_ui_widgets::ScrollArea,
+        ))
         .id();
     for line in ["r1", "r2", "r3", "r4"] {
         app.world_mut().spawn((

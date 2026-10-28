@@ -7,9 +7,9 @@ use bevy_ecs::prelude::{Changed, Entity, Has, Or, Query, Res, With};
 use bevy_ui::widget::Text;
 use bevy_ui::{BackgroundColor, BorderColor};
 use plurimus::bui::ComputedNodeRect;
+use plurimus::bui::bevy_ui_widgets::{Button, Checkbox, RadioButton, SliderRange, SliderValue};
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{Checked, Hovered, InteractionDisabled, Pressed, UiLabel};
-use plurimus::widgets::{Button, Checkbox, RadioButton, SliderRange, SliderValue};
 
 pub(super) const NORMAL: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED: Color = Color::srgb(0.25, 0.25, 0.25);
