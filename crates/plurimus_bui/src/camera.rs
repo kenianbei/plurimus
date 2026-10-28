@@ -32,16 +32,11 @@ pub(crate) fn sync_bui_cameras(
 ) {
     for (entity, terminal_camera, resolved, camera, is_default) in &mut cameras {
         let viewport = resolved.0;
-        let pixels = CameraPixels {
-            viewport,
-            size: *size,
-            cell: cell.vec(),
-        };
         if let Some(mut camera) = camera {
-            apply(&mut camera, terminal_camera, pixels);
+            apply(&mut camera, terminal_camera, viewport, *size, cell.vec());
         } else {
             let mut camera = Camera::default();
-            apply(&mut camera, terminal_camera, pixels);
+            apply(&mut camera, terminal_camera, viewport, *size, cell.vec());
             commands.entity(entity).insert(camera);
         }
         let should_be_default = default_camera.0 == Some(entity);
@@ -53,18 +48,13 @@ pub(crate) fn sync_bui_cameras(
     }
 }
 
-struct CameraPixels {
+fn apply(
+    camera: &mut Camera,
+    terminal: &TerminalCamera,
     viewport: Rect,
     size: TerminalSize,
     cell: Vec2,
-}
-
-fn apply(camera: &mut Camera, terminal: &TerminalCamera, pixels: CameraPixels) {
-    let CameraPixels {
-        viewport,
-        size,
-        cell,
-    } = pixels;
+) {
     let scaled = |x: u16, y: u16| (Vec2::new(f32::from(x), f32::from(y)) * cell).as_uvec2();
     camera.order = terminal.order;
     camera.is_active = terminal.active;

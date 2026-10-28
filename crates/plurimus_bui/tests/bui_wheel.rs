@@ -114,8 +114,11 @@ fn a_widget_stacked_over_a_node_takes_the_tick_alone() {
 fn an_open_plurimus_overlay_blocks_node_ticks() {
     let mut app = app();
     let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    app.world_mut()
-        .spawn((ModalOpen, UiArea::Fixed(Rect::new(6, 2, 2, 1))));
+    app.world_mut().spawn((
+        ModalOpen,
+        UiWidget::default(),
+        UiArea::Fixed(Rect::new(6, 2, 2, 1)),
+    ));
     settle(&mut app);
 
     send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);

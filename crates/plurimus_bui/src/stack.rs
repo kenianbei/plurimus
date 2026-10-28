@@ -8,12 +8,11 @@
 //! where upstream keeps the previous frame's.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{DetectChangesMut, Query, ResMut, With, Without};
-use bevy_ecs::system::SystemParam;
+use bevy_ecs::prelude::{DetectChangesMut, Local, Query, ResMut, With};
 use bevy_ui::experimental::{UiChildren, UiRootNodes};
 use bevy_ui::{ComputedStackIndex, GlobalZIndex, UiStack, ZIndex};
 
-type RootQuery<'w, 's> = Query<
+type NodeQuery<'w, 's> = Query<
     'w,
     's,
     (
@@ -24,60 +23,45 @@ type RootQuery<'w, 's> = Query<
     With<ComputedStackIndex>,
 >;
 
-type LocalQuery<'w, 's> =
-    Query<'w, 's, Option<&'static ZIndex>, (With<ComputedStackIndex>, Without<GlobalZIndex>)>;
+type StackRoot = (i32, i32, Entity);
 
-#[derive(SystemParam)]
-pub(crate) struct StackTree<'w, 's> {
-    roots: UiRootNodes<'w, 's>,
-    children: UiChildren<'w, 's>,
-    nodes: RootQuery<'w, 's>,
-    global: Query<
-        'w,
-        's,
-        (Entity, &'static GlobalZIndex, Option<&'static ZIndex>),
-        With<ComputedStackIndex>,
-    >,
-    local: LocalQuery<'w, 's>,
+const fn stack_root(
+    (entity, global_z, local_z): (Entity, Option<&GlobalZIndex>, Option<&ZIndex>),
+) -> StackRoot {
+    (
+        match global_z {
+            Some(z) => z.0,
+            None => 0,
+        },
+        match local_z {
+            Some(z) => z.0,
+            None => 0,
+        },
+        entity,
+    )
 }
 
 pub(crate) fn compute_ui_stack(
     mut stack: ResMut<UiStack>,
-    tree: StackTree,
+    (roots, children, nodes): (UiRootNodes, UiChildren, NodeQuery),
     mut indices: Query<&mut ComputedStackIndex>,
+    mut siblings: Local<Vec<(i32, Entity)>>,
 ) {
-    let StackTree {
-        roots,
-        children,
-        nodes,
-        global,
-        local,
-    } = &tree;
-    let mut stack_roots: Vec<(i32, i32, Entity)> = nodes
+    let mut stack_roots: Vec<StackRoot> = nodes
         .iter_many(roots.iter())
         .matched()
-        .map(|(entity, global_z, local_z)| {
-            (
-                global_z.map_or(0, |z| z.0),
-                local_z.map_or(0, |z| z.0),
-                entity,
-            )
-        })
+        .chain(nodes.iter().filter(|(_, global_z, _)| global_z.is_some()))
+        .map(stack_root)
         .collect();
-    stack_roots.extend(
-        global
-            .iter()
-            .filter(|(entity, ..)| !roots.iter().any(|root| root == *entity))
-            .map(|(entity, global_z, local_z)| (global_z.0, local_z.map_or(0, |z| z.0), entity)),
-    );
     stack_roots.sort_unstable();
+    stack_roots.dedup();
 
     let UiStack { partition, uinodes } = &mut *stack;
     partition.clear();
     uinodes.clear();
     for (_, _, root) in stack_roots {
         let start = uinodes.len();
-        push_subtree(root, children, local, uinodes);
+        push_subtree(root, (&children, &nodes), uinodes, &mut siblings);
         partition.push(start..uinodes.len());
     }
     for (index, &entity) in stack.uinodes.iter().enumerate() {
@@ -87,14 +71,25 @@ pub(crate) fn compute_ui_stack(
     }
 }
 
-fn push_subtree(entity: Entity, children: &UiChildren, local: &LocalQuery, out: &mut Vec<Entity>) {
+// One sibling buffer serves every level: each call sorts the slice it
+// appended and truncates it away on the way out.
+fn push_subtree(
+    entity: Entity,
+    (children, nodes): (&UiChildren, &NodeQuery),
+    out: &mut Vec<Entity>,
+    siblings: &mut Vec<(i32, Entity)>,
+) {
     out.push(entity);
-    let mut ordered: Vec<(i32, Entity)> = children
-        .iter_ui_children(entity)
-        .filter_map(|child| local.get(child).ok().map(|z| (z.map_or(0, |z| z.0), child)))
-        .collect();
-    ordered.sort_by_key(|&(z, _)| z);
-    for (_, child) in ordered {
-        push_subtree(child, children, local, out);
+    let start = siblings.len();
+    siblings.extend(children.iter_ui_children(entity).filter_map(|child| {
+        let (_, global_z, local_z) = nodes.get(child).ok()?;
+        global_z
+            .is_none()
+            .then(|| (local_z.map_or(0, |z| z.0), child))
+    }));
+    siblings[start..].sort_by_key(|&(z, _)| z);
+    for index in start..siblings.len() {
+        push_subtree(siblings[index].1, (children, nodes), out, siblings);
     }
+    siblings.truncate(start);
 }

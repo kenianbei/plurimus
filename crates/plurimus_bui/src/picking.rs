@@ -5,10 +5,10 @@
 //! The pointer feed turns mouse messages into `PointerInput` for the one
 //! mouse pointer, placed on the primary window `plurimus_ui` keeps for
 //! focus, which is the target every terminal camera renders to. The hit
-//! gate then drops every node pick at a cell a `plurimus_ui` widget would
-//! take the press or the tick at, and all of them while a `plurimus_ui`
-//! overlay is open - widgets draw over nodes, so a press reaches one or
-//! the other.
+//! gate then drops every node pick while the cursor sits on a cell a
+//! `plurimus_ui` widget would take the press or the tick at, and while a
+//! `plurimus_ui` overlay is open - widgets draw over nodes, so a press
+//! reaches one or the other.
 
 use bevy_camera::NormalizedRenderTarget;
 use bevy_ecs::entity::Entity;
@@ -18,12 +18,10 @@ use bevy_input::mouse::MouseScrollUnit;
 use bevy_input::touch::TouchPhase;
 use bevy_math::Vec2;
 use bevy_picking::backend::PointerHits;
-use bevy_picking::pointer::{
-    Location, PointerAction, PointerButton, PointerId, PointerInput, PointerLocation,
-};
+use bevy_picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
 use bevy_window::{PrimaryWindow, WindowRef};
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_term::{MouseButton, MouseKind, MouseMessage};
+use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 use plurimus_ui::PointerTargets;
 
 use super::rect::CellSize;
@@ -54,26 +52,25 @@ pub(crate) fn feed_pointer(
     };
     for message in messages.read() {
         let position = pointer_position(message.position, cell.vec());
-        let Some(action) = pointer_action(message.kind, position - *last) else {
-            continue;
-        };
         let location = Location {
             target: target.clone(),
             position,
         };
         // Only a move places the pointer, and a terminal reports a click
-        // or a tick at a cell it never moved to, so one is moved to first.
-        if !matches!(action, PointerAction::Move { .. }) && *last != position {
-            inputs.write(PointerInput::new(
+        // or a tick at a cell it never moved to.
+        if position != *last {
+            let delta = position - *last;
+            *last = position;
+            let moved = PointerInput::new(
                 PointerId::Mouse,
                 location.clone(),
-                PointerAction::Move {
-                    delta: position - *last,
-                },
-            ));
+                PointerAction::Move { delta },
+            );
+            inputs.write(moved);
         }
-        *last = position;
-        inputs.write(PointerInput::new(PointerId::Mouse, location, action));
+        if let Some(action) = pointer_action(message.kind) {
+            inputs.write(PointerInput::new(PointerId::Mouse, location, action));
+        }
     }
 }
 
@@ -81,12 +78,7 @@ fn pointer_position(at: Position, cell: Vec2) -> Vec2 {
     Vec2::new(f32::from(at.x) + CELL_CENTER, f32::from(at.y) + CELL_CENTER) * cell
 }
 
-fn pointer_cell(position: Vec2, cell: Vec2) -> Position {
-    let at = position / cell;
-    Position::new(at.x as u16, at.y as u16)
-}
-
-fn pointer_action(kind: MouseKind, delta: Vec2) -> Option<PointerAction> {
+fn pointer_action(kind: MouseKind) -> Option<PointerAction> {
     let scroll = |x: f32, y: f32| PointerAction::Scroll {
         unit: MouseScrollUnit::Pixel,
         x,
@@ -96,7 +88,6 @@ fn pointer_action(kind: MouseKind, delta: Vec2) -> Option<PointerAction> {
     Some(match kind {
         MouseKind::Down(button) => PointerAction::Press(pointer_button(button)?),
         MouseKind::Up(button) => PointerAction::Release(pointer_button(button)?),
-        MouseKind::Moved | MouseKind::Drag(_) => PointerAction::Move { delta },
         MouseKind::ScrollUp => scroll(0.0, TICK),
         MouseKind::ScrollDown => scroll(0.0, -TICK),
         MouseKind::ScrollLeft => scroll(TICK, 0.0),
@@ -115,30 +106,14 @@ const fn pointer_button(button: MouseButton) -> Option<PointerButton> {
     }
 }
 
+// The one pointer is the terminal's cursor, whose cell `plurimus_term`
+// already tracks from the same messages the feed read.
 pub(crate) fn gate_hits(
     mut hits: ResMut<Messages<PointerHits>>,
-    pointers: Query<(&PointerId, &PointerLocation)>,
-    cell: Res<CellSize>,
+    cursor: Res<CursorCell>,
     widgets: PointerTargets,
 ) {
-    if hits.is_empty() {
-        return;
+    if cursor.0.is_some_and(|cell| widgets.covers(cell)) {
+        hits.clear();
     }
-    let covered: Vec<PointerId> = pointers
-        .iter()
-        .filter(|(_, location)| {
-            location
-                .location()
-                .is_some_and(|location| widgets.covers(pointer_cell(location.position, cell.vec())))
-        })
-        .map(|(pointer, _)| *pointer)
-        .collect();
-    if covered.is_empty() {
-        return;
-    }
-    let kept: Vec<PointerHits> = hits
-        .drain()
-        .filter(|hit| !covered.contains(&hit.pointer))
-        .collect();
-    hits.write_batch(kept);
 }

@@ -8,12 +8,20 @@
 
 use bevy_camera::visibility::{InheritedVisibility, Visibility};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{DetectChangesMut, Query};
+use bevy_ecs::prelude::{Changed, ChildOf, Children, DetectChangesMut, Or, Query};
 use bevy_ui::experimental::{UiChildren, UiRootNodes};
 
 type NodeQuery<'w, 's> = Query<'w, 's, (&'static Visibility, &'static mut InheritedVisibility)>;
 
-pub(crate) fn propagate_visibility(roots: UiRootNodes, children: UiChildren, mut nodes: NodeQuery) {
+pub(crate) fn propagate_visibility(
+    roots: UiRootNodes,
+    children: UiChildren,
+    mut nodes: NodeQuery,
+    changed: Query<(), Or<(Changed<Visibility>, Changed<ChildOf>, Changed<Children>)>>,
+) {
+    if changed.is_empty() {
+        return;
+    }
     for root in roots.iter() {
         propagate(root, true, &children, &mut nodes);
     }

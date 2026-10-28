@@ -48,7 +48,8 @@ pub use bevy_ui_widgets;
 pub use rect::{CellSize, ComputedNodeRect};
 
 use bevy_app::{
-    App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet, Startup,
+    App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PreUpdate, PropagateSet,
+    Startup,
 };
 use bevy_ecs::prelude::{
     DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
@@ -64,11 +65,7 @@ use bevy_ui::{
     ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiScale, UiStack, UiSystems,
     ui_layout_system,
 };
-use bevy_ui_widgets::popover::PopoverPlugin;
-use bevy_ui_widgets::{
-    ButtonPlugin, CheckboxPlugin, DialogPlugin, ListBoxPlugin, MenuPlugin, ModalDialogPlugin,
-    RadioGroupPlugin, ScrollAreaPlugin, ScrollbarPlugin, SliderPlugin, TabPlugin,
-};
+use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{
     RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
@@ -145,6 +142,10 @@ fn add_picking(app: &mut App) {
     app.world_mut()
         .resource_mut::<PickingSettings>()
         .is_window_picking_enabled = false;
+    // Both stacks write `Hovered`: `bevy_picking` clears it on every
+    // carrier it does not hover, which is every plurimus widget, so
+    // `plurimus_ui` writes last.
+    app.configure_sets(PreUpdate, PuiSystems::Hover.after(PickingSystems::Hover));
     app.add_systems(Startup, picking::spawn_pointer);
     app.add_systems(
         PreUpdate,
@@ -162,27 +163,14 @@ fn add_picking(app: &mut App) {
 
 fn add_upstream_widgets(app: &mut App) {
     app.init_resource::<MouseScrollPixelsPerLine>();
-    macro_rules! add {
-        ($($plugin:ident),* $(,)?) => {
-            $(if !app.is_plugin_added::<$plugin>() {
-                app.add_plugins($plugin);
-            })*
-        };
+    if !app.is_plugin_added::<ButtonPlugin>() {
+        app.add_plugins(
+            UiWidgetsPlugins
+                .build()
+                .disable::<TextInputPlugin>()
+                .disable::<PointerFocusPlugin>(),
+        );
     }
-    add!(
-        ButtonPlugin,
-        CheckboxPlugin,
-        RadioGroupPlugin,
-        SliderPlugin,
-        TabPlugin,
-        ListBoxPlugin,
-        MenuPlugin,
-        PopoverPlugin,
-        DialogPlugin,
-        ModalDialogPlugin,
-        ScrollAreaPlugin,
-        ScrollbarPlugin,
-    );
 }
 
 fn stand_in_for_omitted_plugins(app: &mut App) {

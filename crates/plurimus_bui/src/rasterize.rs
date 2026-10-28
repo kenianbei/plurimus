@@ -19,8 +19,8 @@ use unicode_width::UnicodeWidthStr;
 
 use plurimus_core::raster::linear_cell_color;
 
-use super::decorate::{dim_toward, sample_gradients};
-use super::extract::{ExtractedBuiNode, ExtractedBuiNodes, OutlineRing, TextRun};
+use super::decorate::{ResolvedGradient, RoundedCorners, dim_toward, sample_gradients};
+use super::extract::{BorderSides, ExtractedBuiNode, ExtractedBuiNodes, TextRun};
 use super::rect::CellBox;
 use super::text::{Seg, line_width, wrap_spans};
 
@@ -46,33 +46,36 @@ fn paint(node: &ExtractedBuiNode, buffer: &mut Buffer, cell: Vec2) {
         fill(buffer, bounds, background);
     }
     draw_gradient_background(node, buffer, bounds, cell);
-    BorderPainter { node, bounds, cell }.paint(buffer);
+    if let Some(sides) = &node.border {
+        BorderPainter {
+            rect: node.rect,
+            sides,
+            corners: node.decoration.corners,
+            gradients: &node.decoration.border_gradients,
+            bounds,
+            cell,
+        }
+        .paint(buffer);
+    }
     if let Some(ring) = &node.outline {
-        draw_outline(buffer, ring, clipped(ring.rect, buffer.area, node.clip));
+        let color = Some(ring.color);
+        BorderPainter {
+            rect: ring.rect,
+            sides: &BorderSides {
+                top: color,
+                right: color,
+                bottom: color,
+                left: color,
+            },
+            corners: RoundedCorners::default(),
+            gradients: &[],
+            bounds: clipped(ring.rect, buffer.area, node.clip),
+            cell,
+        }
+        .paint(buffer);
     }
     if let Some(text) = &node.text {
         draw_text(buffer, bounds, text);
-    }
-}
-
-fn draw_outline(buffer: &mut Buffer, ring: &OutlineRing, area: Rect) {
-    let (left, right) = (ring.rect.left, ring.rect.right - 1);
-    let (top, bottom) = (ring.rect.top, ring.rect.bottom - 1);
-    for position in area.positions() {
-        let (x, y) = (i32::from(position.x), i32::from(position.y));
-        let symbol = match (x == left, x == right, y == top, y == bottom) {
-            (true, _, true, _) => "┌",
-            (_, true, true, _) => "┐",
-            (true, _, _, true) => "└",
-            (_, true, _, true) => "┘",
-            (_, _, true, _) | (_, _, _, true) => "─",
-            (true, ..) | (_, true, ..) => "│",
-            _ => continue,
-        };
-        if let Some(cell) = buffer.cell_mut(position) {
-            cell.set_symbol(symbol);
-            cell.set_fg(ring.color);
-        }
     }
 }
 
@@ -143,18 +146,20 @@ fn cell_center(rect: CellBox, position: Position, cell: Vec2) -> Vec2 {
     ) * cell
 }
 
+/// Draws a ring of line glyphs along `rect`'s edges: a node's border, or
+/// its outline, which is a square border with no gradient.
 struct BorderPainter<'a> {
-    node: &'a ExtractedBuiNode,
+    rect: CellBox,
+    sides: &'a BorderSides,
+    corners: RoundedCorners,
+    gradients: &'a [ResolvedGradient],
     bounds: Rect,
     cell: Vec2,
 }
 
 impl BorderPainter<'_> {
     fn paint(&self, buffer: &mut Buffer) {
-        let Some(sides) = &self.node.border else {
-            return;
-        };
-        let rect = self.node.rect;
+        let (sides, rect) = (self.sides, self.rect);
         let (left, right) = (rect.left, rect.right - 1);
         let (top, bottom) = (rect.top, rect.bottom - 1);
         // A corner needs both of its sides; a lone side runs end to end.
@@ -181,7 +186,7 @@ impl BorderPainter<'_> {
     }
 
     fn symbol(&self, (at_left, at_right): (bool, bool), at_top: bool) -> &'static str {
-        let corners = &self.node.decoration.corners;
+        let corners = self.corners;
         let pick = |rounded: bool, round, square| if rounded { round } else { square };
         match (at_left, at_right, at_top) {
             (true, false, true) => pick(corners.top_left, "╭", "┌"),
@@ -209,13 +214,12 @@ impl BorderPainter<'_> {
     }
 
     fn cell_color(&self, (x, y): (u16, u16), side: Color) -> Color {
-        let gradients = &self.node.decoration.border_gradients;
-        if gradients.is_empty() {
+        if self.gradients.is_empty() {
             return side;
         }
         sample_gradients(
-            gradients,
-            cell_center(self.node.rect, Position::new(x, y), self.cell),
+            self.gradients,
+            cell_center(self.rect, Position::new(x, y), self.cell),
         )
         .map_or(side, linear_cell_color)
     }

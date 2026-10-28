@@ -2,11 +2,12 @@
 //! terminal shows it - reversed colours for focus, bold, strikethrough,
 //! `[x]`. It answers `Part` with sizes and looks, and supplies the one
 //! control the tree leaves to each target: the field, a plurimus
-//! `EditableText` placed over its node.
+//! `EditableText` placed over its node, which the Add button submits.
 
 use bevy_color::Color;
+use bevy_ecs::component::Mutable;
 use bevy_ecs::prelude::{
-    Add, Commands, DetectChangesMut, Entity, Has, On, Query, Res, ResMut, With,
+    Add, Commands, Component, DetectChangesMut, Entity, Has, Mut, On, Query, Res, ResMut, With,
 };
 use bevy_ui::widget::Text;
 use bevy_ui::{BackgroundColor, BorderColor, BorderRadius, Checked, Node, Pressed, UiRect, Val};
@@ -14,8 +15,8 @@ use plurimus::bui::ComputedNodeRect;
 use plurimus::bui::bevy_text::{FontStyle, FontWeight, Strikethrough, TextColor, TextFont};
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{ResolvedViewport, TerminalCamera, UiArea, local_area};
-use plurimus::ui::Hovered;
 use plurimus::ui::bevy_input_focus::InputFocus;
+use plurimus::ui::{Activate, Hovered};
 use plurimus::widgets::{EditableText, Submit, TextInput, editable_text};
 
 use crate::model::{Done, Part, Todos};
@@ -62,6 +63,9 @@ pub(crate) fn shape(
                 .insert((editable_text(""), UiArea::Fixed(Rect::ZERO)))
                 .observe(submit_field);
         }
+        Part::AddButton => {
+            entity.observe(add_from_field);
+        }
         Part::List => node.min_height = cells(1.0),
         Part::Check => {
             entity.insert(Text::new("[ ]"));
@@ -83,8 +87,23 @@ const fn is_interactive(part: Part) -> bool {
 }
 
 fn submit_field(submit: On<Submit>, mut todos: ResMut<Todos>, mut commands: Commands) {
-    todos.add(&submit.value);
-    commands.entity(submit.entity).insert(TextInput::new(""));
+    commit(submit.entity, &submit.value, &mut todos, &mut commands);
+}
+
+fn add_from_field(
+    _: On<Activate>,
+    fields: Query<(Entity, &TextInput), With<EditableText>>,
+    mut todos: ResMut<Todos>,
+    mut commands: Commands,
+) {
+    for (field, input) in &fields {
+        commit(field, input.value(), &mut todos, &mut commands);
+    }
+}
+
+fn commit(field: Entity, value: &str, todos: &mut Todos, commands: &mut Commands) {
+    todos.add(value);
+    commands.entity(field).insert(TextInput::new(""));
 }
 
 /// Keeps the field widget on its node, wherever layout puts it.
@@ -158,12 +177,21 @@ type Painted<'a> = (
     Has<Checked>,
     Has<Done>,
     Has<Strikethrough>,
-    Option<&'a mut Text>,
+    Drawn<'a>,
 );
 
-/// Maps behaviour state to looks, every frame, writing only what differs.
+/// What a look is written into, each absent until the first paint.
+type Drawn<'a> = (
+    Option<&'a mut Text>,
+    Option<&'a mut TextColor>,
+    Option<&'a mut BackgroundColor>,
+    Option<&'a mut TextFont>,
+);
+
+/// Maps behaviour state to looks, every frame, writing only what differs -
+/// a write of an equal value would still relayout the text it lands on.
 pub(crate) fn paint(mut nodes: Query<Painted>, focus: Res<InputFocus>, mut commands: Commands) {
-    for (entity, part, hovered, is_pressed, is_checked, is_done, is_struck, text) in &mut nodes {
+    for (entity, part, hovered, is_pressed, is_checked, is_done, is_struck, drawn) in &mut nodes {
         let state = State {
             is_hovered: hovered.is_some_and(|hovered| hovered.0),
             is_pressed,
@@ -174,6 +202,7 @@ pub(crate) fn paint(mut nodes: Query<Painted>, focus: Res<InputFocus>, mut comma
         let Some(look) = look(*part, state) else {
             continue;
         };
+        let (text, color, background, font) = drawn;
         if *part == Part::Check
             && let Some(mut text) = text
         {
@@ -182,20 +211,34 @@ pub(crate) fn paint(mut nodes: Query<Painted>, focus: Res<InputFocus>, mut comma
                 mark.clone_into(&mut text.0);
             }
         }
-        let mut entity = commands.entity(entity);
-        entity.insert((
-            TextColor(look.fg),
-            BackgroundColor(look.bg),
-            TextFont {
-                weight: look.weight,
-                style: look.style,
-                ..TextFont::default()
-            },
-        ));
+        write(entity, color, TextColor(look.fg), &mut commands);
+        write(entity, background, BackgroundColor(look.bg), &mut commands);
+        let font_look = TextFont {
+            weight: look.weight,
+            style: look.style,
+            ..TextFont::default()
+        };
+        write(entity, font, font_look, &mut commands);
         if look.is_struck && !is_struck {
-            entity.insert(Strikethrough);
+            commands.entity(entity).insert(Strikethrough);
         } else if !look.is_struck && is_struck {
-            entity.remove::<Strikethrough>();
+            commands.entity(entity).remove::<Strikethrough>();
+        }
+    }
+}
+
+fn write<T: Component<Mutability = Mutable> + PartialEq>(
+    entity: Entity,
+    current: Option<Mut<T>>,
+    value: T,
+    commands: &mut Commands,
+) {
+    match current {
+        Some(mut current) => {
+            current.set_if_neq(value);
+        }
+        None => {
+            commands.entity(entity).insert(value);
         }
     }
 }

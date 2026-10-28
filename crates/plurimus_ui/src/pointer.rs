@@ -47,24 +47,17 @@ pub struct PointerTargets<'w, 's> {
     targets: PointerTargetQuery<'w, 's>,
     wheel: WheelRouting<'w, 's>,
     modal: ModalGuard<'w, 's>,
-    open: Query<'w, 's, (), With<ModalOpen>>,
 }
 
 impl PointerTargets<'_, '_> {
-    /// The widget a press at `cell` would land on, if any.
-    #[must_use]
-    pub fn topmost(&self, cell: Position) -> Option<Entity> {
-        topmost_at(cell, &self.targets, |entity| {
-            self.modal.admits(cell, entity)
-        })
-    }
-
     /// Whether a pointer at `cell` is this crate's: a widget there takes
     /// presses or ticks, or an overlay is open, which a press anywhere
     /// dismisses.
     #[must_use]
     pub fn covers(&self, cell: Position) -> bool {
-        !self.open.is_empty() || self.topmost(cell).is_some() || self.wheel.covers(cell)
+        self.modal.is_open()
+            || topmost_at(cell, &self.targets, |_| true).is_some()
+            || self.wheel.covers(cell)
     }
 }
 

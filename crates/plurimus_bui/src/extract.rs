@@ -22,24 +22,17 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
 
-use super::decorate::{Decoration, ValBasis, resolve_gradients, resolve_shadows, rounded_corners};
+use super::decorate::{
+    Decoration, ValBasis, offset_and_inflate, resolve_gradients, resolve_shadows, rounded_corners,
+};
 use super::rect::{CellBox, CellSize, clip_cells, node_boxes};
 use super::text::ResolvedText;
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub(crate) struct ExtractedBuiNodes {
     pub(crate) nodes: Vec<ExtractedBuiNode>,
     /// The frame's [`CellSize`], for sampling pixel geometry at cell centers.
     pub(crate) cell: Vec2,
-}
-
-impl Default for ExtractedBuiNodes {
-    fn default() -> Self {
-        Self {
-            nodes: Vec::new(),
-            cell: CellSize::default().vec(),
-        }
-    }
 }
 
 pub(crate) struct ExtractedBuiNode {
@@ -143,7 +136,7 @@ fn convert(
         clip,
         background,
         border,
-        outline: outline_ring(world, entity, computed, rect, cell),
+        outline: outline_ring(world, entity, computed, frame),
         text: text_run(world, entity, content),
         decoration,
     })
@@ -153,24 +146,15 @@ fn outline_ring(
     world: &World,
     entity: Entity,
     computed: &ComputedNode,
-    rect: CellBox,
-    cell: Vec2,
+    frame: NodeFrame,
 ) -> Option<OutlineRing> {
     if computed.outline_width() <= 0.0 {
         return None;
     }
     let color = cell_color(world.get::<Outline>(entity)?.color)?;
-    let gap = Vec2::splat(computed.outline_offset()) / cell;
-    let (gap_x, gap_y) = (1 + gap.x.round() as i32, 1 + gap.y.round() as i32);
-    Some(OutlineRing {
-        rect: CellBox {
-            left: rect.left - gap_x,
-            top: rect.top - gap_y,
-            right: rect.right + gap_x,
-            bottom: rect.bottom + gap_y,
-        },
-        color,
-    })
+    let gap = Vec2::splat(computed.outline_offset()) / frame.cell + Vec2::ONE;
+    let rect = offset_and_inflate(frame.rect, Vec2::ZERO, gap)?;
+    Some(OutlineRing { rect, color })
 }
 
 fn solid_colors(
@@ -190,6 +174,7 @@ fn solid_colors(
     (background, border)
 }
 
+#[derive(Clone, Copy)]
 struct NodeFrame {
     rect: CellBox,
     viewport: Rect,

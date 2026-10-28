@@ -323,7 +323,7 @@ fn resolve_shadow(
     (color.alpha > f32::EPSILON).then_some(ResolvedShadow { rect, color })
 }
 
-fn offset_and_inflate(rect: CellBox, offset: Vec2, grow: Vec2) -> Option<CellBox> {
+pub(crate) fn offset_and_inflate(rect: CellBox, offset: Vec2, grow: Vec2) -> Option<CellBox> {
     let (grow_x, grow_y) = (grow.x.round() as i32, grow.y.round() as i32);
     let (dx, dy) = (offset.x.round() as i32, offset.y.round() as i32);
     let shadow = CellBox {

@@ -43,37 +43,20 @@ pub(crate) type Seg = (String, Style);
 /// its spans, or a decoration leaving either.
 #[derive(SystemParam)]
 pub(crate) struct TextDirt<'w, 's> {
-    roots: Query<
+    changed: Query<
         'w,
         's,
         Entity,
-        (
-            With<Text>,
-            Or<(
-                Changed<Text>,
-                Changed<TextLayout>,
-                Changed<TextFont>,
-                Changed<TextColor>,
-                Changed<Children>,
-                Added<Strikethrough>,
-                Added<Underline>,
-            )>,
-        ),
-    >,
-    spans: Query<
-        'w,
-        's,
-        Entity,
-        (
-            With<TextSpan>,
-            Or<(
-                Changed<TextSpan>,
-                Changed<TextFont>,
-                Changed<TextColor>,
-                Added<Strikethrough>,
-                Added<Underline>,
-            )>,
-        ),
+        Or<(
+            Changed<Text>,
+            Changed<TextSpan>,
+            Changed<TextLayout>,
+            Changed<TextFont>,
+            Changed<TextColor>,
+            Changed<Children>,
+            Added<Strikethrough>,
+            Added<Underline>,
+        )>,
     >,
     struck: RemovedComponents<'w, 's, Strikethrough>,
     underlined: RemovedComponents<'w, 's, Underline>,
@@ -88,21 +71,25 @@ impl TextDirt<'_, '_> {
         if self.cell.is_changed() {
             return self.is_root.iter().collect();
         }
-        let mut dirty: EntityHashSet = self.roots.iter().collect();
-        let spans: Vec<Entity> = self
-            .spans
+        let Self {
+            changed,
+            struck,
+            underlined,
+            parents,
+            is_root,
+            ..
+        } = self;
+        let root_of = |entity: Entity| {
+            std::iter::once(entity)
+                .chain(parents.iter_ancestors(entity))
+                .find(|&candidate| is_root.contains(candidate))
+        };
+        changed
             .iter()
-            .chain(self.struck.read())
-            .chain(self.underlined.read())
-            .collect();
-        dirty.extend(spans.into_iter().filter_map(|span| self.root_of(span)));
-        dirty
-    }
-
-    fn root_of(&self, entity: Entity) -> Option<Entity> {
-        std::iter::once(entity)
-            .chain(self.parents.iter_ancestors(entity))
-            .find(|&candidate| self.is_root.contains(candidate))
+            .chain(struck.read())
+            .chain(underlined.read())
+            .filter_map(root_of)
+            .collect()
     }
 }
 
@@ -165,9 +152,10 @@ fn cell_style(font: &TextFont, color: Color, is_struck: bool, is_underlined: boo
     modifiers.set(Modifier::ITALIC, !matches!(font.style, FontStyle::Normal));
     modifiers.set(Modifier::CROSSED_OUT, is_struck);
     modifiers.set(Modifier::UNDERLINED, is_underlined);
-    modifiers.set(Modifier::HIDDEN, cell_color(color).is_none());
+    let fg = cell_color(color);
+    modifiers.set(Modifier::HIDDEN, fg.is_none());
     let style = Style::new().add_modifier(modifiers);
-    cell_color(color).map_or(style, |fg| style.fg(fg))
+    fg.map_or(style, |fg| style.fg(fg))
 }
 
 pub(crate) fn line_width(line: &[Seg]) -> usize {

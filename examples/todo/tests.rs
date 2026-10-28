@@ -113,6 +113,23 @@ fn typing_into_the_field_and_enter_adds_a_todo() {
 }
 
 #[test]
+fn the_add_button_submits_the_field() {
+    let mut app = headless_app();
+    let field = part(&mut app, Part::Field, None);
+    set_focus(&mut app, field);
+    for letter in "eggs".chars() {
+        press_key(&mut app, KeyCode::Char(letter));
+    }
+    let add = part(&mut app, Part::AddButton, None);
+    click_center(&mut app, add);
+    settle(&mut app);
+
+    assert_eq!(rows(&mut app), 4);
+    assert!(composed_frame(&app).contains("[ ] eggs"));
+    assert_eq!(app.world().get::<TextInput>(field).unwrap().value(), "");
+}
+
+#[test]
 fn space_toggles_and_enter_deletes_from_the_keyboard() {
     let mut app = headless_app();
     let check = part(&mut app, Part::Check, Some(3));

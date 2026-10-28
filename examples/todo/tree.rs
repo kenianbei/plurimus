@@ -63,15 +63,13 @@ pub(crate) fn spawn_tree(mut commands: Commands) {
         },
         ChildOf(input),
     ));
-    commands
-        .spawn((
-            Part::AddButton,
-            Button,
-            TabIndex(0),
-            Text::new("Add"),
-            ChildOf(input),
-        ))
-        .observe(|_: On<Activate>| {});
+    commands.spawn((
+        Part::AddButton,
+        Button,
+        TabIndex(0),
+        Text::new("Add"),
+        ChildOf(input),
+    ));
 
     commands.spawn((
         Part::List,

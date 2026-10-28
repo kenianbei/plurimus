@@ -136,8 +136,11 @@ fn an_open_plurimus_overlay_blocks_node_hits() {
     let mut app = app();
     let root = app.world_mut().spawn(full_screen()).id();
     button(&mut app, root);
-    app.world_mut()
-        .spawn((ModalOpen, UiArea::Fixed(Rect::new(12, 4, 8, 2))));
+    app.world_mut().spawn((
+        ModalOpen,
+        UiWidget::default(),
+        UiArea::Fixed(Rect::new(12, 4, 8, 2)),
+    ));
     settle(&mut app);
 
     click(&mut app, 2, 0);

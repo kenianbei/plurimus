@@ -69,7 +69,11 @@ impl ModalGuard<'_, '_> {
     /// Whether a pointer at `position` closes what is open: there is an
     /// open modal, and none of them covers the position.
     pub(crate) fn dismisses(&self, position: Position) -> bool {
-        !self.open.is_empty() && !self.confines(position)
+        self.is_open() && !self.confines(position)
+    }
+
+    pub(crate) fn is_open(&self) -> bool {
+        !self.open.is_empty()
     }
 
     pub(crate) fn affects_modality(&self, target: Entity) -> bool {
