@@ -2,7 +2,9 @@
 //! layout at one pixel per cell, rasterized by the terminal pipeline.
 //!
 //! Only `bevy_ui`'s layout and picking stacks run; its text, focus and asset
-//! systems stay out. Text is measured by grapheme width instead of fonts.
+//! systems stay out. Text is measured by grapheme width instead of fonts, and
+//! `Visibility` is propagated here, since `bevy_camera`'s propagation is not
+//! installed.
 //!
 //! Computed nodes rasterize beneath every widget and are picked by
 //! `bevy_picking` through `bevy_ui`'s own backend, fed from the terminal's
@@ -18,6 +20,7 @@ mod rasterize;
 mod rect;
 mod stack;
 mod text;
+mod visibility;
 
 pub use bevy_picking;
 pub use bevy_text;
@@ -27,7 +30,6 @@ pub use rect::ComputedNodeRect;
 use bevy_app::{
     App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet, Startup,
 };
-use bevy_camera::visibility::InheritedVisibility;
 use bevy_ecs::prelude::{DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res};
 use bevy_input::mouse::MouseScrollPixelsPerLine;
 use bevy_input_focus::pointer_focus::PointerFocusPlugin;
@@ -85,6 +87,7 @@ impl Plugin for BuiPlugin {
                 (camera::sync_bui_cameras, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
+                visibility::propagate_visibility.in_set(UiSystems::Propagate),
                 (text::resolve_bui_text, sync_em_sizes).in_set(UiSystems::Content),
                 ui_layout_system.in_set(UiSystems::Layout),
                 stack::compute_ui_stack.in_set(UiSystems::Stack),
@@ -164,11 +167,6 @@ fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiStack>();
     app.init_resource::<bevy_text::FontCx>();
     app.world_mut().get_resource_or_insert_with(|| CELL_REM);
-    // Tab navigation skips what is not inherited-visible, which bui never
-    // computes; the rasterizer ignores `Visibility` too.
-    app.register_required_components_with::<Node, InheritedVisibility>(|| {
-        InheritedVisibility::VISIBLE
-    });
 }
 
 // bevy_ui derives an em from a `TextFont` in a system this crate does not

@@ -20,7 +20,7 @@ use unicode_width::UnicodeWidthStr;
 use plurimus_core::raster::linear_cell_color;
 
 use super::decorate::{dim_toward, sample_gradients};
-use super::extract::{ExtractedBuiNode, ExtractedBuiNodes, TextRun};
+use super::extract::{ExtractedBuiNode, ExtractedBuiNodes, OutlineRing, TextRun};
 use super::rect::CellBox;
 use super::text::{Seg, line_width, wrap_spans};
 
@@ -47,8 +47,32 @@ fn paint(node: &ExtractedBuiNode, buffer: &mut Buffer) {
     }
     draw_gradient_background(node, buffer, bounds);
     BorderPainter { node, bounds }.paint(buffer);
+    if let Some(ring) = &node.outline {
+        draw_outline(buffer, ring, clipped(ring.rect, buffer.area, node.clip));
+    }
     if let Some(text) = &node.text {
         draw_text(buffer, bounds, text);
+    }
+}
+
+fn draw_outline(buffer: &mut Buffer, ring: &OutlineRing, area: Rect) {
+    let (left, right) = (ring.rect.left, ring.rect.right - 1);
+    let (top, bottom) = (ring.rect.top, ring.rect.bottom - 1);
+    for position in area.positions() {
+        let (x, y) = (i32::from(position.x), i32::from(position.y));
+        let symbol = match (x == left, x == right, y == top, y == bottom) {
+            (true, _, true, _) => "┌",
+            (_, true, true, _) => "┐",
+            (true, _, _, true) => "└",
+            (_, true, _, true) => "┘",
+            (_, _, true, _) | (_, _, _, true) => "─",
+            (true, ..) | (_, true, ..) => "│",
+            _ => continue,
+        };
+        if let Some(cell) = buffer.cell_mut(position) {
+            cell.set_symbol(symbol);
+            cell.set_fg(ring.color);
+        }
     }
 }
 
@@ -126,18 +150,22 @@ impl BorderPainter<'_> {
         let rect = self.node.rect;
         let (left, right) = (rect.left, rect.right - 1);
         let (top, bottom) = (rect.top, rect.bottom - 1);
+        // A corner needs both of its sides; a lone side runs end to end.
         for x in (self.bounds.left()..self.bounds.right()).map(i32::from) {
-            let at_edge = (x == left, x == right);
-            self.put(buffer, (x, top), self.symbol(at_edge, true), sides.top);
+            let at_corner = (
+                x == left && sides.left.is_some(),
+                x == right && sides.right.is_some(),
+            );
+            self.put(buffer, (x, top), self.symbol(at_corner, true), sides.top);
             self.put(
                 buffer,
                 (x, bottom),
-                self.symbol(at_edge, false),
+                self.symbol(at_corner, false),
                 sides.bottom,
             );
         }
         for y in (self.bounds.top()..self.bounds.bottom()).map(i32::from) {
-            if y == top || y == bottom {
+            if (y == top && sides.top.is_some()) || (y == bottom && sides.bottom.is_some()) {
                 continue;
             }
             self.put(buffer, (left, y), "│", sides.left);

@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 
+use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ResMut, Resource};
@@ -15,7 +16,7 @@ use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
     BackgroundColor, BackgroundGradient, BorderColor, BorderGradient, BoxShadow, CalculatedClip,
-    ComputedNode, ComputedUiTargetCamera, Gradient, UiGlobalTransform, UiStack,
+    ComputedNode, ComputedUiTargetCamera, Gradient, Outline, UiGlobalTransform, UiStack,
 };
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
@@ -34,6 +35,7 @@ pub(crate) struct ExtractedBuiNode {
     pub(crate) clip: Option<Rect>,
     pub(crate) background: Option<CellColor>,
     pub(crate) border: Option<BorderSides>,
+    pub(crate) outline: Option<OutlineRing>,
     pub(crate) text: Option<TextRun>,
     pub(crate) decoration: Decoration,
 }
@@ -43,6 +45,13 @@ pub(crate) struct BorderSides {
     pub(crate) right: Option<CellColor>,
     pub(crate) bottom: Option<CellColor>,
     pub(crate) left: Option<CellColor>,
+}
+
+/// One cell of border glyphs around the node, where `Outline` draws a ring
+/// of any width outside the border box.
+pub(crate) struct OutlineRing {
+    pub(crate) rect: CellBox,
+    pub(crate) color: CellColor,
 }
 
 pub(crate) struct TextRun {
@@ -77,6 +86,12 @@ fn convert(
     entity: Entity,
     viewports: &HashMap<Entity, Rect>,
 ) -> Option<ExtractedBuiNode> {
+    if !world
+        .get::<InheritedVisibility>(entity)
+        .is_some_and(|visibility| visibility.get())
+    {
+        return None;
+    }
     let computed = world.get::<ComputedNode>(entity)?;
     let camera = world.get::<ComputedUiTargetCamera>(entity)?.get()?;
     let viewport = *viewports.get(&camera)?;
@@ -108,8 +123,31 @@ fn convert(
         clip,
         background,
         border,
+        outline: outline_ring(world, entity, computed, rect),
         text: text_run(world, entity, content),
         decoration,
+    })
+}
+
+fn outline_ring(
+    world: &World,
+    entity: Entity,
+    computed: &ComputedNode,
+    rect: CellBox,
+) -> Option<OutlineRing> {
+    if computed.outline_width() <= 0.0 {
+        return None;
+    }
+    let color = cell_color(world.get::<Outline>(entity)?.color)?;
+    let gap = 1 + computed.outline_offset().round() as i32;
+    Some(OutlineRing {
+        rect: CellBox {
+            left: rect.left - gap,
+            top: rect.top - gap,
+            right: rect.right + gap,
+            bottom: rect.bottom + gap,
+        },
+        color,
     })
 }
 
