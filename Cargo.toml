@@ -198,6 +198,11 @@ required-features = ["widgets", "bevy-ui"]
 test = true
 
 [[example]]
+name = "todo"
+required-features = ["widgets", "bevy-ui"]
+test = true
+
+[[example]]
 name = "table"
 required-features = ["widgets"]
 test = true

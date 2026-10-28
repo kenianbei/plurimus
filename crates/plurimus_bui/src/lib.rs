@@ -12,6 +12,25 @@
 //! mouse, so the upstream `bevy_ui_widgets` run on them unchanged - all but
 //! `TextInputPlugin`, which edits through `bevy_text` and so has nothing to
 //! draw with here.
+//!
+//! # What a cell cannot show
+//!
+//! Text is one row tall whatever its `font_size`, and `TextFont::font`,
+//! `TextShadow`, `UnderlineColor` and `StrikethroughColor` are ignored; a
+//! weight from semibold up is bold, any non-normal style italic. A border or
+//! outline thinner than a cell paints in the node's outer cell, over
+//! content. Colour reaches a cell as RGB and nothing else, so a skin names
+//! the colours it wants rather than a terminal palette entry.
+//!
+//! # What stays per target
+//!
+//! A tree shared with a windowed build of the same app keeps these to each
+//! target: a text field, since upstream's `TextInput` needs a font engine -
+//! the terminal places a `plurimus_widgets::EditableText` at the field's
+//! node through `UiArea`; arrow-key navigation, which `plurimus_ui` builds
+//! from widget areas here and nothing builds for nodes on a window; focus
+//! restored when an upstream dialog closes, which neither target does; and
+//! hover on a node beneath a plurimus widget, which the pick gate withholds.
 
 mod camera;
 mod decorate;
