@@ -93,12 +93,12 @@ fn text_nodes_measure_by_grapheme_width() {
     let mut app = app(30, 8);
     let auto = app
         .world_mut()
-        .spawn(plurimus_bui::Text::from("hello plurimus"))
+        .spawn(bevy_ui::widget::Text::from("hello plurimus"))
         .id();
     let wrapped = app
         .world_mut()
         .spawn((
-            plurimus_bui::Text::from("hello wide world"),
+            bevy_ui::widget::Text::from("hello wide world"),
             Node {
                 width: Val::Px(10.0),
                 ..Node::default()

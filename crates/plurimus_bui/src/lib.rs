@@ -17,8 +17,8 @@ mod rect;
 mod scroll;
 mod text;
 
+pub use bevy_text;
 pub use rect::ComputedNodeRect;
-pub use text::{Text, TextSpan, TextStyle};
 
 use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet};
 use bevy_camera::visibility::InheritedVisibility;
@@ -69,7 +69,7 @@ impl Plugin for BuiPlugin {
                 (camera::sync_bui_cameras, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
-                (text::measure_bui_text, sync_em_sizes).in_set(UiSystems::Content),
+                (text::resolve_bui_text, sync_em_sizes).in_set(UiSystems::Content),
                 ui_layout_system.in_set(UiSystems::Layout),
                 (update_clipping_system, rect::compute_node_rects).in_set(UiSystems::PostLayout),
             ),
@@ -109,8 +109,8 @@ fn stand_in_for_omitted_plugins(app: &mut App) {
     });
 }
 
-// bevy_ui derives an em only from a `TextFont`, which bridged text never has,
-// so every node's em is the rem.
+// bevy_ui derives an em from a `TextFont` in a system this crate does not
+// run, so every node's em is the rem.
 fn sync_em_sizes(rem: Res<RemSize>, mut nodes: Query<(&mut EmSize, Ref<Node>)>) {
     let (em_size, is_rem_changed) = (EmSize(rem.0), rem.is_changed());
     for (mut em, node) in &mut nodes {

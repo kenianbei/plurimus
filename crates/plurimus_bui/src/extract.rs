@@ -25,7 +25,7 @@ use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
 
 use super::decorate::{Decoration, ValBasis, resolve_gradients, resolve_shadows, rounded_corners};
 use super::rect::{CellBox, clip_cells, node_boxes};
-use super::text::{Seg, Text, TextStyle, resolved_spans};
+use super::text::ResolvedText;
 
 #[derive(Resource, Default)]
 pub(crate) struct ExtractedBuiNodes(pub(crate) Vec<ExtractedBuiNode>);
@@ -49,7 +49,7 @@ pub(crate) struct BorderSides {
 }
 
 pub(crate) struct TextRun {
-    pub(crate) spans: Vec<Seg>,
+    pub(crate) text: ResolvedText,
     pub(crate) content: CellBox,
 }
 
@@ -198,7 +198,7 @@ fn node_decoration(
     }
 }
 
-fn cell_color(color: bevy_color::Color) -> Option<CellColor> {
+pub(crate) fn cell_color(color: bevy_color::Color) -> Option<CellColor> {
     let srgba = color.to_srgba();
     if srgba.alpha <= f32::EPSILON {
         return None;
@@ -238,13 +238,12 @@ fn border_sides(
 }
 
 fn text_run(world: &World, entity: Entity, content: CellBox) -> Option<TextRun> {
-    let text = world.get::<Text>(entity)?;
+    let text = world.get::<ResolvedText>(entity)?;
     if content.is_empty() {
         return None;
     }
-    let style = world.get::<TextStyle>(entity).copied().unwrap_or_default();
     Some(TextRun {
-        spans: resolved_spans(text, style.0),
+        text: text.clone(),
         content,
     })
 }

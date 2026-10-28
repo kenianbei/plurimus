@@ -4,8 +4,9 @@
 
 use bevy_color::Color;
 use bevy_ecs::prelude::{Changed, Entity, Has, Or, Query, Res, With};
+use bevy_ui::widget::Text;
 use bevy_ui::{BackgroundColor, BorderColor};
-use plurimus::bui::{ComputedNodeRect, Text};
+use plurimus::bui::ComputedNodeRect;
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{Checked, Hovered, InteractionDisabled, Pressed, UiLabel};
 use plurimus::widgets::{Button, Checkbox, RadioButton, SliderRange, SliderValue};
@@ -90,9 +91,8 @@ pub(super) fn sync_toggle_texts(
             (false, false) => "( )",
         };
         let rendered = format!("{mark} {}", label.0);
-        let current = text.0.first().map(|span| span.content.as_str());
-        if current != Some(rendered.as_str()) {
-            *text = Text::from(rendered);
+        if text.0 != rendered {
+            text.0 = rendered;
         }
     }
 }

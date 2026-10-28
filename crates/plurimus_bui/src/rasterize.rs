@@ -9,9 +9,10 @@
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::{Query, Res};
 use bevy_math::Vec2;
+use bevy_text::Justify;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
-use plurimus_core::ratatui_core::style::Color;
+use plurimus_core::ratatui_core::style::{Color, Modifier};
 use plurimus_core::{CameraBuffer, SourceCamera, camera_buffer_mut};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -21,7 +22,7 @@ use plurimus_core::raster::linear_cell_color;
 use super::decorate::{dim_toward, sample_gradients};
 use super::extract::{ExtractedBuiNode, ExtractedBuiNodes, TextRun};
 use super::rect::CellBox;
-use super::text::{Seg, wrap_spans};
+use super::text::{Seg, line_width, wrap_spans};
 
 pub(crate) fn rasterize_bui(
     nodes: Res<ExtractedBuiNodes>,
@@ -188,10 +189,20 @@ fn draw_text(buffer: &mut Buffer, bounds: Rect, text: &TextRun) {
     if visible.is_empty() {
         return;
     }
-    let lines = wrap_spans(&text.spans, Some((content.right - content.left) as usize));
+    let width = (content.right - content.left) as usize;
+    let limit = text.text.is_wrapping.then_some(width);
+    let lines = wrap_spans(&text.text.spans, limit);
     let hidden_rows = (i32::from(visible.top()) - content.top) as usize;
     for (y, line) in (visible.top()..visible.bottom()).zip(lines.iter().skip(hidden_rows)) {
-        draw_line(buffer, line, content.left, y, visible);
+        let slack = width.saturating_sub(line_width(line));
+        // Text is left-to-right here, so start is left and justified text
+        // has no inter-word spacing to add.
+        let indent = match text.text.justify {
+            Justify::Left | Justify::Start | Justify::Justified => 0,
+            Justify::Center => slack / 2,
+            Justify::Right | Justify::End => slack,
+        };
+        draw_line(buffer, line, content.left + indent as i32, y, visible);
     }
 }
 
@@ -209,7 +220,7 @@ fn draw_line(buffer: &mut Buffer, line: &[Seg], left: i32, y: u16, visible: Rect
             if x >= visible.right() {
                 return;
             }
-            if x >= visible.left() {
+            if x >= visible.left() && !style.add_modifier.contains(Modifier::HIDDEN) {
                 buffer.set_stringn(x, y, cluster, usize::from(visible.right() - x), *style);
             }
         }
