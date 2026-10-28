@@ -18,7 +18,7 @@ use plurimus_term::{MouseButton, MouseKind, MouseMessage, MultiClickWindow};
 use crate::click::ClickRun;
 use crate::interaction::{
     AreaTargetQuery, Click, ComputedDisabled, Hovered, PointerCancel, PointerDrag, PointerPress,
-    PointerRelease, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
+    PointerRelease, PressCount, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
 };
 use crate::modal::{ModalGuard, ModalOpen};
 use crate::scroll::{WheelRouting, route_tick};
@@ -28,7 +28,8 @@ use crate::scroll::{WheelRouting, route_tick};
 type PointerTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<Hovered>, Without<PressPassThrough>)>;
 
-type PressedQuery<'w, 's> = Query<'w, 's, (Entity, &'static Pressed, Has<ComputedDisabled>)>;
+type PressedQuery<'w, 's> =
+    Query<'w, 's, (Entity, Option<&'static PressCount>, Has<ComputedDisabled>), With<Pressed>>;
 
 /// What a press's focus walk reads at each step up: whether the entity can
 /// take focus, refuses a press's focus, or roots an open overlay.
@@ -161,7 +162,7 @@ fn drag_pressed(
 }
 
 fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut Commands) {
-    commands.entity(target).insert(Pressed(count));
+    commands.entity(target).insert((Pressed, PressCount(count)));
     if let Some(focusable) = press_focus_of(target, routing) {
         routing.focus.set(focusable, FocusCause::Pressed);
     }
@@ -192,7 +193,7 @@ fn gestures<'a>(
 ) -> impl Iterator<Item = (Entity, u8, bool)> + 'a {
     let held = pressed
         .iter()
-        .map(|(entity, pressed, disabled)| (entity, pressed.0, disabled));
+        .map(|(entity, count, disabled)| (entity, count.copied().unwrap_or_default().0, disabled));
     // Run-pressed entities cannot be disabled: an absorbed press never
     // reaches `run_pressed`, and nothing disables them mid-run.
     let fresh = run_pressed
@@ -228,7 +229,7 @@ fn release_all(
             });
             menu_clicked |= routing.modal.affects_modality(entity);
         }
-        commands.entity(entity).remove::<Pressed>();
+        commands.entity(entity).remove::<(Pressed, PressCount)>();
     }
     menu_clicked
 }
@@ -244,7 +245,7 @@ fn cancel_all(
         if !disabled {
             commands.trigger(PointerCancel { entity });
         }
-        commands.entity(entity).remove::<Pressed>();
+        commands.entity(entity).remove::<(Pressed, PressCount)>();
     }
     routing.run.reset();
 }

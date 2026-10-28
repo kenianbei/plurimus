@@ -37,11 +37,11 @@ pub use tui_scrollview;
 pub use bevy_input::keyboard::Key;
 pub use cursor::WidgetCursor;
 pub use focus::FocusWithin;
-pub use interaction::ValueChange;
+pub use interaction::{Activate, ValueChange};
 pub use interaction::{
     Checked, Click, ComputedDisabled, ComputedWidgetArea, Hovered, InteractionDisabled,
-    PointerCancel, PointerDrag, PointerPress, PointerRelease, PressFocusDisabled, PressPassThrough,
-    Pressed,
+    PointerCancel, PointerDrag, PointerPress, PointerRelease, PressCount, PressFocusDisabled,
+    PressPassThrough, Pressed,
 };
 pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};

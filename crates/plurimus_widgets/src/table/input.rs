@@ -66,7 +66,11 @@ pub(crate) fn table_key(
             input.propagate(false);
             if !input.input.repeat {
                 let value = position(*selection, *active, *column);
-                commands.trigger(ValueChange::new(table, value, true));
+                commands.trigger(ValueChange {
+                    source: table,
+                    value,
+                    is_final: true,
+                });
             }
             return;
         }
@@ -231,7 +235,11 @@ pub(crate) fn table_click(
         column.set_if_neq(ActiveColumn(Some(hit_column)));
     }
     let value = position(*selection, *active, *column);
-    commands.trigger(ValueChange::new(table, value, true));
+    commands.trigger(ValueChange {
+        source: table,
+        value,
+        is_final: true,
+    });
 }
 
 fn position(

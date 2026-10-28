@@ -360,7 +360,11 @@ pub fn apply_offset(
     commands: &mut Commands,
 ) {
     if offset.set_if_neq(ScrollOffset(position)) {
-        commands.trigger(ValueChange::new(entity, position, true));
+        commands.trigger(ValueChange {
+            source: entity,
+            value: position,
+            is_final: true,
+        });
     }
 }
 

@@ -69,7 +69,11 @@ pub(crate) fn tab_bar_key(
     };
     if let Some(item) = target.and_then(|index| tabs.live(children).nth(index)) {
         input.propagate(false);
-        commands.trigger(ValueChange::new(bar, item, true));
+        commands.trigger(ValueChange {
+            source: bar,
+            value: item,
+            is_final: true,
+        });
     }
 }
 
@@ -82,6 +86,10 @@ pub(crate) fn tab_item_click(click: On<Click>, tabs: TabAccess, mut commands: Co
         return;
     };
     if tabs.bars.contains(bar) {
-        commands.trigger(ValueChange::new(bar, item, true));
+        commands.trigger(ValueChange {
+            source: bar,
+            value: item,
+            is_final: true,
+        });
     }
 }

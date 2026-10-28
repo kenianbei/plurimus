@@ -181,7 +181,11 @@ pub(crate) fn listbox_key(
             // submit above the list.
             input.propagate(false);
             if !input.input.repeat {
-                commands.trigger(ValueChange::new(listbox, item, true));
+                commands.trigger(ValueChange {
+                    source: listbox,
+                    value: item,
+                    is_final: true,
+                });
             }
         }
         ListBoxAction::Copy => {}
@@ -371,7 +375,11 @@ pub(crate) fn listbox_click(
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
-    commands.trigger(ValueChange::new(listbox, row, true));
+    commands.trigger(ValueChange {
+        source: listbox,
+        value: row,
+        is_final: true,
+    });
 }
 
 /// The rows a list's geometry is measured from: every [`ListItem`] child,

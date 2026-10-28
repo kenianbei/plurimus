@@ -189,7 +189,11 @@ pub(crate) fn slider_cancel(
     mut commands: Commands,
 ) {
     if let Ok((_, value, _)) = sliders.get(event.entity) {
-        commands.trigger(ValueChange::new(event.entity, value.0, true));
+        commands.trigger(ValueChange {
+            source: event.entity,
+            value: value.0,
+            is_final: true,
+        });
     }
 }
 
@@ -204,7 +208,11 @@ fn seek(
     };
     let target = track_value(area.0, *range, x);
     if is_final || (target - value.0).abs() > f32::EPSILON {
-        commands.trigger(ValueChange::new(entity, target, is_final));
+        commands.trigger(ValueChange {
+            source: entity,
+            value: target,
+            is_final,
+        });
     }
 }
 
@@ -232,7 +240,11 @@ pub(crate) fn slider_key(
         return;
     }
     input.propagate(false);
-    commands.trigger(ValueChange::new(input.focused_entity, target, true));
+    commands.trigger(ValueChange {
+        source: input.focused_entity,
+        value: target,
+        is_final: true,
+    });
 }
 
 fn track_value(area: Rect, range: SliderRange, x: u16) -> f32 {

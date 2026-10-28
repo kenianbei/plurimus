@@ -12,7 +12,7 @@
 //! terminals have no timely release events.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{ChildOf, Commands, Component, EntityEvent, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{ChildOf, Commands, Component, Has, On, Query, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
@@ -22,14 +22,8 @@ use plurimus_term::bevy_compat::HeldModifiers;
 use crate::button::Button;
 use crate::checkbox::Checkbox;
 use crate::radio::{RadioButton, RadioGroup};
+pub use plurimus_ui::Activate;
 use plurimus_ui::{Checked, Click, ComputedDisabled, KeyBinding, ValueChange};
-
-/// The widget was activated (a click, or a key in [`ActivateKeys`]).
-#[derive(EntityEvent, Debug, Clone, Copy)]
-pub struct Activate {
-    /// The activated widget.
-    pub entity: Entity,
-}
 
 /// The keys that activate a [`Button`], [`Checkbox`] or [`RadioButton`]
 /// holding focus, defaulting to `Enter` and space.
@@ -100,13 +94,21 @@ fn activate_widget(entity: Entity, targets: &ActivationTargets, commands: &mut C
         return true;
     }
     if let Ok(checked) = targets.checkboxes.get(entity) {
-        commands.trigger(ValueChange::new(entity, !checked, true));
+        commands.trigger(ValueChange {
+            source: entity,
+            value: !checked,
+            is_final: true,
+        });
         return true;
     }
     if targets.radios.contains(entity)
         && let Some(group) = radio_group_of(entity, targets)
     {
-        commands.trigger(ValueChange::new(group, entity, true));
+        commands.trigger(ValueChange {
+            source: group,
+            value: entity,
+            is_final: true,
+        });
         return true;
     }
     false

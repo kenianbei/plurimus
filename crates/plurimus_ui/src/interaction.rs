@@ -17,33 +17,31 @@ use plurimus_core::{
 };
 use plurimus_term::{CursorCell, KeyModifiers};
 
-/// Whether the cursor is over the widget. Opt-in: spawn it on widgets that
-/// should react to the pointer.
-#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Hovered(pub bool);
+pub use bevy_picking::hover::Hovered;
+pub use bevy_ui::{Checked, InteractionDisabled, Pressed};
+pub use bevy_ui_widgets::{Activate, ValueChange};
 
-/// Present while the pointer is pressed on the widget, carrying the click
-/// count of the press that set it - see [`PointerPress::count`].
+/// The click count of the press holding [`Pressed`] - see
+/// [`PointerPress::count`]. Inserted and removed beside it by the router.
 ///
-/// The count lives here because a gesture outlives the message that started
-/// it: the [`Click`] a release completes reports the same number the press
-/// did, and a [`PointerDrag`] observer reads it off the entity, a drag
-/// through the second press of a run being a different gesture from a drag
-/// through the first.
+/// The count lives on the entity because a gesture outlives the message
+/// that started it: the [`Click`] a release completes reports the same
+/// number the press did, and a [`PointerDrag`] observer reads it off the
+/// entity, a drag through the second press of a run being a different
+/// gesture from a drag through the first. A `Pressed` without one is a lone
+/// press, which is what a gesture something other than this router started
+/// counts as.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Pressed(pub u8);
+pub struct PressCount(pub u8);
 
-impl Default for Pressed {
-    /// A lone press: what a gesture something other than this router started
-    /// counts as.
+impl Default for PressCount {
     fn default() -> Self {
         Self(1)
     }
 }
 
-/// Disables all interaction with the widget and everything beneath it
-/// through `ChildOf`. What is disabled by an ancestor carries
-/// [`ComputedDisabled`], which is what every input path reads.
+/// Present on every entity disabled by its own [`InteractionDisabled`] or
+/// an ancestor's, through `ChildOf`.
 ///
 /// A disabled widget is inert, not invisible: it still wins press
 /// arbitration and absorbs the press - no event, no focus movement, and
@@ -51,11 +49,6 @@ impl Default for Pressed {
 /// click everywhere else. [`PressPassThrough`] is the opt-out. Wheel ticks
 /// are the exception: a disabled widget consumes none, so they fall
 /// through, the same as an axis it cannot scroll.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct InteractionDisabled;
-
-/// Present on every entity disabled by its own [`InteractionDisabled`] or
-/// an ancestor's.
 ///
 /// Resolved in [`UiSystems::Areas`](crate::UiSystems::Areas), before focus
 /// dispatch and the pointer router read it, so what is disabled later in a
@@ -105,10 +98,6 @@ pub struct PressPassThrough;
 /// [`ModalOpen`](crate::ModalOpen) root, whose opener lies outside it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressFocusDisabled;
-
-/// Toggle state for checkboxes and radio buttons.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct Checked;
 
 /// Screen-space rect the widget occupies, resolved every frame.
 ///
@@ -316,13 +305,17 @@ pub(crate) fn compute_widget_areas(
     }
 }
 
+// `Hovered` is immutable, so a change is an insert.
 pub(crate) fn hover_widgets(
     cursor: Res<CursorCell>,
-    mut widgets: Query<(&ComputedWidgetArea, &mut Hovered)>,
+    widgets: Query<(Entity, &ComputedWidgetArea, &Hovered)>,
+    mut commands: Commands,
 ) {
-    for (area, mut hovered) in &mut widgets {
+    for (entity, area, hovered) in &widgets {
         let over = cursor.0.is_some_and(|position| area.0.contains(position));
-        hovered.set_if_neq(Hovered(over));
+        if hovered.0 != over {
+            commands.entity(entity).insert(Hovered(over));
+        }
     }
 }
 
@@ -351,33 +344,4 @@ pub(crate) fn topmost_at<F: QueryFilter>(
         .filter(|(entity, area, _)| area.0.contains(position) && accepts(*entity))
         .max_by_key(|(entity, area, order)| z_order_key(*entity, *order, area.0))
         .map(|(entity, ..)| entity)
-}
-
-/// A widget's value changed. `T` is the value type: `bool` for toggles,
-/// `f32` for sliders, [`Entity`] for selections, `String` for text,
-/// `Position` for scroll offsets.
-#[derive(EntityEvent, Debug, Clone)]
-#[non_exhaustive]
-pub struct ValueChange<T: Send + Sync + 'static> {
-    /// The widget whose value changed.
-    #[event_target]
-    pub source: Entity,
-    /// The new value.
-    pub value: T,
-    /// Whether this ends an interaction (a released drag, Enter) rather
-    /// than an intermediate step of one.
-    pub is_final: bool,
-}
-
-impl<T: Send + Sync + 'static> ValueChange<T> {
-    /// A change of `source` to `value`, `is_final` when it ends an
-    /// interaction rather than stepping through one.
-    #[must_use]
-    pub const fn new(source: Entity, value: T, is_final: bool) -> Self {
-        Self {
-            source,
-            value,
-            is_final,
-        }
-    }
 }
