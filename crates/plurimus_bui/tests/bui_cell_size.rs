@@ -4,13 +4,18 @@ use bevy_app::App;
 use bevy_color::Color;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_math::Vec2;
 use bevy_ui::widget::Text;
-use bevy_ui::{AlignItems, BackgroundColor, BorderColor, FlexDirection, Node, UiRect, Val};
-use plurimus_bui::bevy_ui_widgets::Button;
+use bevy_ui::{
+    AlignItems, BackgroundColor, BorderColor, FlexDirection, Node, Overflow, ScrollPosition,
+    UiRect, Val,
+};
+use plurimus_bui::bevy_ui_widgets::{Button, ScrollArea};
 use plurimus_bui::{BuiPlugin, CellSize, ComputedNodeRect};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_test::{click, composed_frame};
+use plurimus_term::MouseKind;
+use plurimus_test::{click, composed_frame, send_mouse};
 use plurimus_ui::Activate;
 
 const CELL: CellSize = CellSize { x: 8.0, y: 16.0 };
@@ -140,4 +145,40 @@ fn a_click_lands_on_the_node_whose_pixels_cover_the_cell() {
     assert_eq!(app.world().resource::<Activations>().0, 1);
     click(&mut app, 5, 0);
     assert_eq!(app.world().resource::<Activations>().0, 1, "the spacer");
+}
+
+#[test]
+fn a_tick_scrolls_one_row_of_pixels() {
+    let mut app = app();
+    let list = app
+        .world_mut()
+        .spawn((
+            Node {
+                width: Val::Px(160.0),
+                height: Val::Px(32.0),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::scroll_y(),
+                ..Node::default()
+            },
+            ScrollArea,
+        ))
+        .id();
+    for _ in 0..5 {
+        app.world_mut().spawn((
+            Node {
+                height: Val::Px(16.0),
+                flex_shrink: 0.0,
+                ..Node::default()
+            },
+            ChildOf(list),
+        ));
+    }
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(
+        app.world().get::<ScrollPosition>(list).unwrap().0,
+        Vec2::new(0.0, 16.0)
+    );
 }

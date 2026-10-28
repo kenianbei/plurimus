@@ -68,7 +68,7 @@ pub(crate) fn feed_pointer(
             );
             inputs.write(moved);
         }
-        if let Some(action) = pointer_action(message.kind) {
+        if let Some(action) = pointer_action(message.kind, cell.vec()) {
             inputs.write(PointerInput::new(PointerId::Mouse, location, action));
         }
     }
@@ -78,11 +78,11 @@ fn pointer_position(at: Position, cell: Vec2) -> Vec2 {
     Vec2::new(f32::from(at.x) + CELL_CENTER, f32::from(at.y) + CELL_CENTER) * cell
 }
 
-fn pointer_action(kind: MouseKind) -> Option<PointerAction> {
+fn pointer_action(kind: MouseKind, cell: Vec2) -> Option<PointerAction> {
     let scroll = |x: f32, y: f32| PointerAction::Scroll {
         unit: MouseScrollUnit::Pixel,
-        x,
-        y,
+        x: x * cell.x,
+        y: y * cell.y,
         phase: TouchPhase::Moved,
     };
     Some(match kind {
