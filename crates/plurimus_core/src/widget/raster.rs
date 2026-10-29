@@ -7,9 +7,8 @@
 //! buffer. A widget marked [`RasterDeferred`] opts out of this extraction
 //! because another pipeline owns its drawing - that pipeline spawns its own
 //! [`ExtractedWidget`], which is what keeps a deferred widget in the same
-//! z-order as everything else. A pipeline drawing what a widget frames
-//! spawns one at the same source and order and a higher layer, which sorts
-//! it directly after that widget.
+//! z-order as everything else, and a pipeline drawing what a widget frames
+//! spawns one at the same source and a higher layer, directly after it.
 
 use std::sync::Arc;
 

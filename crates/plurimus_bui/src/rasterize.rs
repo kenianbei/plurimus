@@ -1,12 +1,11 @@
 //! Paints extracted `bevy_ui` nodes into camera buffers.
 //!
-//! Nodes under no widget paint in the ui pass ahead of every widget, so they
-//! sit beneath widget content in the same camera; the nodes a widget frames
-//! paint as that widget's [`FramedNodes`], in the widget sort directly after
-//! it. Either way each node paints in the order extraction settled - shadow,
-//! background, border, then text - and each layer is clipped to the node's
-//! inherited clip before a cell is touched, so nothing outside a scroll
-//! container is ever written.
+//! Nodes under no widget paint in the ui pass ahead of every widget; the
+//! nodes a widget frames paint as its [`FramedNodes`], in the widget sort
+//! directly after it. Each node paints in the order extraction settled -
+//! shadow, background, border, then text - and each layer is clipped to the
+//! node's inherited clip before a cell is touched, so nothing outside a
+//! scroll container is ever written.
 
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::{Query, Res};
@@ -39,9 +38,9 @@ pub(crate) fn rasterize_bui(
     }
 }
 
-/// The nodes one widget frames, drawn after it as a widget of their own.
-/// The area handed in is the whole camera, which the nodes' own rects and
-/// clips already address.
+/// The nodes one widget frames, drawn directly after it as a widget of
+/// their own. The area handed in is the whole camera, which the nodes' own
+/// rects and clips already address.
 pub(crate) struct FramedNodes {
     pub(crate) nodes: Vec<ExtractedBuiNode>,
     pub(crate) cell: Vec2,

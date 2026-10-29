@@ -6,12 +6,10 @@
 //! Paint order is `bevy_ui`'s own [`UiStack`], back to front, so what is
 //! drawn over what agrees with what is picked over what.
 //!
-//! A node beneath a widget in the tree - a `Text` inside the frame a
-//! `UiWidget` draws - is lifted out of the pass beneath every widget and
-//! drawn directly after that widget instead: each frame's nodes become one
-//! [`ExtractedWidget`] at the frame's order and a higher layer, in stack
-//! order among themselves. A node under no widget draws beneath every
-//! widget as before.
+//! A node beneath a widget in the tree is that widget's to frame: the nodes
+//! under one widget become one [`ExtractedWidget`] drawn directly after it.
+//! A node carrying a widget of its own is not lifted, its widget being what
+//! draws there.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,7 +18,8 @@ use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
 use bevy_ecs::entity::{Entity, EntityHashMap};
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Commands, ResMut, Resource};
+use bevy_ecs::prelude::{Commands, ResMut, Resource, With};
+use bevy_ecs::query::QueryState;
 use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
@@ -96,20 +95,22 @@ pub(crate) fn extract_bui_nodes(
             .map(|(entity, _, resolved)| (entity, resolved.0))
             .collect()
     };
+    let mut parents = main_world.query::<&ChildOf>();
+    let mut widgets = main_world.query_filtered::<(), With<UiWidget>>();
     let stack = main_world.resource::<UiStack>();
-    let mut known_frames = EntityHashMap::default();
-    let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
+    let mut groups: EntityHashMap<Vec<ExtractedBuiNode>> = EntityHashMap::default();
     for &entity in &stack.uinodes {
         let Some(node) = convert(&main_world, entity, &viewports, cell) else {
             continue;
         };
-        match frame_of(&main_world, entity, &mut known_frames) {
+        match frame_of(&main_world, entity, (&mut parents, &mut widgets)) {
             None => out.nodes.push(node),
-            Some(frame) => groups.entry((frame, node.camera)).or_default().push(node),
+            Some(frame) => groups.entry(frame).or_default().push(node),
         }
     }
-    for ((frame, camera), nodes) in groups {
+    for (frame, nodes) in groups {
         let order = main_world.get::<UiOrder>(frame).map_or(0, |order| order.0);
+        let camera = nodes[0].camera;
         commands.spawn(
             ExtractedWidget::new(Arc::new(FramedNodes { nodes, cell }), UiArea::Fill, frame)
                 .with_order(order)
@@ -119,32 +120,24 @@ pub(crate) fn extract_bui_nodes(
     }
 }
 
-/// The nearest strict ancestor of `entity` carrying a widget, memoized in
-/// `frames` so a tree is walked once however deep it is.
+/// The nearest strict ancestor of `entity` carrying a widget, unless
+/// `entity` carries one itself.
 fn frame_of(
     world: &World,
     entity: Entity,
-    frames: &mut EntityHashMap<Option<Entity>>,
+    (parents, widgets): (
+        &mut QueryState<&ChildOf>,
+        &mut QueryState<(), With<UiWidget>>,
+    ),
 ) -> Option<Entity> {
-    let mut path = Vec::new();
-    let mut current = entity;
-    let frame = loop {
-        let Some(parent) = world.get::<ChildOf>(current).map(ChildOf::parent) else {
-            break None;
-        };
-        if let Some(&known) = frames.get(&parent) {
-            break known;
-        }
-        if world.entity(parent).contains::<UiWidget>() {
-            break Some(parent);
-        }
-        path.push(parent);
-        current = parent;
-    };
-    for walked in path {
-        frames.insert(walked, frame);
+    let widgets = widgets.query(world);
+    if widgets.contains(entity) {
+        return None;
     }
-    frame
+    parents
+        .query(world)
+        .iter_ancestors(entity)
+        .find(|&ancestor| widgets.contains(ancestor))
 }
 
 fn convert(
