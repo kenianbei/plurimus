@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
-use bevy_ecs::entity::{Entity, EntityHashMap};
+use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{Commands, ResMut, Resource, With};
 use bevy_ecs::query::QueryState;
@@ -98,19 +98,20 @@ pub(crate) fn extract_bui_nodes(
     let mut parents = main_world.query::<&ChildOf>();
     let mut widgets = main_world.query_filtered::<(), With<UiWidget>>();
     let stack = main_world.resource::<UiStack>();
-    let mut groups: EntityHashMap<Vec<ExtractedBuiNode>> = EntityHashMap::default();
+    // Keyed by camera too: a frame that is no node makes each child a root
+    // of its own, and two roots may name different cameras.
+    let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
     for &entity in &stack.uinodes {
         let Some(node) = convert(&main_world, entity, &viewports, cell) else {
             continue;
         };
         match frame_of(&main_world, entity, (&mut parents, &mut widgets)) {
             None => out.nodes.push(node),
-            Some(frame) => groups.entry(frame).or_default().push(node),
+            Some(frame) => groups.entry((frame, node.camera)).or_default().push(node),
         }
     }
-    for (frame, nodes) in groups {
+    for ((frame, camera), nodes) in groups {
         let order = main_world.get::<UiOrder>(frame).map_or(0, |order| order.0);
-        let camera = nodes[0].camera;
         commands.spawn(
             ExtractedWidget::new(Arc::new(FramedNodes { nodes, cell }), UiArea::Fill, frame)
                 .with_order(order)

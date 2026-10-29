@@ -114,6 +114,23 @@ fn a_widget_on_the_node_itself_keeps_covering_it() {
 }
 
 #[test]
+fn a_node_drawing_itself_is_not_lifted_over_its_frame() {
+    let mut app = app();
+    let root = frame(&mut app, UiOrder::OVERLAY);
+    app.world_mut().spawn((
+        row(),
+        Text::new("no"),
+        UiWidget::default(),
+        UiArea::Fixed(Rect::new(1, 1, 2, 1)),
+        ChildOf(root),
+    ));
+
+    let lines = settle(&mut app);
+
+    assert_eq!(lines[1], "│      │", "the frame's clear covers it");
+}
+
+#[test]
 fn framed_nodes_keep_their_stack_order() {
     let mut app = app();
     let root = frame(&mut app, UiOrder::OVERLAY);
