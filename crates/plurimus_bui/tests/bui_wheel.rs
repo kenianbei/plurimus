@@ -126,18 +126,19 @@ fn an_open_plurimus_overlay_blocks_node_ticks() {
     assert_eq!(scrolled(&app, node), Vec2::ZERO);
 }
 
+/// A childless node covering the screen; a child of its own would be
+/// picked in its place.
 #[test]
 fn a_pickable_ignore_node_lets_the_tick_through() {
     let mut app = app();
     let below = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    let above = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    let above = scroll_node(&mut app, Overflow::clip(), (8.0, 3.0));
     app.world_mut().entity_mut(above).insert(Pickable::IGNORE);
     settle(&mut app);
 
     send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
 
-    assert_eq!(scrolled(&app, above), Vec2::ZERO);
-    assert_eq!(scrolled(&app, below).y, 1.0);
+    assert_eq!(scrolled(&app, below).y, 1.0, "the cover is not picked");
 }
 
 #[test]

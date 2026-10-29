@@ -4,8 +4,9 @@
 //! The order is upstream's: every root node, and every node carrying a
 //! `GlobalZIndex`, is a stack root; roots sort by global z, then local z;
 //! each root's subtree follows it depth first with siblings by `ZIndex`,
-//! stopping at a nested stack root. Equal keys fall back to entity order,
-//! where upstream keeps the previous frame's.
+//! stopping at a nested stack root. Equal keys fall back to spawn order,
+//! so a later root stands over an earlier one, as a root new to upstream
+//! stands over those it already held.
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{DetectChangesMut, Local, Query, ResMut, With};
@@ -23,7 +24,9 @@ type NodeQuery<'w, 's> = Query<
     With<ComputedStackIndex>,
 >;
 
-type StackRoot = (i32, i32, Entity);
+// An `Entity` orders by its bits, with a later index first; the index
+// itself orders roots the way they were spawned.
+type StackRoot = (i32, i32, u32, Entity);
 
 const fn stack_root(
     (entity, global_z, local_z): (Entity, Option<&GlobalZIndex>, Option<&ZIndex>),
@@ -37,6 +40,7 @@ const fn stack_root(
             Some(z) => z.0,
             None => 0,
         },
+        entity.index_u32(),
         entity,
     )
 }
@@ -59,7 +63,7 @@ pub(crate) fn compute_ui_stack(
     let UiStack { partition, uinodes } = &mut *stack;
     partition.clear();
     uinodes.clear();
-    for (_, _, root) in stack_roots {
+    for (_, _, _, root) in stack_roots {
         let start = uinodes.len();
         push_subtree(root, (&children, &nodes), uinodes, &mut siblings);
         partition.push(start..uinodes.len());

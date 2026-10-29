@@ -216,6 +216,24 @@ fn global_z_index_reorders_trees() {
 }
 
 #[test]
+fn a_later_root_stacks_over_an_earlier_one() {
+    let mut app = app(8, 2);
+    let full = || Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        ..Node::default()
+    };
+    let first = app.world_mut().spawn(full()).id();
+    let second = app.world_mut().spawn(full()).id();
+
+    app.update();
+    app.update();
+
+    let stack = &app.world().resource::<bevy_ui::UiStack>().uinodes;
+    assert_eq!(stack, &[first, second], "painted first is beneath");
+}
+
+#[test]
 fn styled_spans_paint_per_segment_and_wrap() {
     let mut app = app(10, 3);
     let root = app
