@@ -73,8 +73,7 @@ impl ExtractedWidget {
         }
     }
 
-    /// Sets the sub-order among what shares `source`; higher draws later,
-    /// over the widget itself at 0.
+    /// Sets the sub-order among what shares `source`.
     #[must_use]
     pub const fn with_layer(mut self, layer: u8) -> Self {
         self.layer = layer;
