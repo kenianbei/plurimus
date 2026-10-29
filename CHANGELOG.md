@@ -4,6 +4,80 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Upstream `bevy_ui_widgets` run on `bevy_ui` nodes.** `BuiPlugin` installs
+  `bevy_picking`, bevy_ui's picking backend, `PointerFocusPlugin` and the
+  fontless `bevy_ui_widgets` plugins, and feeds the pointer from the terminal's
+  mouse, so bevy's own `Button`, `Checkbox`, `RadioGroup`, `Slider`, menus,
+  dialogs and `ScrollArea` work on a node tree unchanged - hover, press, click,
+  click-to-focus, Enter and Space, and wheel ticks that scroll one row.
+  `TextInputPlugin` stays out, since it edits through a font engine.
+  - A node pick is dropped where a plurimus widget would take the press or the
+    tick, and while a plurimus overlay is open, so widgets drawn over nodes take
+    the pointer alone. `plurimus_ui::PointerTargets` is that question, for any
+    other pointer stack.
+  - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
+    `ZIndex` and `GlobalZIndex` order both.
+- **`bevy_ui` text draws in a bridged tree.** `bevy_ui::widget::Text` roots with
+  `bevy_text::TextSpan` children render in cells: `TextColor` is the foreground,
+  a weight from semibold up is bold, a non-normal style italic, `Strikethrough`
+  and `Underline` their modifiers, `TextLayout`'s justify and
+  `LineBreak::NoWrap` honoured. `font_size`, fonts, `TextShadow` and the
+  underline and strikethrough colours are ignored; text is one row tall. A
+  `Color::NONE` text draws nothing.
+- **`Outline`** draws as a one-cell ring outside the node's border box, at its
+  rounded offset.
+- **`Visibility` hides a node subtree.** `BuiPlugin` propagates it into
+  `InheritedVisibility`, so a hidden node is neither drawn, picked nor reached
+  by Tab, and a `Visibility::Visible` child of a hidden parent shows.
+- **`CellSize`**, pixels per cell on each axis, default one by one. A tree sized
+  for a window - `8 x 16` puts a 560 px card in 70 columns and a 16 px control
+  in one row - lays out the same in the terminal once the cell is named; layout,
+  text measurement, decoration, picking and `RemSize` all follow it.
+- **`examples/todo`**: one `bevy_ui` tree of upstream widgets tagged by `Part`,
+  run in the terminal or, with `--desktop`, in a bevy window assembled from the
+  granular crates. Each target skins the same tree - cells and box-drawing in
+  one, pixels and a card in the other - with a `Display::Grid` ledger of
+  unwrapped, right-justified cells. The field is the one control each target
+  supplies for itself: a plurimus `EditableText` over its node in the terminal,
+  upstream's `TextInput` in the window.
+
+### Changed
+
+- **Breaking: plurimus speaks bevy's interaction vocabulary.** `plurimus_ui`'s
+  `Hovered`, `Pressed`, `Checked`, `InteractionDisabled`, `Activate` and
+  `ValueChange` are now bevy's own types, re-exported: `Hovered` from
+  `bevy_picking`, the three markers from `bevy_ui`, the two events from
+  `bevy_ui_widgets`. Imports keep working; what changes is their shape.
+  - `Pressed` is a unit marker. The click count it carried moves to
+    `PressCount`, inserted and removed beside it.
+  - `ValueChange { source, value, is_final }` replaces `ValueChange::new` and
+    carries bevy's `is_final`, which plurimus widgets set to `true`.
+  - `Hovered` is a component holding a `bool`, written to widgets that carry it
+    as before.
+- **Breaking: `bevy_ui` nodes interact through `bevy_picking` alone.** The
+  bridges that published node rects as plurimus widget areas and wheel targets
+  are gone: a node is hovered, pressed, focused and scrolled by bevy's stack,
+  and a scrollable node is a `bevy_ui_widgets::ScrollArea`, not an `Overflow`
+  alone. Nodes no longer join plurimus_ui's directional navigation map; Tab
+  reaches them as before. Plurimus widgets placed at node rects keep doing so
+  through `UiArea`.
+- **Breaking: `plurimus_bui`'s `Text`, `TextSpan` and `TextStyle` are removed**
+  in favour of bevy_ui's text, above. A bridged tree's text is
+  `bevy_ui::widget::Text`.
+- **A border with one side draws straight.** A top-only border runs end to end
+  and a left-only one the full height; a corner glyph appears only where both of
+  its sides are present.
+- `plurimus_bui` re-exports `bevy_picking`, `bevy_text` and `bevy_ui_widgets`.
+
+### Removed
+
+- The `InheritedVisibility::VISIBLE` stand-in `BuiPlugin` registered for nodes;
+  visibility is now computed.
+
 ## [0.9.0] - 2026-10-27
 
 ### Added
