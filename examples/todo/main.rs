@@ -1,20 +1,23 @@
-//! A todo list on one `bevy_ui` tree of upstream `bevy_ui_widgets`, skinned
-//! for the terminal.
+//! A todo list on one `bevy_ui` tree of upstream `bevy_ui_widgets`, run in
+//! the terminal or, with `--desktop`, in a window.
 //!
 //! The tree states structure only - which nodes exist, how they nest, which
 //! way they flow, what text they carry - and tags each node with a `Part`.
-//! The skin answers `Part` with sizes, borders and colours, so the same tree
-//! under a desktop skin is the same app in a window. Buttons and checkboxes
-//! are bevy's own, picked by `bevy_picking` through the terminal's mouse; the
-//! ledger is a `Display::Grid` of unwrapped cells with right-justified ids;
-//! and the field is the one control each target supplies for itself - here a
-//! plurimus `EditableText` placed over its node, since upstream's `TextInput`
-//! edits through a font engine. Tab moves focus, Enter or Space activates,
-//! the mouse hovers and clicks, Esc unfocuses, `q` with nothing focused or
-//! ctrl-c quits.
+//! Each skin answers `Part` with its own sizes, borders and colours: cells
+//! and box-drawing in the terminal, pixels, a card and pills in the window.
+//! Buttons and checkboxes are bevy's own, picked by `bevy_picking` through
+//! the terminal's mouse or the window's; the ledger is a `Display::Grid` of
+//! unwrapped cells with right-justified ids; and the field is the one control
+//! each target supplies for itself - a plurimus `EditableText` placed over
+//! its node in the terminal, a draft typed through `FocusedInput` in the
+//! window - since upstream's `TextInput` edits through a font engine. Tab
+//! moves focus, Enter or Space activates, the mouse hovers and clicks. In
+//! the terminal Esc unfocuses and `q` with nothing focused or ctrl-c quits;
+//! in the window Esc quits.
 //!
-//! Laid out for a terminal of roughly 60x16 or larger.
+//! Laid out for a terminal of roughly 60x16 or larger, or a 720x640 window.
 
+mod desktop;
 mod model;
 mod skin;
 mod tree;
@@ -25,7 +28,11 @@ mod tests;
 use std::time::Duration;
 
 use bevy_app::{App, AppExit, PostUpdate, ScheduleRunnerPlugin, Startup, Update};
-use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, MessageReader, MessageWriter, ResMut};
+use bevy_ecs::component::Mutable;
+use bevy_ecs::prelude::{
+    Commands, Component, DetectChangesMut, Entity, IntoScheduleConfigs, MessageReader,
+    MessageWriter, Mut, ResMut,
+};
 use bevy_ui::UiSystems;
 use plurimus::bui::BuiPlugin;
 use plurimus::core::{CorePlugin, TerminalCamera};
@@ -39,22 +46,24 @@ use model::{Filter, Todos};
 const FRAME: Duration = Duration::from_millis(16);
 
 fn main() -> AppExit {
+    if std::env::args().any(|argument| argument == "--desktop") {
+        return desktop::run();
+    }
     let mut app = App::new();
     app.add_plugins((
         ScheduleRunnerPlugin::run_loop(FRAME),
         CorePlugin,
         CrosstermPlugin::default(),
     ));
-    add_demo(&mut app);
+    add_terminal(&mut app);
     app.run()
 }
 
-fn add_demo(app: &mut App) {
-    app.add_plugins((BuiPlugin, WidgetsPlugin))
-        .insert_resource(Todos::seeded())
+/// The model and the tree, which both targets run unchanged.
+fn add_shared(app: &mut App) {
+    app.insert_resource(Todos::seeded())
         .init_resource::<Filter>()
-        .add_observer(skin::shape)
-        .add_systems(Startup, (spawn_camera, tree::spawn_tree))
+        .add_systems(Startup, tree::spawn_tree)
         .add_systems(
             Update,
             (
@@ -62,9 +71,16 @@ fn add_demo(app: &mut App) {
                 model::sync_marks,
                 model::sync_count,
                 model::sync_filters,
-                quit_on_key,
             ),
-        )
+        );
+}
+
+fn add_terminal(app: &mut App) {
+    add_shared(app);
+    app.add_plugins((BuiPlugin, WidgetsPlugin))
+        .add_observer(skin::shape)
+        .add_systems(Startup, spawn_camera)
+        .add_systems(Update, quit_on_key)
         .add_systems(
             PostUpdate,
             (
@@ -76,6 +92,24 @@ fn add_demo(app: &mut App) {
 
 fn spawn_camera(mut commands: Commands) {
     commands.spawn(TerminalCamera::default());
+}
+
+/// Writes a look's component where it differs, inserting it the first time;
+/// an insert of an equal value would still relayout the text it lands on.
+fn write<T: Component<Mutability = Mutable> + PartialEq>(
+    entity: Entity,
+    current: Option<Mut<T>>,
+    value: T,
+    commands: &mut Commands,
+) {
+    match current {
+        Some(mut current) => {
+            current.set_if_neq(value);
+        }
+        None => {
+            commands.entity(entity).insert(value);
+        }
+    }
 }
 
 fn quit_on_key(

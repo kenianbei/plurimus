@@ -14,7 +14,7 @@ fn headless_app() -> App {
     let mut app = App::new();
     app.add_plugins(CorePlugin);
     app.insert_resource(TEST_SIZE);
-    add_demo(&mut app);
+    add_terminal(&mut app);
     for _ in 0..3 {
         app.update();
     }
@@ -180,4 +180,97 @@ fn tab_walks_from_the_field_into_the_ledger() {
     press_key(&mut app, KeyCode::Tab);
     app.update();
     assert_eq!(focused(&app), Some(part(&mut app, Part::Check, Some(1))));
+}
+
+mod desktop_skin {
+    use bevy_color::Color;
+    use bevy_ecs::prelude::Entity;
+    use bevy_input::ButtonState;
+    use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+    use bevy_text::{Strikethrough, TextSpan};
+    use bevy_ui::{BackgroundColor, Checked, Node, Outline, Val};
+    use plurimus::ui::bevy_input_focus::{FocusedInput, InputFocus};
+
+    use super::*;
+
+    fn headless_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<InputFocus>();
+        add_shared(&mut app);
+        app.add_plugins(desktop::DesktopSkin);
+        settle(&mut app);
+        app
+    }
+
+    fn press(app: &mut App, field: Entity, logical_key: Key, text: Option<&str>) {
+        let window = app.world_mut().spawn_empty().id();
+        let input = KeyboardInput {
+            key_code: KeyCode::KeyA,
+            logical_key,
+            state: ButtonState::Pressed,
+            text: text.map(Into::into),
+            repeat: false,
+            window,
+        };
+        app.world_mut()
+            .trigger(FocusedInput::new(field, input, window));
+    }
+
+    #[test]
+    fn the_skin_dresses_the_card_and_the_ledger() {
+        let mut app = headless_app();
+        let card = part(&mut app, Part::Card, None);
+        let list = part(&mut app, Part::List, None);
+        let done = part(&mut app, Part::ItemText, Some(1));
+
+        let world = app.world();
+        assert_ne!(world.get::<BackgroundColor>(card).unwrap().0, Color::NONE);
+        assert_eq!(world.get::<Node>(card).unwrap().width, Val::Px(560.0));
+        assert_eq!(
+            world.get::<Node>(list).unwrap().grid_template_columns.len(),
+            4
+        );
+        assert!(world.get::<Strikethrough>(done).is_some());
+    }
+
+    #[test]
+    fn focus_draws_a_ring_on_everything_but_the_field() {
+        let mut app = headless_app();
+        let add = part(&mut app, Part::AddButton, None);
+        let field = part(&mut app, Part::Field, None);
+        assert!(
+            app.world().get::<Outline>(field).is_none(),
+            "the field colours its border"
+        );
+
+        app.insert_resource(InputFocus::from_entity(add));
+        settle(&mut app);
+        assert!(app.world().get::<Outline>(add).is_some());
+
+        app.insert_resource(InputFocus::from_entity(field));
+        settle(&mut app);
+        assert!(app.world().get::<Outline>(add).is_none());
+    }
+
+    #[test]
+    fn typing_into_the_field_and_enter_adds_a_todo() {
+        let mut app = headless_app();
+        let field = part(&mut app, Part::Field, None);
+        for letter in ["m", "i", "l", "k"] {
+            press(&mut app, field, Key::Character(letter.into()), Some(letter));
+        }
+        settle(&mut app);
+        let spans: Vec<String> = {
+            let world = app.world_mut();
+            let mut spans = world.query::<&TextSpan>();
+            spans.iter(world).map(|span| span.0.clone()).collect()
+        };
+        assert!(spans.contains(&"milk".to_owned()), "{spans:?}");
+
+        press(&mut app, field, Key::Enter, None);
+        settle(&mut app);
+        assert_eq!(rows(&mut app), 4);
+        let check = part(&mut app, Part::Check, Some(4));
+        assert!(app.world().get::<Checked>(check).is_none());
+    }
 }

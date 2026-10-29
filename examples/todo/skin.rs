@@ -5,12 +5,13 @@
 //! `EditableText` placed over its node, which the Add button submits.
 
 use bevy_color::Color;
-use bevy_ecs::component::Mutable;
 use bevy_ecs::prelude::{
-    Add, Commands, Component, DetectChangesMut, Entity, Has, Mut, On, Query, Res, ResMut, With,
+    Add, Commands, DetectChangesMut, Entity, Has, On, Query, Res, ResMut, With,
 };
 use bevy_ui::widget::Text;
-use bevy_ui::{BackgroundColor, BorderColor, BorderRadius, Checked, Node, Pressed, UiRect, Val};
+use bevy_ui::{
+    BackgroundColor, BorderColor, BorderRadius, Checked, GridTrack, Node, Pressed, UiRect, Val,
+};
 use plurimus::bui::ComputedNodeRect;
 use plurimus::bui::bevy_text::{FontStyle, FontWeight, Strikethrough, TextColor, TextFont};
 use plurimus::core::ratatui_core::layout::Rect;
@@ -20,8 +21,11 @@ use plurimus::ui::{Activate, Hovered};
 use plurimus::widgets::{EditableText, Submit, TextInput, editable_text};
 
 use crate::model::{Done, Part, Todos};
+use crate::write;
 
 const CARD_WIDTH: f32 = 56.0;
+/// Wide enough that `#` and two digits still right-align.
+const ID_COLUMN: f32 = 4.0;
 const FRAME: Color = Color::srgb(0.45, 0.45, 0.5);
 const TEXT: Color = Color::srgb(0.9, 0.9, 0.9);
 const ACCENT: Color = Color::srgb(0.8, 0.4, 0.9);
@@ -66,7 +70,10 @@ pub(crate) fn shape(
         Part::AddButton => {
             entity.observe(add_from_field);
         }
-        Part::List => node.min_height = cells(1.0),
+        Part::List => {
+            node.min_height = cells(1.0);
+            node.grid_template_columns[2] = GridTrack::px(ID_COLUMN);
+        }
         Part::Check => {
             entity.insert(Text::new("[ ]"));
         }
@@ -223,22 +230,6 @@ pub(crate) fn paint(mut nodes: Query<Painted>, focus: Res<InputFocus>, mut comma
             commands.entity(entity).insert(Strikethrough);
         } else if !look.is_struck && is_struck {
             commands.entity(entity).remove::<Strikethrough>();
-        }
-    }
-}
-
-fn write<T: Component<Mutability = Mutable> + PartialEq>(
-    entity: Entity,
-    current: Option<Mut<T>>,
-    value: T,
-    commands: &mut Commands,
-) {
-    match current {
-        Some(mut current) => {
-            current.set_if_neq(value);
-        }
-        None => {
-            commands.entity(entity).insert(value);
         }
     }
 }

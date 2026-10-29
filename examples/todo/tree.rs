@@ -1,6 +1,7 @@
 //! The one `bevy_ui` tree. It states structure only - which nodes exist, how
 //! they nest, which way they flow, and what text they carry - and tags each
-//! node with a `Part`. Every size, colour, border and glyph is the skin's.
+//! node with a `Part`. Every size, colour, border and glyph is a skin's, the
+//! ledger's column widths included.
 
 use bevy_ecs::prelude::{ChildOf, Commands, Entity, On, ResMut};
 use bevy_ui::widget::Text;
@@ -9,15 +10,13 @@ use bevy_ui::{
 };
 use plurimus::bui::bevy_text::{Justify, LineBreak, TextLayout};
 use plurimus::bui::bevy_ui_widgets::{Activate, Button, Checkbox, ValueChange};
+use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 
 use crate::model::{Filter, Part, Todo, TodoId, Todos};
 
 /// The ledger's columns: mark, text, id, delete.
 const LEDGER_COLUMNS: u16 = 4;
-/// The id column's width in cells, wide enough that `#` and two digits
-/// still right-align.
-const ID_COLUMN: f32 = 4.0;
 
 fn column() -> Node {
     Node {
@@ -55,14 +54,17 @@ pub(crate) fn spawn_tree(mut commands: Commands) {
     commands.spawn((Part::Title, Text::new("todos"), ChildOf(card)));
 
     let input = commands.spawn((Part::InputRow, row(), ChildOf(card))).id();
-    commands.spawn((
-        Part::Field,
-        Node {
-            flex_grow: 1.0,
-            ..Node::default()
-        },
-        ChildOf(input),
-    ));
+    let field = commands
+        .spawn((
+            Part::Field,
+            Node {
+                flex_grow: 1.0,
+                ..Node::default()
+            },
+            ChildOf(input),
+        ))
+        .id();
+    commands.insert_resource(InputFocus::from_entity(field));
     commands.spawn((
         Part::AddButton,
         Button,
@@ -78,7 +80,7 @@ pub(crate) fn spawn_tree(mut commands: Commands) {
             grid_template_columns: vec![
                 GridTrack::auto(),
                 GridTrack::flex(1.0),
-                GridTrack::px(ID_COLUMN),
+                GridTrack::auto(),
                 GridTrack::auto(),
             ],
             column_gap: Val::Px(1.0),
