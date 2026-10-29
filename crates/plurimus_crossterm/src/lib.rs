@@ -16,7 +16,9 @@ pub use ratatui_crossterm;
 
 #[cfg(unix)]
 use std::fs::File;
-use std::io::{self, BufWriter, Stdout, Write};
+#[cfg(unix)]
+use std::io::BufWriter;
+use std::io::{self, Stdout, Write};
 use std::sync::Mutex;
 
 use bevy_app::{App, Plugin, PreUpdate};

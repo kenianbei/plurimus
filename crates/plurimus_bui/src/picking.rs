@@ -6,9 +6,12 @@
 //! mouse pointer, placed on the primary window `plurimus_ui` keeps for
 //! focus, which is the target every terminal camera renders to. The hit
 //! gate then drops every node pick while the cursor sits on a cell a
-//! `plurimus_ui` widget would take the press or the tick at, and while a
-//! `plurimus_ui` overlay is open - widgets draw over nodes, so a press
-//! reaches one or the other.
+//! `plurimus_ui` widget would take the press or the tick at, and outside an
+//! open `plurimus_ui` overlay, where a press dismisses it - widgets draw
+//! over nodes, so a press reaches one or the other. A frame that brings a
+//! tick and no press keeps
+//! its picks over a widget that takes presses alone, so the tick scrolls
+//! the node beneath; the nodes there are hovered for that frame.
 
 use bevy_camera::NormalizedRenderTarget;
 use bevy_ecs::entity::Entity;
@@ -111,9 +114,40 @@ const fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 pub(crate) fn gate_hits(
     mut hits: ResMut<Messages<PointerHits>>,
     cursor: Res<CursorCell>,
+    inputs: Res<Messages<PointerInput>>,
     widgets: PointerTargets,
 ) {
-    if cursor.0.is_some_and(|cell| widgets.covers(cell)) {
+    let Some(cell) = cursor.0 else {
+        return;
+    };
+    let covered = match tick_alone(&inputs) {
+        Some(step) => widgets.takes_wheel(cell, step),
+        None => widgets.covers(cell),
+    };
+    if covered {
         hits.clear();
     }
+}
+
+/// The frame's ticks as one step in cells, where the frame's pointer
+/// input holds a tick and no press or release.
+fn tick_alone(inputs: &Messages<PointerInput>) -> Option<(i32, i32)> {
+    let mut step = (0, 0);
+    for input in inputs.iter_current_update_messages() {
+        match input.action {
+            PointerAction::Scroll { x, y, .. } => {
+                step.0 += cells_of(x);
+                step.1 += cells_of(y);
+            }
+            PointerAction::Press(_) | PointerAction::Release(_) => return None,
+            _ => {}
+        }
+    }
+    (step != (0, 0)).then_some(step)
+}
+
+// The feed sends a tick down as a negative `y`, as a wheel does, where the
+// router's step counts rows down as positive.
+fn cells_of(delta: f32) -> i32 {
+    i32::from(delta < 0.0) - i32::from(delta > 0.0)
 }
