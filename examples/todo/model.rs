@@ -162,9 +162,9 @@ pub(crate) fn sync_rows(
 }
 
 // Done and Checked follow the model; the checkbox is controlled, never
-// self-updating, so the model is the one place "done" is decided. A cell
-// spawned this frame is marked too, the model having changed before it
-// existed.
+// self-updating, so the model is the one place "done" is decided. Runs after
+// `sync_rows` has applied, so a cell it spawned this frame is marked and one
+// it despawned is never written to.
 pub(crate) fn sync_marks(
     todos: Res<Todos>,
     cells: Query<(Entity, &TodoId, &Part)>,

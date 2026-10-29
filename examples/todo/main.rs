@@ -71,7 +71,8 @@ fn add_shared(app: &mut App) {
                 model::sync_marks,
                 model::sync_count,
                 model::sync_filters,
-            ),
+            )
+                .chain(),
         );
 }
 
