@@ -75,10 +75,13 @@ then colors downsample to the terminal's `ColorDepth`), and `Present`. Core owns
 raster primitives in `raster` (halfblock and braille grids, blits, color
 averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
 placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
-pass with no other crate involved. Its `Default` draws nothing, which is what a
-widget holds before its first restyle replaces it, so no widget library needs a
-blank of its own. Which camera a widget draws on, the crates agree on rather
-than each deriving: `ComputedUiCamera` is resolved once a frame in
+pass with no other crate involved, sorted by order, then source entity, then a
+layer - the seam a pipeline drawing what a widget frames joins at, spawning its
+own `ExtractedWidget` at the widget's source and a higher layer so it sorts
+directly after it. Its `Default` draws nothing, which is what a widget holds
+before its first restyle replaces it, so no widget library needs a blank of its
+own. Which camera a widget draws on, the crates agree on rather than each
+deriving: `ComputedUiCamera` is resolved once a frame in
 `CameraSystems::PropagateCameras` as the widget's own `UiCamera`, else the
 nearest ancestor's, else the default - so a child sits on its parent's camera
 without being told, and forgetting to say stops being a silent misplacement.
@@ -552,9 +555,15 @@ colour mapped onto the cell's modifiers and foreground and everything a cell
 cannot show ignored; a rem is a row, so `Val::Rem(1)` is one line here as on a
 window. `Visibility` is propagated into `InheritedVisibility` by the crate
 itself, since bevy_camera's propagation brings culling with it, and `Outline`
-draws as a one-cell ring. Computed nodes rasterize in the terminal sub-app
-beneath all widgets, in bevy_ui's own `UiStack` order, which the crate computes
-because the upstream system is private.
+draws as a one-cell ring. Computed nodes rasterize in the terminal sub-app in
+bevy_ui's own `UiStack` order, which the crate computes because the upstream
+system is private, and where they sit among widgets the tree decides: a node
+under no widget draws beneath every widget, and the nodes beneath a widget in
+the tree draw directly after it, in its band, as one extracted widget of their
+own - so a `Text` inside the frame an overlay's widget clears is readable, as a
+child drawn over its parent is on a window. A node carrying a widget of its own
+is not lifted, that widget being what draws there, which is what keeps a label
+mirrored on a button's entity beneath the button.
 
 Interaction is bevy's, not plurimus_ui's: `BuiPlugin` installs `bevy_picking`,
 bevy_ui's picking backend and `PointerFocusPlugin`, feeds the one mouse pointer

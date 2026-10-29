@@ -27,6 +27,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
     `ZIndex` and `GlobalZIndex` order both, and a root spawned later stands over
     an earlier one, as in a window.
+  - A node beneath a widget in the tree draws directly after that widget, in its
+    band, rather than beneath every widget: a `Text` inside the frame an
+    overlay's `UiWidget` clears is readable, so a tree shared with a window
+    needs no second copy of the string. A node under no widget still draws
+    beneath every widget, and a node carrying a widget of its own is not lifted,
+    so a label mirrored on a button's entity stays beneath the button.
+    `ExtractedWidget` gains the `layer` that orders this: the widget sort is
+    `(order, source, layer)`, and a pipeline drawing what a widget frames spawns
+    its own at the widget's source and `with_layer(1)`.
 - **`bevy_ui` text draws in a bridged tree.** `bevy_ui::widget::Text` roots with
   `bevy_text::TextSpan` children render in cells: `TextColor` is the foreground,
   a weight from semibold up is bold, a non-normal style italic, `Strikethrough`
