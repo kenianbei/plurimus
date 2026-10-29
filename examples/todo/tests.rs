@@ -184,11 +184,11 @@ fn tab_walks_from_the_field_into_the_ledger() {
 
 mod desktop_skin {
     use bevy_color::Color;
-    use bevy_ecs::prelude::Entity;
     use bevy_input::ButtonState;
     use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
-    use bevy_text::{Strikethrough, TextSpan};
-    use bevy_ui::{BackgroundColor, Checked, Node, Outline, Val};
+    use bevy_text::{EditableText, Strikethrough};
+    use bevy_ui::{BackgroundColor, Checked, GridTrack, Node, Outline};
+    use plurimus::bui::bevy_ui_widgets::TextInput;
     use plurimus::ui::bevy_input_focus::{FocusedInput, InputFocus};
 
     use super::*;
@@ -202,13 +202,13 @@ mod desktop_skin {
         app
     }
 
-    fn press(app: &mut App, field: Entity, logical_key: Key, text: Option<&str>) {
+    fn press_enter(app: &mut App, field: Entity) {
         let window = app.world_mut().spawn_empty().id();
         let input = KeyboardInput {
-            key_code: KeyCode::KeyA,
-            logical_key,
+            key_code: KeyCode::Enter,
+            logical_key: Key::Enter,
             state: ButtonState::Pressed,
-            text: text.map(Into::into),
+            text: None,
             repeat: false,
             window,
         };
@@ -225,10 +225,11 @@ mod desktop_skin {
 
         let world = app.world();
         assert_ne!(world.get::<BackgroundColor>(card).unwrap().0, Color::NONE);
-        assert_eq!(world.get::<Node>(card).unwrap().width, Val::Px(560.0));
+        let columns = &world.get::<Node>(list).unwrap().grid_template_columns;
         assert_eq!(
-            world.get::<Node>(list).unwrap().grid_template_columns.len(),
-            4
+            columns[2],
+            GridTrack::px(48.0),
+            "the skin sizes the id column"
         );
         assert!(world.get::<Strikethrough>(done).is_some());
     }
@@ -253,24 +254,20 @@ mod desktop_skin {
     }
 
     #[test]
-    fn typing_into_the_field_and_enter_adds_a_todo() {
+    fn enter_in_the_upstream_field_adds_its_text() {
         let mut app = headless_app();
         let field = part(&mut app, Part::Field, None);
-        for letter in ["m", "i", "l", "k"] {
-            press(&mut app, field, Key::Character(letter.into()), Some(letter));
-        }
-        settle(&mut app);
-        let spans: Vec<String> = {
-            let world = app.world_mut();
-            let mut spans = world.query::<&TextSpan>();
-            spans.iter(world).map(|span| span.0.clone()).collect()
-        };
-        assert!(spans.contains(&"milk".to_owned()), "{spans:?}");
+        assert!(app.world().get::<TextInput>(field).is_some());
+        app.world_mut()
+            .entity_mut(field)
+            .insert(EditableText::new("milk"));
 
-        press(&mut app, field, Key::Enter, None);
+        press_enter(&mut app, field);
         settle(&mut app);
         assert_eq!(rows(&mut app), 4);
         let check = part(&mut app, Part::Check, Some(4));
         assert!(app.world().get::<Checked>(check).is_none());
+        let value = app.world().get::<EditableText>(field).unwrap().value();
+        assert_eq!(value.to_string(), "", "the field clears on submit");
     }
 }

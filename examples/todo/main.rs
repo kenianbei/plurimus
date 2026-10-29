@@ -9,9 +9,9 @@
 //! the terminal's mouse or the window's; the ledger is a `Display::Grid` of
 //! unwrapped cells with right-justified ids; and the field is the one control
 //! each target supplies for itself - a plurimus `EditableText` placed over
-//! its node in the terminal, a draft typed through `FocusedInput` in the
-//! window - since upstream's `TextInput` edits through a font engine. Tab
-//! moves focus, Enter or Space activates, the mouse hovers and clicks. In
+//! its node in the terminal, where upstream's `TextInput` has no font engine
+//! to edit through, and that `TextInput` itself in the window. Tab moves
+//! focus, Enter or Space activates, the mouse hovers and clicks. In
 //! the terminal Esc unfocuses and `q` with nothing focused or ctrl-c quits;
 //! in the window Esc quits.
 //!
@@ -94,8 +94,22 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn(TerminalCamera::default());
 }
 
+/// The facts a skin draws a control from.
+#[derive(Debug, Clone, Copy)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "the five facts a control is drawn from, read together"
+)]
+struct State {
+    is_hovered: bool,
+    is_pressed: bool,
+    is_focused: bool,
+    is_checked: bool,
+    is_done: bool,
+}
+
 /// Writes a look's component where it differs, inserting it the first time;
-/// an insert of an equal value would still relayout the text it lands on.
+/// an insert of an equal value would still mark it changed and redraw the node.
 fn write<T: Component<Mutability = Mutable> + PartialEq>(
     entity: Entity,
     current: Option<Mut<T>>,
@@ -109,6 +123,18 @@ fn write<T: Component<Mutability = Mutable> + PartialEq>(
         None => {
             commands.entity(entity).insert(value);
         }
+    }
+}
+
+fn toggle<T: Component>(entity: Entity, wanted: Option<T>, has: bool, commands: &mut Commands) {
+    match wanted {
+        Some(value) if !has => {
+            commands.entity(entity).insert(value);
+        }
+        None if has => {
+            commands.entity(entity).remove::<T>();
+        }
+        _ => {}
     }
 }
 

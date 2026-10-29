@@ -1,7 +1,7 @@
 //! The one `bevy_ui` tree. It states structure only - which nodes exist, how
 //! they nest, which way they flow, and what text they carry - and tags each
 //! node with a `Part`. Every size, colour, border and glyph is a skin's, the
-//! ledger's column widths included.
+//! id column's width included.
 
 use bevy_ecs::prelude::{ChildOf, Commands, Entity, On, ResMut};
 use bevy_ui::widget::Text;

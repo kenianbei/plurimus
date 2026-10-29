@@ -21,7 +21,7 @@ use plurimus::ui::{Activate, Hovered};
 use plurimus::widgets::{EditableText, Submit, TextInput, editable_text};
 
 use crate::model::{Done, Part, Todos};
-use crate::write;
+use crate::{State, toggle, write};
 
 const CARD_WIDTH: f32 = 56.0;
 /// Wide enough that `#` and two digits still right-align.
@@ -163,19 +163,6 @@ impl Look {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "the five facts a control is drawn from, read together"
-)]
-struct State {
-    is_hovered: bool,
-    is_pressed: bool,
-    is_focused: bool,
-    is_checked: bool,
-    is_done: bool,
-}
-
 type Painted<'a> = (
     Entity,
     &'a Part,
@@ -195,8 +182,7 @@ type Drawn<'a> = (
     Option<&'a mut TextFont>,
 );
 
-/// Maps behaviour state to looks, every frame, writing only what differs -
-/// a write of an equal value would still relayout the text it lands on.
+/// Maps behaviour state to looks, every frame, writing only what differs.
 pub(crate) fn paint(mut nodes: Query<Painted>, focus: Res<InputFocus>, mut commands: Commands) {
     for (entity, part, hovered, is_pressed, is_checked, is_done, is_struck, drawn) in &mut nodes {
         let state = State {
@@ -226,11 +212,8 @@ pub(crate) fn paint(mut nodes: Query<Painted>, focus: Res<InputFocus>, mut comma
             ..TextFont::default()
         };
         write(entity, font, font_look, &mut commands);
-        if look.is_struck && !is_struck {
-            commands.entity(entity).insert(Strikethrough);
-        } else if !look.is_struck && is_struck {
-            commands.entity(entity).remove::<Strikethrough>();
-        }
+        let strike = look.is_struck.then_some(Strikethrough);
+        toggle(entity, strike, is_struck, &mut commands);
     }
 }
 

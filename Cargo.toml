@@ -183,7 +183,7 @@ bevy_time = { workspace = true }
 bevy_transform = { workspace = true }
 bevy_ui = { workspace = true }
 bevy_world_serialization = { workspace = true }
-# The todo example's windowed half, assembled from the same granular crates.
+# The todo example's --desktop window.
 bevy_a11y = { workspace = true }
 bevy_diagnostic = { workspace = true }
 bevy_log = { workspace = true }
