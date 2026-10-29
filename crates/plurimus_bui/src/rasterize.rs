@@ -1,10 +1,12 @@
 //! Paints extracted `bevy_ui` nodes into camera buffers.
 //!
-//! Runs in the ui pass ahead of every widget, so a `bevy_ui` tree always sits
-//! beneath widget content in the same camera. Each node paints in the order
-//! extraction settled - shadow, background, border, then text - and each
-//! layer is clipped to the node's inherited clip before a cell is touched, so
-//! nothing outside a scroll container is ever written.
+//! Nodes under no widget paint in the ui pass ahead of every widget, so they
+//! sit beneath widget content in the same camera; the nodes a widget frames
+//! paint as that widget's [`FramedNodes`], in the widget sort directly after
+//! it. Either way each node paints in the order extraction settled - shadow,
+//! background, border, then text - and each layer is clipped to the node's
+//! inherited clip before a cell is touched, so nothing outside a scroll
+//! container is ever written.
 
 use bevy_color::LinearRgba;
 use bevy_ecs::prelude::{Query, Res};
@@ -13,6 +15,7 @@ use bevy_text::Justify;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::{Color, Modifier};
+use plurimus_core::ratatui_core::widgets::Widget;
 use plurimus_core::{CameraBuffer, SourceCamera, camera_buffer_mut};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -33,6 +36,22 @@ pub(crate) fn rasterize_bui(
             continue;
         };
         paint(node, &mut buffer.0, nodes.cell);
+    }
+}
+
+/// The nodes one widget frames, drawn after it as a widget of their own.
+/// The area handed in is the whole camera, which the nodes' own rects and
+/// clips already address.
+pub(crate) struct FramedNodes {
+    pub(crate) nodes: Vec<ExtractedBuiNode>,
+    pub(crate) cell: Vec2,
+}
+
+impl Widget for &FramedNodes {
+    fn render(self, _: Rect, buffer: &mut Buffer) {
+        for node in &self.nodes {
+            paint(node, buffer, self.cell);
+        }
     }
 }
 

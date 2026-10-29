@@ -5,13 +5,22 @@
 //! already resolved, so the rasterizer only has to paint what it is handed.
 //! Paint order is `bevy_ui`'s own [`UiStack`], back to front, so what is
 //! drawn over what agrees with what is picked over what.
+//!
+//! A node beneath a widget in the tree - a `Text` inside the frame a
+//! `UiWidget` draws - is lifted out of the pass beneath every widget and
+//! drawn directly after that widget instead: each frame's nodes become one
+//! [`ExtractedWidget`] at the frame's order and a higher layer, in stack
+//! order among themselves. A node under no widget draws beneath every
+//! widget as before.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
-use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{ResMut, Resource};
+use bevy_ecs::entity::{Entity, EntityHashMap};
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Commands, ResMut, Resource};
 use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
@@ -20,13 +29,19 @@ use bevy_ui::{
 };
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
-use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
+use plurimus_core::{
+    ExtractedWidget, MainWorld, ResolvedViewport, TerminalCamera, UiArea, UiOrder, UiWidget,
+};
 
 use super::decorate::{
     Decoration, ValBasis, offset_and_inflate, resolve_gradients, resolve_shadows, rounded_corners,
 };
+use super::rasterize::FramedNodes;
 use super::rect::{CellBox, CellSize, clip_cells, node_boxes};
 use super::text::ResolvedText;
+
+/// The layer a frame's nodes draw at, above the frame's own widget at 0.
+const FRAMED_LAYER: u8 = 1;
 
 #[derive(Resource, Default)]
 pub(crate) struct ExtractedBuiNodes {
@@ -68,6 +83,7 @@ pub(crate) struct TextRun {
 pub(crate) fn extract_bui_nodes(
     mut main_world: ResMut<MainWorld>,
     mut out: ResMut<ExtractedBuiNodes>,
+    mut commands: Commands,
 ) {
     out.nodes.clear();
     out.cell = main_world.resource::<CellSize>().vec();
@@ -81,12 +97,54 @@ pub(crate) fn extract_bui_nodes(
             .collect()
     };
     let stack = main_world.resource::<UiStack>();
-    out.nodes.extend(
-        stack
-            .uinodes
-            .iter()
-            .filter_map(|&entity| convert(&main_world, entity, &viewports, cell)),
-    );
+    let mut known_frames = EntityHashMap::default();
+    let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
+    for &entity in &stack.uinodes {
+        let Some(node) = convert(&main_world, entity, &viewports, cell) else {
+            continue;
+        };
+        match frame_of(&main_world, entity, &mut known_frames) {
+            None => out.nodes.push(node),
+            Some(frame) => groups.entry((frame, node.camera)).or_default().push(node),
+        }
+    }
+    for ((frame, camera), nodes) in groups {
+        let order = main_world.get::<UiOrder>(frame).map_or(0, |order| order.0);
+        commands.spawn(
+            ExtractedWidget::new(Arc::new(FramedNodes { nodes, cell }), UiArea::Fill, frame)
+                .with_order(order)
+                .with_target(Some(camera))
+                .with_layer(FRAMED_LAYER),
+        );
+    }
+}
+
+/// The nearest strict ancestor of `entity` carrying a widget, memoized in
+/// `frames` so a tree is walked once however deep it is.
+fn frame_of(
+    world: &World,
+    entity: Entity,
+    frames: &mut EntityHashMap<Option<Entity>>,
+) -> Option<Entity> {
+    let mut path = Vec::new();
+    let mut current = entity;
+    let frame = loop {
+        let Some(parent) = world.get::<ChildOf>(current).map(ChildOf::parent) else {
+            break None;
+        };
+        if let Some(&known) = frames.get(&parent) {
+            break known;
+        }
+        if world.entity(parent).contains::<UiWidget>() {
+            break Some(parent);
+        }
+        path.push(parent);
+        current = parent;
+    };
+    for walked in path {
+        frames.insert(walked, frame);
+    }
+    frame
 }
 
 fn convert(
