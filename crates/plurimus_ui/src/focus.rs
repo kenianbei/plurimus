@@ -1,11 +1,12 @@
-//! Adoption of the bevy input-focus stack for windowless terminal apps.
+//! Adoption of the bevy input-focus stack for terminal apps.
 //!
 //! `bevy_input_focus` assumes windows and keyboard events, neither of which a
 //! terminal has, so this file supplies both: terminal key messages forward
 //! into `bevy_input`, and a virtual [`PrimaryWindow`] is spawned for focus
-//! dispatch to query. [`FocusWithin`] is then maintained on every ancestor of
-//! the focused entity, which is what lets a pane highlight its border while
-//! something inside it holds focus.
+//! dispatch to query where the app opens no window of its own.
+//! [`FocusWithin`] is then maintained on every ancestor of the focused
+//! entity, which is what lets a pane highlight its border while something
+//! inside it holds focus.
 
 use bevy_app::{App, PreStartup, PreUpdate};
 use bevy_ecs::change_detection::DetectChanges;
@@ -88,10 +89,10 @@ pub(crate) fn sync_focus_within(
     }
 }
 
-// The focus stack is inert without a PrimaryWindow entity: dispatch queries
-// it and Window's presence terminates event bubbling.
-fn spawn_virtual_window(mut commands: Commands) {
-    commands
-        .spawn((Window::default(), PrimaryWindow))
-        .observe(crate::nav::navigate_on_arrows);
+// Dispatch queries one PrimaryWindow and Window's presence ends the bubble;
+// an app's own window exists by now, WindowPlugin spawning it on build.
+fn spawn_virtual_window(primary: Query<(), With<PrimaryWindow>>, mut commands: Commands) {
+    if primary.is_empty() {
+        commands.spawn((Window::default(), PrimaryWindow));
+    }
 }

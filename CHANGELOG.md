@@ -84,6 +84,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `InheritedVisibility::VISIBLE` stand-in `BuiPlugin` registered for nodes;
   visibility is now computed.
 
+### Fixed
+
+- **`plurimus_ui` adopts the app's window.** The focus stack's virtual
+  `PrimaryWindow` is spawned only where no entity carries `PrimaryWindow` at
+  startup. An app that opens a real window through `WindowPlugin` keeps that one
+  window, and arrow-key navigation observes it instead, so a plurimus_ui app can
+  run beneath `bevy_winit` without a second window opening.
+
 ## [0.9.0] - 2026-10-27
 
 ### Added

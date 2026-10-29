@@ -64,6 +64,7 @@ pub(crate) fn install(app: &mut App) {
         });
     }
     app.init_resource::<NavigationConfig>();
+    app.add_observer(navigate_on_arrows);
 }
 
 type FocusableQuery<'w, 's> = Query<
@@ -218,8 +219,8 @@ pub(crate) struct NavigationOrigin<'w, 's> {
 }
 
 impl NavigationOrigin<'_, '_> {
-    // The virtual window holds focus before any widget does, and it is not
-    // a navigable position.
+    // The window holds focus before any widget does, and it is not a
+    // navigable position.
     fn current(&self, focus: &InputFocus) -> Option<Entity> {
         focus.get().filter(|&entity| !self.windows.contains(entity))
     }
@@ -235,9 +236,8 @@ impl NavigationOrigin<'_, '_> {
     }
 }
 
-// Observes the virtual window, so only arrows no focused widget consumed
-// arrive here. The event's target is the window by now; the navigation
-// source is the actual focus.
+// Acts at the window hop, whichever window the app has, so only arrows no
+// focused widget consumed arrive here; the source is the actual focus.
 pub(crate) fn navigate_on_arrows(
     input: On<FocusedInput<KeyboardInput>>,
     origin: NavigationOrigin,
@@ -245,6 +245,9 @@ pub(crate) fn navigate_on_arrows(
     map: Res<DirectionalNavigationMap>,
     mut focus: ResMut<InputFocus>,
 ) {
+    if !origin.windows.contains(input.focused_entity) {
+        return;
+    }
     let Some(octant) = arrow_octant(&input.input) else {
         return;
     };
