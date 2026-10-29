@@ -13,7 +13,7 @@ use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::MouseKind;
 use plurimus_test::send_mouse;
-use plurimus_ui::{Hovered, ModalOpen, ScrollArea, ScrollOffset, UiArea, UiWidget};
+use plurimus_ui::{ModalOpen, ScrollArea, ScrollOffset, UiArea, UiWidget};
 use plurimus_widgets::WidgetsPlugin;
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 
@@ -111,91 +111,7 @@ fn a_widget_stacked_over_a_node_takes_the_tick_alone() {
 }
 
 #[test]
-fn a_widget_that_takes_presses_alone_lets_the_tick_fall_to_the_node_beneath() {
-    let mut app = app();
-    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    app.world_mut().spawn((
-        UiWidget::new(Paragraph::new("field")),
-        UiArea::Fixed(Rect::new(0, 0, 8, 3)),
-        Hovered::default(),
-    ));
-    settle(&mut app);
-
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-
-    assert_eq!(scrolled(&app, node).y, 1.0, "the widget takes no tick");
-}
-
-#[test]
-fn a_tick_inside_an_open_plurimus_overlay_reaches_the_node_there() {
-    let mut app = app();
-    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    app.world_mut().spawn((
-        ModalOpen,
-        UiWidget::default(),
-        UiArea::Fixed(Rect::new(0, 0, 8, 3)),
-    ));
-    settle(&mut app);
-
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-
-    assert_eq!(scrolled(&app, node).y, 1.0, "inside the overlay's area");
-}
-
-#[test]
-fn a_widget_that_cannot_move_on_the_ticked_axis_lets_the_tick_fall_through() {
-    let mut app = app();
-    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    let widget = app
-        .world_mut()
-        .spawn((
-            UiWidget::new(Paragraph::new("wide")),
-            UiArea::Fixed(Rect::new(0, 0, 8, 3)),
-            ScrollArea::new(Size::new(30, 2)),
-        ))
-        .id();
-    settle(&mut app);
-
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-
-    assert_eq!(scrolled(&app, node).y, 1.0, "a row down is not its axis");
-    assert_eq!(
-        app.world().get::<ScrollOffset>(widget).unwrap().0,
-        Position::new(0, 0)
-    );
-}
-
-#[test]
-fn a_widget_beneath_an_open_overlay_does_not_take_a_tick_inside_it() {
-    let mut app = app();
-    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    let beneath = app
-        .world_mut()
-        .spawn((
-            UiWidget::new(Paragraph::new("page")),
-            UiArea::Fixed(Rect::new(0, 0, 8, 3)),
-            ScrollArea::new(Size::new(8, 30)),
-        ))
-        .id();
-    app.world_mut().spawn((
-        ModalOpen,
-        UiWidget::default(),
-        UiArea::Fixed(Rect::new(0, 0, 8, 3)),
-    ));
-    settle(&mut app);
-
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-
-    assert_eq!(scrolled(&app, node).y, 1.0, "the overlay admits the node");
-    assert_eq!(
-        app.world().get::<ScrollOffset>(beneath).unwrap().0,
-        Position::new(0, 0),
-        "and not what it is drawn over"
-    );
-}
-
-#[test]
-fn an_open_plurimus_overlay_blocks_node_ticks_outside_it() {
+fn an_open_plurimus_overlay_blocks_node_ticks() {
     let mut app = app();
     let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
     app.world_mut().spawn((

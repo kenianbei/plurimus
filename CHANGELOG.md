@@ -16,10 +16,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   click-to-focus, Enter and Space, and wheel ticks that scroll one row.
   `TextInputPlugin` stays out, since it edits through a font engine.
   - A node pick is dropped where a plurimus widget would take the press or the
-    tick, and outside an open plurimus overlay, so widgets drawn over nodes take
-    the pointer alone; a tick over a widget that takes presses alone, or cannot
-    move on the ticked axis, falls to the node beneath, and a widget under an
-    open overlay takes nothing inside it. `plurimus_ui::PointerTargets` is that question, for any
+    tick, and while a plurimus overlay is open, so widgets drawn over nodes take
+    the pointer alone. `plurimus_ui::PointerTargets` is that question, for any
     other pointer stack.
   - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
     `ZIndex` and `GlobalZIndex` order both.

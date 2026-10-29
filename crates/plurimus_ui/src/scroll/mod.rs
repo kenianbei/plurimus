@@ -241,28 +241,8 @@ pub(crate) struct WheelRouting<'w, 's> {
 }
 
 impl WheelRouting<'_, '_> {
-    /// The topmost receptive widget at `position` that can move by `step`
-    /// and the open modals admit.
-    pub(crate) fn target(
-        &self,
-        position: Position,
-        step: (i32, i32),
-        modal: &ModalGuard,
-    ) -> Option<Entity> {
-        let consumes = |entity| {
-            self.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
-                && modal.admits(position, entity)
-        };
-        topmost_at(position, &self.targets, consumes)
-    }
-
-    /// Whether a receptive widget the open modals admit is at `position`,
-    /// whatever it can move by.
-    pub(crate) fn covers(&self, position: Position, modal: &ModalGuard) -> bool {
-        topmost_at(position, &self.targets, |entity| {
-            modal.admits(position, entity)
-        })
-        .is_some()
+    pub(crate) fn covers(&self, position: Position) -> bool {
+        topmost_at(position, &self.targets, |_| true).is_some()
     }
 }
 
@@ -284,7 +264,11 @@ pub(crate) fn route_tick(
     }
     // Letting a covered tick through would scroll what the overlay is
     // drawn on top of.
-    if let Some(entity) = wheel.target(position, step, modal) {
+    let consumes = |entity| {
+        wheel.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
+            && modal.admits(position, entity)
+    };
+    if let Some(entity) = topmost_at(position, &wheel.targets, consumes) {
         commands.trigger(ScrollBy { entity, step });
     }
     false
