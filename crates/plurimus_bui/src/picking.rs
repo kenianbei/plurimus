@@ -6,14 +6,19 @@
 //! mouse pointer, placed on the primary window `plurimus_ui` keeps for
 //! focus, which is the target every terminal camera renders to. The hit
 //! gate then drops every node pick while the cursor sits on a cell a
-//! `plurimus_ui` widget would take the press or the tick at, and while a
-//! `plurimus_ui` overlay is open - widgets draw over nodes, so a press
-//! reaches one or the other.
+//! `plurimus_ui` widget would take the press or the tick at, and outside an
+//! open `plurimus_ui` overlay, where a press dismisses it - widgets draw
+//! over nodes, so a press reaches one or the other. Inside an open overlay
+//! only the nodes of its own subtree keep their picks, so an overlay built
+//! of nodes works and one drawn over nodes covers them. A frame that
+//! brings a tick and no press keeps its picks over a widget that takes
+//! presses alone, so the tick scrolls the node beneath; the nodes there
+//! are hovered for that frame.
 
 use bevy_camera::NormalizedRenderTarget;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::Messages;
-use bevy_ecs::prelude::{Commands, Local, MessageReader, MessageWriter, Query, Res, ResMut, With};
+use bevy_ecs::message::{MessageMutator, Messages};
+use bevy_ecs::prelude::{Commands, Local, MessageReader, MessageWriter, Query, Res, With};
 use bevy_input::mouse::MouseScrollUnit;
 use bevy_input::touch::TouchPhase;
 use bevy_math::Vec2;
@@ -109,11 +114,43 @@ const fn pointer_button(button: MouseButton) -> Option<PointerButton> {
 // The one pointer is the terminal's cursor, whose cell `plurimus_term`
 // already tracks from the same messages the feed read.
 pub(crate) fn gate_hits(
-    mut hits: ResMut<Messages<PointerHits>>,
+    mut hits: MessageMutator<PointerHits>,
     cursor: Res<CursorCell>,
+    inputs: Res<Messages<PointerInput>>,
     widgets: PointerTargets,
 ) {
-    if cursor.0.is_some_and(|cell| widgets.covers(cell)) {
-        hits.clear();
+    let Some(cell) = cursor.0 else {
+        return;
+    };
+    let covered = match tick_alone(&inputs) {
+        Some(step) => widgets.takes_wheel(cell, step),
+        None => widgets.covers(cell),
+    };
+    for hit in hits.read() {
+        hit.picks
+            .retain(|(node, _)| !covered && widgets.admits(cell, *node));
     }
+}
+
+/// The frame's ticks as one step in cells, where the frame's pointer
+/// input holds a tick and no press or release.
+fn tick_alone(inputs: &Messages<PointerInput>) -> Option<(i32, i32)> {
+    let mut step = (0, 0);
+    for input in inputs.iter_current_update_messages() {
+        match input.action {
+            PointerAction::Scroll { x, y, .. } => {
+                step.0 += cells_of(x);
+                step.1 += cells_of(y);
+            }
+            PointerAction::Press(_) | PointerAction::Release(_) => return None,
+            _ => {}
+        }
+    }
+    (step != (0, 0)).then_some(step)
+}
+
+// A tick down is a negative `y` to the feed, as to a wheel, and a positive
+// row to the router.
+fn cells_of(delta: f32) -> i32 {
+    i32::from(delta < 0.0) - i32::from(delta > 0.0)
 }

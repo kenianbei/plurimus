@@ -565,13 +565,18 @@ buttons, checkboxes, sliders, menus and scroll areas run on nodes unchanged,
 while `TextInputPlugin` stays out for want of a font engine. The two pointer
 stacks share one terminal by one rule, asked of `plurimus_ui::PointerTargets` in
 the picking backend: a node pick at a cell a plurimus widget would take a press
-or a tick at, or any pick while a plurimus overlay is open, is dropped, so
-widgets draw over nodes and the press reaches one or the other. Window picking
-is off, since a press on no node is plurimus_ui's to route and a window hit
-would clear the focus it left alone. A tree shared with a windowed build keeps a
-text field to each target - the terminal places a plurimus `EditableText` over
-the field's node through `UiArea` - and arrow-key navigation, which nothing
-builds for nodes.
+or a tick at is dropped, so widgets draw over nodes and the press reaches one or
+the other - and the question is the router's own, so a tick over a widget that
+takes presses alone, or cannot move on the ticked axis, falls to the node
+beneath as a wheel over a button reaches the scroll area around it. An open
+plurimus overlay confines nodes as it confines widgets: inside it only its own
+subtree is picked, so an overlay built of nodes works and one drawn over nodes
+covers them, and outside it nothing is, where a press dismisses it. Window
+picking is off, since a press on no node is plurimus_ui's to route and a window
+hit would clear the focus it left alone. A tree shared with a windowed build
+keeps a text field to each target - the terminal places a plurimus
+`EditableText` over the field's node through `UiArea` - and arrow-key
+navigation, which nothing builds for nodes.
 
 ### plurimus_2d
 

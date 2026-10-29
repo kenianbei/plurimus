@@ -148,6 +148,43 @@ fn an_open_plurimus_overlay_blocks_node_hits() {
     assert_eq!(activations(&app), &[] as &[Entity]);
 }
 
+/// An overlay built of nodes, as a form is, over a page of nodes: a press
+/// on it reaches its own buttons and none it is drawn over.
+#[test]
+fn a_press_inside_an_open_overlay_reaches_only_its_own_nodes() {
+    let mut app = app();
+    let page = app
+        .world_mut()
+        .spawn(Node {
+            padding: UiRect::top(Val::Px(2.0)),
+            ..full_screen()
+        })
+        .id();
+    let beneath = button(&mut app, page);
+    let overlay = app
+        .world_mut()
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Px(20.0),
+                height: Val::Px(6.0),
+                flex_direction: FlexDirection::Column,
+                ..Node::default()
+            },
+            ModalOpen,
+            UiWidget::default(),
+            UiArea::Fixed(Rect::new(0, 0, 20, 6)),
+        ))
+        .id();
+    let own = button(&mut app, overlay);
+    settle(&mut app);
+
+    click(&mut app, 2, 0);
+    click(&mut app, 2, 2);
+
+    assert_eq!(activations(&app), &[own], "beneath {beneath:?} is covered");
+}
+
 #[test]
 fn a_pickable_ignore_node_falls_through() {
     let mut app = app();

@@ -50,14 +50,34 @@ pub struct PointerTargets<'w, 's> {
 }
 
 impl PointerTargets<'_, '_> {
-    /// Whether a pointer at `cell` is this crate's: a widget there takes
-    /// presses or ticks, or an overlay is open, which a press anywhere
-    /// dismisses.
+    /// Whether a pointer at `cell` is this crate's: a widget the open
+    /// overlays admit takes presses or ticks there, or an overlay is open
+    /// and the cell is outside it, where a press dismisses it.
     #[must_use]
     pub fn covers(&self, cell: Position) -> bool {
-        self.modal.is_open()
-            || topmost_at(cell, &self.targets, |_| true).is_some()
-            || self.wheel.covers(cell)
+        let admits = |entity| self.modal.admits(cell, entity);
+        self.modal.dismisses(cell)
+            || topmost_at(cell, &self.targets, admits).is_some()
+            || self.wheel.covers(cell, &self.modal)
+    }
+
+    /// Whether a tick of `step` cells at `cell` is this crate's, as the
+    /// router would take it: a widget the open overlays admit can move by
+    /// it there, or an overlay is open and the cell is outside it. A widget
+    /// that takes presses alone, or cannot move on the ticked axis, lets
+    /// the tick fall to whatever scrolls beneath it.
+    #[must_use]
+    pub fn takes_wheel(&self, cell: Position, step: (i32, i32)) -> bool {
+        self.modal.dismisses(cell) || self.wheel.target(cell, step, &self.modal).is_some()
+    }
+
+    /// Whether the open overlays let `entity`, reached at `cell` beneath
+    /// the widgets, take the pointer: no overlay covers the cell, or the
+    /// entity is in the subtree of one that does. What an overlay is drawn
+    /// over is not.
+    #[must_use]
+    pub fn admits(&self, cell: Position, entity: Entity) -> bool {
+        self.modal.admits(cell, entity)
     }
 }
 

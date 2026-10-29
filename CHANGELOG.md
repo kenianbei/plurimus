@@ -16,11 +16,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   click-to-focus, Enter and Space, and wheel ticks that scroll one row.
   `TextInputPlugin` stays out, since it edits through a font engine.
   - A node pick is dropped where a plurimus widget would take the press or the
-    tick, and while a plurimus overlay is open, so widgets drawn over nodes take
-    the pointer alone. `plurimus_ui::PointerTargets` is that question, for any
+    tick, so widgets drawn over nodes take the pointer alone; a tick over a
+    widget that takes presses alone, or cannot move on the ticked axis, falls to
+    the node beneath, as a wheel over a button reaches the scroll area around it
+    in a window. While a plurimus overlay is open, only the nodes of its own
+    subtree are picked inside it - an overlay built of nodes works, and one
+    drawn over nodes covers them - and nothing is picked outside it, where a
+    press dismisses it. `plurimus_ui::PointerTargets` is that question, for any
     other pointer stack.
   - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
-    `ZIndex` and `GlobalZIndex` order both.
+    `ZIndex` and `GlobalZIndex` order both, and a root spawned later stands over
+    an earlier one, as in a window.
 - **`bevy_ui` text draws in a bridged tree.** `bevy_ui::widget::Text` roots with
   `bevy_text::TextSpan` children render in cells: `TextColor` is the foreground,
   a weight from semibold up is bold, a non-normal style italic, `Strikethrough`
