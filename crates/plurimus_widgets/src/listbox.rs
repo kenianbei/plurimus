@@ -12,6 +12,7 @@ use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Changed, Children, Commands, Component, Has, On, Query, With, Without};
+use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use bevy_input_focus::tab_navigation::TabIndex;
@@ -150,56 +151,86 @@ impl Default for ListBoxKeys {
     }
 }
 
-pub(crate) fn listbox_key(
-    mut input: On<FocusedInput<KeyboardInput>>,
-    held: HeldModifiers,
-    mut boxes: Query<
+/// A [`ListBox`]'s cursor, for whoever drives the list without focusing
+/// it - a search field stepping the results beneath it.
+#[derive(SystemParam)]
+pub struct ListBoxAccess<'w, 's> {
+    boxes: Query<
+        'w,
+        's,
         (
-            &Children,
-            &ListBoxKeys,
-            &ComputedWidgetArea,
-            &mut ActiveDescendant,
+            &'static ComputedWidgetArea,
+            Option<&'static ScrollOffset>,
+            &'static Children,
+            &'static mut ActiveDescendant,
         ),
         (With<ListBox>, Without<ComputedDisabled>),
     >,
-    items: RowTexts,
+    items: RowTexts<'w, 's>,
+}
+
+impl ListBoxAccess<'_, '_> {
+    /// Moves the cursor as the bound key would, answering false when
+    /// nothing moved - at an edge, with no rows, or for a disabled or
+    /// non-list entity - so the caller can pass the key on.
+    /// [`ListBoxAction::Select`] and [`ListBoxAction::Copy`] are not
+    /// motions and answer false.
+    pub fn apply(&mut self, list: Entity, action: ListBoxAction) -> bool {
+        let is_motion = matches!(
+            action,
+            ListBoxAction::Up
+                | ListBoxAction::Down
+                | ListBoxAction::First
+                | ListBoxAction::Last
+                | ListBoxAction::PageUp
+                | ListBoxAction::PageDown
+        );
+        if !is_motion {
+            return false;
+        }
+        let Ok((area, _, children, mut active)) = self.boxes.get_mut(list) else {
+            return false;
+        };
+        let rows: Vec<RowSpan> = row_spans(children, &self.items).collect();
+        move_active(action, &rows, *area, &mut active)
+    }
+
+    fn cursor(&self, list: Entity) -> Option<Entity> {
+        let (.., active) = self.boxes.get(list).ok()?;
+        active.0.filter(|&row| self.items.contains(row))
+    }
+}
+
+pub(crate) fn listbox_key(
+    mut input: On<FocusedInput<KeyboardInput>>,
+    held: HeldModifiers,
+    keys: Query<&ListBoxKeys, With<ListBox>>,
+    mut access: ListBoxAccess,
     mut commands: Commands,
 ) {
     let listbox = input.focused_entity;
-    let Ok((children, keys, area, mut active)) = boxes.get_mut(listbox) else {
+    let Ok(keys) = keys.get(listbox) else {
         return;
     };
     let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
         return;
     };
-    match action {
-        ListBoxAction::Select => {
-            let Some(item) = active.0.filter(|&row| items.contains(row)) else {
-                return;
-            };
-            // A repeat selects nothing, but still must not reach a form's
-            // submit above the list.
-            input.propagate(false);
-            if !input.input.repeat {
-                commands.trigger(ValueChange {
-                    source: listbox,
-                    value: item,
-                    is_final: true,
-                });
-            }
+    if action == ListBoxAction::Select {
+        let Some(item) = access.cursor(listbox) else {
+            return;
+        };
+        // A repeat selects nothing, but still must not reach a form's
+        // submit above the list.
+        input.propagate(false);
+        if !input.input.repeat {
+            commands.trigger(ValueChange {
+                source: listbox,
+                value: item,
+                is_final: true,
+            });
         }
-        ListBoxAction::Copy => {}
-        ListBoxAction::Up
-        | ListBoxAction::Down
-        | ListBoxAction::First
-        | ListBoxAction::Last
-        | ListBoxAction::PageUp
-        | ListBoxAction::PageDown => {
-            let rows: Vec<RowSpan> = row_spans(children, &items).collect();
-            if move_active(action, &rows, *area, &mut active) {
-                input.propagate(false);
-            }
-        }
+    } else if access.apply(listbox, action) {
+        input.propagate(false);
     }
 }
 
@@ -305,19 +336,6 @@ fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page:
     }
 }
 
-/// The rows a pointer is resolved against, and the cursor it moves.
-type Pointed<'w, 's> = Query<
-    'w,
-    's,
-    (
-        &'static ComputedWidgetArea,
-        Option<&'static ScrollOffset>,
-        &'static Children,
-        &'static mut ActiveDescendant,
-    ),
-    (With<ListBox>, Without<ComputedDisabled>),
->;
-
 fn row_at(
     position: Position,
     (area, offset, children): (&ComputedWidgetArea, Option<&ScrollOffset>, &Children),
@@ -333,11 +351,11 @@ fn row_at(
 
 /// Moves the cursor to the row under the pointer, so a press shows what it
 /// is on. Selecting is the release's, in [`listbox_click`].
-pub(crate) fn listbox_press(event: On<PointerPress>, mut boxes: Pointed, items: RowTexts) {
-    let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
+pub(crate) fn listbox_press(event: On<PointerPress>, mut access: ListBoxAccess) {
+    let Ok((area, offset, children, mut active)) = access.boxes.get_mut(event.entity) else {
         return;
     };
-    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+    let Some(row) = row_at(event.position, (area, offset, children), &access.items) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
@@ -345,11 +363,11 @@ pub(crate) fn listbox_press(event: On<PointerPress>, mut boxes: Pointed, items: 
 
 /// Keeps the cursor under a held pointer, so the highlight never disagrees
 /// with the row a release would select.
-pub(crate) fn listbox_drag(event: On<PointerDrag>, mut boxes: Pointed, items: RowTexts) {
-    let Ok((area, offset, children, mut active)) = boxes.get_mut(event.entity) else {
+pub(crate) fn listbox_drag(event: On<PointerDrag>, mut access: ListBoxAccess) {
+    let Ok((area, offset, children, mut active)) = access.boxes.get_mut(event.entity) else {
         return;
     };
-    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+    let Some(row) = row_at(event.position, (area, offset, children), &access.items) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
@@ -361,17 +379,12 @@ pub(crate) fn listbox_drag(event: On<PointerDrag>, mut boxes: Pointed, items: Ro
 /// the thing it was made in, and closing on the way down despawns the entity
 /// the pointer router is still holding a gesture for. A release outside any
 /// row selects nothing, and a drag across rows names the one it ended on.
-pub(crate) fn listbox_click(
-    event: On<Click>,
-    mut boxes: Pointed,
-    items: RowTexts,
-    mut commands: Commands,
-) {
+pub(crate) fn listbox_click(event: On<Click>, mut access: ListBoxAccess, mut commands: Commands) {
     let listbox = event.entity;
-    let Ok((area, offset, children, mut active)) = boxes.get_mut(listbox) else {
+    let Ok((area, offset, children, mut active)) = access.boxes.get_mut(listbox) else {
         return;
     };
-    let Some(row) = row_at(event.position, (area, offset, children), &items) else {
+    let Some(row) = row_at(event.position, (area, offset, children), &access.items) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));

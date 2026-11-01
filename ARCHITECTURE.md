@@ -500,22 +500,24 @@ one checked row is its last pick, left behind as the cursor moves on, and
 `Marked` is not selection. Whichever container holds the cursor, the row it
 names is styled as focused even when focus sits elsewhere - being driven is what
 `ActiveDescendant` is for, and a cursor nobody can see is that pattern
-contradicting itself. Both containers also take their movement and copy keys
-from a component of `(KeyBinding, Action)` bindings - `ListBoxKeys`,
-`TableKeys` - which is how an app remaps a list to vim keys, `Ctrl+D` included,
-without reimplementing movement beside the widget. Only the bindings are the
-crate's: the scan itself is `plurimus_ui`'s `first_bound`, the same one a
-focused scroll area's keys go through. Every widget here takes its keys that
-way. The two text widgets' tables - `TextInputKeys` and `TextEditorKeys` - bind
-editing rather than movement, so an unbound unchorded character still types
-itself and an unbound chord propagates. `TextInputAction`'s `Submit`, `Copy`,
-`Cut` and `Paste` are the actions `TextInput::handle` refuses to apply - what
-committing means and where a copy goes are the dispatcher's, so `handle` leaves
-them and whoever routes the key acts on them, which is also why the enum stays
-closed. The editor's actions carry the engine's own `CursorMove` and `Scrolling`
-rather than restating them, and apply through its public operations rather than
-its emacs keymap, which never runs: a table can unbind a key only if nothing
-behind it still answers.
+contradicting itself. For a list box the driver's door is `ListBoxAccess`: a
+motion applied to a list that holds no focus, answering whether the cursor moved
+so the key it came from goes on when it did not. Both containers also take their
+movement and copy keys from a component of `(KeyBinding, Action)` bindings -
+`ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim keys,
+`Ctrl+D` included, without reimplementing movement beside the widget. Only the
+bindings are the crate's: the scan itself is `plurimus_ui`'s `first_bound`, the
+same one a focused scroll area's keys go through. Every widget here takes its
+keys that way. The two text widgets' tables - `TextInputKeys` and
+`TextEditorKeys` - bind editing rather than movement, so an unbound unchorded
+character still types itself and an unbound chord propagates.
+`TextInputAction`'s `Submit`, `Copy`, `Cut` and `Paste` are the actions
+`TextInput::handle` refuses to apply - what committing means and where a copy
+goes are the dispatcher's, so `handle` leaves them and whoever routes the key
+acts on them, which is also why the enum stays closed. The editor's actions
+carry the engine's own `CursorMove` and `Scrolling` rather than restating them,
+and apply through its public operations rather than its emacs keymap, which
+never runs: a table can unbind a key only if nothing behind it still answers.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is

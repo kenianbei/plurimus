@@ -59,6 +59,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   unwrapped, right-justified cells. The field is the one control each target
   supplies for itself: a plurimus `EditableText` over its node in the terminal,
   upstream's `TextInput` in the window.
+- **`ListBoxAccess`** moves a `ListBox`'s cursor from outside the list: a
+  `SystemParam` whose `apply(list, action)` runs a `ListBoxAction` motion on a
+  list that holds no focus, as its own bound key would, and answers whether the
+  cursor moved - so a form that caught Up or Down in a field above the list can
+  step the list and pass the key on when it stepped nowhere. The reveal and the
+  cursor highlight follow as they do for a key. `Select` and `Copy` are not
+  motions and answer false; a disabled list refuses.
 
 ### Changed
 
