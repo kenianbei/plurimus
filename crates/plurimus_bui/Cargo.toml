@@ -31,6 +31,7 @@ unicode-segmentation = { workspace = true }
 unicode-width = { workspace = true }
 
 [dev-dependencies]
+bevy_time = { workspace = true }
 insta = "1"
 plurimus_test = { workspace = true }
 plurimus_widgets = { workspace = true }

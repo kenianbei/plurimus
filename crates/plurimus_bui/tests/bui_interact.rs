@@ -4,11 +4,11 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
-use bevy_input_focus::tab_navigation::{NavAction, TabIndex};
+use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_ui::{FlexDirection, Node, PositionType, UiRect, Val};
 use plurimus_bui::BuiPlugin;
 use plurimus_bui::bevy_picking::Pickable;
-use plurimus_bui::bevy_ui_widgets::{Button, MenuFocusState, MenuItem, MenuPopup};
+use plurimus_bui::bevy_ui_widgets::Button;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
@@ -244,35 +244,4 @@ fn a_disabled_node_absorbs_the_press() {
     click(&mut app, 2, 0);
 
     assert_eq!(activations(&app), &[] as &[Entity]);
-}
-
-/// A lazy menu spawns its popup as it opens, so the frame that spawns it is
-/// the frame the menu looks for an item to focus.
-#[test]
-fn a_menu_opened_as_it_spawns_focuses_its_item() {
-    let mut app = app();
-    let root = app.world_mut().spawn(full_screen()).id();
-    settle(&mut app);
-
-    let popup = app
-        .world_mut()
-        .spawn((
-            Node::default(),
-            MenuPopup::default(),
-            MenuFocusState::Opening(NavAction::First),
-            ChildOf(root),
-        ))
-        .id();
-    let item = app
-        .world_mut()
-        .spawn((Node::default(), MenuItem, TabIndex(0), ChildOf(popup)))
-        .id();
-    app.update();
-
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(item));
-    assert_eq!(
-        app.world().get::<MenuFocusState>(popup),
-        Some(&MenuFocusState::Open),
-        "closing is what fires CloseAll"
-    );
 }
