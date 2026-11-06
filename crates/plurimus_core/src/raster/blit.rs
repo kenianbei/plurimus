@@ -146,7 +146,7 @@ pub fn letterbox(source: (usize, usize), target: Rect) -> Rect {
 /// absolute subcell coordinates - [`letterbox`] output, or the grid's
 /// whole [`subcell_area`](HalfblockGrid::subcell_area) for a stretch
 /// fit. Subcells outside `fit` are untouched; what shows behind the
-/// content is the camera's [`Background`](crate::Background).
+/// content is the camera's clear colour.
 pub fn blit_halfblocks(grid: &mut HalfblockGrid, pixels: &PixelGrid<'_>, fit: Rect) {
     sample_fit(pixels, fit, |x, sub_y, color| grid.set(x, sub_y, color));
 }
@@ -155,7 +155,7 @@ pub fn blit_halfblocks(grid: &mut HalfblockGrid, pixels: &PixelGrid<'_>, fit: Re
 /// absolute subcell coordinates - [`letterbox`] output, or the grid's
 /// whole [`subcell_area`](BrailleGrid::subcell_area) for a stretch fit.
 /// Subcells outside `fit` are untouched; what shows behind the content
-/// is the camera's [`Background`](crate::Background).
+/// is the camera's clear colour.
 pub fn blit_braille(grid: &mut BrailleGrid, pixels: &PixelGrid<'_>, fit: Rect) {
     sample_fit(pixels, fit, |sub_x, sub_y, color| {
         grid.set(sub_x, sub_y, color);

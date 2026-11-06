@@ -24,11 +24,12 @@ mod widget;
 mod tests;
 
 use bevy_app::{App, AppExit};
+use plurimus::core::bevy_camera::Camera;
 use plurimus::core::ratatui_core::backend::TestBackend;
 use plurimus::core::ratatui_core::layout::{Position, Rect};
 use plurimus::core::{
     ColorDepth, CorePlugin, PresenterPlugin, TerminalCamera, TerminalCursor, TerminalRenderAppExt,
-    TerminalSize, UiArea, UiCamera, UiWidget, Viewport,
+    TerminalSize, UiArea, UiCamera, UiWidget,
 };
 
 use widget::Waveform;
@@ -58,17 +59,16 @@ fn demo() -> App {
     app.add_plugins(PresenterPlugin::new(TestBackend::new(SIZE.cols, SIZE.rows)));
 
     // Two cameras split the target the way they would split a terminal.
-    let top = app
-        .world_mut()
-        .spawn(TerminalCamera::default().with_viewport(Viewport::Fixed(TOP)))
-        .id();
+    let top = app.world_mut().spawn(TerminalCamera::Fixed(TOP)).id();
     let bottom = app
         .world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(1)
-                .with_viewport(Viewport::Fixed(BOTTOM)),
-        )
+        .spawn((
+            TerminalCamera::Fixed(BOTTOM),
+            Camera {
+                order: 1,
+                ..Camera::default()
+            },
+        ))
         .id();
     // A `UiArea` is camera-local and clipped to its camera's viewport, so
     // each widget names its camera and fills it from the origin.

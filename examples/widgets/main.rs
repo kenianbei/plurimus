@@ -27,10 +27,10 @@ use plurimus::bui::bevy_ui_widgets::{
     Button as NodeButton, Checkbox as NodeCheckbox, RadioButton as NodeRadioButton,
     Slider as NodeSlider,
 };
+use plurimus::core::bevy_camera::Camera;
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{
     CameraSystems, CorePlugin, ResolvedViewport, TerminalCamera, TerminalSize, UiArea, UiWidget,
-    Viewport,
 };
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::term::{KeyCode, KeyKind, KeyMessage};
@@ -115,14 +115,13 @@ fn add_demo(app: &mut App) {
 }
 
 fn spawn_cameras(mut commands: Commands) {
+    commands.spawn((TerminalCamera::Fixed(Rect::ZERO), ThemedCamera));
     commands.spawn((
-        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::ZERO)),
-        ThemedCamera,
-    ));
-    commands.spawn((
-        TerminalCamera::default()
-            .with_order(1)
-            .with_viewport(Viewport::Fixed(Rect::ZERO)),
+        TerminalCamera::Fixed(Rect::ZERO),
+        Camera {
+            order: 1,
+            ..Camera::default()
+        },
         BuiCamera,
     ));
 }
@@ -143,14 +142,12 @@ fn resize_cameras(
 ) {
     let split = size.cols / 2;
     for (mut camera, is_bui) in &mut cameras {
-        let viewport = Viewport::Fixed(if is_bui {
+        let placement = TerminalCamera::Fixed(if is_bui {
             Rect::new(split, 0, size.cols.saturating_sub(split), size.rows)
         } else {
             Rect::new(0, 0, split, size.rows)
         });
-        if camera.viewport != viewport {
-            camera.viewport = viewport;
-        }
+        camera.set_if_neq(placement);
     }
 }
 

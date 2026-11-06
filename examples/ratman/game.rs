@@ -7,7 +7,8 @@ use bevy_ecs::prelude::{
 use bevy_ecs::system::SystemParam;
 use bevy_time::Time;
 use bevy_transform::components::Transform;
-use plurimus::core::{Background, Edge, TerminalCamera, TerminalSize, Viewport};
+use plurimus::core::bevy_camera::{Camera, ClearColorConfig};
+use plurimus::core::{Edge, TerminalCamera, TerminalSize};
 use plurimus::render2d::{PixelBlock, Projection2d};
 
 use crate::actor::{Actor, Dir, advance};
@@ -111,21 +112,26 @@ fn spawn_scene(mut commands: Commands) {
     commands.spawn((TerminalCamera::default(), Projection2d::default()));
     let hud_camera = commands
         .spawn((
-            TerminalCamera::default()
-                .with_order(1)
-                .with_viewport(Viewport::Docked {
-                    edge: Edge::Top,
-                    cells: 1,
-                }),
+            TerminalCamera::Docked {
+                edge: Edge::Top,
+                cells: 1,
+            },
+            Camera {
+                order: 1,
+                ..Camera::default()
+            },
             HudCamera,
         ))
         .id();
     let overlay = commands
-        .spawn(
-            TerminalCamera::default()
-                .with_order(2)
-                .with_background(Background::Transparent),
-        )
+        .spawn((
+            TerminalCamera::Full,
+            Camera {
+                order: 2,
+                clear_color: ClearColorConfig::None,
+                ..Camera::default()
+            },
+        ))
         .id();
     spawn_hud(&mut commands, hud_camera, overlay);
 }

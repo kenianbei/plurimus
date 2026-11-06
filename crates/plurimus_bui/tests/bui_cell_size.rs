@@ -11,7 +11,8 @@ use bevy_ui::{
     UiRect, Val,
 };
 use plurimus_bui::bevy_ui_widgets::{Button, ScrollArea};
-use plurimus_bui::{BuiPlugin, CellSize, ComputedNodeRect};
+use plurimus_bui::{BuiPlugin, ComputedNodeRect};
+use plurimus_core::CellSize;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::MouseKind;

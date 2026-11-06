@@ -26,7 +26,7 @@ use plurimus_core::ratatui_core::style::{Modifier, Style};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::extract::cell_color;
-use super::rect::CellSize;
+use plurimus_core::CellSize;
 
 /// A `Text` root's spans as cell styles, kept from the last change to any
 /// of them so neither measurement nor extraction walks the spans again.

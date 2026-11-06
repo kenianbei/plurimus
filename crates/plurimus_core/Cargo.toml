@@ -13,8 +13,10 @@ rust-version.workspace = true
 
 [dependencies]
 bevy_app = { workspace = true }
+bevy_camera = { workspace = true }
 bevy_color = { workspace = true }
 bevy_ecs = { workspace = true }
+bevy_math = { workspace = true }
 ratatui-core = { workspace = true }
 
 [lints]

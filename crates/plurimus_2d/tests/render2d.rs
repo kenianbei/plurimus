@@ -5,10 +5,18 @@ use bevy_transform::components::Transform;
 use plurimus_2d::{
     Glyph, GlyphBlock, Pixel, PixelBlock, Plugin2d, Projection2d, RenderLayers, SubcellMode,
 };
+use plurimus_core::bevy_camera::Camera;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{composed_frame, composed_styled_frame};
+
+fn second() -> Camera {
+    Camera {
+        order: 1,
+        ..Camera::default()
+    }
+}
 
 fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
@@ -72,13 +80,12 @@ fn pixels_land_in_upper_and_lower_halves() {
 fn two_cameras_view_the_world_at_different_scales() {
     let mut app = app(12, 4);
     app.world_mut().spawn((
-        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 8, 4))),
+        TerminalCamera::Fixed(Rect::new(0, 0, 8, 4)),
         Projection2d::default(),
     ));
     app.world_mut().spawn((
-        TerminalCamera::default()
-            .with_order(1)
-            .with_viewport(Viewport::Fixed(Rect::new(8, 0, 4, 4))),
+        TerminalCamera::Fixed(Rect::new(8, 0, 4, 4)),
+        second(),
         Projection2d::default().with_scale(2.0),
     ));
     app.world_mut().spawn(glyph_at("@", 2.0, 2.0, 0.0));
@@ -93,13 +100,12 @@ fn two_cameras_view_the_world_at_different_scales() {
 fn render_layers_mask_entities_per_camera() {
     let mut app = app(8, 3);
     app.world_mut().spawn((
-        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 3))),
+        TerminalCamera::Fixed(Rect::new(0, 0, 4, 3)),
         Projection2d::default(),
     ));
     app.world_mut().spawn((
-        TerminalCamera::default()
-            .with_order(1)
-            .with_viewport(Viewport::Fixed(Rect::new(4, 0, 4, 3))),
+        TerminalCamera::Fixed(Rect::new(4, 0, 4, 3)),
+        second(),
         Projection2d::default(),
         RenderLayers::layer(1),
     ));
@@ -187,13 +193,12 @@ fn wide_graphemes_occupy_their_display_width() {
 fn braille_cameras_render_pixels_at_dot_resolution() {
     let mut app = app(8, 2);
     app.world_mut().spawn((
-        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 2))),
+        TerminalCamera::Fixed(Rect::new(0, 0, 4, 2)),
         Projection2d::default(),
     ));
     app.world_mut().spawn((
-        TerminalCamera::default()
-            .with_order(1)
-            .with_viewport(Viewport::Fixed(Rect::new(4, 0, 4, 2))),
+        TerminalCamera::Fixed(Rect::new(4, 0, 4, 2)),
+        second(),
         Projection2d::default(),
         SubcellMode::Braille,
     ));

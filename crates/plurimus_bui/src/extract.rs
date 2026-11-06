@@ -29,14 +29,15 @@ use bevy_ui::{
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{
-    ExtractedWidget, MainWorld, ResolvedViewport, TerminalCamera, UiArea, UiOrder, UiWidget,
+    CellSize, ExtractedWidget, MainWorld, ResolvedViewport, TerminalCamera, UiArea, UiOrder,
+    UiWidget,
 };
 
 use super::decorate::{
     Decoration, ValBasis, offset_and_inflate, resolve_gradients, resolve_shadows, rounded_corners,
 };
 use super::rasterize::FramedNodes;
-use super::rect::{CellBox, CellSize, clip_cells, node_boxes};
+use super::rect::{CellBox, clip_cells, node_boxes};
 use super::text::ResolvedText;
 
 /// The layer a frame's nodes draw at, above the frame's own widget at 0.
@@ -88,10 +89,14 @@ pub(crate) fn extract_bui_nodes(
     out.cell = main_world.resource::<CellSize>().vec();
     let cell = out.cell;
     let viewports: HashMap<Entity, Rect> = {
-        let mut cameras = main_world.query::<(Entity, &TerminalCamera, &ResolvedViewport)>();
+        let mut cameras = main_world.query_filtered::<(
+            Entity,
+            &bevy_camera::Camera,
+            &ResolvedViewport,
+        ), bevy_ecs::prelude::With<TerminalCamera>>();
         cameras
             .iter(&main_world)
-            .filter(|(_, camera, _)| camera.active)
+            .filter(|(_, camera, _)| camera.is_active)
             .map(|(entity, _, resolved)| (entity, resolved.0))
             .collect()
     };

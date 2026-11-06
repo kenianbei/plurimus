@@ -10,42 +10,13 @@
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, Query, Res, Resource};
+use bevy_ecs::prelude::{Commands, Component, Query, Res};
 use bevy_math::Vec2;
 use bevy_ui::{
     CalculatedClip, CalculatedClipRect, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform,
 };
-use plurimus_core::ResolvedViewport;
 use plurimus_core::ratatui_core::layout::Rect;
-
-/// Pixels per terminal cell, per axis: the one place `bevy_ui`'s pixels and
-/// the terminal's cells meet.
-///
-/// Layout, text measurement, decoration, picking and `RemSize` all go through
-/// it, so a tree sized in pixels for a window - `8 x 16` puts a 560 px card
-/// in 70 columns and a 16 px control in one row - lays out the same here.
-/// The default is one pixel per cell. A border or outline thinner than a
-/// cell paints in the node's outer cell, over content, a cell being the
-/// smallest thing that can be drawn.
-#[derive(Resource, Debug, Clone, Copy, PartialEq)]
-pub struct CellSize {
-    /// Pixels per column.
-    pub x: f32,
-    /// Pixels per row.
-    pub y: f32,
-}
-
-impl Default for CellSize {
-    fn default() -> Self {
-        Self { x: 1.0, y: 1.0 }
-    }
-}
-
-impl CellSize {
-    pub(crate) const fn vec(self) -> Vec2 {
-        Vec2::new(self.x, self.y)
-    }
-}
+use plurimus_core::{CellSize, ResolvedViewport};
 
 /// The node's laid-out rects in terminal cells, cut to its camera's viewport.
 /// Zero until the first layout pass, when no target camera resolves, or when

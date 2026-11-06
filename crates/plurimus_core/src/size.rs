@@ -8,6 +8,7 @@
 //! and the message reporting a real terminal's resize is not.
 
 use bevy_ecs::prelude::{DetectChangesMut, Res, ResMut, Resource};
+use bevy_math::Vec2;
 use ratatui_core::layout::Rect;
 
 use crate::extract::MainWorld;
@@ -45,6 +46,36 @@ impl TerminalSize {
 impl Default for TerminalSize {
     fn default() -> Self {
         Self { cols: 80, rows: 24 }
+    }
+}
+
+/// Pixels per terminal cell, per axis: the one place bevy's pixels and the
+/// terminal's cells meet.
+///
+/// A terminal camera's bevy `Camera` reports its viewport and target in these
+/// pixels, so `bevy_ui` layout, picking and anything else reasoning in a
+/// window's units sees a tree sized for a window - `8 x 16` puts a 560 px
+/// card in 70 columns and a 16 px control in one row - laid out the same
+/// here. The default is one pixel per cell.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub struct CellSize {
+    /// Pixels per column.
+    pub x: f32,
+    /// Pixels per row.
+    pub y: f32,
+}
+
+impl Default for CellSize {
+    fn default() -> Self {
+        Self { x: 1.0, y: 1.0 }
+    }
+}
+
+impl CellSize {
+    /// The cell as a vector, for scaling cell coordinates to pixels.
+    #[must_use]
+    pub const fn vec(self) -> Vec2 {
+        Vec2::new(self.x, self.y)
     }
 }
 

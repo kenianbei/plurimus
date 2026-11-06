@@ -45,7 +45,7 @@ mod visibility;
 pub use bevy_picking;
 pub use bevy_text;
 pub use bevy_ui_widgets;
-pub use rect::{CellSize, ComputedNodeRect};
+pub use rect::ComputedNodeRect;
 
 use bevy_app::{
     App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PreUpdate, PropagateSet,
@@ -68,7 +68,7 @@ use bevy_ui::{
 };
 use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{
-    RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
+    CellSize, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
 use plurimus_term::InputSystems;
 use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
@@ -102,7 +102,7 @@ impl Plugin for BuiPlugin {
         app.add_systems(
             PostUpdate,
             (
-                (camera::sync_bui_cameras, propagate_ui_target_cameras)
+                (camera::sync_default_ui_camera, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
                 // Upstream readers of `InheritedVisibility`, such as a
@@ -182,7 +182,6 @@ fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
     app.init_resource::<UiScale>();
     app.init_resource::<UiStack>();
-    app.init_resource::<CellSize>();
     app.init_resource::<RemSize>();
     app.init_resource::<bevy_text::FontCx>();
 }

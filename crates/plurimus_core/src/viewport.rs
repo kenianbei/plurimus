@@ -1,45 +1,29 @@
-//! Declarative camera viewports, resolved to concrete rects each frame.
+//! Camera placements, resolved to concrete rects each frame.
 //!
 //! A camera declares where it wants to sit - the whole terminal, a fixed
 //! rect, a strip docked to an edge, or whatever is left over - and core
 //! resolves that against the current [`TerminalSize`] into a
 //! [`ResolvedViewport`]. Order decides the outcome: cameras resolve in
-//! `(order, entity)` sequence and every [`Viewport::Docked`] strip carves from
-//! one shared remaining region, so a later dock sees a smaller screen and
-//! [`Viewport::Fill`] takes only what survives. Everything downstream reads
-//! the resolved rect, never the declaration.
+//! `(order, entity)` sequence and every [`TerminalCamera::Docked`] strip
+//! carves from one shared remaining region, so a later dock sees a smaller
+//! screen and [`TerminalCamera::Fill`] takes only what survives. Everything
+//! downstream reads the resolved rect, never the declaration. The same pass
+//! mirrors the rect into the bevy [`Camera`] in [`CellSize`] pixels for a
+//! camera carrying no [`Projection`] - the terminal is its whole target - and
+//! leaves a projected camera to bevy's render stack, whose `camera_system`
+//! keys on that same component and sizes its viewport from its image.
 
-use bevy_ecs::prelude::{Commands, Component, DetectChangesMut, Entity, Query, Res};
+use bevy_camera::{Camera, Projection, RenderTargetInfo, Viewport};
+use bevy_ecs::prelude::{Commands, Component, DetectChangesMut, Entity, Has, Query, Res};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::SystemParam;
+use bevy_math::Vec2;
 use ratatui_core::layout::Rect;
 
 use crate::camera::{DefaultCamera, TerminalCamera};
-use crate::size::TerminalSize;
+use crate::size::{CellSize, TerminalSize};
 
-/// Where a camera's viewport sits, resolved against the terminal each
-/// frame. Docked strips carve from a shared remaining region in
-/// `(order, entity)` sequence; fills take what is left.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[non_exhaustive]
-pub enum Viewport {
-    /// The whole terminal.
-    #[default]
-    Full,
-    /// A fixed cell rect, clamped to the screen.
-    Fixed(Rect),
-    /// A strip carved off one edge of the remaining region.
-    Docked {
-        /// Edge the strip is docked to.
-        edge: Edge,
-        /// Strip thickness in cells, clamped to what remains.
-        cells: u16,
-    },
-    /// Whatever remains after all docked strips.
-    Fill,
-}
-
-/// A terminal edge for [`Viewport::Docked`].
+/// A terminal edge for [`TerminalCamera::Docked`].
 ///
 /// Closed: a terminal has four edges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,45 +99,65 @@ pub enum CameraSystems {
     PropagateCameras,
 }
 
+type CameraQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static TerminalCamera,
+        &'static mut Camera,
+        Has<Projection>,
+        Option<&'static mut ResolvedViewport>,
+    ),
+>;
+
 pub(crate) fn resolve_camera_viewports(
     size: Res<TerminalSize>,
-    cameras: Query<(Entity, &TerminalCamera)>,
-    mut resolved: Query<&mut ResolvedViewport>,
+    cell: Res<CellSize>,
+    mut cameras: CameraQuery,
     mut commands: Commands,
 ) {
     let screen = size.rect();
-    let mut ordered: Vec<_> = cameras.iter().collect();
-    ordered.sort_by_key(|(entity, camera)| (camera.order, *entity));
+    let mut ordered: Vec<_> = cameras.iter_mut().collect();
+    ordered.sort_by_key(|(entity, _, camera, _, _)| (camera.order, *entity));
     let mut remaining = screen;
     let strips: Vec<Rect> = ordered
         .iter()
-        .map(|(_, camera)| match camera.viewport {
-            Viewport::Docked { edge, cells } if camera.active => carve(&mut remaining, edge, cells),
+        .map(|(_, placement, camera, _, _)| match **placement {
+            TerminalCamera::Docked { edge, cells } if camera.is_active => {
+                carve(&mut remaining, edge, cells)
+            }
             _ => Rect::ZERO,
         })
         .collect();
-    for ((entity, camera), strip) in ordered.into_iter().zip(strips) {
-        let rect = resolve_one(camera, screen, remaining, strip);
-        match resolved.get_mut(entity) {
-            Ok(mut current) => {
+    for ((entity, placement, mut camera, has_projection, resolved), strip) in
+        ordered.into_iter().zip(strips)
+    {
+        let rect = if camera.is_active {
+            resolve_one(*placement, screen, remaining, strip)
+        } else {
+            Rect::ZERO
+        };
+        match resolved {
+            Some(mut current) => {
                 current.set_if_neq(ResolvedViewport(rect));
             }
-            Err(_) => {
+            None => {
                 commands.entity(entity).insert(ResolvedViewport(rect));
             }
+        }
+        if !has_projection {
+            mirror_into_camera(&mut camera, rect, *size, cell.vec());
         }
     }
 }
 
-fn resolve_one(camera: &TerminalCamera, screen: Rect, remaining: Rect, strip: Rect) -> Rect {
-    if !camera.active {
-        return Rect::ZERO;
-    }
-    match camera.viewport {
-        Viewport::Full => screen,
-        Viewport::Fixed(rect) => rect.intersection(screen),
-        Viewport::Docked { .. } => strip,
-        Viewport::Fill => remaining,
+fn resolve_one(placement: TerminalCamera, screen: Rect, remaining: Rect, strip: Rect) -> Rect {
+    match placement {
+        TerminalCamera::Full => screen,
+        TerminalCamera::Fixed(rect) => rect.intersection(screen),
+        TerminalCamera::Docked { .. } => strip,
+        TerminalCamera::Fill => remaining,
     }
 }
 
@@ -184,17 +188,56 @@ fn carve(remaining: &mut Rect, edge: Edge, cells: u16) -> Rect {
     strip
 }
 
+// Written only on a difference, so an idle frame leaves the camera's change
+// tick alone.
+fn mirror_into_camera(camera: &mut Camera, rect: Rect, size: TerminalSize, cell: Vec2) {
+    let scaled = |x: u16, y: u16| (Vec2::new(f32::from(x), f32::from(y)) * cell).as_uvec2();
+    let position = scaled(rect.x, rect.y);
+    let extent = scaled(rect.width, rect.height);
+    let target = scaled(size.cols, size.rows);
+    let viewport_differs = camera.viewport.as_ref().is_none_or(|viewport| {
+        viewport.physical_position != position || viewport.physical_size != extent
+    });
+    if viewport_differs {
+        camera.viewport = Some(Viewport {
+            physical_position: position,
+            physical_size: extent,
+            depth: 0.0..1.0,
+        });
+    }
+    let target_differs = camera
+        .computed
+        .target_info
+        .as_ref()
+        .is_none_or(|current| current.physical_size != target || current.scale_factor != 1.0);
+    if target_differs {
+        camera.computed.target_info = Some(RenderTargetInfo {
+            physical_size: target,
+            scale_factor: 1.0,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bevy_app::App;
+    use bevy_camera::{Camera, Projection};
     use bevy_ecs::system::SystemState;
+    use bevy_math::UVec2;
     use ratatui_core::layout::Rect;
 
-    use super::{CameraViewports, Edge, ResolvedViewport, Viewport};
-    use crate::{CorePlugin, TerminalCamera, TerminalSize};
+    use super::{CameraViewports, Edge, ResolvedViewport};
+    use crate::{CellSize, CorePlugin, TerminalCamera, TerminalSize};
 
     fn resolved(app: &App, entity: bevy_ecs::entity::Entity) -> Rect {
         app.world().get::<ResolvedViewport>(entity).unwrap().0
+    }
+
+    fn ordered(order: isize) -> Camera {
+        Camera {
+            order,
+            ..Camera::default()
+        }
     }
 
     #[test]
@@ -204,15 +247,11 @@ mod tests {
         app.insert_resource(TerminalSize::new(10, 6));
         let main = app
             .world_mut()
-            .spawn(TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 2))))
+            .spawn(TerminalCamera::Fixed(Rect::new(0, 0, 4, 2)))
             .id();
         let side = app
             .world_mut()
-            .spawn(
-                TerminalCamera::default()
-                    .with_order(1)
-                    .with_viewport(Viewport::Fixed(Rect::new(4, 0, 6, 2))),
-            )
+            .spawn((TerminalCamera::Fixed(Rect::new(4, 0, 6, 2)), ordered(1)))
             .id();
         let stranger = app.world_mut().spawn_empty().id();
         app.update();
@@ -253,31 +292,26 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(CorePlugin);
         app.insert_resource(TerminalSize::new(10, 6));
-        let main = app
-            .world_mut()
-            .spawn(TerminalCamera::default().with_viewport(Viewport::Fill))
-            .id();
+        let main = app.world_mut().spawn(TerminalCamera::Fill).id();
         let sidebar = app
             .world_mut()
-            .spawn(
-                TerminalCamera::default()
-                    .with_order(1)
-                    .with_viewport(Viewport::Docked {
-                        edge: Edge::Left,
-                        cells: 3,
-                    }),
-            )
+            .spawn((
+                TerminalCamera::Docked {
+                    edge: Edge::Left,
+                    cells: 3,
+                },
+                ordered(1),
+            ))
             .id();
         let status = app
             .world_mut()
-            .spawn(
-                TerminalCamera::default()
-                    .with_order(2)
-                    .with_viewport(Viewport::Docked {
-                        edge: Edge::Bottom,
-                        cells: 1,
-                    }),
-            )
+            .spawn((
+                TerminalCamera::Docked {
+                    edge: Edge::Bottom,
+                    cells: 1,
+                },
+                ordered(2),
+            ))
             .id();
 
         app.update();
@@ -294,22 +328,24 @@ mod tests {
         app.insert_resource(TerminalSize::new(4, 2));
         let greedy = app
             .world_mut()
-            .spawn(TerminalCamera::default().with_viewport(Viewport::Docked {
+            .spawn(TerminalCamera::Docked {
                 edge: Edge::Right,
                 cells: 10,
-            }))
+            })
             .id();
         let leftover = app
             .world_mut()
-            .spawn(
-                TerminalCamera::default()
-                    .with_order(1)
-                    .with_viewport(Viewport::Fill),
-            )
+            .spawn((TerminalCamera::Fill, ordered(1)))
             .id();
         let dormant = app
             .world_mut()
-            .spawn(TerminalCamera::default().with_active(false))
+            .spawn((
+                TerminalCamera::default(),
+                Camera {
+                    is_active: false,
+                    ..Camera::default()
+                },
+            ))
             .id();
 
         app.update();
@@ -326,27 +362,57 @@ mod tests {
         app.insert_resource(TerminalSize::new(10, 4));
         let overlay = app
             .world_mut()
-            .spawn(TerminalCamera::default().with_order(5))
+            .spawn((TerminalCamera::Full, ordered(5)))
             .id();
         let pinned = app
             .world_mut()
-            .spawn(
-                TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(8, 3, 10, 10))),
-            )
+            .spawn(TerminalCamera::Fixed(Rect::new(8, 3, 10, 10)))
             .id();
-        app.world_mut()
-            .spawn(
-                TerminalCamera::default()
-                    .with_order(1)
-                    .with_viewport(Viewport::Docked {
-                        edge: Edge::Top,
-                        cells: 2,
-                    }),
-            );
+        app.world_mut().spawn((
+            TerminalCamera::Docked {
+                edge: Edge::Top,
+                cells: 2,
+            },
+            ordered(1),
+        ));
 
         app.update();
 
         assert_eq!(resolved(&app, overlay), Rect::new(0, 0, 10, 4));
         assert_eq!(resolved(&app, pinned), Rect::new(8, 3, 2, 1));
+    }
+
+    #[test]
+    fn an_unprojected_camera_is_mirrored_in_cell_pixels_and_a_projected_one_is_left_alone() {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.insert_resource(TerminalSize::new(10, 4));
+        app.insert_resource(CellSize { x: 8.0, y: 16.0 });
+        let windowed = app
+            .world_mut()
+            .spawn(TerminalCamera::Fixed(Rect::new(2, 1, 4, 2)))
+            .id();
+        let projected = app
+            .world_mut()
+            .spawn((
+                TerminalCamera::Fixed(Rect::new(2, 1, 4, 2)),
+                Projection::default(),
+            ))
+            .id();
+
+        app.update();
+
+        let camera = app.world().get::<Camera>(windowed).unwrap();
+        let viewport = camera.viewport.as_ref().unwrap();
+        assert_eq!(viewport.physical_position, UVec2::new(16, 16));
+        assert_eq!(viewport.physical_size, UVec2::new(32, 32));
+        assert_eq!(
+            camera.computed.target_info.as_ref().unwrap().physical_size,
+            UVec2::new(80, 64)
+        );
+        let camera = app.world().get::<Camera>(projected).unwrap();
+        assert!(camera.viewport.is_none());
+        assert!(camera.computed.target_info.is_none());
+        assert_eq!(resolved(&app, projected), Rect::new(2, 1, 4, 2));
     }
 }

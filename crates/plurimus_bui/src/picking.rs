@@ -29,7 +29,7 @@ use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{CursorCell, MouseButton, MouseKind, MouseMessage};
 use plurimus_ui::PointerTargets;
 
-use super::rect::CellSize;
+use plurimus_core::CellSize;
 
 // A cell's center, so a pointer never sits on an edge two nodes share.
 const CELL_CENTER: f32 = 0.5;

@@ -12,7 +12,8 @@ use plurimus_bui::bevy_text::{
     TextSpan, Underline,
 };
 use plurimus_bui::{BuiPlugin, ComputedNodeRect};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
+use plurimus_core::bevy_camera::Camera;
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::MouseKind;
 use plurimus_test::{composed_frame, composed_styled_frame, send_mouse};
 
@@ -156,13 +157,13 @@ fn two_cameras_partition_nodes() {
     let mut app = app(12, 2);
     let right_camera = app
         .world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(1)
-                .with_viewport(Viewport::Fixed(
-                    plurimus_core::ratatui_core::layout::Rect::new(6, 0, 6, 2),
-                )),
-        )
+        .spawn((
+            TerminalCamera::Fixed(plurimus_core::ratatui_core::layout::Rect::new(6, 0, 6, 2)),
+            Camera {
+                order: 1,
+                ..Camera::default()
+            },
+        ))
         .id();
     app.world_mut().spawn((
         Node {

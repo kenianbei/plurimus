@@ -88,8 +88,8 @@ pub(crate) fn propagate_hidden(
 /// with the lowest order.
 ///
 /// Overlay widgets over world-pipeline content need a dedicated camera -
-/// a [`Viewport::Docked`](crate::Viewport::Docked) strip or one with
-/// [`Background::Transparent`](crate::Background::Transparent); see
+/// a [`TerminalCamera::Docked`](crate::TerminalCamera::Docked) strip or one
+/// clearing to `ClearColorConfig::None`; see
 /// [`UiWidget`](crate::UiWidget) for why.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct UiCamera(pub Entity);

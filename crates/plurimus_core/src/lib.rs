@@ -18,7 +18,7 @@
 //! any ratatui [`Backend`](ratatui_core::backend::Backend).
 //!
 //! Alongside the pipeline this crate owns what the other crates extend:
-//! [`TerminalCamera`] and its [`Viewport`] resolved against [`TerminalSize`],
+//! [`TerminalCamera`], a placement resolved against [`TerminalSize`],
 //! the subcell rasterization primitives in [`raster`], and the widget
 //! primitive - a [`UiWidget`] placed by [`UiArea`] and drawn in the ui pass.
 
@@ -33,23 +33,23 @@ mod sub_app;
 mod viewport;
 mod widget;
 
+pub use bevy_camera;
 pub use ratatui_core;
 
 pub use camera::{
-    Background, CameraBuffer, DefaultCamera, ExtractedCamera, SourceCamera, TerminalCamera,
-    camera_buffer_mut,
+    CameraBuffer, DefaultCamera, ExtractedCamera, SourceCamera, TerminalCamera, camera_buffer_mut,
 };
 pub use compositor::FrameBuffer;
 pub use cursor::TerminalCursor;
 pub use extract::MainWorld;
 pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;
-pub use size::TerminalSize;
+pub use size::{CellSize, TerminalSize};
 pub use sub_app::{
     CompositeSystems, ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp,
     TerminalRenderAppExt, TerminalRenderSystems,
 };
-pub use viewport::{CameraSystems, CameraViewports, Edge, ResolvedViewport, Viewport};
+pub use viewport::{CameraSystems, CameraViewports, Edge, ResolvedViewport};
 pub use widget::placement::{
     ComputedHidden, ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area,
     resolve_area, resolve_camera,
@@ -66,6 +66,7 @@ pub struct CorePlugin;
 impl Plugin for CorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TerminalSize>();
+        app.init_resource::<CellSize>();
         app.init_resource::<DefaultCamera>();
         app.init_resource::<raster::ColorDepth>();
         app.init_resource::<TerminalCursor>();

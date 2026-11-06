@@ -2,8 +2,9 @@ use bevy_app::{App, Startup, Update};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{Commands, Component, On, Query, Res, ResMut, With};
 use bevy_transform::components::Transform;
+use plurimus::core::bevy_camera::Camera;
 use plurimus::core::ratatui_core::layout::Rect;
-use plurimus::core::{TerminalCamera, TerminalSize, Viewport};
+use plurimus::core::{TerminalCamera, TerminalSize};
 use plurimus::ui::{UiArea, UiCamera, UiOrder, UiWidget};
 use plurimus::widgets::ratatui_widgets::block::Block;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
@@ -40,9 +41,11 @@ pub fn add_hud(app: &mut App) {
 fn spawn_panel(mut commands: Commands) {
     let panel = commands
         .spawn((
-            TerminalCamera::default()
-                .with_order(2)
-                .with_viewport(Viewport::Fixed(Rect::ZERO)),
+            TerminalCamera::Fixed(Rect::ZERO),
+            Camera {
+                order: 2,
+                ..Camera::default()
+            },
             PanelCamera,
         ))
         .id();
@@ -84,7 +87,7 @@ fn anchor_panel(
     let Ok(mut camera) = cameras.single_mut() else {
         return;
     };
-    camera.viewport = Viewport::Fixed(Rect {
+    *camera = TerminalCamera::Fixed(Rect {
         x: size.cols.saturating_sub(PANEL_COLS),
         y: 0,
         width: PANEL_COLS,

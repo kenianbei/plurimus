@@ -3,10 +3,10 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
+use plurimus_core::bevy_camera::Camera;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{
     ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera, UiWidget,
-    Viewport,
 };
 use plurimus_ui::{ComputedWidgetArea, UiPlugin};
 use ratatui_widgets::paragraph::Paragraph;
@@ -23,11 +23,13 @@ fn app() -> App {
 
 fn spawn_camera(app: &mut App, viewport: Rect, order: isize) -> Entity {
     app.world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(order)
-                .with_viewport(Viewport::Fixed(viewport)),
-        )
+        .spawn((
+            TerminalCamera::Fixed(viewport),
+            Camera {
+                order,
+                ..Camera::default()
+            },
+        ))
         .id()
 }
 

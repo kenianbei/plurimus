@@ -87,8 +87,8 @@ mod tests {
     use bevy_math::Vec2;
     use bevy_time::TimeUpdateStrategy;
     use bevy_transform::components::Transform;
-    use plurimus::core::ratatui_core::style::Color;
-    use plurimus::core::{Background, TerminalCamera, TerminalSize, Viewport};
+    use plurimus::core::bevy_camera::{Camera, ClearColorConfig};
+    use plurimus::core::{TerminalCamera, TerminalSize};
     use plurimus::render3d::{EdgeOverlay, RAMP_ASCII, RAMP_SHADING, Strategy3d};
     use plurimus::term::KeyCode;
     use plurimus::ui::ComputedWidgetArea;
@@ -142,11 +142,13 @@ mod tests {
     #[test]
     fn panel_renders_uncamouflaged_over_the_scene() {
         let mut app = headless_app();
-        app.world_mut().spawn(
-            TerminalCamera::default()
-                .with_viewport(Viewport::Fill)
-                .with_background(Background::Clear(Color::Rgb(43, 44, 47))),
-        );
+        app.world_mut().spawn((
+            TerminalCamera::Fill,
+            Camera {
+                clear_color: ClearColorConfig::Custom(bevy_color::Color::srgb_u8(43, 44, 47)),
+                ..Camera::default()
+            },
+        ));
 
         app.update();
         app.update();

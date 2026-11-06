@@ -3908,8 +3908,10 @@ name = "plurimus_core"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_color",
  "bevy_ecs",
+ "bevy_math",
  "ratatui-core",
 ]
 
