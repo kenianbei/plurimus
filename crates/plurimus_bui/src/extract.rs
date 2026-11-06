@@ -29,8 +29,7 @@ use bevy_ui::{
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{
-    CellSize, ExtractedWidget, MainWorld, ResolvedViewport, TerminalCamera, UiArea, UiOrder,
-    UiWidget,
+    CellSize, ExtractedWidget, MainWorld, ResolvedViewport, UiArea, UiOrder, UiWidget,
 };
 
 use super::decorate::{
@@ -89,15 +88,10 @@ pub(crate) fn extract_bui_nodes(
     out.cell = main_world.resource::<CellSize>().vec();
     let cell = out.cell;
     let viewports: HashMap<Entity, Rect> = {
-        let mut cameras = main_world.query_filtered::<(
-            Entity,
-            &bevy_camera::Camera,
-            &ResolvedViewport,
-        ), bevy_ecs::prelude::With<TerminalCamera>>();
+        let mut cameras = main_world.query::<(Entity, &ResolvedViewport)>();
         cameras
             .iter(&main_world)
-            .filter(|(_, camera, _)| camera.is_active)
-            .map(|(entity, _, resolved)| (entity, resolved.0))
+            .map(|(entity, resolved)| (entity, resolved.0))
             .collect()
     };
     let mut parents = main_world.query::<&ChildOf>();

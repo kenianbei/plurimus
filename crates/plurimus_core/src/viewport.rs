@@ -17,7 +17,7 @@ use bevy_camera::{Camera, Projection, RenderTargetInfo, Viewport};
 use bevy_ecs::prelude::{Commands, Component, DetectChangesMut, Entity, Has, Query, Res};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::SystemParam;
-use bevy_math::Vec2;
+use bevy_math::{UVec2, Vec2};
 use ratatui_core::layout::Rect;
 
 use crate::camera::{DefaultCamera, TerminalCamera};
@@ -118,6 +118,8 @@ pub(crate) fn resolve_camera_viewports(
     mut commands: Commands,
 ) {
     let screen = size.rect();
+    let cell = cell.vec();
+    let target = scale(size.cols, size.rows, cell);
     let mut ordered: Vec<_> = cameras.iter_mut().collect();
     ordered.sort_by_key(|(entity, _, camera, _, _)| (camera.order, *entity));
     let mut remaining = screen;
@@ -146,10 +148,18 @@ pub(crate) fn resolve_camera_viewports(
                 commands.entity(entity).insert(ResolvedViewport(rect));
             }
         }
-        if !has_projection {
-            mirror_into_camera(&mut camera, rect, *size, cell.vec());
+        // Bypassed so an idle frame leaves the camera's change tick alone;
+        // `Mut`'s own `DerefMut` would mark it before the comparison ran.
+        if !has_projection
+            && mirror_into_camera(camera.bypass_change_detection(), rect, target, cell)
+        {
+            camera.set_changed();
         }
     }
+}
+
+fn scale(x: u16, y: u16, cell: Vec2) -> UVec2 {
+    (Vec2::new(f32::from(x), f32::from(y)) * cell).as_uvec2()
 }
 
 fn resolve_one(placement: TerminalCamera, screen: Rect, remaining: Rect, strip: Rect) -> Rect {
@@ -188,13 +198,11 @@ fn carve(remaining: &mut Rect, edge: Edge, cells: u16) -> Rect {
     strip
 }
 
-// Written only on a difference, so an idle frame leaves the camera's change
-// tick alone.
-fn mirror_into_camera(camera: &mut Camera, rect: Rect, size: TerminalSize, cell: Vec2) {
-    let scaled = |x: u16, y: u16| (Vec2::new(f32::from(x), f32::from(y)) * cell).as_uvec2();
-    let position = scaled(rect.x, rect.y);
-    let extent = scaled(rect.width, rect.height);
-    let target = scaled(size.cols, size.rows);
+/// Returns whether anything was written. Neither bevy type is `PartialEq`,
+/// so the comparison is by field.
+fn mirror_into_camera(camera: &mut Camera, rect: Rect, target: UVec2, cell: Vec2) -> bool {
+    let position = scale(rect.x, rect.y, cell);
+    let extent = scale(rect.width, rect.height, cell);
     let viewport_differs = camera.viewport.as_ref().is_none_or(|viewport| {
         viewport.physical_position != position || viewport.physical_size != extent
     });
@@ -209,19 +217,21 @@ fn mirror_into_camera(camera: &mut Camera, rect: Rect, size: TerminalSize, cell:
         .computed
         .target_info
         .as_ref()
-        .is_none_or(|current| current.physical_size != target || current.scale_factor != 1.0);
+        .is_none_or(|current| current.physical_size != target);
     if target_differs {
         camera.computed.target_info = Some(RenderTargetInfo {
             physical_size: target,
             scale_factor: 1.0,
         });
     }
+    viewport_differs || target_differs
 }
 
 #[cfg(test)]
 mod tests {
-    use bevy_app::App;
+    use bevy_app::{App, Last};
     use bevy_camera::{Camera, Projection};
+    use bevy_ecs::prelude::{DetectChanges, Query, Ref, ResMut, Resource};
     use bevy_ecs::system::SystemState;
     use bevy_math::UVec2;
     use ratatui_core::layout::Rect;
@@ -414,5 +424,31 @@ mod tests {
         assert!(camera.viewport.is_none());
         assert!(camera.computed.target_info.is_none());
         assert_eq!(resolved(&app, projected), Rect::new(2, 1, 4, 2));
+    }
+
+    #[derive(Resource, Default)]
+    struct CameraChanged(bool);
+
+    fn record_camera_change(cameras: Query<Ref<Camera>>, mut changed: ResMut<CameraChanged>) {
+        changed.0 = cameras.iter().any(|camera| camera.is_changed());
+    }
+
+    #[test]
+    fn an_idle_frame_leaves_the_mirrored_camera_unchanged() {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.init_resource::<CameraChanged>();
+        app.add_systems(Last, record_camera_change);
+        app.insert_resource(TerminalSize::new(10, 4));
+        app.world_mut().spawn(TerminalCamera::Full);
+
+        app.update();
+        assert!(app.world().resource::<CameraChanged>().0);
+        app.update();
+        assert!(!app.world().resource::<CameraChanged>().0);
+
+        app.insert_resource(TerminalSize::new(12, 4));
+        app.update();
+        assert!(app.world().resource::<CameraChanged>().0);
     }
 }

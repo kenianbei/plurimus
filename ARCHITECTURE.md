@@ -70,38 +70,48 @@ phases - `Rasterize` (pipelines write cells into `CameraBuffer`s, world-space
 passes beneath the ui pass), `Composite` (camera buffers merge into the
 `FrameBuffer` in camera order, apps post-process the composed frame in
 `CompositeSystems::PostProcess` while colors are still what the widgets chose,
-then colors downsample to the terminal's `ColorDepth`), and `Present`. Core owns
-`TerminalCamera` and viewport resolution against `TerminalSize`, the subcell
-raster primitives in `raster` (halfblock and braille grids, blits, color
-averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
-placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
-pass with no other crate involved, sorted by order, then source entity, then a
-layer - the seam a pipeline drawing what a widget frames joins at, spawning its
-own `ExtractedWidget` at the widget's source and a higher layer so it sorts
-directly after it. Its `Default` draws nothing, which is what a widget holds
-before its first restyle replaces it, so no widget library needs a blank of its
-own. Which camera a widget draws on, the crates agree on rather than each
-deriving: `ComputedUiCamera` is resolved once a frame in
-`CameraSystems::PropagateCameras` as the widget's own `UiCamera`, else the
-nearest ancestor's, else the default - so a child sits on its parent's camera
-without being told, and forgetting to say stops being a silent misplacement.
-Whether it draws at all is agreed the same way: `UiHidden` hides everything
-beneath it, and `ComputedHidden` marks what it reaches, resolved downward from
-each carrier - once in `PropagateCameras` so input routes against it, and again
-in `Last` so a subtree hidden during the frame is not drawn by it. Every reader
-reads the computed marker, which is what lets a popover or a menu be hidden by
-its root alone. `UiArea` requires it, local to what being half of where;
-`CameraViewports` carries a camera to its viewport with the same default
-fallback, and `local_area` is `resolve_area`'s inverse, for a crate holding a
-screen rect that has to be stored camera-locally. `PresenterPlugin<B>` diffs the
-composed frame and writes changed cells through any ratatui-core `Backend`, and
-applies `TerminalCursor` - the terminal's own caret, which a screen reader
-follows and an input method anchors to - outside that diff, because a caret
-crossing a cell changes no cell's content and the diff skips a frame where
-nothing differs. Drawing moves the terminal's cursor to the last cell written,
-so a frame that draws puts a shown cursor back as well, in the same flush.
-Position and visibility go through `Backend`; the shape is a backend's to serve.
-Re-exports `ratatui_core`.
+then colors downsample to the terminal's `ColorDepth`), and `Present`. A
+terminal camera is a bevy `Camera`: `TerminalCamera` requires it and says only
+where in the cell grid the view sits - the whole terminal, a fixed rect, a strip
+docked to an edge, or what the docks leave - resolved each frame against
+`TerminalSize` into `ResolvedViewport` in `(order, entity)` sequence, while
+compositing order, activity and what untouched cells become are `Camera`'s own
+`order`, `is_active` and `clear_color`, a `Custom` colour pre-filling the view
+and `None` letting lower cameras show through. The same pass mirrors the rect
+and the terminal size into `Camera` in `CellSize` pixels for a camera carrying
+no `Projection`, so bevy_ui lays out and bevy_picking casts against terminal
+viewports as against a window; a projected camera is bevy_render's, which keys
+on the same component and sizes it from its image, so the two writers partition
+every camera from its first frame. Core also owns the subcell raster primitives
+in `raster` (halfblock and braille grids, blits, color averaging, `ColorDepth`
+downsampling), and the widget primitive: a `UiWidget` placed by
+`UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted pass with
+no other crate involved, sorted by order, then source entity, then a layer - the
+seam a pipeline drawing what a widget frames joins at, spawning its own
+`ExtractedWidget` at the widget's source and a higher layer so it sorts directly
+after it. Its `Default` draws nothing, which is what a widget holds before its
+first restyle replaces it, so no widget library needs a blank of its own. Which
+camera a widget draws on, the crates agree on rather than each deriving:
+`ComputedUiCamera` is resolved once a frame in `CameraSystems::PropagateCameras`
+as the widget's own `UiCamera`, else the nearest ancestor's, else the default -
+so a child sits on its parent's camera without being told, and forgetting to say
+stops being a silent misplacement. Whether it draws at all is agreed the same
+way: `UiHidden` hides everything beneath it, and `ComputedHidden` marks what it
+reaches, resolved downward from each carrier - once in `PropagateCameras` so
+input routes against it, and again in `Last` so a subtree hidden during the
+frame is not drawn by it. Every reader reads the computed marker, which is what
+lets a popover or a menu be hidden by its root alone. `UiArea` requires it,
+local to what being half of where; `CameraViewports` carries a camera to its
+viewport with the same default fallback, and `local_area` is `resolve_area`'s
+inverse, for a crate holding a screen rect that has to be stored camera-locally.
+`PresenterPlugin<B>` diffs the composed frame and writes changed cells through
+any ratatui-core `Backend`, and applies `TerminalCursor` - the terminal's own
+caret, which a screen reader follows and an input method anchors to - outside
+that diff, because a caret crossing a cell changes no cell's content and the
+diff skips a frame where nothing differs. Drawing moves the terminal's cursor to
+the last cell written, so a frame that draws puts a shown cursor back as well,
+in the same flush. Position and visibility go through `Backend`; the shape is a
+backend's to serve. Re-exports `ratatui_core`.
 
 ### plurimus_term
 
@@ -547,25 +557,28 @@ Re-exports `ratatui_widgets`, `ratatui_textarea`, `bevy_input_focus`, and
 
 The bevy_ui bridge, and the one place a bevy_ui tree meets terminal cells.
 `BuiPlugin` runs bevy_ui's real layout stack - `Node` trees computed by taffy -
-against terminal cameras at `CellSize` pixels per cell, one by one by default,
-so a tree sized in a window's pixels lays out the same here once the cell is
-named. Only layout, stacking and picking run: bevy_ui's font, focus and asset
-systems stay out. Text is bevy_ui's own - `Text` roots with `TextSpan` children,
-read through `TextUiReader` - measured by grapheme width rather than by a font,
-one row tall whatever its size, with weight, style, strikethrough, underline and
-colour mapped onto the cell's modifiers and foreground and everything a cell
-cannot show ignored; a rem is a row, so `Val::Rem(1)` is one line here as on a
-window. `Visibility` is propagated into `InheritedVisibility` by the crate
-itself, since bevy_camera's propagation brings culling with it, and `Outline`
-draws as a one-cell ring. Computed nodes rasterize in the terminal sub-app in
-bevy_ui's own `UiStack` order, which the crate computes because the upstream
-system is private, and where they sit among widgets the tree decides: a node
-under no widget draws beneath every widget, and the nodes beneath a widget in
-the tree draw directly after it, in its band, as one extracted widget of their
-own - so a `Text` inside the frame an overlay's widget clears is readable, as a
-child drawn over its parent is on a window. A node carrying a widget of its own
-is not lifted, that widget being what draws there, which is what keeps a label
-mirrored on a button's entity beneath the button.
+against the bevy `Camera`s core keeps on terminal cameras, at core's `CellSize`
+pixels per cell, one by one by default, so a tree sized in a window's pixels
+lays out the same here once the cell is named; the bridge adds only
+`IsDefaultUiCamera` on core's default camera, since bevy_ui's own fallback picks
+the highest order where plurimus picks the lowest. Only layout, stacking and
+picking run: bevy_ui's font, focus and asset systems stay out. Text is bevy_ui's
+own - `Text` roots with `TextSpan` children, read through `TextUiReader` -
+measured by grapheme width rather than by a font, one row tall whatever its
+size, with weight, style, strikethrough, underline and colour mapped onto the
+cell's modifiers and foreground and everything a cell cannot show ignored; a rem
+is a row, so `Val::Rem(1)` is one line here as on a window. `Visibility` is
+propagated into `InheritedVisibility` by the crate itself, since bevy_camera's
+propagation brings culling with it, and `Outline` draws as a one-cell ring.
+Computed nodes rasterize in the terminal sub-app in bevy_ui's own `UiStack`
+order, which the crate computes because the upstream system is private, and
+where they sit among widgets the tree decides: a node under no widget draws
+beneath every widget, and the nodes beneath a widget in the tree draw directly
+after it, in its band, as one extracted widget of their own - so a `Text` inside
+the frame an overlay's widget clears is readable, as a child drawn over its
+parent is on a window. A node carrying a widget of its own is not lifted, that
+widget being what draws there, which is what keeps a label mirrored on a
+button's entity beneath the button.
 
 Interaction is bevy's, not plurimus_ui's: `BuiPlugin` installs `bevy_picking`,
 bevy_ui's picking backend and `PointerFocusPlugin`, feeds the one mouse pointer
@@ -626,16 +639,17 @@ redraw from a skipped one.
 ## External Crates
 
 - **Bevy** (0.20) - the ECS and app foundation, consumed as granular crates and
-  never the `bevy` umbrella: `bevy_app` and `bevy_ecs` everywhere; `bevy_input`
-  and `bevy_time` for the input contract; `bevy_input_focus` and `bevy_window`
-  for focus; `bevy_ui`, `bevy_text`, `bevy_camera`, `bevy_picking` and
-  `bevy_ui_widgets` for the layout bridge and the interaction vocabulary;
-  `bevy_transform` and `bevy_math` for 2d; the render stack (`bevy_render`,
-  `bevy_extract`, `bevy_core_pipeline`, `bevy_image`, `bevy_mesh`, `bevy_light`,
-  and friends) only in `plurimus_3d`; the windowed stack (`bevy_winit`,
-  `bevy_ui_render`, `bevy_sprite_render`, `bevy_a11y`) only as a dev-dependency,
-  for the `todo` example's window. Apps add whatever further bevy crates their
-  scenes need at the same version, and cargo unifies them.
+  never the `bevy` umbrella: `bevy_app`, `bevy_ecs` and `bevy_camera`
+  everywhere, the camera being bevy's from core up; `bevy_input` and `bevy_time`
+  for the input contract; `bevy_input_focus` and `bevy_window` for focus;
+  `bevy_ui`, `bevy_text`, `bevy_picking` and `bevy_ui_widgets` for the layout
+  bridge and the interaction vocabulary; `bevy_transform` and `bevy_math` for
+  cell geometry and 2d; the render stack (`bevy_render`, `bevy_extract`,
+  `bevy_core_pipeline`, `bevy_image`, `bevy_mesh`, `bevy_light`, and friends)
+  only in `plurimus_3d`; the windowed stack (`bevy_winit`, `bevy_ui_render`,
+  `bevy_sprite_render`, `bevy_a11y`) only as a dev-dependency, for the `todo`
+  example's window. Apps add whatever further bevy crates their scenes need at
+  the same version, and cargo unifies them.
 - **Ratatui** - the cell model and widget ecosystem: `ratatui-core` (0.1)
   supplies `Buffer`, `Cell`, `Rect`, `Style`, and the `Backend` seam;
   `ratatui-widgets` (0.3) the stock widget set; `ratatui-textarea` (0.9) the

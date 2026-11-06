@@ -48,10 +48,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`Visibility` hides a node subtree.** `BuiPlugin` propagates it into
   `InheritedVisibility`, so a hidden node is neither drawn, picked nor reached
   by Tab, and a `Visibility::Visible` child of a hidden parent shows.
-- **`CellSize`**, pixels per cell on each axis, default one by one. A tree sized
-  for a window - `8 x 16` puts a 560 px card in 70 columns and a 16 px control
-  in one row - lays out the same in the terminal once the cell is named; layout,
-  text measurement, decoration, picking and `RemSize` all follow it.
+- **`plurimus_core::CellSize`**, pixels per cell on each axis, default one by
+  one. A tree sized for a window - `8 x 16` puts a 560 px card in 70 columns and
+  a 16 px control in one row - lays out the same in the terminal once the cell
+  is named; the camera mirror, layout, text measurement, decoration, picking and
+  `RemSize` all follow it.
 - **`examples/todo`**: one `bevy_ui` tree of upstream widgets tagged by `Part`,
   run in the terminal or, with `--desktop`, in a bevy window assembled from the
   granular crates. Each target skins the same tree - cells and box-drawing in
@@ -69,6 +70,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking: a terminal camera is a bevy `Camera`.** `plurimus_core` depends on
+  `bevy_camera`, and `TerminalCamera` requires `Camera` and is now the placement
+  alone - `Full`, `Fixed(rect)`, `Docked { edge, cells }` or `Fill`, resolved
+  into `ResolvedViewport` as before. Compositing order, activity and what
+  untouched cells become are `Camera`'s `order`, `is_active` and `clear_color`:
+  `Default` keeps the terminal's own background, `None` lets lower cameras show
+  through, and `Custom(color)` pre-fills the view with that colour, downsampled
+  like every other cell colour, so a clear can no longer name a terminal palette
+  entry. Core mirrors each camera's resolved rect and the terminal size into
+  `Camera.viewport` and its target info in `CellSize` pixels, written only when
+  they change, for every camera carrying no `Projection`; a projected camera
+  such as a `Camera3d` is left to bevy_render's own writer, which sizes it from
+  its image. That also fixes a 3d camera in a bridged app receiving a cell-pixel
+  viewport from the bridge that bevy then clamped into the image.
+  `plurimus_core` re-exports `bevy_camera`. In an app with bevy_render
+  installed, a terminal camera that is not also a `Camera3d` logs bevy_render's
+  "no render graph" warning once at spawn, which no terminal build has a
+  subscriber for.
 - **Breaking: plurimus speaks bevy's interaction vocabulary.** `plurimus_ui`'s
   `Hovered`, `Pressed`, `Checked`, `InteractionDisabled`, `Activate` and
   `ValueChange` are now bevy's own types, re-exported: `Hovered` from
@@ -97,6 +116,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- `plurimus_core::Viewport` and `Background`, and `TerminalCamera`'s
+  `with_order`, `with_viewport`, `with_active` and `with_background`: the
+  placement is the camera itself and the rest is bevy's `Camera`.
+  `ExtractedCamera` carries `clear_color` in place of `background`.
+- `plurimus_bui`'s camera mirror and its own `CellSize`; the bridge keeps only
+  the `IsDefaultUiCamera` toggle and reads core's `CellSize`.
 - The `InheritedVisibility::VISIBLE` stand-in `BuiPlugin` registered for nodes;
   visibility is now computed.
 
