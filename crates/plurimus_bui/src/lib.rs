@@ -51,6 +51,7 @@ use bevy_app::{
     App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PreUpdate, PropagateSet,
     Startup,
 };
+use bevy_camera::visibility::VisibilitySystems;
 use bevy_ecs::prelude::{
     DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
 };
@@ -104,7 +105,11 @@ impl Plugin for BuiPlugin {
                 (camera::sync_bui_cameras, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
-                visibility::propagate_visibility.in_set(UiSystems::Propagate),
+                // Upstream readers of `InheritedVisibility`, such as a
+                // menu focusing its first item, order after this set.
+                visibility::propagate_visibility
+                    .in_set(UiSystems::Propagate)
+                    .in_set(VisibilitySystems::VisibilityPropagate),
                 (
                     text::resolve_bui_text,
                     (sync_rem_size, sync_em_sizes).chain(),
