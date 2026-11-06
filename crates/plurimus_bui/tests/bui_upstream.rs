@@ -260,8 +260,8 @@ fn a_checkbox_toggles_by_click_and_by_key() {
     assert!(app.world().get::<Checked>(checkbox).is_none());
 }
 
-/// Placement reads the terminal as the popover's window: below the anchor's
-/// last-but-one row does not fit, so it mirrors above.
+/// Placement reads the terminal as the popover's window: an anchor on the
+/// last-but-one row leaves no room below, so the popover mirrors above.
 #[test]
 fn a_popover_mirrors_to_the_side_that_fits() {
     let mut app = app();
@@ -324,7 +324,6 @@ fn a_modal_dialog_focuses_its_last_field() {
     assert_eq!(focus(&app), Some(fields[1]));
 }
 
-/// A `FixedNode` lays out against the viewport and leaves its parent's clip.
 #[test]
 fn a_fixed_node_lays_out_against_the_viewport_unclipped() {
     let mut app = app();
