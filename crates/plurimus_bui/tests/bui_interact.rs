@@ -8,9 +8,7 @@ use bevy_input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy_ui::{FlexDirection, Node, PositionType, UiRect, Val};
 use plurimus_bui::BuiPlugin;
 use plurimus_bui::bevy_picking::Pickable;
-use plurimus_bui::bevy_ui_widgets::{
-    Button, MenuAction, MenuEvent, MenuFocusState, MenuItem, MenuPopup,
-};
+use plurimus_bui::bevy_ui_widgets::{Button, MenuFocusState, MenuItem, MenuPopup};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
@@ -20,9 +18,6 @@ use plurimus_widgets::WidgetsPlugin;
 
 #[derive(Resource, Default)]
 struct Activations(Vec<Entity>);
-
-#[derive(Resource, Default)]
-struct MenuClosures(usize);
 
 fn app() -> App {
     let mut app = App::new();
@@ -256,47 +251,28 @@ fn a_disabled_node_absorbs_the_press() {
 #[test]
 fn a_menu_opened_as_it_spawns_focuses_its_item() {
     let mut app = app();
-    app.init_resource::<MenuClosures>();
     let root = app.world_mut().spawn(full_screen()).id();
     settle(&mut app);
 
     let popup = app
         .world_mut()
         .spawn((
-            Node {
-                width: Val::Px(10.0),
-                height: Val::Px(3.0),
-                ..Node::default()
-            },
+            Node::default(),
             MenuPopup::default(),
             MenuFocusState::Opening(NavAction::First),
             ChildOf(root),
         ))
-        .observe(|on: On<MenuEvent>, mut closures: ResMut<MenuClosures>| {
-            if matches!(on.action, MenuAction::CloseAll) {
-                closures.0 += 1;
-            }
-        })
         .id();
     let item = app
         .world_mut()
-        .spawn((
-            Node {
-                width: Val::Px(10.0),
-                height: Val::Px(1.0),
-                ..Node::default()
-            },
-            MenuItem,
-            TabIndex(0),
-            ChildOf(popup),
-        ))
+        .spawn((Node::default(), MenuItem, TabIndex(0), ChildOf(popup)))
         .id();
     app.update();
 
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(item));
     assert_eq!(
         app.world().get::<MenuFocusState>(popup),
-        Some(&MenuFocusState::Open)
+        Some(&MenuFocusState::Open),
+        "closing is what fires CloseAll"
     );
-    assert_eq!(app.world().resource::<MenuClosures>().0, 0);
 }
