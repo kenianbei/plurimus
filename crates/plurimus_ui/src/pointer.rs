@@ -18,7 +18,7 @@ use plurimus_term::{MouseButton, MouseKind, MouseMessage, MultiClickWindow};
 use crate::click::ClickRun;
 use crate::interaction::{
     AreaTargetQuery, Click, ComputedDisabled, Hovered, PointerCancel, PointerDrag, PointerPress,
-    PointerRelease, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
+    PointerRelease, PressCount, PressFocusDisabled, PressPassThrough, Pressed, topmost_at,
 };
 use crate::modal::{ModalGuard, ModalOpen};
 use crate::scroll::{WheelRouting, route_tick};
@@ -28,12 +28,58 @@ use crate::scroll::{WheelRouting, route_tick};
 type PointerTargetQuery<'w, 's> =
     AreaTargetQuery<'w, 's, (With<Hovered>, Without<PressPassThrough>)>;
 
-type PressedQuery<'w, 's> = Query<'w, 's, (Entity, &'static Pressed, Has<ComputedDisabled>)>;
+type PressedQuery<'w, 's> =
+    Query<'w, 's, (Entity, Option<&'static PressCount>, Has<ComputedDisabled>), With<Pressed>>;
 
 /// What a press's focus walk reads at each step up: whether the entity can
 /// take focus, refuses a press's focus, or roots an open overlay.
 type FocusStopQuery<'w, 's> =
     Query<'w, 's, (Has<TabIndex>, Has<PressFocusDisabled>, Has<ModalOpen>)>;
+
+/// What this crate's routers would reach at a cell, for a crate routing a
+/// pointer of its own beneath the widgets.
+///
+/// `bevy_ui` nodes are picked by `bevy_picking`, which knows nothing of
+/// the widgets drawn over them; this is how that stack asks whether a cell
+/// is already spoken for, so one press or tick reaches one thing.
+#[derive(SystemParam)]
+pub struct PointerTargets<'w, 's> {
+    targets: PointerTargetQuery<'w, 's>,
+    wheel: WheelRouting<'w, 's>,
+    modal: ModalGuard<'w, 's>,
+}
+
+impl PointerTargets<'_, '_> {
+    /// Whether a pointer at `cell` is this crate's: a widget the open
+    /// overlays admit takes presses or ticks there, or an overlay is open
+    /// and the cell is outside it, where a press dismisses it.
+    #[must_use]
+    pub fn covers(&self, cell: Position) -> bool {
+        let admits = |entity| self.modal.admits(cell, entity);
+        self.modal.dismisses(cell)
+            || topmost_at(cell, &self.targets, admits).is_some()
+            || self.wheel.covers(cell, &self.modal)
+    }
+
+    /// Whether a tick of `step` cells at `cell` is this crate's, as the
+    /// router would take it: a widget the open overlays admit can move by
+    /// it there, or an overlay is open and the cell is outside it. A widget
+    /// that takes presses alone, or cannot move on the ticked axis, lets
+    /// the tick fall to whatever scrolls beneath it.
+    #[must_use]
+    pub fn takes_wheel(&self, cell: Position, step: (i32, i32)) -> bool {
+        self.modal.dismisses(cell) || self.wheel.target(cell, step, &self.modal).is_some()
+    }
+
+    /// Whether the open overlays let `entity`, reached at `cell` beneath
+    /// the widgets, take the pointer: no overlay covers the cell, or the
+    /// entity is in the subtree of one that does. What an overlay is drawn
+    /// over is not.
+    #[must_use]
+    pub fn admits(&self, cell: Position, entity: Entity) -> bool {
+        self.modal.admits(cell, entity)
+    }
+}
 
 /// Everything [`pointer_interaction`] routes against.
 #[derive(SystemParam)]
@@ -161,7 +207,7 @@ fn drag_pressed(
 }
 
 fn press(target: Entity, count: u8, routing: &mut PointerRouting, commands: &mut Commands) {
-    commands.entity(target).insert(Pressed(count));
+    commands.entity(target).insert((Pressed, PressCount(count)));
     if let Some(focusable) = press_focus_of(target, routing) {
         routing.focus.set(focusable, FocusCause::Pressed);
     }
@@ -192,7 +238,7 @@ fn gestures<'a>(
 ) -> impl Iterator<Item = (Entity, u8, bool)> + 'a {
     let held = pressed
         .iter()
-        .map(|(entity, pressed, disabled)| (entity, pressed.0, disabled));
+        .map(|(entity, count, disabled)| (entity, count.copied().unwrap_or_default().0, disabled));
     // Run-pressed entities cannot be disabled: an absorbed press never
     // reaches `run_pressed`, and nothing disables them mid-run.
     let fresh = run_pressed
@@ -228,7 +274,7 @@ fn release_all(
             });
             menu_clicked |= routing.modal.affects_modality(entity);
         }
-        commands.entity(entity).remove::<Pressed>();
+        commands.entity(entity).remove::<(Pressed, PressCount)>();
     }
     menu_clicked
 }
@@ -244,7 +290,7 @@ fn cancel_all(
         if !disabled {
             commands.trigger(PointerCancel { entity });
         }
-        commands.entity(entity).remove::<Pressed>();
+        commands.entity(entity).remove::<(Pressed, PressCount)>();
     }
     routing.run.reset();
 }

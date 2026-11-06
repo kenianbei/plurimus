@@ -93,8 +93,11 @@ fn the_selection_updater_leaves_marked_rows_alone() {
         .id();
     app.update();
 
-    app.world_mut()
-        .trigger(plurimus_ui::ValueChange::new(list, second, true));
+    app.world_mut().trigger(plurimus_ui::ValueChange {
+        source: list,
+        value: second,
+        is_final: true,
+    });
     app.update();
 
     assert!(

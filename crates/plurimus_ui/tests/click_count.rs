@@ -12,7 +12,7 @@ use plurimus_term::{MouseButton, MouseKind, MultiClickWindow};
 use plurimus_test::{click, release_at, send_mouse, write_mouse};
 use plurimus_ui::{
     Click, ComputedWidgetArea, Hovered, InteractionDisabled, ModalDismiss, ModalOpen, PointerDrag,
-    PointerPress, Pressed, UiArea, UiPlugin,
+    PointerPress, PressCount, Pressed, UiArea, UiPlugin,
 };
 
 const AREA: Rect = Rect::new(2, 1, 6, 3);
@@ -222,7 +222,7 @@ fn a_drag_reads_the_count_of_the_press_holding_it() {
     let mut app = app();
     spawn_target(&mut app, AREA);
     app.add_observer(
-        |drag: On<PointerDrag>, pressed: Query<&Pressed>, mut counts: ResMut<Counts>| {
+        |drag: On<PointerDrag>, pressed: Query<&PressCount>, mut counts: ResMut<Counts>| {
             let held = pressed
                 .get(drag.entity)
                 .expect("a drag is captured to a pressed widget");
@@ -245,9 +245,7 @@ fn a_hand_pressed_widget_clicks_as_a_lone_press() {
     let mut app = app();
     let target = spawn_target(&mut app, AREA);
     send_at(&mut app, MouseKind::Moved, CELL);
-    app.world_mut()
-        .entity_mut(target)
-        .insert(Pressed::default());
+    app.world_mut().entity_mut(target).insert(Pressed);
 
     release_at(&mut app, CELL.x, CELL.y);
 

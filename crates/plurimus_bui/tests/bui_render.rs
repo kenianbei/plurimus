@@ -3,13 +3,18 @@
 use bevy_app::App;
 use bevy_color::Color;
 use bevy_ecs::prelude::ChildOf;
+use bevy_ui::widget::Text;
 use bevy_ui::{
     BackgroundColor, BorderColor, FlexDirection, Node, Overflow, ScrollPosition, UiRect, Val,
 };
-use plurimus_bui::{BuiPlugin, ComputedNodeRect, Text, TextStyle};
+use plurimus_bui::bevy_text::{
+    FontStyle, FontWeight, Justify, LineBreak, Strikethrough, TextColor, TextFont, TextLayout,
+    TextSpan, Underline,
+};
+use plurimus_bui::{BuiPlugin, ComputedNodeRect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
 use plurimus_term::MouseKind;
-use plurimus_test::{composed_styled_frame, send_mouse};
+use plurimus_test::{composed_frame, composed_styled_frame, send_mouse};
 
 fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
@@ -67,10 +72,7 @@ fn bordered_padded_text() {
         },
         BorderColor::from(Color::srgb(0.0, 1.0, 0.0)),
         Text::from("hi there terminal"),
-        TextStyle(
-            plurimus_core::ratatui_core::style::Style::new()
-                .fg(plurimus_core::ratatui_core::style::Color::Yellow),
-        ),
+        TextColor(Color::srgb(1.0, 1.0, 0.0)),
     ));
 
     app.update();
@@ -113,13 +115,16 @@ fn wheel_scrolls_overflow_scroll_node() {
     let mut app = app(6, 2);
     let root = app
         .world_mut()
-        .spawn(Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            flex_direction: FlexDirection::Column,
-            overflow: Overflow::scroll_y(),
-            ..Node::default()
-        })
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                overflow: Overflow::scroll_y(),
+                ..Node::default()
+            },
+            plurimus_bui::bevy_ui_widgets::ScrollArea,
+        ))
         .id();
     for line in ["r1", "r2", "r3", "r4"] {
         app.world_mut().spawn((
@@ -211,27 +216,129 @@ fn global_z_index_reorders_trees() {
 }
 
 #[test]
-fn styled_spans_paint_per_segment_and_wrap() {
-    use plurimus_bui::TextSpan;
-    use plurimus_core::ratatui_core::style::{Color as CellColor, Style};
+fn a_later_root_stacks_over_an_earlier_one() {
+    let mut app = app(8, 2);
+    let full = || Node {
+        width: Val::Percent(100.0),
+        height: Val::Percent(100.0),
+        ..Node::default()
+    };
+    let first = app.world_mut().spawn(full()).id();
+    let second = app.world_mut().spawn(full()).id();
 
+    app.update();
+    app.update();
+
+    let stack = &app.world().resource::<bevy_ui::UiStack>().uinodes;
+    assert_eq!(stack, &[first, second], "painted first is beneath");
+}
+
+#[test]
+fn styled_spans_paint_per_segment_and_wrap() {
     let mut app = app(10, 3);
+    let root = app
+        .world_mut()
+        .spawn((
+            Node {
+                width: Val::Px(10.0),
+                ..Node::default()
+            },
+            BackgroundColor(Color::BLACK),
+            Text::new("warm wo"),
+            TextColor(Color::srgb(1.0, 0.0, 0.0)),
+        ))
+        .id();
     app.world_mut().spawn((
-        Node {
-            width: Val::Px(10.0),
-            ..Node::default()
+        TextSpan::new("rds here"),
+        TextColor(Color::srgb(0.0, 0.0, 1.0)),
+        TextFont {
+            weight: FontWeight::BOLD,
+            style: FontStyle::Italic,
+            ..TextFont::default()
         },
-        Text(vec![
-            TextSpan::new("warm wo", Style::new().fg(CellColor::Red)),
-            TextSpan::new("rds here", Style::new().fg(CellColor::Blue)),
-        ]),
-        TextStyle(Style::new().bg(CellColor::Black)),
+        Underline,
+        Strikethrough,
+        ChildOf(root),
     ));
 
     app.update();
     app.update();
 
     insta::assert_snapshot!("bui_text_spans", composed_styled_frame(&app));
+}
+
+#[test]
+fn a_span_edit_relayouts_its_root() {
+    let mut app = app(10, 3);
+    let root = app
+        .world_mut()
+        .spawn((Node::default(), Text::new("ab")))
+        .id();
+    let span = app
+        .world_mut()
+        .spawn((TextSpan::new("c"), ChildOf(root)))
+        .id();
+    app.update();
+    app.update();
+    assert_eq!(composed_frame(&app).lines().next(), Some("abc       "));
+
+    app.world_mut().get_mut::<TextSpan>(span).unwrap().0 = "cdef".to_owned();
+    app.update();
+    app.update();
+    assert_eq!(composed_frame(&app).lines().next(), Some("abcdef    "));
+}
+
+#[test]
+fn transparent_text_paints_no_glyphs() {
+    let mut app = app(6, 1);
+    app.world_mut().spawn((
+        Node::default(),
+        BackgroundColor(Color::BLACK),
+        Text::new("gone"),
+        TextColor(Color::NONE),
+    ));
+
+    app.update();
+    app.update();
+
+    let frame = composed_styled_frame(&app);
+    assert!(!frame.contains("gone"), "{frame}");
+    assert!(frame.contains("bg:Some(Rgb(0, 0, 0))"), "{frame}");
+}
+
+#[test]
+fn justify_and_nowrap_follow_the_layout() {
+    let mut app = app(6, 3);
+    let column = app
+        .world_mut()
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            width: Val::Px(6.0),
+            ..Node::default()
+        })
+        .id();
+    for (text, layout) in [
+        (
+            "ab",
+            TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+        ),
+        (
+            "cd",
+            TextLayout::new(Justify::Center, LineBreak::WordBoundary),
+        ),
+        (
+            "hello world",
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        ),
+    ] {
+        app.world_mut()
+            .spawn((Node::default(), Text::new(text), layout, ChildOf(column)));
+    }
+
+    app.update();
+    app.update();
+
+    assert_eq!(composed_frame(&app), "    ab\n  cd  \nhello ");
 }
 
 #[test]

@@ -1,48 +1,81 @@
 //! `bevy_ui` layout translated to terminal cells: real `Node` trees, taffy
-//! layout at one pixel per cell, rasterized by the terminal pipeline.
+//! layout at [`CellSize`] pixels per cell, rasterized by the terminal
+//! pipeline.
 //!
-//! Only `bevy_ui`'s layout stack runs; its text, focus, picking, and asset
-//! systems stay out. Text uses grapheme-width measurement instead of fonts.
+//! Only `bevy_ui`'s layout and picking stacks run; its text, focus and asset
+//! systems stay out. Text is measured by grapheme width instead of fonts, and
+//! `Visibility` is propagated here, since `bevy_camera`'s propagation is not
+//! installed.
 //!
-//! Computed nodes rasterize beneath every widget, and their areas and wheel
-//! targets bridge into `plurimus_ui`'s routers, so a `bevy_ui` tree hovers,
-//! clicks and scrolls like any other widget without `bevy_ui`'s own picking.
+//! Computed nodes rasterize beneath every widget and are picked by
+//! `bevy_picking` through `bevy_ui`'s own backend, fed from the terminal's
+//! mouse, so the upstream `bevy_ui_widgets` run on them unchanged - all but
+//! `TextInputPlugin`, which edits through `bevy_text` and so has nothing to
+//! draw with here.
+//!
+//! # What a cell cannot show
+//!
+//! Text is one row tall whatever its `font_size`, and `TextFont::font`,
+//! `TextShadow`, `UnderlineColor` and `StrikethroughColor` are ignored; a
+//! weight from semibold up is bold, any non-normal style italic. A border or
+//! outline thinner than a cell paints in the node's outer cell, over
+//! content. Colour reaches a cell as RGB and nothing else, so a skin names
+//! the colours it wants rather than a terminal palette entry.
+//!
+//! # What stays per target
+//!
+//! A tree shared with a windowed build of the same app keeps these to each
+//! target: a text field, since upstream's `TextInput` needs a font engine -
+//! the terminal places a `plurimus_widgets::EditableText` at the field's
+//! node through `UiArea`; arrow-key navigation, which `plurimus_ui` builds
+//! from widget areas here and nothing builds for nodes on a window; focus
+//! restored when an upstream dialog closes, which neither target does; and
+//! hover on a node beneath a plurimus widget, which the pick gate withholds.
 
 mod camera;
 mod decorate;
 mod extract;
-mod interact;
+mod picking;
 mod rasterize;
 mod rect;
-mod scroll;
+mod stack;
 mod text;
+mod visibility;
 
-pub use rect::ComputedNodeRect;
-pub use text::{Text, TextSpan, TextStyle};
+pub use bevy_picking;
+pub use bevy_text;
+pub use bevy_ui_widgets;
+pub use rect::{CellSize, ComputedNodeRect};
 
-use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, PreUpdate, PropagateSet};
-use bevy_camera::visibility::InheritedVisibility;
-use bevy_ecs::prelude::{DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res};
+use bevy_app::{
+    App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PreUpdate, PropagateSet,
+    Startup,
+};
+use bevy_camera::visibility::VisibilitySystems;
+use bevy_ecs::prelude::{
+    DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
+};
+use bevy_input::mouse::MouseScrollPixelsPerLine;
+use bevy_input_focus::pointer_focus::PointerFocusPlugin;
+use bevy_picking::{InteractionPlugin, PickingPlugin, PickingSettings, PickingSystems};
 use bevy_text::{EmSize, RemSize};
+use bevy_ui::picking_backend::{UiPickingPlugin, ui_picking};
 use bevy_ui::ui_surface::UiSurface;
 use bevy_ui::update::{propagate_ui_target_cameras, update_clipping_system};
 use bevy_ui::{
-    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiScale, UiSystems, ui_layout_system,
+    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiScale, UiStack, UiSystems,
+    ui_layout_system,
 };
+use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{
-    CameraSystems, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
+    RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
 use plurimus_term::InputSystems;
 use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
 
-// Below all unordered widgets: the rasterizer draws every node under every
-// widget, so input arbitration has to agree with what the user sees.
-const BUI_ORDER: plurimus_core::UiOrder = plurimus_core::UiOrder(i32::MIN / 2);
-// One pixel per cell, and text one row tall: a rem is a cell.
-const CELL_REM: RemSize = RemSize(1.0);
-
-/// Runs `bevy_ui`'s layout systems against terminal cameras, one pixel per
-/// cell.
+/// Runs `bevy_ui`'s layout and picking against terminal cameras, at
+/// [`CellSize`] pixels per cell, with the fontless `bevy_ui_widgets` plugins
+/// installed.
 pub struct BuiPlugin;
 
 impl Plugin for BuiPlugin {
@@ -51,6 +84,8 @@ impl Plugin for BuiPlugin {
             app.add_plugins(UiPlugin);
         }
         stand_in_for_omitted_plugins(app);
+        add_picking(app);
+        add_upstream_widgets(app);
         app.configure_sets(
             PostUpdate,
             (
@@ -58,6 +93,7 @@ impl Plugin for BuiPlugin {
                 UiSystems::Propagate,
                 UiSystems::Content,
                 UiSystems::Layout,
+                UiSystems::Stack,
                 UiSystems::PostLayout,
             )
                 .chain(),
@@ -69,22 +105,21 @@ impl Plugin for BuiPlugin {
                 (camera::sync_bui_cameras, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
-                (text::measure_bui_text, sync_em_sizes).in_set(UiSystems::Content),
+                // Upstream readers of `InheritedVisibility`, such as a
+                // menu focusing its first item, order after this set.
+                visibility::propagate_visibility
+                    .in_set(UiSystems::Propagate)
+                    .in_set(VisibilitySystems::VisibilityPropagate),
+                (
+                    text::resolve_bui_text,
+                    (sync_rem_size, sync_em_sizes).chain(),
+                )
+                    .in_set(UiSystems::Content),
                 ui_layout_system.in_set(UiSystems::Layout),
+                stack::compute_ui_stack.in_set(UiSystems::Stack),
                 (update_clipping_system, rect::compute_node_rects).in_set(UiSystems::PostLayout),
             ),
         );
-        app.add_systems(
-            PreUpdate,
-            (
-                interact::sync_node_widget_areas,
-                scroll::sync_bui_wheel_targets,
-            )
-                .after(InputSystems::Update)
-                .after(CameraSystems::ResolveViewports)
-                .before(PuiSystems::Hover),
-        );
-        app.add_observer(scroll::bui_node_scrolled);
         app.sub_app_mut(TerminalRenderApp)
             .init_resource::<extract::ExtractedBuiNodes>();
         app.add_extract_systems(extract::extract_bui_nodes);
@@ -97,60 +132,76 @@ impl Plugin for BuiPlugin {
     }
 }
 
+// Window picking is off: a press on no node is `plurimus_ui`'s to route,
+// and a window hit would clear the focus it left alone.
+fn add_picking(app: &mut App) {
+    if !app.is_plugin_added::<PickingPlugin>() {
+        app.add_plugins((PickingPlugin, InteractionPlugin));
+    }
+    if !app.is_plugin_added::<PointerFocusPlugin>() {
+        app.add_plugins(PointerFocusPlugin);
+    }
+    if !app.is_plugin_added::<UiPickingPlugin>() {
+        app.add_plugins(UiPickingPlugin);
+    }
+    app.world_mut()
+        .resource_mut::<PickingSettings>()
+        .is_window_picking_enabled = false;
+    // Both stacks write `Hovered`: `bevy_picking` clears it on every
+    // carrier it does not hover, which is every plurimus widget, so
+    // `plurimus_ui` writes last.
+    app.configure_sets(PreUpdate, PuiSystems::Hover.after(PickingSystems::Hover));
+    app.add_systems(Startup, picking::spawn_pointer);
+    app.add_systems(
+        PreUpdate,
+        (
+            picking::feed_pointer
+                .after(InputSystems::Update)
+                .before(PickingSystems::ProcessInput),
+            picking::gate_hits
+                .in_set(PickingSystems::Backend)
+                .after(ui_picking)
+                .after(PuiSystems::Areas),
+        ),
+    );
+}
+
+fn add_upstream_widgets(app: &mut App) {
+    app.init_resource::<MouseScrollPixelsPerLine>();
+    if !app.is_plugin_added::<ButtonPlugin>() {
+        app.add_plugins(
+            UiWidgetsPlugins
+                .build()
+                .disable::<TextInputPlugin>()
+                .disable::<PointerFocusPlugin>(),
+        );
+    }
+}
+
 fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
     app.init_resource::<UiScale>();
+    app.init_resource::<UiStack>();
+    app.init_resource::<CellSize>();
+    app.init_resource::<RemSize>();
     app.init_resource::<bevy_text::FontCx>();
-    app.world_mut().get_resource_or_insert_with(|| CELL_REM);
-    // Tab navigation skips what is not inherited-visible, which bui never
-    // computes; the rasterizer ignores `Visibility` too.
-    app.register_required_components_with::<Node, InheritedVisibility>(|| {
-        InheritedVisibility::VISIBLE
-    });
 }
 
-// bevy_ui derives an em only from a `TextFont`, which bridged text never has,
-// so every node's em is the rem.
+// Text is one row tall, so a rem is a row, as `Val::Rem(1)` is one line of
+// text on a window.
+fn sync_rem_size(cell: Res<CellSize>, mut rem: ResMut<RemSize>) {
+    if cell.is_changed() {
+        rem.set_if_neq(RemSize(cell.y));
+    }
+}
+
+// bevy_ui derives an em from a `TextFont` in a system this crate does not
+// run, so every node's em is the rem.
 fn sync_em_sizes(rem: Res<RemSize>, mut nodes: Query<(&mut EmSize, Ref<Node>)>) {
     let (em_size, is_rem_changed) = (EmSize(rem.0), rem.is_changed());
     for (mut em, node) in &mut nodes {
         if is_rem_changed || node.is_added() {
             em.set_if_neq(em_size);
-        }
-    }
-}
-
-// An explicit UiOrder on a node overrides the banding.
-fn publish_area(
-    commands: &mut bevy_ecs::prelude::Commands,
-    entity: bevy_ecs::entity::Entity,
-    existing: Option<bevy_ecs::change_detection::Mut<plurimus_ui::ComputedWidgetArea>>,
-    rect: plurimus_core::ratatui_core::layout::Rect,
-) {
-    upsert(
-        commands,
-        entity,
-        existing,
-        plurimus_ui::ComputedWidgetArea(rect),
-    );
-    commands.entity(entity).insert_if_new(BUI_ORDER);
-}
-
-fn upsert<
-    C: bevy_ecs::component::Component<Mutability = bevy_ecs::component::Mutable> + PartialEq,
->(
-    commands: &mut bevy_ecs::prelude::Commands,
-    entity: bevy_ecs::entity::Entity,
-    existing: Option<bevy_ecs::change_detection::Mut<C>>,
-    value: C,
-) {
-    use bevy_ecs::change_detection::DetectChangesMut;
-    match existing {
-        Some(mut existing) => {
-            existing.set_if_neq(value);
-        }
-        None => {
-            commands.entity(entity).insert(value);
         }
     }
 }

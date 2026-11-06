@@ -3,32 +3,51 @@
 //! Each camera's node tree is walked once and every [`ComputedNode`] becomes
 //! a cell rect with its colors, gradients, shadows, corner glyphs and clip
 //! already resolved, so the rasterizer only has to paint what it is handed.
-//! Paint order is settled here as well - siblings by [`ZIndex`], then the
-//! whole list by [`GlobalZIndex`] - which is why nothing downstream has to
-//! reason about the tree.
+//! Paint order is `bevy_ui`'s own [`UiStack`], back to front, so what is
+//! drawn over what agrees with what is picked over what.
+//!
+//! A node beneath a widget in the tree is that widget's to frame: the nodes
+//! under one widget become one [`ExtractedWidget`] drawn directly after it.
+//! A node carrying a widget of its own is not lifted, its widget being what
+//! draws there.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{ResMut, Resource, With, Without};
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Commands, ResMut, Resource, With};
+use bevy_ecs::query::QueryState;
 use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
     BackgroundColor, BackgroundGradient, BorderColor, BorderGradient, BoxShadow, CalculatedClip,
-    ComputedNode, ComputedUiTargetCamera, GlobalZIndex, Gradient, UiGlobalTransform, ZIndex,
+    ComputedNode, ComputedUiTargetCamera, Gradient, Outline, UiGlobalTransform, UiStack,
 };
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
-use plurimus_core::{MainWorld, ResolvedViewport, TerminalCamera};
+use plurimus_core::{
+    ExtractedWidget, MainWorld, ResolvedViewport, TerminalCamera, UiArea, UiOrder, UiWidget,
+};
 
-use super::decorate::{Decoration, ValBasis, resolve_gradients, resolve_shadows, rounded_corners};
-use super::rect::{CellBox, clip_cells, node_boxes};
-use super::text::{Seg, Text, TextStyle, resolved_spans};
+use super::decorate::{
+    Decoration, ValBasis, offset_and_inflate, resolve_gradients, resolve_shadows, rounded_corners,
+};
+use super::rasterize::FramedNodes;
+use super::rect::{CellBox, CellSize, clip_cells, node_boxes};
+use super::text::ResolvedText;
+
+/// The layer a frame's nodes draw at, above the frame's own widget at 0.
+const FRAMED_LAYER: u8 = 1;
 
 #[derive(Resource, Default)]
-pub(crate) struct ExtractedBuiNodes(pub(crate) Vec<ExtractedBuiNode>);
+pub(crate) struct ExtractedBuiNodes {
+    pub(crate) nodes: Vec<ExtractedBuiNode>,
+    /// The frame's [`CellSize`], for sampling pixel geometry at cell centers.
+    pub(crate) cell: Vec2,
+}
 
 pub(crate) struct ExtractedBuiNode {
     pub(crate) camera: Entity,
@@ -36,9 +55,9 @@ pub(crate) struct ExtractedBuiNode {
     pub(crate) clip: Option<Rect>,
     pub(crate) background: Option<CellColor>,
     pub(crate) border: Option<BorderSides>,
+    pub(crate) outline: Option<OutlineRing>,
     pub(crate) text: Option<TextRun>,
     pub(crate) decoration: Decoration,
-    global_z: i32,
 }
 
 pub(crate) struct BorderSides {
@@ -48,16 +67,26 @@ pub(crate) struct BorderSides {
     pub(crate) left: Option<CellColor>,
 }
 
+/// One cell of border glyphs around the node, where `Outline` draws a ring
+/// of any width outside the border box.
+pub(crate) struct OutlineRing {
+    pub(crate) rect: CellBox,
+    pub(crate) color: CellColor,
+}
+
 pub(crate) struct TextRun {
-    pub(crate) spans: Vec<Seg>,
+    pub(crate) text: ResolvedText,
     pub(crate) content: CellBox,
 }
 
 pub(crate) fn extract_bui_nodes(
     mut main_world: ResMut<MainWorld>,
     mut out: ResMut<ExtractedBuiNodes>,
+    mut commands: Commands,
 ) {
-    out.0.clear();
+    out.nodes.clear();
+    out.cell = main_world.resource::<CellSize>().vec();
+    let cell = out.cell;
     let viewports: HashMap<Entity, Rect> = {
         let mut cameras = main_world.query::<(Entity, &TerminalCamera, &ResolvedViewport)>();
         cameras
@@ -66,67 +95,86 @@ pub(crate) fn extract_bui_nodes(
             .map(|(entity, _, resolved)| (entity, resolved.0))
             .collect()
     };
-    let mut roots = main_world.query_filtered::<Entity, (With<ComputedNode>, Without<ChildOf>)>();
-    let mut root_list: Vec<Entity> = roots.iter(&main_world).collect();
-    root_list.sort();
-    let mut queue = PaintQueue {
-        viewports: &viewports,
-        nodes: &mut out.0,
-    };
-    for root in root_list {
-        visit(&main_world, root, 0, &mut queue);
+    let mut parents = main_world.query::<&ChildOf>();
+    let mut widgets = main_world.query_filtered::<(), With<UiWidget>>();
+    let stack = main_world.resource::<UiStack>();
+    // Keyed by camera too: a frame that is no node makes each child a root
+    // of its own, and two roots may name different cameras.
+    let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
+    for &entity in &stack.uinodes {
+        let Some(node) = convert(&main_world, entity, &viewports, cell) else {
+            continue;
+        };
+        match frame_of(&main_world, entity, (&mut parents, &mut widgets)) {
+            None => out.nodes.push(node),
+            Some(frame) => groups.entry((frame, node.camera)).or_default().push(node),
+        }
     }
-    out.0.sort_by_key(|node| node.global_z);
+    for ((frame, camera), nodes) in groups {
+        let order = main_world.get::<UiOrder>(frame).map_or(0, |order| order.0);
+        commands.spawn(
+            ExtractedWidget::new(Arc::new(FramedNodes { nodes, cell }), UiArea::Fill, frame)
+                .with_order(order)
+                .with_target(Some(camera))
+                .with_layer(FRAMED_LAYER),
+        );
+    }
 }
 
-struct PaintQueue<'a> {
-    viewports: &'a HashMap<Entity, Rect>,
-    nodes: &'a mut Vec<ExtractedBuiNode>,
-}
-
-// A node's GlobalZIndex re-keys its whole subtree; the final sort must
-// stay stable so traversal order survives within equal z.
-fn visit(world: &World, entity: Entity, inherited_z: i32, queue: &mut PaintQueue) {
-    let global_z = world
-        .get::<GlobalZIndex>(entity)
-        .map_or(inherited_z, |z| z.0);
-    if let Some(mut node) = convert(world, entity, queue.viewports) {
-        node.global_z = global_z;
-        queue.nodes.push(node);
+/// The nearest strict ancestor of `entity` carrying a widget, unless
+/// `entity` carries one itself.
+fn frame_of(
+    world: &World,
+    entity: Entity,
+    (parents, widgets): (
+        &mut QueryState<&ChildOf>,
+        &mut QueryState<(), With<UiWidget>>,
+    ),
+) -> Option<Entity> {
+    let widgets = widgets.query(world);
+    if widgets.contains(entity) {
+        return None;
     }
-    let Some(children) = world.get::<Children>(entity) else {
-        return;
-    };
-    let mut ordered: Vec<Entity> = children.iter().copied().collect();
-    ordered.sort_by_key(|&child| (world.get::<ZIndex>(child).map_or(0, |z| z.0), child));
-    for child in ordered {
-        visit(world, child, global_z, queue);
-    }
+    parents
+        .query(world)
+        .iter_ancestors(entity)
+        .find(|&ancestor| widgets.contains(ancestor))
 }
 
 fn convert(
     world: &World,
     entity: Entity,
     viewports: &HashMap<Entity, Rect>,
+    cell: Vec2,
 ) -> Option<ExtractedBuiNode> {
+    if !world
+        .get::<InheritedVisibility>(entity)
+        .is_some_and(|visibility| visibility.get())
+    {
+        return None;
+    }
     let computed = world.get::<ComputedNode>(entity)?;
     let camera = world.get::<ComputedUiTargetCamera>(entity)?.get()?;
     let viewport = *viewports.get(&camera)?;
     let transform = world.get::<UiGlobalTransform>(entity)?;
-    let (rect, content) = node_boxes(computed, transform, viewport);
+    let (rect, content) = node_boxes(computed, transform, viewport, cell);
     if rect.is_empty() {
         return None;
     }
     let clip = world
         .get::<CalculatedClip>(entity)
-        .map(|clip| clip_cells(clip, viewport));
+        .map(|clip| clip_cells(clip, viewport, cell));
     let on_screen = rect.clamped(viewport);
     let on_screen = clip.map_or(on_screen, |clip| on_screen.intersection(clip));
     // Only a shadow can reach the screen from a node that is not on it.
     if on_screen.is_empty() && !world.entity(entity).contains::<BoxShadow>() {
         return None;
     }
-    let frame = NodeFrame { rect, viewport };
+    let frame = NodeFrame {
+        rect,
+        viewport,
+        cell,
+    };
     let decoration = node_decoration(world, entity, computed, frame);
     let (background, border) = solid_colors(
         world,
@@ -140,10 +188,25 @@ fn convert(
         clip,
         background,
         border,
+        outline: outline_ring(world, entity, computed, frame),
         text: text_run(world, entity, content),
         decoration,
-        global_z: 0,
     })
+}
+
+fn outline_ring(
+    world: &World,
+    entity: Entity,
+    computed: &ComputedNode,
+    frame: NodeFrame,
+) -> Option<OutlineRing> {
+    if computed.outline_width() <= 0.0 {
+        return None;
+    }
+    let color = cell_color(world.get::<Outline>(entity)?.color)?;
+    let gap = Vec2::splat(computed.outline_offset()) / frame.cell + Vec2::ONE;
+    let rect = offset_and_inflate(frame.rect, Vec2::ZERO, gap)?;
+    Some(OutlineRing { rect, color })
 }
 
 fn solid_colors(
@@ -163,9 +226,11 @@ fn solid_colors(
     (background, border)
 }
 
+#[derive(Clone, Copy)]
 struct NodeFrame {
     rect: CellBox,
     viewport: Rect,
+    cell: Vec2,
 }
 
 fn node_decoration(
@@ -179,7 +244,7 @@ fn node_decoration(
         target: Vec2::new(
             f32::from(frame.viewport.width),
             f32::from(frame.viewport.height),
-        ),
+        ) * frame.cell,
         em: computed.em_size,
         rem: computed.rem_size,
     };
@@ -188,17 +253,17 @@ fn node_decoration(
             .unwrap_or_default()
     };
     Decoration {
-        corners: rounded_corners(computed.border_radius),
+        corners: rounded_corners(computed.border_radius, frame.cell),
         background_gradients: gradients(world.get::<BackgroundGradient>(entity).map(|g| &g.0)),
         border_gradients: gradients(world.get::<BorderGradient>(entity).map(|g| &g.0)),
         shadows: world
             .get::<BoxShadow>(entity)
-            .map(|shadow| resolve_shadows(shadow, frame.rect, size, basis))
+            .map(|shadow| resolve_shadows(shadow, frame.rect, size, basis, frame.cell))
             .unwrap_or_default(),
     }
 }
 
-fn cell_color(color: bevy_color::Color) -> Option<CellColor> {
+pub(crate) fn cell_color(color: bevy_color::Color) -> Option<CellColor> {
     let srgba = color.to_srgba();
     if srgba.alpha <= f32::EPSILON {
         return None;
@@ -238,13 +303,12 @@ fn border_sides(
 }
 
 fn text_run(world: &World, entity: Entity, content: CellBox) -> Option<TextRun> {
-    let text = world.get::<Text>(entity)?;
+    let text = world.get::<ResolvedText>(entity)?;
     if content.is_empty() {
         return None;
     }
-    let style = world.get::<TextStyle>(entity).copied().unwrap_or_default();
     Some(TextRun {
-        spans: resolved_spans(text, style.0),
+        text: text.clone(),
         content,
     })
 }

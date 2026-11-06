@@ -2,11 +2,12 @@ use bevy_app::App;
 use bevy_color::Color;
 use bevy_ecs::prelude::{Has, Without};
 use bevy_ui::{BackgroundColor, Node};
+use plurimus::bui::ComputedNodeRect;
 use plurimus::core::TerminalSize;
 use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{ComputedWidgetArea, FocusWithin, UiLabel};
-use plurimus::widgets::{Checkbox, MenuButton, Pane, SliderValue, TextInput};
+use plurimus::widgets::{MenuButton, Pane, SliderValue, TextInput};
 use plurimus_test::{
     click, composed_frame, press_chord, press_key, press_key_with, send_mouse, set_focus,
 };
@@ -22,8 +23,8 @@ fn headless_app() -> App {
     app.add_plugins(CorePlugin);
     app.insert_resource(TEST_SIZE);
     add_demo(&mut app);
-    // Twice: bui publishes interaction areas from the previous frame's
-    // layout, so nothing on that side is clickable after one tick.
+    // Twice: nodes are picked against the previous frame's layout, so
+    // nothing on the bui side is clickable after one tick.
     app.update();
     app.update();
     app
@@ -216,11 +217,20 @@ fn click_center(app: &mut App, entity: Entity) {
     click(app, area.x + area.width / 2, area.y + area.height / 2);
 }
 
+fn click_node_center(app: &mut App, entity: Entity) {
+    let rect = app
+        .world()
+        .get::<ComputedNodeRect>(entity)
+        .expect("node is laid out")
+        .rect;
+    click(app, rect.x + rect.width / 2, rect.y + rect.height / 2);
+}
+
 #[test]
 fn clicking_a_bui_node_activates_the_widget_behind_it() {
     let mut app = headless_app();
-    let button = single::<(With<Button>, With<Node>)>(&mut app);
-    click_center(&mut app, button);
+    let button = single::<With<NodeButton>>(&mut app);
+    click_node_center(&mut app, button);
 
     assert_eq!(app.world().resource::<DemoState>().bui.presses, 1);
 }
@@ -245,7 +255,7 @@ fn typing_edits_the_bui_side_field() {
 fn tab_walks_from_the_themed_side_to_the_bui_side() {
     let mut app = headless_app();
     let themed_button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    let bui_button = single::<(With<Button>, With<Node>)>(&mut app);
+    let bui_button = single::<With<NodeButton>>(&mut app);
     click_center(&mut app, themed_button);
 
     for _ in 0..THEMED_FOCUSABLES {
@@ -281,7 +291,7 @@ fn typing_d_in_the_editor_leaves_widgets_enabled() {
 fn the_menu_item_toggles_every_widget_disabled() {
     let mut app = headless_app();
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    let bui_button = single::<(With<Button>, With<Node>)>(&mut app);
+    let bui_button = single::<With<NodeButton>>(&mut app);
 
     click(&mut app, 26, 0);
     app.update();
@@ -302,7 +312,7 @@ fn the_menu_item_toggles_every_widget_disabled() {
 #[test]
 fn focus_lifts_the_background_of_bui_widgets() {
     let mut app = headless_app();
-    let checkbox = single::<(With<Checkbox>, With<Node>)>(&mut app);
+    let checkbox = single::<With<NodeCheckbox>>(&mut app);
     assert_eq!(
         app.world().get::<BackgroundColor>(checkbox).unwrap().0,
         Color::NONE

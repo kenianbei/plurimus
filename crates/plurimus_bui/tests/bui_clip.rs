@@ -4,12 +4,13 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_math::Vec2;
+use bevy_ui::widget::Text;
 use bevy_ui::{FlexDirection, Node, Overflow, ScrollPosition, Val};
 use plurimus_bui::BuiPlugin;
-use plurimus_bui::Text;
+use plurimus_bui::bevy_ui_widgets::Button;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{composed_frame, press_at, release_at};
-use plurimus_ui::{Hovered, Pressed};
+use plurimus_ui::Pressed;
 
 const COLS: f32 = 8.0;
 
@@ -57,7 +58,7 @@ fn row(app: &mut App, parent: Entity, label: &str, height: f32) -> Entity {
                 ..Node::default()
             },
             Text::from(label.to_owned()),
-            Hovered::default(),
+            Button,
             ChildOf(parent),
         ))
         .id()
@@ -90,8 +91,7 @@ fn scrolled_scene(app: &mut App) -> (Entity, Vec<Entity>) {
 #[test]
 fn a_scrolled_out_row_takes_no_press() {
     let mut app = app();
-    let (header, rows) = scrolled_scene(&mut app);
-    app.world_mut().entity_mut(header).remove::<Hovered>();
+    let (_, rows) = scrolled_scene(&mut app);
     press_at(&mut app, 2, 0);
     for (index, id) in rows.iter().enumerate() {
         assert!(!is_pressed(&app, *id), "row{index} is invisible there");
@@ -124,8 +124,8 @@ fn a_partially_clipped_row_presses_only_where_drawn() {
     let root = column(&mut app, 5.0);
     let container = scroll_container(&mut app, root, 2.0);
     let tall = row(&mut app, container, "tall", 3.0);
-    // Plain node, no Hovered: nothing else claims the cell below the
-    // container, so only the leak could take the press there.
+    // A plain node: nothing else claims the cell below the container, so
+    // only the leak could take the press there.
     app.world_mut().spawn((
         Node {
             height: Val::Px(1.0),

@@ -240,6 +240,32 @@ pub(crate) struct WheelRouting<'w, 's> {
     axes: Query<'w, 's, &'static WheelAxes>,
 }
 
+impl WheelRouting<'_, '_> {
+    /// The topmost receptive widget at `position` that can move by `step`
+    /// and the open modals admit.
+    pub(crate) fn target(
+        &self,
+        position: Position,
+        step: (i32, i32),
+        modal: &ModalGuard,
+    ) -> Option<Entity> {
+        let consumes = |entity| {
+            self.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
+                && modal.admits(position, entity)
+        };
+        topmost_at(position, &self.targets, consumes)
+    }
+
+    /// Whether a receptive widget the open modals admit is at `position`,
+    /// whatever it can move by.
+    pub(crate) fn covers(&self, position: Position, modal: &ModalGuard) -> bool {
+        topmost_at(position, &self.targets, |entity| {
+            modal.admits(position, entity)
+        })
+        .is_some()
+    }
+}
+
 // A step of the pointer router's batch, so a tick behind a modal flip waits
 // with the rest; true when it dismissed, deferring what follows likewise.
 pub(crate) fn route_tick(
@@ -258,11 +284,7 @@ pub(crate) fn route_tick(
     }
     // Letting a covered tick through would scroll what the overlay is
     // drawn on top of.
-    let consumes = |entity| {
-        wheel.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
-            && modal.admits(position, entity)
-    };
-    if let Some(entity) = topmost_at(position, &wheel.targets, consumes) {
+    if let Some(entity) = wheel.target(position, step, modal) {
         commands.trigger(ScrollBy { entity, step });
     }
     false
@@ -360,7 +382,11 @@ pub fn apply_offset(
     commands: &mut Commands,
 ) {
     if offset.set_if_neq(ScrollOffset(position)) {
-        commands.trigger(ValueChange::new(entity, position, true));
+        commands.trigger(ValueChange {
+            source: entity,
+            value: position,
+            is_final: true,
+        });
     }
 }
 

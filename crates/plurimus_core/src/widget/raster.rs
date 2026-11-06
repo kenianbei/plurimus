@@ -2,12 +2,13 @@
 //! z-sorted pass.
 //!
 //! Every widget that reaches the ui pass is drawn here, sorted by
-//! `(order, source entity)` so equal orders still resolve the same way from
-//! one frame to the next, and rendered into its target camera's buffer. A
-//! widget marked [`RasterDeferred`] opts out of this extraction because
-//! another pipeline owns its drawing - that pipeline spawns its own
+//! `(order, source entity, layer)` so equal orders still resolve the same
+//! way from one frame to the next, and rendered into its target camera's
+//! buffer. A widget marked [`RasterDeferred`] opts out of this extraction
+//! because another pipeline owns its drawing - that pipeline spawns its own
 //! [`ExtractedWidget`], which is what keeps a deferred widget in the same
-//! z-order as everything else.
+//! z-order as everything else, and a pipeline drawing what a widget frames
+//! spawns one at the same source and a higher layer, directly after it.
 
 use std::sync::Arc;
 
@@ -50,6 +51,9 @@ pub struct ExtractedWidget {
     pub order: i32,
     /// The main-world widget entity, tie-breaking equal orders.
     pub source: Entity,
+    /// Sub-order among what shares `source`: the widget itself is 0, and
+    /// what a pipeline draws over it sorts after it at a higher layer.
+    pub layer: u8,
     /// Main-world target camera; `None` falls back to the default camera.
     pub target: Option<Entity>,
 }
@@ -64,8 +68,16 @@ impl ExtractedWidget {
             area,
             order: 0,
             source,
+            layer: 0,
             target: None,
         }
+    }
+
+    /// Sets the sub-order among what shares `source`.
+    #[must_use]
+    pub const fn with_layer(mut self, layer: u8) -> Self {
+        self.layer = layer;
+        self
     }
 
     /// Sets the z-order; higher renders later, on top.
@@ -105,6 +117,7 @@ pub(crate) fn extract_widgets(
             area: *area,
             order: order.map_or(0, |order| order.0),
             source,
+            layer: 0,
             target: camera.0,
         });
     }
@@ -116,7 +129,7 @@ pub(crate) fn rasterize_widgets(
     mut cameras: Query<(&SourceCamera, &mut CameraBuffer)>,
 ) {
     let mut ordered: Vec<&ExtractedWidget> = widgets.iter().collect();
-    ordered.sort_by_key(|widget| (widget.order, widget.source));
+    ordered.sort_by_key(|widget| (widget.order, widget.source, widget.layer));
     for extracted in ordered {
         let Some(target) = extracted.target.or(default_camera.0) else {
             continue;
@@ -129,5 +142,56 @@ pub(crate) fn rasterize_widgets(
             continue;
         }
         extracted.widget.render(area, &mut buffer.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use bevy_app::App;
+    use bevy_ecs::prelude::{Commands, Entity};
+    use ratatui_core::buffer::Buffer;
+    use ratatui_core::layout::Rect;
+    use ratatui_core::style::Style;
+    use ratatui_core::widgets::Widget;
+
+    use super::ExtractedWidget;
+    use crate::{
+        CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalRenderAppExt,
+        TerminalSize, UiArea,
+    };
+
+    struct Row(&'static str);
+
+    impl Widget for &Row {
+        fn render(self, area: Rect, buffer: &mut Buffer) {
+            buffer.set_string(area.left(), area.top(), self.0, Style::new());
+        }
+    }
+
+    fn extract_layers(mut commands: Commands) {
+        let source = Entity::from_raw_u32(7).unwrap();
+        let row = |text| Arc::new(Row(text)) as Arc<dyn crate::TerminalWidget>;
+        commands.spawn(ExtractedWidget::new(row("over"), UiArea::Fill, source).with_layer(1));
+        commands.spawn(ExtractedWidget::new(row("base"), UiArea::Fill, source));
+    }
+
+    #[test]
+    fn a_higher_layer_draws_over_its_source_whatever_was_spawned_first() {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.insert_resource(TerminalSize::new(4, 1));
+        app.world_mut().spawn(TerminalCamera::default());
+        app.add_extract_systems(extract_layers);
+
+        app.update();
+
+        let frame = app
+            .sub_app(TerminalRenderApp)
+            .world()
+            .resource::<FrameBuffer>();
+        let drawn: String = (0..4).map(|x| frame.0[(x, 0)].symbol()).collect();
+        assert_eq!(drawn, "over");
     }
 }

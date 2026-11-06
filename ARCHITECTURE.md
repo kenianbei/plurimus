@@ -53,6 +53,10 @@ crate and its module (`crossterm` and `web` imply `term`; `widgets` and
 a live terminal. The facade crate also hosts the runnable examples, and `ratman`
 and `lander` pick their backend by target, so each is also a browser demo;
 `examples/` is the static site a hand-run Pages workflow publishes them from.
+`todo` picks its target by flag instead, running one `bevy_ui` tree in the
+terminal or in a bevy window, so the windowed stack - `bevy_winit`,
+`bevy_render`, `bevy_ui_render` and what they lean on - is a dev-dependency of
+the facade alone.
 
 ### plurimus_core
 
@@ -71,10 +75,13 @@ then colors downsample to the terminal's `ColorDepth`), and `Present`. Core owns
 raster primitives in `raster` (halfblock and braille grids, blits, color
 averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
 placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
-pass with no other crate involved. Its `Default` draws nothing, which is what a
-widget holds before its first restyle replaces it, so no widget library needs a
-blank of its own. Which camera a widget draws on, the crates agree on rather
-than each deriving: `ComputedUiCamera` is resolved once a frame in
+pass with no other crate involved, sorted by order, then source entity, then a
+layer - the seam a pipeline drawing what a widget frames joins at, spawning its
+own `ExtractedWidget` at the widget's source and a higher layer so it sorts
+directly after it. Its `Default` draws nothing, which is what a widget holds
+before its first restyle replaces it, so no widget library needs a blank of its
+own. Which camera a widget draws on, the crates agree on rather than each
+deriving: `ComputedUiCamera` is resolved once a frame in
 `CameraSystems::PropagateCameras` as the widget's own `UiCamera`, else the
 nearest ancestor's, else the default - so a child sits on its parent's camera
 without being told, and forgetting to say stops being a silent misplacement.
@@ -247,57 +254,57 @@ press to the first `TabIndex` carrier at or above what it lands on - a part of a
 widget focuses the widget - stopping at `PressFocusDisabled`, whose promise
 covers what is inside it, and at an open overlay's root, whose opener lies
 outside it. Every press also carries how many have run together on it,
-`PointerPress`, the `Pressed` it leaves on the widget, and the `Click`
-completing it all reporting the same number. A `PointerPress` carries the
-modifiers the terminal reported with it too, since held keys are learned from
-key messages alone and a shift sent with a click would otherwise go unseen. The
-run behind it is this crate's own and private, because every fact keying it is
-this router's: which widget the press reached, and whether it reached one at
-all - a press that dismissed an overlay or that a disabled widget absorbed ends
-the run rather than counting, so the next press starts over rather than arriving
-as a second. Only `plurimus_term`'s `MultiClickWindow` bounds it from outside.
-The count rests on `Pressed` for the length of the gesture because a gesture
-outlives the message that started it: a same-batch release reads it from the
-router's own list, since a component inserted by command has not landed yet, and
-a `PointerDrag` observer reads it off the entity, which is the one gesture no
-event carries a count for. It installs focus via `bevy_input_focus` and pins the
-dispatch into that sequence - after `bevy_input`'s own update and between
-`Areas` and `Hover` - so a focused-input observer reads this frame's areas and
-settled key state rather than whatever the schedule happened to resolve; work
-that must see what one did is ordered after the dispatch, which is what
-`plurimus_widgets` does with `WidgetSystems::Layout`. It also builds the
-directional navigation map, and provides scrolling (`ScrollArea`,
-`ScrollOffset`, `ScrollIntoView`) with cached extraction of scrolled content,
-plus the generic modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that
-menus and popovers are built from. What "inside a modal" means is the overlay's
-own rect, for the pointer and the wheel alike: a position an open overlay covers
-admits that overlay's subtree and nothing else, so an overlay confines input
-rather than depending on every child of it being marked, and a position outside
-every open overlay dismisses them. A press on a `ModalityToggle` is where
-geometry cannot answer, since an opener sits outside the menu it closes: it
-dismisses only the overlays it does not own, those rooted beneath it, so a menu
-button closes its own menu by toggling it and switches away from a neighbour's.
-Presses and ticks route as one ordered batch, and whatever follows a message
-that opens or closes an overlay waits a frame to hit-test the settled state.
-Taking the union of the overlays covering a position is what admits a submenu
-inside its parent without ordering modal roots against each other. Every scroll
-converges on one event: a wheel tick, arbitrated by z-order among the
-`WheelReceptive` widgets under the cursor whose `WheelAxes` can still use that
-axis and which an open overlay admits, and a key bound through `ScrollKeys` on
-whichever widget holds focus both become a `ScrollBy`, which whoever stores the
-scroll consumes - this crate's `ScrollOffset`, a bevy_ui node's own position, a
-text editor's engine viewport - each clamping the step against its own extent.
-`ScrollKeys` is the whole opt-in for the keyboard, carrying the `TabIndex`
-without which nothing can be sent a key, and it is one of the
-`(KeyBinding, Action)` bindings components sharing `first_bound`, the scan this
-crate owns so a widget family written elsewhere states "first match wins" by
-calling it rather than by copying it - eight of them across the workspace, one
-per widget that takes keys. Those that move something - a scroll area, a list
-box, a table, a tab bar, a slider - consume a bound key only when it changes
-something, so an arrow pressed at an edge falls through to directional
-navigation, which ignores repeats so that a held key stops there instead. A
-scroll key measures a `ScrollArea` against its offset, and any other scroll
-consumer only by its `WheelAxes`, whose extent this crate cannot see. A
+`PointerPress`, the `PressCount` it leaves beside `Pressed` on the widget, and
+the `Click` completing it all reporting the same number. A `PointerPress`
+carries the modifiers the terminal reported with it too, since held keys are
+learned from key messages alone and a shift sent with a click would otherwise go
+unseen. The run behind it is this crate's own and private, because every fact
+keying it is this router's: which widget the press reached, and whether it
+reached one at all - a press that dismissed an overlay or that a disabled widget
+absorbed ends the run rather than counting, so the next press starts over rather
+than arriving as a second. Only `plurimus_term`'s `MultiClickWindow` bounds it
+from outside. The count rests on the widget for the length of the gesture
+because a gesture outlives the message that started it: a same-batch release
+reads it from the router's own list, since a component inserted by command has
+not landed yet, and a `PointerDrag` observer reads it off the entity, which is
+the one gesture no event carries a count for. It installs focus via
+`bevy_input_focus` and pins the dispatch into that sequence - after
+`bevy_input`'s own update and between `Areas` and `Hover` - so a focused-input
+observer reads this frame's areas and settled key state rather than whatever the
+schedule happened to resolve; work that must see what one did is ordered after
+the dispatch, which is what `plurimus_widgets` does with
+`WidgetSystems::Layout`. It also builds the directional navigation map, and
+provides scrolling (`ScrollArea`, `ScrollOffset`, `ScrollIntoView`) with cached
+extraction of scrolled content, plus the generic modal-overlay primitives
+(`ModalOpen`, `ModalDismiss`) that menus and popovers are built from. What
+"inside a modal" means is the overlay's own rect, for the pointer and the wheel
+alike: a position an open overlay covers admits that overlay's subtree and
+nothing else, so an overlay confines input rather than depending on every child
+of it being marked, and a position outside every open overlay dismisses them. A
+press on a `ModalityToggle` is where geometry cannot answer, since an opener
+sits outside the menu it closes: it dismisses only the overlays it does not own,
+those rooted beneath it, so a menu button closes its own menu by toggling it and
+switches away from a neighbour's. Presses and ticks route as one ordered batch,
+and whatever follows a message that opens or closes an overlay waits a frame to
+hit-test the settled state. Taking the union of the overlays covering a position
+is what admits a submenu inside its parent without ordering modal roots against
+each other. Every scroll converges on one event: a wheel tick, arbitrated by
+z-order among the `WheelReceptive` widgets under the cursor whose `WheelAxes`
+can still use that axis and which an open overlay admits, and a key bound
+through `ScrollKeys` on whichever widget holds focus both become a `ScrollBy`,
+which whoever stores the scroll consumes - this crate's `ScrollOffset`, a
+bevy_ui node's own position, a text editor's engine viewport - each clamping the
+step against its own extent. `ScrollKeys` is the whole opt-in for the keyboard,
+carrying the `TabIndex` without which nothing can be sent a key, and it is one
+of the `(KeyBinding, Action)` bindings components sharing `first_bound`, the
+scan this crate owns so a widget family written elsewhere states "first match
+wins" by calling it rather than by copying it - eight of them across the
+workspace, one per widget that takes keys. Those that move something - a scroll
+area, a list box, a table, a tab bar, a slider - consume a bound key only when
+it changes something, so an arrow pressed at an edge falls through to
+directional navigation, which ignores repeats so that a held key stops there
+instead. A scroll key measures a `ScrollArea` against its offset, and any other
+scroll consumer only by its `WheelAxes`, whose extent this crate cannot see. A
 `KeyBinding` is a `Key` and the `KeyModifiers` it must be pressed under, and
 `KeyBinding::matches` is the one rule: every modifier but shift exactly, and
 shift exactly for a named key but only when asked for on a character, since a
@@ -313,6 +320,14 @@ discarding the shape an app gave it. Both take the scroll offset as the
 `ScrollOffset` a widget may or may not carry, because a widget carrying none is
 scrolled to the origin and that is the crate's rule to state rather than every
 caller's to know; scroll state kept anywhere else is put in one to ask.
+
+The interaction vocabulary itself is bevy's: `Hovered` is `bevy_picking`'s,
+`Pressed`, `Checked` and `InteractionDisabled` are `bevy_ui`'s, and `Activate`
+and `ValueChange` are `bevy_ui_widgets`'s, re-exported rather than mirrored, so
+a widget on a node and a widget at a cell rect report the same state in the same
+type and an app's skin reads one. What this crate adds beside them is what no
+window has: `PressCount` on the pressed widget, and `PointerTargets`, the query
+a sibling pointer stack asks whether a cell is already a widget's.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
@@ -485,22 +500,24 @@ one checked row is its last pick, left behind as the cursor moves on, and
 `Marked` is not selection. Whichever container holds the cursor, the row it
 names is styled as focused even when focus sits elsewhere - being driven is what
 `ActiveDescendant` is for, and a cursor nobody can see is that pattern
-contradicting itself. Both containers also take their movement and copy keys
-from a component of `(KeyBinding, Action)` bindings - `ListBoxKeys`,
-`TableKeys` - which is how an app remaps a list to vim keys, `Ctrl+D` included,
-without reimplementing movement beside the widget. Only the bindings are the
-crate's: the scan itself is `plurimus_ui`'s `first_bound`, the same one a
-focused scroll area's keys go through. Every widget here takes its keys that
-way. The two text widgets' tables - `TextInputKeys` and `TextEditorKeys` - bind
-editing rather than movement, so an unbound unchorded character still types
-itself and an unbound chord propagates. `TextInputAction`'s `Submit`, `Copy`,
-`Cut` and `Paste` are the actions `TextInput::handle` refuses to apply - what
-committing means and where a copy goes are the dispatcher's, so `handle` leaves
-them and whoever routes the key acts on them, which is also why the enum stays
-closed. The editor's actions carry the engine's own `CursorMove` and `Scrolling`
-rather than restating them, and apply through its public operations rather than
-its emacs keymap, which never runs: a table can unbind a key only if nothing
-behind it still answers.
+contradicting itself. For a list box the driver's door is `ListBoxAccess`: a
+motion applied to a list that holds no focus, answering whether the cursor moved
+so the key it came from goes on when it did not. Both containers also take their
+movement and copy keys from a component of `(KeyBinding, Action)` bindings -
+`ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim keys,
+`Ctrl+D` included, without reimplementing movement beside the widget. Only the
+bindings are the crate's: the scan itself is `plurimus_ui`'s `first_bound`, the
+same one a focused scroll area's keys go through. Every widget here takes its
+keys that way. The two text widgets' tables - `TextInputKeys` and
+`TextEditorKeys` - bind editing rather than movement, so an unbound unchorded
+character still types itself and an unbound chord propagates.
+`TextInputAction`'s `Submit`, `Copy`, `Cut` and `Paste` are the actions
+`TextInput::handle` refuses to apply - what committing means and where a copy
+goes are the dispatcher's, so `handle` leaves them and whoever routes the key
+acts on them, which is also why the enum stays closed. The editor's actions
+carry the engine's own `CursorMove` and `Scrolling` rather than restating them,
+and apply through its public operations rather than its emacs keymap, which
+never runs: a table can unbind a key only if nothing behind it still answers.
 
 A `Table`'s rows are child entities holding their own cells, banded by
 `TableHeader` and `TableFooter` and striped by `TableStripe`. Interaction is
@@ -528,13 +545,49 @@ Re-exports `ratatui_widgets`, `ratatui_textarea`, `bevy_input_focus`, and
 
 ### plurimus_bui
 
-The bevy_ui bridge. `BuiPlugin` runs bevy_ui's real layout stack - `Node` trees
-computed by taffy - against terminal cameras at one pixel per cell. Only layout
-runs: bevy_ui's text, focus, picking, and asset systems stay out, and text is
-measured by grapheme width instead of fonts, so an em and a rem are each one
-cell. Computed nodes rasterize in the terminal sub-app beneath all widgets, and
-node areas and wheel targets bridge into plurimus_ui's routers so bevy_ui trees
-are hoverable, clickable, and scrollable like any widget.
+The bevy_ui bridge, and the one place a bevy_ui tree meets terminal cells.
+`BuiPlugin` runs bevy_ui's real layout stack - `Node` trees computed by taffy -
+against terminal cameras at `CellSize` pixels per cell, one by one by default,
+so a tree sized in a window's pixels lays out the same here once the cell is
+named. Only layout, stacking and picking run: bevy_ui's font, focus and asset
+systems stay out. Text is bevy_ui's own - `Text` roots with `TextSpan` children,
+read through `TextUiReader` - measured by grapheme width rather than by a font,
+one row tall whatever its size, with weight, style, strikethrough, underline and
+colour mapped onto the cell's modifiers and foreground and everything a cell
+cannot show ignored; a rem is a row, so `Val::Rem(1)` is one line here as on a
+window. `Visibility` is propagated into `InheritedVisibility` by the crate
+itself, since bevy_camera's propagation brings culling with it, and `Outline`
+draws as a one-cell ring. Computed nodes rasterize in the terminal sub-app in
+bevy_ui's own `UiStack` order, which the crate computes because the upstream
+system is private, and where they sit among widgets the tree decides: a node
+under no widget draws beneath every widget, and the nodes beneath a widget in
+the tree draw directly after it, in its band, as one extracted widget of their
+own - so a `Text` inside the frame an overlay's widget clears is readable, as a
+child drawn over its parent is on a window. A node carrying a widget of its own
+is not lifted, that widget being what draws there, which is what keeps a label
+mirrored on a button's entity beneath the button.
+
+Interaction is bevy's, not plurimus_ui's: `BuiPlugin` installs `bevy_picking`,
+bevy_ui's picking backend and `PointerFocusPlugin`, feeds the one mouse pointer
+from the terminal's `MouseMessage`s - a cell becomes a pointer at its centre,
+scaled by `CellSize`, with a move written before any press or tick the terminal
+reports without one - and the fontless `bevy_ui_widgets` plugins, so upstream
+buttons, checkboxes, sliders, menus and scroll areas run on nodes unchanged,
+while `TextInputPlugin` stays out for want of a font engine. The two pointer
+stacks share one terminal by one rule, asked of `plurimus_ui::PointerTargets` in
+the picking backend: a node pick at a cell a plurimus widget would take a press
+or a tick at is dropped, so widgets draw over nodes and the press reaches one or
+the other - and the question is the router's own, so a tick over a widget that
+takes presses alone, or cannot move on the ticked axis, falls to the node
+beneath as a wheel over a button reaches the scroll area around it. An open
+plurimus overlay confines nodes as it confines widgets: inside it only its own
+subtree is picked, so an overlay built of nodes works and one drawn over nodes
+covers them, and outside it nothing is, where a press dismisses it. Window
+picking is off, since a press on no node is plurimus_ui's to route and a window
+hit would clear the focus it left alone. A tree shared with a windowed build
+keeps a text field to each target - the terminal places a plurimus
+`EditableText` over the field's node through `UiArea` - and arrow-key
+navigation, which nothing builds for nodes.
 
 ### plurimus_2d
 
@@ -575,11 +628,14 @@ redraw from a skipped one.
 - **Bevy** (0.20) - the ECS and app foundation, consumed as granular crates and
   never the `bevy` umbrella: `bevy_app` and `bevy_ecs` everywhere; `bevy_input`
   and `bevy_time` for the input contract; `bevy_input_focus` and `bevy_window`
-  for focus; `bevy_ui`, `bevy_text`, and `bevy_camera` for the layout bridge;
+  for focus; `bevy_ui`, `bevy_text`, `bevy_camera`, `bevy_picking` and
+  `bevy_ui_widgets` for the layout bridge and the interaction vocabulary;
   `bevy_transform` and `bevy_math` for 2d; the render stack (`bevy_render`,
   `bevy_extract`, `bevy_core_pipeline`, `bevy_image`, `bevy_mesh`, `bevy_light`,
-  and friends) only in `plurimus_3d`. Apps add whatever further bevy crates
-  their scenes need at the same version, and cargo unifies them.
+  and friends) only in `plurimus_3d`; the windowed stack (`bevy_winit`,
+  `bevy_ui_render`, `bevy_sprite_render`, `bevy_a11y`) only as a dev-dependency,
+  for the `todo` example's window. Apps add whatever further bevy crates their
+  scenes need at the same version, and cargo unifies them.
 - **Ratatui** - the cell model and widget ecosystem: `ratatui-core` (0.1)
   supplies `Buffer`, `Cell`, `Rect`, `Style`, and the `Backend` seam;
   `ratatui-widgets` (0.3) the stock widget set; `ratatui-textarea` (0.9) the

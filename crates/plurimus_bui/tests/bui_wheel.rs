@@ -1,17 +1,19 @@
-//! bui nodes as targets of the shared wheel router, fully headless.
+//! Upstream `ScrollArea`s on `bevy_ui` nodes, fed by the terminal's wheel.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
 use bevy_math::Vec2;
+use bevy_ui::widget::Text;
 use bevy_ui::{FlexDirection, Node, Overflow, ScrollPosition, Val};
 use plurimus_bui::BuiPlugin;
-use plurimus_bui::Text;
+use plurimus_bui::bevy_picking::Pickable;
+use plurimus_bui::bevy_ui_widgets::ScrollArea as NodeScrollArea;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::MouseKind;
 use plurimus_test::send_mouse;
-use plurimus_ui::{InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, UiWidget};
+use plurimus_ui::{Hovered, ModalOpen, ScrollArea, ScrollOffset, UiArea, UiWidget};
 use plurimus_widgets::WidgetsPlugin;
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 
@@ -23,17 +25,20 @@ fn app() -> App {
     app
 }
 
-/// A scroll-overflow node of `size` cells, with no children yet.
+/// A scroll area of `size` cells, with no children yet.
 fn scroll_node(app: &mut App, overflow: Overflow, size: (f32, f32)) -> Entity {
     app.world_mut()
-        .spawn(Node {
-            width: Val::Px(size.0),
-            height: Val::Px(size.1),
-            flex_direction: FlexDirection::Column,
-            flex_shrink: 0.0,
-            overflow,
-            ..Node::default()
-        })
+        .spawn((
+            Node {
+                width: Val::Px(size.0),
+                height: Val::Px(size.1),
+                flex_direction: FlexDirection::Column,
+                flex_shrink: 0.0,
+                overflow,
+                ..Node::default()
+            },
+            NodeScrollArea,
+        ))
         .id()
 }
 
@@ -68,6 +73,21 @@ fn settle(app: &mut App) {
 }
 
 #[test]
+fn a_tick_scrolls_one_row_and_clamps_at_the_end() {
+    let mut app = app();
+    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    assert_eq!(scrolled(&app, node).y, 1.0);
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    assert_eq!(scrolled(&app, node).y, 2.0, "five rows in three");
+    send_mouse(&mut app, MouseKind::ScrollUp, 2, 1);
+    assert_eq!(scrolled(&app, node).y, 1.0);
+}
+
+#[test]
 fn a_widget_stacked_over_a_node_takes_the_tick_alone() {
     let mut app = app();
     let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
@@ -91,84 +111,151 @@ fn a_widget_stacked_over_a_node_takes_the_tick_alone() {
 }
 
 #[test]
-fn a_disabled_node_falls_through_to_the_one_beneath() {
-    let mut app = app();
-    let below = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    let above = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    settle(&mut app);
-    app.world_mut()
-        .entity_mut(above)
-        .insert(InteractionDisabled);
-
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-
-    assert_eq!(scrolled(&app, above), Vec2::ZERO);
-    assert_eq!(scrolled(&app, below).y, 1.0);
-}
-
-#[test]
-fn a_node_that_stops_scrolling_stops_taking_ticks() {
-    let mut app = app();
-    let below = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    let above = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    settle(&mut app);
-
-    app.world_mut().entity_mut(above).insert(Node {
-        width: Val::Px(8.0),
-        height: Val::Px(3.0),
-        flex_direction: FlexDirection::Column,
-        flex_shrink: 0.0,
-        overflow: Overflow::clip(),
-        ..Node::default()
-    });
-    settle(&mut app);
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-
-    assert_eq!(scrolled(&app, above), Vec2::ZERO, "deregistered");
-    assert_eq!(scrolled(&app, below).y, 1.0);
-}
-
-#[test]
-fn an_explicit_order_on_a_node_survives_the_bridge() {
+fn a_widget_that_takes_presses_alone_lets_the_tick_fall_to_the_node_beneath() {
     let mut app = app();
     let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
-    app.world_mut().entity_mut(node).insert(UiOrder(7));
+    app.world_mut().spawn((
+        UiWidget::new(Paragraph::new("field")),
+        UiArea::Fixed(Rect::new(0, 0, 8, 3)),
+        Hovered::default(),
+    ));
     settle(&mut app);
 
-    assert_eq!(app.world().get::<UiOrder>(node), Some(&UiOrder(7)));
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, node).y, 1.0, "the widget takes no tick");
+}
+
+#[test]
+fn a_widget_that_cannot_move_on_the_ticked_axis_lets_the_tick_fall_through() {
+    let mut app = app();
+    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    let widget = app
+        .world_mut()
+        .spawn((
+            UiWidget::new(Paragraph::new("wide")),
+            UiArea::Fixed(Rect::new(0, 0, 8, 3)),
+            ScrollArea::new(Size::new(30, 2)),
+        ))
+        .id();
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, node).y, 1.0, "a row down is not its axis");
+    assert_eq!(
+        app.world().get::<ScrollOffset>(widget).unwrap().0,
+        Position::new(0, 0)
+    );
+}
+
+/// An open overlay over `area`, itself a node, as a form built of nodes is.
+fn overlay(app: &mut App, area: Rect) -> Entity {
+    app.world_mut()
+        .spawn((
+            Node {
+                width: Val::Px(f32::from(area.width)),
+                height: Val::Px(f32::from(area.height)),
+                ..Node::default()
+            },
+            ModalOpen,
+            UiWidget::default(),
+            UiArea::Fixed(area),
+        ))
+        .id()
+}
+
+#[test]
+fn a_tick_inside_an_open_overlay_scrolls_a_node_of_its_own_subtree() {
+    let mut app = app();
+    let root = overlay(&mut app, Rect::new(0, 0, 8, 3));
+    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    app.world_mut().entity_mut(node).insert(ChildOf(root));
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, node).y, 1.0, "the overlay admits its own");
+}
+
+#[test]
+fn a_tick_inside_an_open_overlay_moves_nothing_it_is_drawn_over() {
+    let mut app = app();
+    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    let widget = app
+        .world_mut()
+        .spawn((
+            UiWidget::new(Paragraph::new("page")),
+            UiArea::Fixed(Rect::new(0, 0, 8, 3)),
+            ScrollArea::new(Size::new(8, 30)),
+        ))
+        .id();
+    overlay(&mut app, Rect::new(0, 0, 8, 3));
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, node), Vec2::ZERO, "the node is beneath it");
+    assert_eq!(
+        app.world().get::<ScrollOffset>(widget).unwrap().0,
+        Position::new(0, 0),
+        "and so is the widget"
+    );
+}
+
+#[test]
+fn an_open_plurimus_overlay_blocks_node_ticks_outside_it() {
+    let mut app = app();
+    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    overlay(&mut app, Rect::new(6, 2, 2, 1));
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, node), Vec2::ZERO);
+}
+
+/// A childless node covering the screen; a child of its own would be
+/// picked in its place.
+#[test]
+fn a_pickable_ignore_node_lets_the_tick_through() {
+    let mut app = app();
+    let below = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    let above = scroll_node(&mut app, Overflow::clip(), (8.0, 3.0));
+    app.world_mut().entity_mut(above).insert(Pickable::IGNORE);
+    settle(&mut app);
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, below).y, 1.0, "the cover is not picked");
+}
+
+#[test]
+fn a_node_that_stops_being_a_scroll_area_stops_scrolling() {
+    let mut app = app();
+    let node = spawn_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    settle(&mut app);
+    app.world_mut().entity_mut(node).remove::<NodeScrollArea>();
+
+    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+
+    assert_eq!(scrolled(&app, node), Vec2::ZERO);
 }
 
 // The inner node is child 0 so it sits at the top-left, where the tick
 // lands; the outer node's own rows follow and make it overflow too.
-fn spawn_nested(app: &mut App, inner_overflow: Overflow) -> (Entity, Entity) {
-    let outer = scroll_node(app, Overflow::scroll_y(), (8.0, 3.0));
-    let inner = scroll_node(app, inner_overflow, (4.0, 2.0));
-    app.world_mut().entity_mut(inner).insert(ChildOf(outer));
-    add_rows(app, inner, 5);
-    add_rows(app, outer, 4);
-    (outer, inner)
-}
-
 #[test]
-fn a_nested_node_wins_over_its_scrolling_ancestor() {
+fn a_nested_scroll_area_wins_over_its_ancestor() {
     let mut app = app();
-    let (outer, inner) = spawn_nested(&mut app, Overflow::scroll_y());
+    let outer = scroll_node(&mut app, Overflow::scroll_y(), (8.0, 3.0));
+    let inner = scroll_node(&mut app, Overflow::scroll_y(), (4.0, 2.0));
+    app.world_mut().entity_mut(inner).insert(ChildOf(outer));
+    add_rows(&mut app, inner, 5);
+    add_rows(&mut app, outer, 4);
     settle(&mut app);
 
     send_mouse(&mut app, MouseKind::ScrollDown, 1, 0);
 
     assert_eq!(scrolled(&app, inner).y, 1.0, "innermost consumes it");
     assert_eq!(scrolled(&app, outer), Vec2::ZERO);
-}
-
-#[test]
-fn a_tick_falls_through_a_node_that_scrolls_the_other_axis() {
-    let mut app = app();
-    let (outer, inner) = spawn_nested(&mut app, Overflow::scroll_x());
-    settle(&mut app);
-
-    send_mouse(&mut app, MouseKind::ScrollDown, 1, 0);
-
-    assert_eq!(scrolled(&app, inner), Vec2::ZERO, "no y overflow to use");
-    assert_eq!(scrolled(&app, outer).y, 1.0);
 }

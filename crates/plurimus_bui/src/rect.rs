@@ -8,8 +8,9 @@
 //! hit-tests, so a node scrolled out of its container stops being clickable
 //! even though it still has a rect.
 
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, Query};
+use bevy_ecs::prelude::{Commands, Component, Query, Res, Resource};
 use bevy_math::Vec2;
 use bevy_ui::{
     CalculatedClip, CalculatedClipRect, ComputedNode, ComputedUiTargetCamera, UiGlobalTransform,
@@ -17,7 +18,34 @@ use bevy_ui::{
 use plurimus_core::ResolvedViewport;
 use plurimus_core::ratatui_core::layout::Rect;
 
-use super::upsert;
+/// Pixels per terminal cell, per axis: the one place `bevy_ui`'s pixels and
+/// the terminal's cells meet.
+///
+/// Layout, text measurement, decoration, picking and `RemSize` all go through
+/// it, so a tree sized in pixels for a window - `8 x 16` puts a 560 px card
+/// in 70 columns and a 16 px control in one row - lays out the same here.
+/// The default is one pixel per cell. A border or outline thinner than a
+/// cell paints in the node's outer cell, over content, a cell being the
+/// smallest thing that can be drawn.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub struct CellSize {
+    /// Pixels per column.
+    pub x: f32,
+    /// Pixels per row.
+    pub y: f32,
+}
+
+impl Default for CellSize {
+    fn default() -> Self {
+        Self { x: 1.0, y: 1.0 }
+    }
+}
+
+impl CellSize {
+    pub(crate) const fn vec(self) -> Vec2 {
+        Vec2::new(self.x, self.y)
+    }
+}
 
 /// The node's laid-out rects in terminal cells, cut to its camera's viewport.
 /// Zero until the first layout pass, when no target camera resolves, or when
@@ -65,8 +93,9 @@ impl CellBox {
 }
 
 // Each edge rounds on its own, which keeps adjacent nodes gapless.
-fn cell_box(min: Vec2, max: Vec2, viewport: Rect) -> CellBox {
+fn cell_box(min: Vec2, max: Vec2, viewport: Rect, cell: Vec2) -> CellBox {
     let edge = |position: f32, origin: u16| (position + f32::from(origin)).round() as i32;
+    let (min, max) = (min / cell, max / cell);
     CellBox {
         left: edge(min.x, viewport.x),
         top: edge(min.y, viewport.y),
@@ -81,6 +110,7 @@ pub(crate) fn node_boxes(
     computed: &ComputedNode,
     transform: &UiGlobalTransform,
     viewport: Rect,
+    cell: Vec2,
 ) -> (CellBox, CellBox) {
     let half = computed.size / 2.0;
     let content_box = computed.content_box();
@@ -89,11 +119,13 @@ pub(crate) fn node_boxes(
             transform.translation - half,
             transform.translation + half,
             viewport,
+            cell,
         ),
         cell_box(
             transform.translation + content_box.min,
             transform.translation + content_box.max,
             viewport,
+            cell,
         ),
     )
 }
@@ -108,16 +140,19 @@ type NodeGeometry<'a> = (
 fn node_rects(
     geometry: NodeGeometry<'_>,
     cameras: &Query<&ResolvedViewport>,
+    cell: Vec2,
 ) -> Option<ComputedNodeRect> {
     let (computed, transform, camera, clip) = geometry;
     let viewport = cameras.get(camera.get()?).ok()?.0;
-    let (node, content) = node_boxes(computed, transform, viewport);
+    let (node, content) = node_boxes(computed, transform, viewport, cell);
     let rect = node.clamped(viewport);
     if rect.is_empty() {
         return None;
     }
     let content = content.clamped(viewport);
-    let visible = clip.map_or(rect, |clip| rect.intersection(clip_cells(clip, viewport)));
+    let visible = clip.map_or(rect, |clip| {
+        rect.intersection(clip_cells(clip, viewport, cell))
+    });
     Some(ComputedNodeRect {
         rect,
         content,
@@ -126,11 +161,11 @@ fn node_rects(
 }
 
 /// The inherited clip in cells, every clipping ancestor intersected.
-pub(crate) fn clip_cells(clip: &CalculatedClip, viewport: Rect) -> Rect {
+pub(crate) fn clip_cells(clip: &CalculatedClip, viewport: Rect, cell: Vec2) -> Rect {
     clip.rects().map_or(Rect::ZERO, |rects| {
         rects
             .iter()
-            .map(|clip| clip_rect_cells(clip, viewport))
+            .map(|clip| clip_rect_cells(clip, viewport, cell))
             .fold(viewport, Rect::intersection)
     })
 }
@@ -141,7 +176,7 @@ const CLIP_EDGE_BOUND: f32 = 1e9;
 
 // Bounds the clip rect's corners in world space, so a rotated clip widens
 // to its bounding box rather than vanishing.
-fn clip_rect_cells(clip: &CalculatedClipRect, viewport: Rect) -> Rect {
+fn clip_rect_cells(clip: &CalculatedClipRect, viewport: Rect, cell: Vec2) -> Rect {
     let bound = Vec2::splat(CLIP_EDGE_BOUND);
     let (min, max) = (clip.rect.min.max(-bound), clip.rect.max.min(bound));
     let to_world = clip.world_to_clip_local.inverse();
@@ -150,11 +185,12 @@ fn clip_rect_cells(clip: &CalculatedClipRect, viewport: Rect) -> Rect {
         .fold(bevy_math::Rect::EMPTY, |bounds, corner| {
             bounds.union_point(to_world.transform_point2(corner))
         });
-    cell_box(world.min, world.max, viewport).clamped(viewport)
+    cell_box(world.min, world.max, viewport, cell).clamped(viewport)
 }
 
 pub(crate) fn compute_node_rects(
     cameras: Query<&ResolvedViewport>,
+    cell: Res<CellSize>,
     mut nodes: Query<(
         Entity,
         &ComputedNode,
@@ -166,9 +202,16 @@ pub(crate) fn compute_node_rects(
     mut commands: Commands,
 ) {
     for (entity, computed, transform, camera, clip, rect) in &mut nodes {
-        let resolved =
-            node_rects((computed, transform, camera, clip), &cameras).unwrap_or_default();
-        upsert(&mut commands, entity, rect, resolved);
+        let resolved = node_rects((computed, transform, camera, clip), &cameras, cell.vec())
+            .unwrap_or_default();
+        match rect {
+            Some(mut rect) => {
+                rect.set_if_neq(resolved);
+            }
+            None => {
+                commands.entity(entity).insert(resolved);
+            }
+        }
     }
 }
 
@@ -214,13 +257,16 @@ mod tests {
 
     #[test]
     fn no_clipping_ancestor_leaves_the_viewport() {
-        assert_eq!(clip_cells(&CalculatedClip::default(), VIEWPORT), VIEWPORT);
+        assert_eq!(
+            clip_cells(&CalculatedClip::default(), VIEWPORT, Vec2::ONE),
+            VIEWPORT
+        );
     }
 
     #[test]
     fn a_fully_clipped_node_has_no_visible_cells() {
         assert_eq!(
-            clip_cells(&CalculatedClip::FullyClipped, VIEWPORT),
+            clip_cells(&CalculatedClip::FullyClipped, VIEWPORT, Vec2::ONE),
             Rect::ZERO
         );
     }
@@ -233,9 +279,15 @@ mod tests {
             Vec2::new(0.0, 2.5),
             Vec2::new(f32::INFINITY, 1.0),
         );
-        assert_eq!(clip_cells(&clip, VIEWPORT), Rect::new(2, 3, 6, 1));
+        assert_eq!(
+            clip_cells(&clip, VIEWPORT, Vec2::ONE),
+            Rect::new(2, 3, 6, 1)
+        );
 
         push_clip(&mut clip, Vec2::new(3.0, 2.0), Vec2::new(4.0, 2.0));
-        assert_eq!(clip_cells(&clip, VIEWPORT), Rect::new(3, 3, 4, 1));
+        assert_eq!(
+            clip_cells(&clip, VIEWPORT, Vec2::ONE),
+            Rect::new(3, 3, 4, 1)
+        );
     }
 }

@@ -4,10 +4,11 @@ use bevy_app::App;
 use bevy_color::Color;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_math::Vec2;
+use bevy_ui::widget::Text;
 use bevy_ui::{
     BorderColor, FlexDirection, Node, Overflow, PositionType, ScrollPosition, UiRect, Val,
 };
-use plurimus_bui::{BuiPlugin, ComputedNodeRect, Text};
+use plurimus_bui::{BuiPlugin, ComputedNodeRect};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::composed_frame;

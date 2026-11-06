@@ -322,6 +322,8 @@ Input is injected the same way the backend delivers it - write a `KeyMessage` or
 cargo run --example basic
 cargo run --example headless --no-default-features
 cargo run --example widgets --features widgets,bevy-ui
+cargo run --example todo --features widgets,bevy-ui
+cargo run --example todo --features widgets,bevy-ui -- --desktop
 cargo run --example table --features widgets
 cargo run --example tabs --features widgets
 cargo run --example pong --features widgets,2d
@@ -345,6 +347,14 @@ right. Tab and Shift-Tab move focus, arrows navigate and adjust the focused
 slider, Enter or Space activates, the mouse hovers, clicks, and drags, and a
 menu resets or disables every widget. Esc unfocuses; `q` with nothing focused
 quits. Wants roughly 80x30 or larger.
+
+**todo** is a todo list on one `bevy_ui` tree of upstream `bevy_ui_widgets`, run
+in the terminal or, with `--desktop`, in a bevy window: the tree states
+structure and tags each node with a `Part`, and each skin answers with its own
+sizes and colours - cells and box-drawing in one, pixels and a card in the
+other. The ledger is a `Display::Grid` of unwrapped cells with right-justified
+ids; the field is the one control each target supplies for itself. Wants roughly
+60x16 or larger in a terminal.
 
 **table** is a sortable, scrollable process table: a striped body under a bold
 header and a footer of totals, sorted by clicking a header cell, with vim keys

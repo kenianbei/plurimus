@@ -1,84 +1,174 @@
-//! Fontless text for `bevy_ui` nodes: grapheme-width measurement through
-//! `ContentSize`, no font machinery involved.
+//! Fontless text for `bevy_ui` nodes: `Text` roots and their `TextSpan`
+//! children, measured by grapheme width through `ContentSize` and resolved
+//! once per change into the cell styles the rasterizer draws.
 //!
 //! `bevy_text` never runs, so a node's text is measured the way a terminal
-//! actually renders it - by display width in cells, where a wide grapheme
-//! counts as two - and taffy lays out against that measurement like any other
-//! content. [`Text`] carries styled [`TextSpan`]s that patch the node's
-//! [`TextStyle`], which is what lets one node mix styles without `bevy_text`'s
-//! section machinery.
+//! renders it - by display width in cells, where a wide grapheme counts as
+//! two - and taffy lays out against that measurement like any other content.
+//! A font is one row tall whatever its size; what survives of a `TextFont`
+//! is its weight and style, and of a colour its RGB.
 
-use bevy_ecs::prelude::{Changed, Component, Query};
+use bevy_color::Color;
+use bevy_ecs::entity::{Entity, EntityHashSet};
+use bevy_ecs::prelude::{
+    Added, Changed, ChildOf, Children, Commands, Component, DetectChanges, Has, Or, Query,
+    RemovedComponents, Res, With,
+};
+use bevy_ecs::system::SystemParam;
 use bevy_math::Vec2;
-use bevy_ui::measurement::AvailableSpace;
-use bevy_ui::{ContentSize, Measure, MeasureArgs, NodeMeasure};
-use plurimus_core::ratatui_core::style::Style;
+use bevy_text::{
+    FontStyle, FontWeight, Justify, LineBreak, Strikethrough, TextColor, TextElement, TextFont,
+    TextLayout, TextSpan, Underline,
+};
+use bevy_ui::widget::{Text, TextUiReader};
+use bevy_ui::{AvailableSpace, ContentSize, Measure, MeasureArgs, NodeMeasure};
+use plurimus_core::ratatui_core::style::{Modifier, Style};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-/// Text content of a `bevy_ui` node, measured and drawn in cells.
-#[derive(Component, Debug, Clone, Default, PartialEq)]
-#[require(bevy_ui::Node, ContentSize, TextStyle)]
-pub struct Text(pub Vec<TextSpan>);
+use super::extract::cell_color;
+use super::rect::CellSize;
 
-/// One styled run inside a [`Text`]; its style patches the node's
-/// [`TextStyle`].
-#[derive(Debug, Clone, Default, PartialEq)]
-#[non_exhaustive]
-pub struct TextSpan {
-    /// The span's text content.
-    pub content: String,
-    /// Patch applied over the node's [`TextStyle`] for this span.
-    pub style: Style,
+/// A `Text` root's spans as cell styles, kept from the last change to any
+/// of them so neither measurement nor extraction walks the spans again.
+#[derive(Component, Debug, Clone)]
+pub(crate) struct ResolvedText {
+    pub(crate) spans: Vec<Seg>,
+    pub(crate) justify: Justify,
+    pub(crate) is_wrapping: bool,
 }
-
-impl TextSpan {
-    /// A span with an explicit style patch.
-    #[must_use]
-    pub fn new(content: impl Into<String>, style: Style) -> Self {
-        Self {
-            content: content.into(),
-            style,
-        }
-    }
-}
-
-impl From<&str> for Text {
-    fn from(content: &str) -> Self {
-        Self::from(content.to_owned())
-    }
-}
-
-impl From<String> for Text {
-    fn from(content: String) -> Self {
-        Self(vec![TextSpan {
-            content,
-            style: Style::default(),
-        }])
-    }
-}
-
-/// Base style the rasterizer applies to the node's text cells; span
-/// styles patch over it.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct TextStyle(pub Style);
 
 pub(crate) type Seg = (String, Style);
 
-/// Span contents with `base` patched under each span's style.
-pub(crate) fn resolved_spans(text: &Text, base: Style) -> Vec<Seg> {
-    text.0
-        .iter()
-        .map(|span| (span.content.clone(), base.patch(span.style)))
-        .collect()
+/// What marks a root for resolution: a change on it, a change on one of
+/// its spans, or a decoration leaving either.
+#[derive(SystemParam)]
+pub(crate) struct TextDirt<'w, 's> {
+    changed: Query<
+        'w,
+        's,
+        Entity,
+        Or<(
+            Changed<Text>,
+            Changed<TextSpan>,
+            Changed<TextLayout>,
+            Changed<TextFont>,
+            Changed<TextColor>,
+            Changed<Children>,
+            Added<Strikethrough>,
+            Added<Underline>,
+        )>,
+    >,
+    struck: RemovedComponents<'w, 's, Strikethrough>,
+    underlined: RemovedComponents<'w, 's, Underline>,
+    parents: Query<'w, 's, &'static ChildOf>,
+    is_root: Query<'w, 's, Entity, With<Text>>,
+    cell: Res<'w, CellSize>,
 }
 
-fn line_width(line: &[Seg]) -> usize {
+impl TextDirt<'_, '_> {
+    // A new cell size remeasures everything, every measure being in pixels.
+    fn roots(&mut self) -> EntityHashSet {
+        if self.cell.is_changed() {
+            return self.is_root.iter().collect();
+        }
+        let Self {
+            changed,
+            struck,
+            underlined,
+            parents,
+            is_root,
+            ..
+        } = self;
+        let root_of = |entity: Entity| {
+            std::iter::once(entity)
+                .chain(parents.iter_ancestors(entity))
+                .find(|&candidate| is_root.contains(candidate))
+        };
+        changed
+            .iter()
+            .chain(struck.read())
+            .chain(underlined.read())
+            .filter_map(root_of)
+            .collect()
+    }
+}
+
+pub(crate) fn resolve_bui_text(
+    mut dirt: TextDirt,
+    mut reader: TextUiReader,
+    decorations: Query<(Has<Strikethrough>, Has<Underline>)>,
+    mut roots: Query<(&TextLayout, &mut ContentSize), With<Text>>,
+    mut commands: Commands,
+) {
+    let cell = dirt.cell.vec();
+    for root in dirt.roots() {
+        let Ok((layout, mut content)) = roots.get_mut(root) else {
+            continue;
+        };
+        let spans = resolved_spans(&mut reader, &decorations, root);
+        let is_wrapping = layout.linebreak != LineBreak::NoWrap;
+        let min_content = wrapped_size(&spans, Some(longest_word(&spans))) * cell;
+        content.set(NodeMeasure::Custom(Box::new(GraphemeMeasure {
+            spans: spans.clone(),
+            min_content,
+            is_wrapping,
+            cell,
+        })));
+        commands.entity(root).insert(ResolvedText {
+            spans,
+            justify: layout.justify,
+            is_wrapping,
+        });
+    }
+}
+
+fn resolved_spans(
+    reader: &mut TextUiReader,
+    decorations: &Query<(Has<Strikethrough>, Has<Underline>)>,
+    root: Entity,
+) -> Vec<Seg> {
+    let mut spans = Vec::new();
+    for (entity, _, element) in reader.iter(root) {
+        let TextElement::Text {
+            text, font, color, ..
+        } = element
+        else {
+            continue;
+        };
+        let (is_struck, is_underlined) = decorations.get(entity).unwrap_or_default();
+        spans.push((
+            text.to_owned(),
+            cell_style(font, color, is_struck, is_underlined),
+        ));
+    }
+    spans
+}
+
+// Alpha zero draws nothing, as on desktop: the rasterizer skips a hidden
+// cluster rather than asking the terminal to conceal it.
+fn cell_style(font: &TextFont, color: Color, is_struck: bool, is_underlined: bool) -> Style {
+    let mut modifiers = Modifier::empty();
+    modifiers.set(Modifier::BOLD, font.weight.0 >= FontWeight::SEMIBOLD.0);
+    modifiers.set(Modifier::ITALIC, !matches!(font.style, FontStyle::Normal));
+    modifiers.set(Modifier::CROSSED_OUT, is_struck);
+    modifiers.set(Modifier::UNDERLINED, is_underlined);
+    let fg = cell_color(color);
+    modifiers.set(Modifier::HIDDEN, fg.is_none());
+    let style = Style::new().add_modifier(modifiers);
+    fg.map_or(style, |fg| style.fg(fg))
+}
+
+pub(crate) fn line_width(line: &[Seg]) -> usize {
     line.iter().map(|(content, _)| content.width()).sum()
 }
 
+/// Measures in pixels, as taffy asks, a grapheme being one cell wide and a
+/// line one cell tall.
 struct GraphemeMeasure {
     spans: Vec<Seg>,
     min_content: Vec2,
+    is_wrapping: bool,
+    cell: Vec2,
 }
 
 impl Measure for GraphemeMeasure {
@@ -86,11 +176,14 @@ impl Measure for GraphemeMeasure {
     // content box the text wraps inside.
     fn measure(&mut self, args: MeasureArgs<'_>) -> Vec2 {
         match args.available_width {
-            AvailableSpace::Definite(width) => {
-                wrapped_size(&self.spans, Some(width.floor() as usize))
+            AvailableSpace::Definite(width) if self.is_wrapping => {
+                let columns = (width / self.cell.x).floor() as usize;
+                wrapped_size(&self.spans, Some(columns)) * self.cell
             }
-            AvailableSpace::MinContent => self.min_content,
-            AvailableSpace::MaxContent => wrapped_size(&self.spans, None),
+            AvailableSpace::MinContent if self.is_wrapping => self.min_content,
+            AvailableSpace::Definite(_)
+            | AvailableSpace::MinContent
+            | AvailableSpace::MaxContent => wrapped_size(&self.spans, None) * self.cell,
         }
     }
 }
@@ -114,17 +207,6 @@ fn longest_word(spans: &[Seg]) -> usize {
         longest = longest.max(current);
     }
     longest
-}
-
-pub(crate) fn measure_bui_text(mut texts: Query<(&Text, &mut ContentSize), Changed<Text>>) {
-    for (text, mut content) in &mut texts {
-        let spans = resolved_spans(text, Style::default());
-        let min_content = wrapped_size(&spans, Some(longest_word(&spans)));
-        content.set(NodeMeasure::Custom(Box::new(GraphemeMeasure {
-            spans,
-            min_content,
-        })));
-    }
 }
 
 /// Greedy word wrap by display width over styled spans; explicit
