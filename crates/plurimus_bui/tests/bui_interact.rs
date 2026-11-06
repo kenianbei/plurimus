@@ -246,7 +246,7 @@ fn a_disabled_node_absorbs_the_press() {
     assert_eq!(activations(&app), &[] as &[Entity]);
 }
 
-/// A menu's popup is spawned when it opens, so the frame that spawns it is
+/// A lazy menu spawns its popup as it opens, so the frame that spawns it is
 /// the frame the menu looks for an item to focus.
 #[test]
 fn a_menu_opened_as_it_spawns_focuses_its_item() {
