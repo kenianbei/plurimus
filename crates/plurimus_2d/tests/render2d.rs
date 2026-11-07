@@ -2,13 +2,11 @@
 
 use bevy_app::App;
 use bevy_transform::components::Transform;
-use plurimus_2d::{
-    Glyph, GlyphBlock, Pixel, PixelBlock, Plugin2d, Projection2d, RenderLayers, SubcellMode,
-};
-use plurimus_core::bevy_camera::Camera;
+use plurimus_2d::{Glyph, GlyphBlock, Pixel, PixelBlock, Plugin2d, RenderLayers, SubcellMode};
+use plurimus_core::bevy_camera::{Camera, Camera2d, OrthographicProjection, Projection};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_core::{CellSize, CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{composed_frame, composed_styled_frame};
 
 fn second() -> Camera {
@@ -22,6 +20,7 @@ fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
     app.add_plugins((CorePlugin, Plugin2d));
     app.insert_resource(TerminalSize::new(cols, rows));
+    app.insert_resource(CellSize { x: 1.0, y: 2.0 });
     app
 }
 
@@ -34,7 +33,7 @@ fn glyphs_project_around_an_offset_camera() {
     let mut app = app(9, 5);
     app.world_mut().spawn((
         TerminalCamera::default(),
-        Projection2d::default(),
+        Camera2d,
         Transform::from_xyz(10.0, 20.0, 0.0),
     ));
     app.world_mut().spawn(glyph_at("@", 10.0, 20.0, 0.0));
@@ -47,10 +46,21 @@ fn glyphs_project_around_an_offset_camera() {
 }
 
 #[test]
+fn a_glyph_beyond_the_near_plane_is_not_drawn() {
+    let mut app = app(5, 3);
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
+    app.world_mut().spawn(glyph_at("a", -1.0, 0.0, 0.0));
+    app.world_mut().spawn(glyph_at("b", 1.0, 0.0, 2000.0));
+
+    app.update();
+
+    insta::assert_snapshot!(composed_frame(&app));
+}
+
+#[test]
 fn higher_z_glyph_wins_the_cell() {
     let mut app = app(5, 3);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn(glyph_at("b", 0.0, 0.0, 2.0));
     app.world_mut().spawn(glyph_at("a", 0.0, 0.0, 1.0));
 
@@ -62,8 +72,7 @@ fn higher_z_glyph_wins_the_cell() {
 #[test]
 fn pixels_land_in_upper_and_lower_halves() {
     let mut app = app(5, 2);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut()
         .spawn((Pixel::new(Color::Red), Transform::from_xyz(-2.0, 1.5, 0.0)));
     app.world_mut()
@@ -79,14 +88,16 @@ fn pixels_land_in_upper_and_lower_halves() {
 #[test]
 fn two_cameras_view_the_world_at_different_scales() {
     let mut app = app(12, 4);
-    app.world_mut().spawn((
-        TerminalCamera::Fixed(Rect::new(0, 0, 8, 4)),
-        Projection2d::default(),
-    ));
+    app.world_mut()
+        .spawn((TerminalCamera::Fixed(Rect::new(0, 0, 8, 4)), Camera2d));
     app.world_mut().spawn((
         TerminalCamera::Fixed(Rect::new(8, 0, 4, 4)),
         second(),
-        Projection2d::default().with_scale(2.0),
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scale: 2.0,
+            ..OrthographicProjection::default_2d()
+        }),
     ));
     app.world_mut().spawn(glyph_at("@", 2.0, 2.0, 0.0));
     app.world_mut().spawn(glyph_at("#", -2.0, -2.0, 0.0));
@@ -99,14 +110,12 @@ fn two_cameras_view_the_world_at_different_scales() {
 #[test]
 fn render_layers_mask_entities_per_camera() {
     let mut app = app(8, 3);
-    app.world_mut().spawn((
-        TerminalCamera::Fixed(Rect::new(0, 0, 4, 3)),
-        Projection2d::default(),
-    ));
+    app.world_mut()
+        .spawn((TerminalCamera::Fixed(Rect::new(0, 0, 4, 3)), Camera2d));
     app.world_mut().spawn((
         TerminalCamera::Fixed(Rect::new(4, 0, 4, 3)),
         second(),
-        Projection2d::default(),
+        Camera2d,
         RenderLayers::layer(1),
     ));
     app.world_mut()
@@ -127,8 +136,7 @@ fn render_layers_mask_entities_per_camera() {
 #[test]
 fn glyphs_draw_over_pixels() {
     let mut app = app(3, 1);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut()
         .spawn((Pixel::new(Color::Red), Transform::from_xyz(0.0, 0.0, 5.0)));
     app.world_mut().spawn((
@@ -144,8 +152,7 @@ fn glyphs_draw_over_pixels() {
 #[test]
 fn glyph_blocks_stamp_centered_with_transparent_holes() {
     let mut app = app(7, 5);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn(glyph_at(".", 0.0, 0.0, 0.0));
     app.world_mut().spawn((
         GlyphBlock::new("/-\\\n| |\n\\-/"),
@@ -160,8 +167,7 @@ fn glyph_blocks_stamp_centered_with_transparent_holes() {
 #[test]
 fn glyph_blocks_clip_at_the_viewport_edge() {
     let mut app = app(5, 3);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn((
         GlyphBlock::new("abc\ndef\nghi"),
         Transform::from_xyz(-2.0, 2.0, 0.0),
@@ -175,8 +181,7 @@ fn glyph_blocks_clip_at_the_viewport_edge() {
 #[test]
 fn wide_graphemes_occupy_their_display_width() {
     let mut app = app(7, 3);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     for x in 0..7 {
         app.world_mut()
             .spawn(glyph_at(".", x as f32 - 3.0, 0.0, 0.0));
@@ -192,14 +197,12 @@ fn wide_graphemes_occupy_their_display_width() {
 #[test]
 fn braille_cameras_render_pixels_at_dot_resolution() {
     let mut app = app(8, 2);
-    app.world_mut().spawn((
-        TerminalCamera::Fixed(Rect::new(0, 0, 4, 2)),
-        Projection2d::default(),
-    ));
+    app.world_mut()
+        .spawn((TerminalCamera::Fixed(Rect::new(0, 0, 4, 2)), Camera2d));
     app.world_mut().spawn((
         TerminalCamera::Fixed(Rect::new(4, 0, 4, 2)),
         second(),
-        Projection2d::default(),
+        Camera2d,
         SubcellMode::Braille,
     ));
     for step in 0..8 {
@@ -218,8 +221,7 @@ fn braille_cameras_render_pixels_at_dot_resolution() {
 #[test]
 fn child_glyphs_follow_their_parent_transform() {
     let mut app = app(5, 3);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     let paddle = app
         .world_mut()
         .spawn(Transform::from_xyz(-1.0, 0.0, 0.0))
@@ -244,8 +246,7 @@ const BRICK: [(char, Color); 2] = [('r', Color::Red), ('b', Color::Blue)];
 #[test]
 fn pixel_blocks_stamp_centered_with_transparent_holes() {
     let mut app = app(5, 2);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn((
         PixelBlock::new("rbr\nb b\nrbr", BRICK),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -259,8 +260,7 @@ fn pixel_blocks_stamp_centered_with_transparent_holes() {
 #[test]
 fn pixel_blocks_mirror_horizontally() {
     let mut app = app(5, 2);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn((
         PixelBlock::new("rb\nrb", BRICK).with_mirrored(true),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -274,8 +274,7 @@ fn pixel_blocks_mirror_horizontally() {
 #[test]
 fn ragged_pixel_block_rows_pad_to_the_widest() {
     let mut app = app(5, 2);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn((
         PixelBlock::new("rrrr\nb", BRICK),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -289,8 +288,7 @@ fn ragged_pixel_block_rows_pad_to_the_widest() {
 #[test]
 fn pixel_blocks_clip_at_the_viewport_edge() {
     let mut app = app(4, 2);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn((
         PixelBlock::new("rrrr\nrrrr\nrrrr\nrrrr", BRICK),
         Transform::from_xyz(-3.0, 2.0, 0.0),
@@ -304,8 +302,7 @@ fn pixel_blocks_clip_at_the_viewport_edge() {
 #[test]
 fn higher_z_pixel_wins_the_subcell() {
     let mut app = app(3, 1);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut()
         .spawn((Pixel::new(Color::Blue), Transform::from_xyz(0.0, 0.0, 2.0)));
     app.world_mut()
@@ -320,11 +317,8 @@ fn higher_z_pixel_wins_the_subcell() {
 #[test]
 fn higher_z_pixel_wins_the_braille_dot() {
     let mut app = app(3, 1);
-    app.world_mut().spawn((
-        TerminalCamera::default(),
-        Projection2d::default(),
-        SubcellMode::Braille,
-    ));
+    app.world_mut()
+        .spawn((TerminalCamera::default(), Camera2d, SubcellMode::Braille));
     app.world_mut().spawn((
         Pixel::new(Color::Rgb(0, 0, 255)),
         Transform::from_xyz(0.0, 0.0, 2.0),
@@ -342,8 +336,7 @@ fn higher_z_pixel_wins_the_braille_dot() {
 #[test]
 fn pixels_and_pixel_blocks_share_one_z_order() {
     let mut app = app(3, 1);
-    app.world_mut()
-        .spawn((TerminalCamera::default(), Projection2d::default()));
+    app.world_mut().spawn((TerminalCamera::default(), Camera2d));
     app.world_mut().spawn((
         Pixel::new(Color::Green),
         Transform::from_xyz(-1.0, 0.5, 2.0),
@@ -363,11 +356,8 @@ fn pixels_and_pixel_blocks_share_one_z_order() {
 #[test]
 fn braille_cameras_stamp_pixel_blocks_at_dot_resolution() {
     let mut app = app(4, 1);
-    app.world_mut().spawn((
-        TerminalCamera::default(),
-        Projection2d::default(),
-        SubcellMode::Braille,
-    ));
+    app.world_mut()
+        .spawn((TerminalCamera::default(), Camera2d, SubcellMode::Braille));
     app.world_mut().spawn((
         PixelBlock::new("rrrr\nr  r\nr  r\nrrrr", BRICK),
         Transform::from_xyz(0.0, 0.0, 0.0),

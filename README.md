@@ -148,8 +148,10 @@ hover, click, and scroll like them.
 ### 2d Rendering (`plurimus_2d`)
 
 `Glyph`, `GlyphBlock`, `Pixel`, and `PixelBlock` entities positioned by
-`Transform`s, projected per camera, so panning and zooming are camera
-properties. `RenderLayers` masks which cameras see which entities, and
+`Transform`s, projected per camera through bevy's `Camera2d` and its
+orthographic projection, so panning and zooming are camera properties. Set
+`CellSize { x: 1.0, y: 2.0 }` for squares to draw square on tall cells.
+`RenderLayers` is bevy's, masking which cameras see which entities, and
 `SubcellMode` renders in halfblocks or braille for two or eight times the
 vertical resolution of a cell.
 

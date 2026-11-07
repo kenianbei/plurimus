@@ -83,31 +83,35 @@ the docks leave - resolved each frame against `TerminalSize` into
 activity and what untouched cells become are `Camera`'s own `order`, `is_active`
 and `clear_color`, a `Custom` colour pre-filling the view and `None` letting
 lower cameras show through. The same pass mirrors the rect and the terminal size
-into `Camera` in `CellSize` pixels for a camera carrying no `Projection`, so
-bevy_ui lays out and bevy_picking casts against terminal viewports as against a
-window; a projected camera is bevy_render's, which keys on the same component
-and sizes it from its image, so the two writers partition every camera from its
-first frame. Core also owns the subcell raster primitives in `raster` (halfblock
-and braille grids, blits, color averaging, `ColorDepth` downsampling), and the
-widget primitive: a `UiWidget` placed by `UiArea`/`UiCamera`/`UiOrder` is
-extracted and drawn in one z-sorted pass with no other crate involved, sorted by
-order, then source entity, then a layer - the seam a pipeline drawing what a
-widget frames joins at, spawning its own `ExtractedWidget` at the widget's
-source and a higher layer so it sorts directly after it. Its `Default` draws
-nothing, which is what a widget holds before its first restyle replaces it, so
-no widget library needs a blank of its own. Which camera a widget draws on, the
-crates agree on rather than each deriving: a `Propagate<UiCamera>` names it for
-an entity and everything beneath, bevy's hierarchy propagation lands `UiCamera`
-on what it reaches with a nearer one winning, and `ComputedUiCamera` is resolved
-once a frame in `CameraSystems::PropagateCameras` as that or else the default
-camera - so a child sits on its parent's camera without being told, and
-forgetting to say stops being a silent misplacement. Whether it draws at all is
-agreed the same way: a `Propagate<Hidden>` hides everything beneath it, and
-`Hidden` is what the propagation marks it with - once in `PropagateCameras` so
-input routes against it, and again in `Last`, where the same propagation runs a
-second time so a subtree hidden during the frame is not drawn by it. Every
-reader reads the landed marker, which is what lets a popover or a menu be hidden
-by its root alone. `UiArea` requires it, local to what being half of where;
+into `Camera` in `CellSize` pixels for every camera but a `Camera3d`, and fits a
+`Projection` the camera carries to that view and its `clip_from_view`, as
+bevy_render's `camera_system` would, so bevy_ui lays out, bevy_picking casts and
+a 2d camera projects against terminal viewports as against a window. A
+`Camera3d` renders to an image and is bevy_render's, sized from that image, so
+the two writers split every 3d camera off from its first frame; a projected
+terminal camera in an app that also installs bevy_render is written by both,
+bevy_render's sizing it against the virtual window. Core also owns the subcell
+raster primitives in `raster` (halfblock and braille grids, blits, color
+averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
+placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
+pass with no other crate involved, sorted by order, then source entity, then a
+layer - the seam a pipeline drawing what a widget frames joins at, spawning its
+own `ExtractedWidget` at the widget's source and a higher layer so it sorts
+directly after it. Its `Default` draws nothing, which is what a widget holds
+before its first restyle replaces it, so no widget library needs a blank of its
+own. Which camera a widget draws on, the crates agree on rather than each
+deriving: a `Propagate<UiCamera>` names it for an entity and everything beneath,
+bevy's hierarchy propagation lands `UiCamera` on what it reaches with a nearer
+one winning, and `ComputedUiCamera` is resolved once a frame in
+`CameraSystems::PropagateCameras` as that or else the default camera - so a
+child sits on its parent's camera without being told, and forgetting to say
+stops being a silent misplacement. Whether it draws at all is agreed the same
+way: a `Propagate<Hidden>` hides everything beneath it, and `Hidden` is what the
+propagation marks it with - once in `PropagateCameras` so input routes against
+it, and again in `Last`, where the same propagation runs a second time so a
+subtree hidden during the frame is not drawn by it. Every reader reads the
+landed marker, which is what lets a popover or a menu be hidden by its root
+alone. `UiArea` requires it, local to what being half of where;
 `CameraViewports` carries a camera to its viewport with the same default
 fallback, and `local_area` is `resolve_area`'s inverse, for a crate holding a
 screen rect that has to be stored camera-locally. `PresenterPlugin<B>` diffs the
@@ -674,12 +678,16 @@ navigation, which nothing builds for nodes.
 ### plurimus_2d
 
 The software 2d pipeline. `Glyph`, `GlyphBlock`, `Pixel`, and `PixelBlock`
-entities positioned by `Transform`s are projected per camera through
-`Projection2d` and rasterized into camera buffers in the world-space pass.
-Glyphs and pixels each draw in transform `z` order, pixels beneath all glyphs;
-`PixelBlock` stamps a palette-indexed bitmap one pixel per subcell, so pixel art
-composes as one entity. `SubcellMode` selects halfblock or braille resolution,
-and `RenderLayers` masks which cameras see which entities.
+entities positioned by `Transform`s are projected through every terminal camera
+carrying bevy's `Camera2d` - its `OrthographicProjection`, fitted by core, and
+`Camera::world_to_viewport` - and rasterized into camera buffers in the
+world-space pass. A world unit is a pixel and a cell is `CellSize` pixels, so
+the terminal cell's tall shape is the app's `CellSize` rather than a 2d setting,
+and a sprite past the projection's near or far plane is not drawn. Glyphs and
+pixels each draw in transform `z` order, pixels beneath all glyphs; `PixelBlock`
+stamps a palette-indexed bitmap one pixel per subcell, so pixel art composes as
+one entity. `SubcellMode` selects halfblock or braille resolution, and
+`bevy_camera`'s `RenderLayers` masks which cameras see which entities.
 
 ### plurimus_3d
 

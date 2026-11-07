@@ -7,6 +7,7 @@
 //! cell regardless of depth.
 
 use bevy_ecs::prelude::{Local, Query, Res, ResMut};
+use bevy_math::FloatOrd;
 use plurimus_core::raster::{BrailleGrid, HalfblockGrid};
 use plurimus_core::{CameraBuffer, MainEntity, camera_buffer_mut};
 use ratatui_core::buffer::{Buffer, Cell};
@@ -14,19 +15,12 @@ use ratatui_core::style::{Color, Style};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use crate::extract::{ExtractedGlyph, ExtractedPixelBlock, ExtractedSprites2d, ExtractedViews2d};
-use crate::layers::RenderLayers;
-use crate::projection::{SubcellMode, View2d};
+use crate::extract::{
+    ExtractedGlyph, ExtractedPixelBlock, ExtractedSprites2d, ExtractedView2d, ExtractedViews2d,
+};
+use crate::projection::SubcellMode;
 
 const TRANSPARENT_CELL: &str = " ";
-
-/// One camera's per-frame draw state: its resolved projection, mask,
-/// and subcell mode.
-struct CameraView {
-    layers: RenderLayers,
-    mode: SubcellMode,
-    view: View2d,
-}
 
 /// Per-mode scratch grids reused across frames.
 #[derive(Default)]
@@ -43,31 +37,22 @@ pub(crate) fn rasterize_2d(
 ) {
     sprites
         .glyphs
-        .sort_by(|a, b| a.z.total_cmp(&b.z).then(a.entity.cmp(&b.entity)));
+        .sort_by_key(|glyph| (FloatOrd(glyph.position.z), glyph.entity));
     sprites
         .pixels
-        .sort_by(|a, b| a.z.total_cmp(&b.z).then(a.entity.cmp(&b.entity)));
+        .sort_by_key(|block| (FloatOrd(block.position.z), block.entity));
     let sprites = sprites.into_inner();
     for view in &views.0 {
-        let Some(mut buffer) = camera_buffer_mut(&mut cameras, view.camera) else {
+        let Some(mut buffer) = camera_buffer_mut(&mut cameras, view.entity) else {
             continue;
         };
-        let camera = CameraView {
-            layers: view.layers,
-            mode: view.mode,
-            view: View2d {
-                center: view.center,
-                projection: view.projection,
-                viewport: buffer.0.area,
-            },
-        };
-        draw_pixels(&camera, sprites, &mut grids, &mut buffer.0);
-        draw_glyphs(&camera, &sprites.glyphs, &mut buffer.0);
+        draw_pixels(view, sprites, &mut grids, &mut buffer.0);
+        draw_glyphs(view, &sprites.glyphs, &mut buffer.0);
     }
 }
 
 fn draw_pixels(
-    camera: &CameraView,
+    camera: &ExtractedView2d,
     sprites: &ExtractedSprites2d,
     grids: &mut SubcellGrids,
     buffer: &mut Buffer,
@@ -84,17 +69,19 @@ fn draw_pixels(
 }
 
 fn draw_halfblock_pixels(
-    camera: &CameraView,
+    camera: &ExtractedView2d,
     sprites: &ExtractedSprites2d,
     grid: &mut HalfblockGrid,
     buffer: &mut Buffer,
 ) {
-    grid.reset(camera.view.viewport);
+    grid.reset(buffer.area);
     for block in &sprites.pixels {
-        if !camera.layers.intersects(block.layers) {
+        if !camera.layers.intersects(&block.layers) {
             continue;
         }
-        let anchor = camera.view.project_subcell_raw(block.position);
+        let Some(anchor) = camera.project_halfblock(block.position) else {
+            continue;
+        };
         for (x, sub_y, color) in block_pixels(&sprites.pixel_cells, block, anchor) {
             grid.set(x, sub_y, color);
         }
@@ -103,17 +90,19 @@ fn draw_halfblock_pixels(
 }
 
 fn draw_braille_pixels(
-    camera: &CameraView,
+    camera: &ExtractedView2d,
     sprites: &ExtractedSprites2d,
     grid: &mut BrailleGrid,
     buffer: &mut Buffer,
 ) {
-    grid.reset(camera.view.viewport);
+    grid.reset(buffer.area);
     for block in &sprites.pixels {
-        if !camera.layers.intersects(block.layers) {
+        if !camera.layers.intersects(&block.layers) {
             continue;
         }
-        let anchor = camera.view.project_braille_raw(block.position);
+        let Some(anchor) = camera.project_braille(block.position) else {
+            continue;
+        };
         for (sub_x, sub_y, color) in block_pixels(&sprites.pixel_cells, block, anchor) {
             grid.set(sub_x, sub_y, color);
         }
@@ -143,12 +132,14 @@ fn block_pixels<'a>(
         })
 }
 
-fn draw_glyphs(camera: &CameraView, glyphs: &[ExtractedGlyph], buffer: &mut Buffer) {
+fn draw_glyphs(camera: &ExtractedView2d, glyphs: &[ExtractedGlyph], buffer: &mut Buffer) {
     for glyph in glyphs {
-        if !camera.layers.intersects(glyph.layers) {
+        if !camera.layers.intersects(&glyph.layers) {
             continue;
         }
-        let (anchor_column, anchor_row) = camera.view.project_cell_raw(glyph.position);
+        let Some((anchor_column, anchor_row)) = camera.project_cell(glyph.position) else {
+            continue;
+        };
         let origin_column = anchor_column - block_width(&glyph.rows) / 2;
         let origin_row = anchor_row - glyph.rows.len() as i32 / 2;
         for (offset, row) in glyph.rows.iter().enumerate() {
@@ -202,11 +193,5 @@ fn stamp_grapheme(buffer: &mut Buffer, grapheme: &str, style: Style, position: (
 }
 
 fn cell_at(buffer: &mut Buffer, column: i32, row: i32) -> Option<&mut Cell> {
-    let area = buffer.area;
-    let column = u16::try_from(column).ok()?;
-    let row = u16::try_from(row).ok()?;
-    if column >= area.width || row >= area.height {
-        return None;
-    }
-    buffer.cell_mut((area.x + column, area.y + row))
+    buffer.cell_mut((u16::try_from(column).ok()?, u16::try_from(row).ok()?))
 }

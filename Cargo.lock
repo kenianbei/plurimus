@@ -3835,6 +3835,7 @@ name = "plurimus_2d"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_ecs",
  "bevy_math",
  "bevy_transform",

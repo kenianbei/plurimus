@@ -7,9 +7,9 @@ use bevy_ecs::prelude::{
 use bevy_ecs::system::SystemParam;
 use bevy_time::Time;
 use bevy_transform::components::Transform;
-use plurimus::core::bevy_camera::{Camera, ClearColorConfig};
-use plurimus::core::{Edge, TerminalCamera, TerminalSize};
-use plurimus::render2d::{PixelBlock, Projection2d};
+use plurimus::core::bevy_camera::{Camera, Camera2d, ClearColorConfig};
+use plurimus::core::{CellSize, Edge, TerminalCamera, TerminalSize};
+use plurimus::render2d::PixelBlock;
 
 use crate::actor::{Actor, Dir, advance};
 use crate::ghosts::{self, Ghost, GhostState, Ghosts, spawn_ghosts};
@@ -64,6 +64,7 @@ pub struct Round<'w> {
 }
 
 pub fn add_game(app: &mut App) {
+    app.insert_resource(CellSize { x: 1.0, y: 2.0 });
     app.init_resource::<Maze>();
     app.init_resource::<Phase>();
     app.init_resource::<Ghosts>();
@@ -109,7 +110,7 @@ pub const fn terminal_fits(size: TerminalSize) -> bool {
 }
 
 fn spawn_scene(mut commands: Commands) {
-    commands.spawn((TerminalCamera::default(), Projection2d::default()));
+    commands.spawn((TerminalCamera::default(), Camera2d));
     let hud_camera = commands
         .spawn((
             TerminalCamera::Docked {

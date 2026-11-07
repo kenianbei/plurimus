@@ -7,9 +7,10 @@ use bevy_ecs::prelude::{
 use bevy_math::Vec2;
 use bevy_time::{Time, Timer, TimerMode};
 use bevy_transform::components::Transform;
-use plurimus::core::TerminalCamera;
+use plurimus::core::bevy_camera::Camera2d;
 use plurimus::core::ratatui_core::style::{Color, Style};
-use plurimus::render2d::{Glyph, Pixel, Projection2d};
+use plurimus::core::{CellSize, TerminalCamera};
+use plurimus::render2d::{Glyph, Pixel};
 use plurimus::term::HeldModifiers;
 use plurimus::term::bevy_input::ButtonState;
 use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
@@ -58,6 +59,10 @@ impl Default for ServeDelay {
 }
 
 pub fn add_game(app: &mut App) {
+    app.insert_resource(CellSize {
+        x: WALL_CELL_WIDTH,
+        y: CELL_HEIGHT,
+    });
     app.init_resource::<Score>();
     app.init_resource::<ServeDelay>();
     app.add_systems(Startup, spawn_scene);
@@ -66,7 +71,7 @@ pub fn add_game(app: &mut App) {
 }
 
 fn spawn_scene(mut commands: Commands) {
-    commands.spawn((TerminalCamera::default(), Projection2d::default()));
+    commands.spawn((TerminalCamera::default(), Camera2d));
     commands.spawn((UiWidget::new(Paragraph::new("0 : 0").centered()), ScoreLine));
     spawn_court(&mut commands);
     spawn_paddle(

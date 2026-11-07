@@ -49,8 +49,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`plurimus_core::CellSize`**, pixels per cell on each axis, default one by
   one. A tree sized for a window - `8 x 16` puts a 560 px card in 70 columns and
   a 16 px control in one row - lays out the same in the terminal once the cell
-  is named; the camera mirror, layout, text measurement, decoration, picking and
-  `RemSize` all follow it.
+  is named; the camera mirror, layout, text measurement, decoration, picking,
+  `RemSize` and the 2d projection all follow it.
 - **`examples/todo`**: one `bevy_ui` tree of upstream widgets tagged by `Part`,
   run in the terminal or, with `--desktop`, in a bevy window assembled from the
   granular crates. Each target skins the same tree - cells and box-drawing in
@@ -91,14 +91,29 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   like every other cell colour, so a clear can no longer name a terminal palette
   entry. Core mirrors each camera's resolved rect and the terminal size into
   `Camera.viewport` and its target info in `CellSize` pixels, written only when
-  they change, for every camera carrying no `Projection`; a projected camera
-  such as a `Camera3d` is left to bevy_render's own writer, which sizes it from
-  its image. That also fixes a 3d camera in a bridged app receiving a cell-pixel
-  viewport from the bridge that bevy then clamped into the image.
-  `plurimus_core` re-exports `bevy_camera`. In an app with bevy_render
-  installed, a terminal camera that is not also a `Camera3d` logs bevy_render's
-  "no render graph" warning once at spawn, which no terminal build has a
-  subscriber for.
+  they change, for every camera that is not a `Camera3d`, and fits a
+  `Projection` the camera carries to that view, setting its `clip_from_view` as
+  bevy_render would. A `Camera3d` is left to bevy_render's own writer, which
+  sizes it from its image. That also fixes a 3d camera in a bridged app
+  receiving a cell-pixel viewport from the bridge that bevy then clamped into
+  the image. `plurimus_core` re-exports `bevy_camera`. In an app with
+  bevy_render installed, a terminal camera that is not also a `Camera3d` logs
+  bevy_render's "no render graph" warning once at spawn, which no terminal build
+  has a subscriber for; a projected one, such as a 2d camera, is also sized by
+  bevy_render against the virtual window.
+- **Breaking: a 2d view is bevy's `Camera2d`.** `plurimus_2d` draws for every
+  terminal camera carrying `Camera2d`, projected through its
+  `OrthographicProjection` by `Camera::world_to_viewport`: the camera's
+  translation is the view's centre, its rotation and scale now shape the view
+  too, and zoom is the projection's `scale` in world units per pixel. A cell is
+  core's `CellSize` in pixels, so an app drawing 2d sets
+  `CellSize { x: 1.0, y: 2.0 }` for a world unit to be a column wide and half a
+  row tall, the shape the old default drew. A sprite beyond the projection's
+  near or far plane, `-1000` to `1000` by default, is not drawn. A change to the
+  projection's `scale` made in `Update` draws from the next frame, since core
+  fits the projection in `PreUpdate`. `RenderLayers` is `bevy_camera`'s, still
+  named `plurimus_2d::RenderLayers`: `Clone` rather than `Copy`, with `usize`
+  layers and `intersects` taking a reference.
 - **Breaking: plurimus speaks bevy's interaction vocabulary.** `plurimus_ui`'s
   `Hovered`, `Pressed`, `Checked`, `InteractionDisabled`, `Activate` and
   `ValueChange` are now bevy's own types, re-exported: `Hovered` from
@@ -303,6 +318,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Removed
 
 - `plurimus_core::SourceCamera`, for bevy's `MainEntity`.
+- `plurimus_2d::Projection2d`, for bevy's `Camera2d` and
+  `OrthographicProjection`, and plurimus's own 64-layer `RenderLayers`, for
+  `bevy_camera`'s.
 - `plurimus_core::Viewport` and `Background`, and `TerminalCamera`'s
   `with_order`, `with_viewport`, `with_active` and `with_background`: the
   placement is the camera itself and the rest is bevy's `Camera`.
