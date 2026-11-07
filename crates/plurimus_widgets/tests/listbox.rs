@@ -166,8 +166,8 @@ fn a_page_key_moves_by_the_visible_height() {
     );
 }
 
-// Autorepeat moves a cursor but must not re-select, which is the rule
-// `is_fresh_press` applies to every other widget.
+// Autorepeat moves a cursor but must not re-select, the rule every
+// activation follows.
 #[test]
 fn a_held_key_repeats_movement_but_not_selection() {
     let mut app = app();

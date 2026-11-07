@@ -37,6 +37,7 @@ mod theme;
 
 pub use bevy_input_focus;
 pub use bevy_picking;
+pub use bevy_ui_widgets;
 pub use tui_scrollview;
 
 pub use bevy_input::keyboard::Key;
@@ -61,11 +62,14 @@ pub use stylist::{
 };
 pub use theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 
-use bevy_app::{App, First, Last, Plugin, PreUpdate, Startup};
+use bevy_app::{App, First, Last, Plugin, PluginGroup, PreUpdate, Startup};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
+use bevy_input_focus::pointer_focus::PointerFocusPlugin;
 use bevy_picking::input::{PointerInputPlugin, PointerInputSettings};
 use bevy_picking::{InteractionPlugin, PickingPlugin, PickingSystems};
+use bevy_ui::UiScale;
+use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{CameraSystems, TerminalRenderApp, TerminalRenderAppExt};
 use plurimus_term::InputSystems;
 
@@ -101,6 +105,12 @@ pub enum UiSystems {
 /// focus as it does on a window, and its mouse pointer, fed from the window
 /// events the terminal backend writes; touch stays off, a terminal having
 /// none to report.
+///
+/// Installs `bevy_ui_widgets`' observers too, all but `TextInputPlugin`,
+/// which edits through a font engine, and `PointerFocusPlugin`, since a
+/// press already moves focus here and a second writer would race it - so
+/// upstream's `Button`, `Checkbox` and `RadioGroup` work on a cell widget
+/// as on a node.
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
@@ -119,6 +129,7 @@ impl Plugin for UiPlugin {
             });
         }
         focus::install(app);
+        add_upstream_widgets(app);
         app.init_resource::<UiTheme>();
         app.init_resource::<pointer::DeferredCancel>();
         add_schedule(app);
@@ -132,6 +143,21 @@ impl Plugin for UiPlugin {
         app.sub_app_mut(TerminalRenderApp)
             .init_resource::<scrolled::ScrolledContentCache>();
     }
+}
+
+// Upstream's slider, scrollbar and dialog presses read `UiScale`, which no
+// plugin installed here provides, and a missing one fails the observer.
+fn add_upstream_widgets(app: &mut App) {
+    if app.is_plugin_added::<ButtonPlugin>() {
+        return;
+    }
+    app.add_plugins(
+        UiWidgetsPlugins
+            .build()
+            .disable::<TextInputPlugin>()
+            .disable::<PointerFocusPlugin>(),
+    );
+    app.init_resource::<UiScale>();
 }
 
 fn add_schedule(app: &mut App) {

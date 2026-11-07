@@ -16,7 +16,9 @@ use plurimus_ui::bevy_picking::Pickable;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
 use plurimus_ui::{Activate, Hovered, InteractionDisabled, PressFocusDisabled, Pressed, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{MenuOpen, WidgetsPlugin, button, menu_button, menu_item, menu_popup};
+use plurimus_widgets::{
+    MenuOpen, WidgetsPlugin, button, checkbox, menu_button, menu_item, menu_popup,
+};
 
 const AREA: Rect = Rect::new(0, 2, 10, 3);
 
@@ -176,6 +178,24 @@ fn a_press_focus_disabled_widget_presses_without_taking_focus() {
         Some(editor),
         "and the editor kept the keyboard"
     );
+}
+
+// Upstream's checkbox focuses itself on press, and no observer is ordered
+// before it; the day this fails, the marker covers checkboxes too.
+#[test]
+fn a_checkbox_takes_focus_whatever_press_focus_disabled_says() {
+    let mut app = app();
+    let check = app
+        .world_mut()
+        .spawn((checkbox("agree"), UiArea::Fixed(AREA), PressFocusDisabled))
+        .id();
+    let editor = app.world_mut().spawn(TabIndex(1)).id();
+    app.update();
+    set_focus(&mut app, editor);
+
+    press_at(&mut app, AREA.x + 1, AREA.y + 1);
+
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(check));
 }
 
 #[test]

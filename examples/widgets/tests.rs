@@ -8,14 +8,14 @@ use plurimus::term::bevy_input::keyboard::Key;
 use plurimus::term::{InputCapabilities, KeyModifiers};
 use plurimus::ui::bevy_input_focus::{InputFocus, IsFocused};
 use plurimus::ui::{ComputedWidgetArea, UiLabel};
-use plurimus::widgets::{MenuButton, Pane, SliderValue, TextInput};
+use plurimus::widgets::{MenuButton, Pane, RadioGroup, SliderValue, TextInput};
 use plurimus_test::{
     character, click, composed_frame, press_key, press_key_with, scroll_at, set_focus,
 };
 
 use super::*;
 
-const THEMED_FOCUSABLES: usize = 13;
+const THEMED_FOCUSABLES: usize = 11;
 
 const TEST_SIZE: TerminalSize = TerminalSize::new(100, 32);
 
@@ -31,13 +31,6 @@ fn headless_app() -> App {
     app
 }
 
-fn focused_label(app: &mut App) -> Option<String> {
-    let focused = app.world().resource::<InputFocus>().get()?;
-    app.world()
-        .get::<UiLabel>(focused)
-        .map(|label| label.0.to_string())
-}
-
 fn is_pane_highlighted(app: &mut App, title: &str) -> bool {
     let world = app.world_mut();
     let mut panes = world.query_filtered::<(Entity, &UiLabel), With<Pane>>();
@@ -49,18 +42,20 @@ fn is_pane_highlighted(app: &mut App, title: &str) -> bool {
     world.is_focus_within(pane)
 }
 
+// The radio group keeps its arrows, so the loop is entered from the top:
+// up from the button reaches the group.
 #[test]
 fn wraparound_edge_loops_focus_between_ends() {
     let mut app = headless_app();
-    click(&mut app, 3, 7);
-    assert_eq!(focused_label(&mut app).as_deref(), Some("pop"));
-
-    press_key(&mut app, Key::ArrowDown);
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
+    let group = single::<(With<RadioGroup>, Without<Node>)>(&mut app);
+    click_center(&mut app, button);
 
     press_key(&mut app, Key::ArrowUp);
-    assert_eq!(focused_label(&mut app).as_deref(), Some("pop"));
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(group));
+
+    press_key(&mut app, Key::ArrowUp);
+    assert_eq!(app.world().resource::<DemoState>().themed.radio, "pop");
 }
 
 #[test]
@@ -231,7 +226,7 @@ fn click_node_center(app: &mut App, entity: Entity) {
 #[test]
 fn clicking_a_bui_node_activates_the_widget_behind_it() {
     let mut app = headless_app();
-    let button = single::<With<NodeButton>>(&mut app);
+    let button = single::<(With<Button>, With<Node>)>(&mut app);
     click_node_center(&mut app, button);
 
     assert_eq!(app.world().resource::<DemoState>().bui.presses, 1);
@@ -257,7 +252,7 @@ fn typing_edits_the_bui_side_field() {
 fn tab_walks_from_the_themed_side_to_the_bui_side() {
     let mut app = headless_app();
     let themed_button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    let bui_button = single::<With<NodeButton>>(&mut app);
+    let bui_button = single::<(With<Button>, With<Node>)>(&mut app);
     click_center(&mut app, themed_button);
 
     for _ in 0..THEMED_FOCUSABLES {
@@ -293,7 +288,7 @@ fn typing_d_in_the_editor_leaves_widgets_enabled() {
 fn the_menu_item_toggles_every_widget_disabled() {
     let mut app = headless_app();
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    let bui_button = single::<With<NodeButton>>(&mut app);
+    let bui_button = single::<(With<Button>, With<Node>)>(&mut app);
 
     click(&mut app, 26, 0);
     app.update();
@@ -314,7 +309,7 @@ fn the_menu_item_toggles_every_widget_disabled() {
 #[test]
 fn focus_lifts_the_background_of_bui_widgets() {
     let mut app = headless_app();
-    let checkbox = single::<With<NodeCheckbox>>(&mut app);
+    let checkbox = single::<(With<Checkbox>, With<Node>)>(&mut app);
     assert_eq!(
         app.world().get::<BackgroundColor>(checkbox).unwrap().0,
         Color::NONE

@@ -125,10 +125,12 @@ resolving the `UiTheme` and driving the cache that `plurimus_ui` owns.
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
-uncontrolled. Every widget takes its keys from a bindings component -
-`ActivateKeys`, `ListBoxKeys`, `TableKeys`, `TabBarKeys`, `SliderKeys`,
-`MenuKeys`, `TextInputKeys`, `TextEditorKeys` - each with a default table, so
-remapping a list to vim keys is a component swap rather than a rewrite.
+uncontrolled. The button, checkbox and radio group are upstream's own types and
+observers, drawn in cells, so they answer to upstream's fixed Enter and space.
+Every other widget takes its keys from a bindings component - `ListBoxKeys`,
+`TableKeys`, `TabBarKeys`, `SliderKeys`, `MenuKeys`, `TextInputKeys`,
+`TextEditorKeys` - each with a default table, so remapping a list to vim keys is
+a component swap rather than a rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
 

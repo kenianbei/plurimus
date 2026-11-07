@@ -23,12 +23,13 @@
 mod rect;
 
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Without};
+use bevy_ecs::prelude::{Commands, Component, Entity, Has, On, Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 
 use plurimus_core::{
     CameraViewports, ComputedUiCamera, Hidden, Propagate, UiArea, UiCamera, UiOrder, local_area,
 };
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerPress};
 use plurimus_ui::{ComputedWidgetArea, ScrollOffset, screen_cell};
 
 use rect::popover_rect;
@@ -88,6 +89,10 @@ pub enum PopoverAlign {
 /// them to the popover and nothing else is needed.
 ///
 /// The anchor must not itself be a popover.
+///
+/// A press or a click inside a popover goes no higher than it: drawn apart
+/// from what it is a child of, it is no part of that entity, so a menu
+/// parented to its button does not press or activate the button.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(UiOrder = UiOrder::OVERLAY)]
 #[non_exhaustive]
@@ -164,6 +169,24 @@ impl Popover {
     pub const fn with_align(mut self, align: PopoverAlign) -> Self {
         self.align = align;
         self
+    }
+}
+
+pub(crate) fn contain_popover_press(
+    mut press: On<PointerPress>,
+    popovers: Query<(), With<Popover>>,
+) {
+    if popovers.contains(press.entity) {
+        press.propagate(false);
+    }
+}
+
+pub(crate) fn contain_popover_click(
+    mut click: On<PointerClick>,
+    popovers: Query<(), With<Popover>>,
+) {
+    if popovers.contains(click.entity) {
+        click.propagate(false);
     }
 }
 

@@ -13,28 +13,10 @@ use bevy_ecs::prelude::{Children, Commands, Has, On, Query, With};
 use bevy_ecs::query::QueryData;
 
 use super::{
-    ListBox, ListBoxMultiSelect, ListItem, RadioButton, SliderRange, SliderValue, TabBar, TabItem,
-    Table, TableMultiSelect, TablePosition, TableRow, ValueChange,
+    ListBox, ListBoxMultiSelect, ListItem, SliderRange, SliderValue, TabBar, TabItem, Table,
+    TableMultiSelect, TablePosition, TableRow, ValueChange,
 };
 use plurimus_ui::Checked;
-
-/// Applies checkbox toggles to the [`Checked`] marker.
-pub fn checkbox_self_update(change: On<ValueChange<bool>>, mut commands: Commands) {
-    set_checked(change.source, change.value, &mut commands);
-}
-
-/// Moves [`Checked`] to the selected radio among the group's children.
-pub fn radio_self_update(
-    change: On<ValueChange<Entity>>,
-    children: Query<&Children>,
-    radios: Query<(), With<RadioButton>>,
-    mut commands: Commands,
-) {
-    let Ok(group_children) = children.get(change.source) else {
-        return;
-    };
-    move_checked_among(group_children, &radios, change.value, &mut commands);
-}
 
 /// Moves [`Checked`] to the activated tab among a [`TabBar`]'s items.
 pub fn tab_bar_self_update(

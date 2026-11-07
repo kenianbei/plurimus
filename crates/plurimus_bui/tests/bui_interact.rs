@@ -13,7 +13,7 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus_test::{click, move_to, press_key, release_at, send_press_at, set_focus};
 use plurimus_ui::bevy_picking::Pickable;
-use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen, UiLabel};
+use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen};
 use plurimus_widgets::WidgetsPlugin;
 
 #[derive(Resource, Default)]
@@ -112,9 +112,7 @@ fn a_plurimus_widget_over_a_node_takes_the_click() {
     let widget = app
         .world_mut()
         .spawn((
-            plurimus_widgets::Button,
-            UiLabel("over".into()),
-            UiWidget::default(),
+            plurimus_widgets::button("over"),
             UiArea::Fixed(Rect::new(0, 0, 20, 3)),
         ))
         .id();

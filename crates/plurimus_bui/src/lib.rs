@@ -45,29 +45,27 @@ pub use bevy_text;
 pub use bevy_ui_widgets;
 pub use rect::ComputedNodeRect;
 
-use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PropagateSet};
+use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, PropagateSet};
 use bevy_camera::visibility::VisibilitySystems;
 use bevy_ecs::prelude::{
     DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
 };
-use bevy_input_focus::pointer_focus::PointerFocusPlugin;
 use bevy_text::{EmSize, RemSize};
 use bevy_ui::picking_backend::UiPickingPlugin;
 use bevy_ui::ui_surface::UiSurface;
 use bevy_ui::update::{propagate_ui_target_cameras, update_clipping_system};
 use bevy_ui::{
-    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiScale, UiStack, UiSystems,
-    ui_layout_system,
+    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiStack, UiSystems, ui_layout_system,
 };
-use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{
     CellSize, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
 use plurimus_ui::UiPlugin;
 
 /// Runs `bevy_ui`'s layout and picking against terminal cameras, at
-/// [`CellSize`] pixels per cell, with the fontless `bevy_ui_widgets` plugins
-/// installed.
+/// [`CellSize`] pixels per cell; the fontless `bevy_ui_widgets` plugins
+/// that drive nodes are installed by [`UiPlugin`], which this adds when
+/// absent.
 pub struct BuiPlugin;
 
 impl Plugin for BuiPlugin {
@@ -77,7 +75,6 @@ impl Plugin for BuiPlugin {
         }
         stand_in_for_omitted_plugins(app);
         add_picking(app);
-        add_upstream_widgets(app);
         app.configure_sets(
             PostUpdate,
             (
@@ -124,28 +121,16 @@ impl Plugin for BuiPlugin {
     }
 }
 
-// `plurimus_ui` installs picking and its pointer and focuses on a press;
-// upstream's `PointerFocusPlugin` would be a second focus writer.
+// `plurimus_ui` installs picking, its pointer and upstream's widget
+// observers; bevy_ui's backend is the one piece nodes add.
 fn add_picking(app: &mut App) {
     if !app.is_plugin_added::<UiPickingPlugin>() {
         app.add_plugins(UiPickingPlugin);
     }
 }
 
-fn add_upstream_widgets(app: &mut App) {
-    if !app.is_plugin_added::<ButtonPlugin>() {
-        app.add_plugins(
-            UiWidgetsPlugins
-                .build()
-                .disable::<TextInputPlugin>()
-                .disable::<PointerFocusPlugin>(),
-        );
-    }
-}
-
 fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
-    app.init_resource::<UiScale>();
     app.init_resource::<UiStack>();
     app.init_resource::<RemSize>();
     app.init_resource::<bevy_text::FontCx>();

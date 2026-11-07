@@ -22,8 +22,9 @@ pub use bevy_ui_widgets::{Activate, ValueChange};
 /// an ancestor's, through `ChildOf`.
 ///
 /// A disabled widget is inert, not invisible: it is still picked and so
-/// blocks what is beneath it, but its press moves no focus, captures
-/// nothing and goes no higher - the way a disabled control blocks a click
+/// blocks what is beneath it, but its press moves no focus - an upstream
+/// `Checkbox` aside, see [`PressFocusDisabled`] - captures nothing and goes
+/// no higher - the way a disabled control blocks a click
 /// everywhere else. A widget that should be transparent instead carries
 /// bevy's `Pickable`. Wheel ticks are the exception: a disabled widget
 /// consumes none, so they fall through, the same as an axis it cannot
@@ -33,21 +34,41 @@ pub use bevy_ui_widgets::{Activate, ValueChange};
 /// dispatch and the pointer events read it, so what is disabled later in a
 /// frame takes effect from the next one. Read it rather than write it: the
 /// resolver removes it from whatever no [`InteractionDisabled`] reaches.
+///
+/// The resolver also writes [`InteractionDisabled`] onto every descendant
+/// it reaches, since `bevy_ui_widgets`' observers check the entity alone,
+/// and takes back only what it wrote: a flag an app sets on an entity
+/// already flagged that way is removed with its ancestor's.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ComputedDisabled;
 
+/// What [`propagate_disabled`] carries between frames: the flags it wrote,
+/// and the frame's reach, kept to reuse its allocation.
+#[derive(Default)]
+pub(crate) struct DisabledReach {
+    written: EntityHashSet,
+    reached: EntityHashSet,
+}
+
+/// Resolves [`ComputedDisabled`] beneath every root, and writes
+/// [`InteractionDisabled`] down onto what a root reaches, so an observer
+/// checking the entity alone - `bevy_ui_widgets`' every one - sees the
+/// subtree rule. What it wrote it remembers and removes once no root reaches
+/// it; a written flag is no root of its own.
 pub(crate) fn propagate_disabled(
-    roots: Query<Entity, With<InteractionDisabled>>,
+    flagged: Query<Entity, With<InteractionDisabled>>,
     children: Query<&Children>,
     marked: Query<Entity, With<ComputedDisabled>>,
-    mut reached: Local<EntityHashSet>,
+    mut reach: Local<DisabledReach>,
     mut commands: Commands,
 ) {
+    let DisabledReach { written, reached } = &mut *reach;
     reached.clear();
-    for root in &roots {
+    for root in flagged.iter().filter(|root| !written.contains(root)) {
         reached.insert(root);
         reached.extend(children.iter_descendants(root));
     }
+    write_down(&flagged, reached, written, &mut commands);
     for entity in &marked {
         if !reached.remove(&entity) {
             commands.entity(entity).try_remove::<ComputedDisabled>();
@@ -55,6 +76,27 @@ pub(crate) fn propagate_disabled(
     }
     for entity in reached.drain() {
         commands.entity(entity).try_insert(ComputedDisabled);
+    }
+}
+
+fn write_down(
+    flagged: &Query<Entity, With<InteractionDisabled>>,
+    reached: &EntityHashSet,
+    written: &mut EntityHashSet,
+    commands: &mut Commands,
+) {
+    written.retain(|entity| {
+        let is_reached = reached.contains(entity);
+        if !is_reached {
+            commands.entity(*entity).try_remove::<InteractionDisabled>();
+        }
+        is_reached
+    });
+    for &entity in reached {
+        if !flagged.contains(entity) {
+            written.insert(entity);
+            commands.entity(entity).try_insert(InteractionDisabled);
+        }
     }
 }
 
@@ -68,6 +110,9 @@ pub(crate) fn propagate_disabled(
 /// it lands on through `ChildOf`, so a part of a widget - a tab of a tab
 /// bar - focuses the widget. The search stops here, and at an open overlay's
 /// [`ModalOpen`](crate::ModalOpen) root, whose opener lies outside it.
+///
+/// `bevy_ui_widgets`' `Checkbox` is the exception: its own press handler
+/// focuses it, disabled or not, and nothing here is ordered before it.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct PressFocusDisabled;
 

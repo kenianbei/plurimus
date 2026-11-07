@@ -24,6 +24,7 @@ use bevy_picking::backend::{HitData, PointerHits};
 use bevy_picking::events::{Pointer, PointerCancel, PointerClick, PointerPress, PointerRelease};
 use bevy_picking::hover::PointerCaptureMap;
 use bevy_picking::pointer::{Location, PointerAction, PointerId, PointerInput, PointerLocation};
+use bevy_ui_widgets::{Button, Checkbox, RadioButton};
 use bevy_window::{Window, WindowFocused};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::{
@@ -271,13 +272,18 @@ fn layer(order: isize) -> f32 {
     order as f32 + WIDGET_LAYER
 }
 
+/// The widgets `bevy_ui_widgets` observes: they press, release and click
+/// by bevy's hover map as a node does, so a release off one reaches what
+/// is under the pointer, and their [`Pressed`] is upstream's to insert.
+type Uncaptured = (Without<Button>, Without<Checkbox>, Without<RadioButton>);
+
 /// A press on a widget captures the pointer to it for the gesture, so a
 /// drag past its edge still ends on it, and marks it [`Pressed`]. A
 /// disabled widget blocks what is beneath, since it is a hit, and emits
 /// nothing further: its press goes no higher.
 pub(crate) fn capture_press(
     mut press: On<PointerPress>,
-    widgets: Query<Has<ComputedDisabled>, With<ComputedWidgetArea>>,
+    widgets: Query<Has<ComputedDisabled>, (With<ComputedWidgetArea>, Uncaptured)>,
     mut capture: ResMut<PointerCaptureMap>,
     mut commands: Commands,
 ) {
@@ -381,26 +387,40 @@ fn dismiss_on_barrier_press(
 }
 
 /// bevy's own cancel reaches nothing: the hover map is emptied for a
-/// cancelled pointer before its events run. So a cancel ends the captured
-/// gesture from here, with the event bevy would have sent; the capture is
-/// the gesture, written and cleared beside [`Pressed`].
+/// cancelled pointer before its events run. So a cancel ends the gesture
+/// from here, with the event bevy would have sent: to the captured widget,
+/// the capture being the gesture, or with no capture to every pressed
+/// widget, which is how an uncaptured upstream widget's ends.
 pub(crate) fn cancel_gestures(
     mut inputs: MessageReader<PointerInput>,
     capture: Res<PointerCaptureMap>,
+    pressed: Query<(Entity, &ComputedUiCamera), (With<Pressed>, With<ComputedWidgetArea>)>,
     mut commands: Commands,
 ) {
     for input in inputs.read() {
         if !matches!(input.action, PointerAction::Cancel) {
             continue;
         }
-        let Some((entity, hit)) = capture.get(&input.pointer_id) else {
+        let pointer = Pointer::new(input.pointer_id, input.location.clone());
+        if let Some((entity, hit)) = capture.get(&input.pointer_id) {
+            cancel(entity, &pointer, hit.clone(), &mut commands);
             continue;
-        };
-        commands.trigger(PointerCancel {
-            entity,
-            pointer: Pointer::new(input.pointer_id, input.location.clone()),
-            hit: hit.clone(),
-        });
-        commands.entity(entity).remove::<Pressed>();
+        }
+        for (entity, camera) in &pressed {
+            let Some(camera) = camera.0 else {
+                continue;
+            };
+            let hit = HitData::new(camera, 0.0, None, None);
+            cancel(entity, &pointer, hit, &mut commands);
+        }
     }
+}
+
+fn cancel(entity: Entity, pointer: &Pointer, hit: HitData, commands: &mut Commands) {
+    commands.trigger(PointerCancel {
+        entity,
+        pointer: pointer.clone(),
+        hit,
+    });
+    commands.entity(entity).remove::<Pressed>();
 }

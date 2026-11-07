@@ -27,10 +27,10 @@ use plurimus::widgets::ratatui_textarea::TextArea;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
 use plurimus::widgets::{
-    Activate, ListBoxSelectionMarker, ListBoxStripe, ListItemText, RadioGroup, SliderStep,
-    SliderValue, TextEditor, TextInput, TextMask, button, checkbox, checkbox_self_update,
-    editable_text, list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup,
-    pane, radio, radio_self_update, scrollbar, slider, slider_self_update, text_editor,
+    Activate, ListBoxSelectionMarker, ListBoxStripe, ListItemText, SliderStep, SliderValue,
+    TextEditor, TextInput, TextMask, button, checkbox, checkbox_self_update, editable_text,
+    list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup, pane, radio,
+    radio_group, radio_self_update, scrollbar, slider, slider_self_update, text_editor,
 };
 
 use crate::{
@@ -252,8 +252,10 @@ fn spawn_controls(commands: &mut Commands, parent: Entity) -> (Entity, Entity) {
 }
 
 fn spawn_radio_group(commands: &mut Commands, parent: Entity) -> Entity {
+    let options = Rect::new(BUTTON.x, RADIO_TOP, RADIO_WIDTH, RADIO_LABELS.len() as u16);
     let group = commands
-        .spawn((RadioGroup, ChildOf(parent)))
+        .spawn((radio_group(), UiArea::Fixed(options), ChildOf(parent)))
+        .insert(TabIndex(RADIO_TAB_INDEX))
         .observe(radio_self_update)
         .observe(
             |on: On<ValueChange<Entity>>, labels: Query<&UiLabel>, mut state: ResMut<DemoState>| {
@@ -263,19 +265,15 @@ fn spawn_radio_group(commands: &mut Commands, parent: Entity) -> Entity {
             },
         )
         .id();
-    let mut last = group;
     for (index, label) in RADIO_LABELS.iter().enumerate() {
         let row = RADIO_TOP + index as u16;
-        last = commands
-            .spawn((
-                radio(*label),
-                UiArea::Fixed(Rect::new(BUTTON.x, row, RADIO_WIDTH, 1)),
-                ChildOf(group),
-            ))
-            .insert(TabIndex(RADIO_TAB_INDEX + index as i32))
-            .id();
+        commands.spawn((
+            radio(*label),
+            UiArea::Fixed(Rect::new(BUTTON.x, row, RADIO_WIDTH, 1)),
+            ChildOf(group),
+        ));
     }
-    last
+    group
 }
 
 fn spawn_listbox(commands: &mut Commands, parent: Entity) {

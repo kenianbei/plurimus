@@ -9,12 +9,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **Upstream `bevy_ui_widgets` run on `bevy_ui` nodes.** `BuiPlugin` installs
-  bevy_ui's picking backend and the fontless `bevy_ui_widgets` plugins on the
-  mouse pointer the terminal reports to `bevy_picking`, so bevy's own `Button`,
-  `Checkbox`, `RadioGroup`, `Slider`, menus, dialogs and `ScrollArea` work on a
-  node tree unchanged - hover, press, click, click-to-focus, Enter and Space,
-  and wheel ticks that scroll one row. `TextInputPlugin` stays out, since it
-  edits through a font engine.
+  bevy_ui's picking backend beside the fontless `bevy_ui_widgets` plugins
+  `UiPlugin` installs, on the mouse pointer the terminal reports to
+  `bevy_picking`, so bevy's own `Button`, `Checkbox`, `RadioGroup`, `Slider`,
+  menus, dialogs and `ScrollArea` work on a node tree unchanged - hover, press,
+  click, click-to-focus, Enter and Space, and wheel ticks that scroll one row.
+  `TextInputPlugin` stays out, since it edits through a font engine.
   - Widget hits are ordered above node hits and block what is beneath, so a
     plurimus widget drawn over a node takes the press and the hover alone; a
     tick over a widget that does not scroll on the ticked axis reaches no node
@@ -140,8 +140,42 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     included - and an enabled `ModalityToggle` is picked in its place.
   - A right or middle press is a press, as it is on a node; the old router took
     the left button alone.
-- `plurimus_ui` re-exports `bevy_picking`; `plurimus_bui` re-exports `bevy_text`
-  and `bevy_ui_widgets`.
+- `plurimus_ui` re-exports `bevy_picking` and `bevy_ui_widgets`; `plurimus_bui`
+  re-exports `bevy_text` and `bevy_ui_widgets`.
+- **Breaking: buttons, checkboxes and radio groups are `bevy_ui_widgets`' own.**
+  `plurimus_widgets`' `Button`, `Checkbox`, `RadioButton`, `RadioGroup`,
+  `checkbox_self_update` and `radio_self_update` are upstream's, re-exported,
+  and upstream's observers drive them on a cell widget as on a node: a click
+  that ends on one, or Enter or space while it holds focus. `UiPlugin` installs
+  the fontless upstream plugins and `UiScale`, so a ui-only app has them too.
+  The `button`, `checkbox` and `radio` bundles carry `Hovered` and
+  `StylistCache`, which upstream's markers do not require: a bare marker on a
+  `UiWidget` is neither picked nor styled until the app adds them.
+  - Enter and space are fixed and matched by physical key with no modifier
+    check, so Ctrl+Enter activates as Enter does, and no key is remapped.
+  - The radio group is the tab stop. `radio_group()` spawns it with a `TabIndex`
+    and a widget that draws nothing, to which the app gives a `UiArea` spanning
+    its options; `radio()` is no tab stop. A press on an option checks it and
+    focuses the group, arrows, Home and End move the check and wrap, and the
+    checked option draws focused while the group holds focus. Checking the
+    checked option again emits nothing.
+  - These three are not captured on press: a release off one reaches what is
+    under the pointer, so dragging off and letting go activates nothing, as on a
+    window. A release landing in the same frame as the move off still clicks. A
+    focus loss with nothing captured sends its `PointerCancel` to every pressed
+    widget, so one of these three pressed at the time is released.
+  - Their press, release and click stop at the widget, as upstream's observers
+    stop them.
+  - A checkbox press focuses the checkbox whatever `PressFocusDisabled` says,
+    and a disabled checkbox too, since upstream's handler sets focus itself.
+  - A disabled container writes `InteractionDisabled` onto every descendant,
+    since upstream's observers check the entity alone, and takes back only what
+    it wrote; an app's own flag on an entity already flagged that way goes with
+    its ancestor's.
+  - A press or a click inside a `Popover` goes no higher than it, so a menu
+    parented to its button does not press or activate the button.
+  - `MenuButton` requires `Button`, `ModalityToggle`, `Hovered` and
+    `StylistCache`.
 - **Breaking: input is bevy's own messages.** A backend reports what its
   terminal said through `plurimus_term::TerminalInput`, and an app reads bevy's
   `KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
@@ -230,6 +264,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   itself: an app binds the keys it wants in a `FocusedInput<KeyboardInput>`
   observer and triggers `ScrollBy`. The navigation map's rebuild from widget
   geometry can no longer be switched off; hand-made edges survive it as before.
+
+- `plurimus_widgets::ActivateKeys`: a button, checkbox or radio answers to
+  upstream's fixed Enter and space.
 
 ### Fixed
 

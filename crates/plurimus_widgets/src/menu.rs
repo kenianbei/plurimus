@@ -46,6 +46,7 @@ const ITEM_ORDER: UiOrder = UiOrder(UiOrder::OVERLAY.0 + 1);
 
 /// A button that toggles its child [`MenuPopup`] on [`Activate`].
 #[derive(Component, Debug, Clone, Copy)]
+#[require(Button, ModalityToggle, Hovered, StylistCache)]
 pub struct MenuButton;
 
 /// The popup container; a child of its [`MenuButton`], auto-sized around
@@ -77,11 +78,10 @@ pub enum MenuAction {
 /// focused item sits in. Defaults to the up and down arrows, `Escape`, `Tab`
 /// and `Shift+Tab` to close, and `Enter` and space to activate. Tab closes
 /// rather than moving on because focus leaving an open menu would leave its
-/// popup open behind it. That last pair is what
-/// [`ActivateKeys`](crate::ActivateKeys) defaults to as well, and the two
-/// stay independent deliberately - a menu's Enter is not a form's, focus
-/// sitting inside the popup while it is open - but a menu's copy is now data
-/// an app replaces rather than a literal it cannot reach.
+/// popup open behind it. That last pair is what a [`Button`] answers to as
+/// well, and the two stay independent deliberately - a menu's Enter is not a
+/// form's, focus sitting inside the popup while it is open - but a menu's
+/// copy is data an app replaces rather than a literal it cannot reach.
 #[derive(Component, Debug, Clone)]
 pub struct MenuKeys(pub Vec<(KeyBinding, MenuAction)>);
 
@@ -113,8 +113,6 @@ pub struct MenuItem;
 pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         MenuButton,
-        Button,
-        ModalityToggle,
         UiLabel(label.into()),
         TabIndex(0),
         UiWidget::default(),

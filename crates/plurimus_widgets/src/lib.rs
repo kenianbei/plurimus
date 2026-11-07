@@ -11,7 +11,6 @@
 //! keeps the behaviour; one that wants different behaviour handles the events
 //! itself and keeps the look.
 
-mod activate;
 mod button;
 mod checkbox;
 mod clipboard;
@@ -32,13 +31,15 @@ mod text;
 
 pub use bevy_input::keyboard::Key;
 pub use bevy_input_focus;
-pub use plurimus_ui::ValueChange;
+pub use plurimus_ui::bevy_ui_widgets::{
+    Button, Checkbox, RadioButton, RadioGroup, checkbox_self_update, radio_self_update,
+};
+pub use plurimus_ui::{Activate, ValueChange};
 pub use ratatui_textarea;
 pub use ratatui_widgets;
 
-pub use activate::{Activate, ActivateKeys};
-pub use button::{Button, button};
-pub use checkbox::{Checkbox, checkbox};
+pub use button::button;
+pub use checkbox::checkbox;
 pub use listbox::{
     ListBox, ListBoxAccess, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect,
     ListBoxSelectionMarker, ListBoxStripe, ListItem, list_item, listbox,
@@ -49,12 +50,11 @@ pub use menu::{
 };
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
-pub use radio::{RadioButton, RadioGroup, radio};
+pub use radio::{radio, radio_group};
 pub use rows::{ActiveDescendant, ListItemText, ListItemTrailing, Marked};
 pub use scrollbar::{Scrollbar, scrollbar};
 pub use self_update::{
-    checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
-    tab_bar_self_update, table_self_update,
+    listbox_self_update, slider_self_update, tab_bar_self_update, table_self_update,
 };
 pub use slider::{Slider, SliderAction, SliderKeys, SliderRange, SliderStep, SliderValue, slider};
 pub use tabbar::{
@@ -72,7 +72,6 @@ pub use text::{
     TextInputAction, TextInputKeys, TextMask, editable_text, text_editor,
 };
 
-pub(crate) use activate::{widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{
@@ -85,7 +84,9 @@ pub(crate) use menu::{
 };
 pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
 pub(crate) use pane::style_panes;
-pub(crate) use popover::{adopt_anchor_cameras, place_popovers};
+pub(crate) use popover::{
+    adopt_anchor_cameras, contain_popover_click, contain_popover_press, place_popovers,
+};
 pub(crate) use radio::style_radios;
 pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
@@ -229,8 +230,8 @@ fn add_stylists(app: &mut App) {
 }
 
 fn add_observers(app: &mut App) {
-    app.add_observer(widget_click);
-    app.add_observer(widget_key);
+    app.add_observer(contain_popover_press);
+    app.add_observer(contain_popover_click);
     app.add_observer(slider_press);
     app.add_observer(slider_drag);
     app.add_observer(slider_release);

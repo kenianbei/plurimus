@@ -11,7 +11,8 @@ use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, Hidden, Propagate, TerminalCamera, TerminalSize, UiWidget};
 use plurimus_test::{
-    click, press_at, release_at, scroll_at, write_press_at, write_release_at, write_scroll_at,
+    click, move_to, press_at, release_at, scroll_at, write_press_at, write_release_at,
+    write_scroll_at,
 };
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::bevy_picking::events::PointerPress;
@@ -289,7 +290,8 @@ fn a_switching_press_defers_the_rest_of_the_batch() {
 }
 
 // The dismissal lands after the press has focused the other button, so
-// the closing menu must not take focus back to its own.
+// the closing menu must not take focus back to its own. The drag leaves
+// the button a frame before the release, as a terminal reports one.
 #[test]
 fn a_switching_press_released_elsewhere_keeps_focus_on_the_pressed_button() {
     let mut app = app();
@@ -299,6 +301,7 @@ fn a_switching_press_released_elsewhere_keeps_focus_on_the_pressed_button() {
     app.update();
 
     press_at(&mut app, 12, 0);
+    move_to(&mut app, 15, 6);
     release_at(&mut app, 15, 6);
 
     assert!(!is_open(&app, near) && !is_open(&app, far), "nothing open");
