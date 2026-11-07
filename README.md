@@ -125,12 +125,14 @@ resolving the `UiTheme` and driving the cache that `plurimus_ui` owns.
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
-uncontrolled. The button, checkbox and radio group are upstream's own types and
-observers, drawn in cells, so they answer to upstream's fixed Enter and space.
-Every other widget takes its keys from a bindings component - `ListBoxKeys`,
-`TableKeys`, `TabBarKeys`, `SliderKeys`, `MenuKeys`, `TextInputKeys`,
-`TextEditorKeys` - each with a default table, so remapping a list to vim keys is
-a component swap rather than a rewrite.
+uncontrolled. The button, checkbox, radio group, slider, list box, tab bar and
+menu are upstream's own types and observers, drawn in cells, so they answer to
+upstream's fixed keys and follow its models - a list's cursor and `Selected`
+rows, a tab bar's roving focus, a menu that closes when focus leaves it. The
+widgets upstream has no counterpart for take their keys from a bindings
+component - `TableKeys`, `TextInputKeys`, `TextEditorKeys` - each with a default
+table, so remapping a table to vim keys is a component swap rather than a
+rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
 
@@ -369,9 +371,9 @@ header and a footer of totals, sorted by clicking a header cell, with vim keys
 bound through `TableKeys`.
 
 **tabs** switches panels from a `TabBar` drawn in the joined look, driven by the
-arrows, `[`/`]`, and digits through a remapped `TabBarKeys`; its Settings panel
-holds a vertical bar that picks the top bar's look - plain, divided, boxed,
-joined, padded. Tab moves between the two bars while Settings is open.
+arrows and by `[`/`]` and digits the app binds itself; its Settings panel holds
+a vertical bar that picks the top bar's look - plain, divided, boxed, joined,
+padded. Tab moves between the two bars while Settings is open.
 
 **pong** puts the 2d and ui pipelines in one camera: a halfblock ball and
 paddles in world space under a widget score line. W/S steps the left paddle,

@@ -12,7 +12,7 @@ use plurimus::ui::bevy_input_focus::tab_navigation::TabGroup;
 use plurimus::ui::{UiLabel, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
-    Activate, WidgetsPlugin, button, list_item, listbox, listbox_self_update, text_editor,
+    Activate, WidgetsPlugin, button, list_item, listbox, listbox_update_selection, text_editor,
 };
 
 // The grid the page asks for; every rect below fits in it.
@@ -56,7 +56,7 @@ fn spawn_page(mut commands: Commands) {
     let root = commands.spawn(TabGroup::new(0)).id();
     let list = commands
         .spawn((listbox(), UiArea::Fixed(LIST), ChildOf(root)))
-        .observe(listbox_self_update)
+        .observe(listbox_update_selection)
         .observe(pick_fruit)
         .id();
     for fruit in FRUITS {

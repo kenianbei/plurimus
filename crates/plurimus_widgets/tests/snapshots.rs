@@ -9,7 +9,7 @@ use plurimus_ui::tui_scrollview::ScrollbarVisibility;
 use plurimus_ui::{
     Hidden, Propagate, ScrollArea, ScrollOffset, UiArea, UiCamera, UiOrder, UiWidget,
 };
-use plurimus_widgets::{Popover, WidgetsPlugin, scrollbar};
+use plurimus_widgets::{ControlOrientation, Popover, WidgetsPlugin, scrollbar};
 use ratatui_widgets::list::{List, ListState};
 use ratatui_widgets::paragraph::Paragraph;
 use ratatui_widgets::scrollbar::{Scrollbar, ScrollbarOrientation, ScrollbarState};
@@ -196,7 +196,7 @@ fn scrollbar_entity_tracks_target() {
         ))
         .id();
     app.world_mut().spawn((
-        scrollbar(target, ScrollbarOrientation::VerticalRight),
+        scrollbar(target, ControlOrientation::Vertical),
         UiArea::Fixed(Rect::new(6, 0, 1, 4)),
     ));
 

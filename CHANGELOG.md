@@ -58,13 +58,6 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   unwrapped, right-justified cells. The field is the one control each target
   supplies for itself: a plurimus `EditableText` over its node in the terminal,
   upstream's `TextInput` in the window.
-- **`ListBoxAccess`** moves a `ListBox`'s cursor from outside the list: a
-  `SystemParam` whose `apply(list, action)` runs a `ListBoxAction` motion on a
-  list that holds no focus, as its own bound key would, and answers whether the
-  cursor moved - so a form that caught Up or Down in a field above the list can
-  step the list and pass the key on when it stepped nowhere. The reveal and the
-  cursor highlight follow as they do for a key. `Select` and `Copy` are not
-  motions and answer false; a disabled list refuses.
 
 ### Changed
 
@@ -174,8 +167,57 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     its ancestor's.
   - A press or a click inside a `Popover` goes no higher than it, so a menu
     parented to its button does not press or activate the button.
-  - `MenuButton` requires `Button`, `ModalityToggle`, `Hovered` and
-    `StylistCache`.
+- **Breaking: sliders, list boxes, tab bars and menus are `bevy_ui_widgets`'
+  own.** Their types, keys and models are upstream's, re-exported from
+  `plurimus_widgets`, and the constructors carry what a cell widget is drawn and
+  picked with. What stays plurimus's is the drawing, the placement, and the
+  pointer routing a cell rect needs where upstream's measures a node.
+  - The slider is upstream's `Slider`, `SliderValue`, `SliderRange` and
+    `SliderStep`, with `SetSliderValue`, `SliderPrecision` and
+    `slider_self_update`. The side arrows step and repeat while held, Home and
+    End jump, and a bound arrow at the range's edge is consumed and reports an
+    unchanged final value rather than passing on. The default step is 1. The
+    value components are immutable, so an app inserts a new one. `slider()`
+    takes its bounds in either order; a reversed `SliderRange` inserted by hand
+    warns and panics upstream's way.
+  - The list box is upstream's `ListBox`, `ListItem`, `ListBoxMultiSelect` and
+    `ActiveDescendant`, the cursor the table shares, now immutable and written
+    by insert. Selection is `bevy_ui`'s `Selected`, re-exported from
+    `plurimus_ui`, and `listbox_update_selection` is the stock single-select
+    updater. The arrows wrap, Left and Right move too, there are no page keys,
+    and no key repeats. Enter, space or a click on the selected row sends
+    `ReselectListRow`, and a disabled row takes the cursor and selects nothing.
+    A disabled list's arrows still move its cursor. The list's own Enter repeats
+    propagate to its ancestors. Losing focus clears the cursor, and gaining it
+    restores the selected row or the first. A press or drag still moves the
+    cursor under the pointer, and a click selects through upstream's
+    `SetSelected`. Copy stays, on a fixed Ctrl+c.
+  - The tab bar is upstream's `TabList` and `Tab`. `TabBar` is a marker that
+    requires a `TabList`, so `(tab_bar(), TabList { .. })` changes its
+    orientation or activation, `Manual` by default. Focus sits on a tab with a
+    roving `TabIndex`. The arrows along the bar move it and wrap, Enter or space
+    selects, and `Automatic` selects as focus moves. Selection is the list's
+    `SelectedTab`, mirrored onto its tabs as `Selected` the frame after, and a
+    change is a `ValueChange<Option<Entity>>` on the list that
+    `tablist_self_update` applies. `TabBarLook` loses `orientation`, the layout
+    and joins reading `TabList::orientation`. A press on a tab focuses the tab,
+    so `PressFocusDisabled` goes on the tabs rather than the bar.
+  - Directional navigation leaves a negative `TabIndex` out, as Tab does, so a
+    roving strip is one arrow target at its resting tab.
+  - A menu is upstream's `MenuButton`, `MenuPopup` and `MenuItem`, opened and
+    closed through the bubbling `MenuEvent`. A plurimus observer answers it for
+    a popup holding a `Popover`, so a menu of nodes still answers its own. The
+    button opens on the press, and Up or Left on it opens at the last item. The
+    open popup takes focus onto an item and closes when focus leaves it, so a
+    press outside closes the menu and still acts on what it hit, and a wheel
+    tick outside no longer closes it. Tab cycles the items, Escape refocuses the
+    button, and the keys are fixed. The popup no longer carries `ModalOpen`. It
+    is a pick: a press on its frame keeps focus inside, and a tick over it
+    scrolls nothing beneath.
+  - Tabs and menu items are not captured on press, as buttons are not, so a
+    release off one is no click on it.
+  - `Scrollbar` and `scrollbar()` take `ControlOrientation`; the bar fills the
+    strip it is given.
 - **Breaking: input is bevy's own messages.** A backend reports what its
   terminal said through `plurimus_term::TerminalInput`, and an app reads bevy's
   `KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
@@ -267,6 +309,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `plurimus_widgets::ActivateKeys`: a button, checkbox or radio answers to
   upstream's fixed Enter and space.
+- `plurimus_widgets`' `SliderKeys`, `SliderAction`, `ListBoxKeys`,
+  `ListBoxAction`, `TabBarKeys`, `TabBarAction` and `MenuKeys`: those widgets
+  answer to upstream's fixed keys. `TabBarOrientation`, `TabItem` and
+  `TabBarLook::with_orientation`, now `TabList` and `Tab`; `MenuOpen`, now
+  `MenuFocusState`; and the menu's own `MenuAction`, now upstream's, whose
+  variants are its event's. `listbox_self_update` and `tab_bar_self_update`, now
+  `listbox_update_selection` and `tablist_self_update`; a list has no stock
+  multi-select updater.
 
 ### Fixed
 

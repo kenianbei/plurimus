@@ -1,4 +1,5 @@
-//! Menu open/close, keyboard, and dismissal flows, fully headless.
+//! Menu open/close, keyboard, and focus-loss flows, fully headless: the
+//! model is upstream's, answered by the crate's popup driver.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -7,20 +8,18 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabGroup;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_core::{Hidden, Propagate};
 use plurimus_term::KeyModifiers;
 use plurimus_test::{
-    character, click, composed_frame, press_at, press_key, press_key_with, scroll_at, write_key,
-    write_repeat,
+    click, composed_frame, press_at, press_key, press_key_with, scroll_at, write_key, write_repeat,
 };
 use plurimus_ui::Key;
 use plurimus_ui::{
-    Hovered, InteractionDisabled, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget,
+    ComputedWidgetArea, Hovered, InteractionDisabled, Pressed, ScrollArea, ScrollOffset, UiArea,
+    UiWidget,
 };
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{
-    Activate, MenuAction, MenuKeys, MenuOpen, WidgetsPlugin, button, menu_button, menu_item,
-    menu_popup,
-};
+use plurimus_widgets::{Activate, WidgetsPlugin, button, menu_button, menu_item, menu_popup};
 
 fn app() -> App {
     let mut app = App::new();
@@ -65,7 +64,9 @@ fn focused(app: &App) -> Option<Entity> {
 }
 
 fn is_open(app: &App, menu: &Menu) -> bool {
-    app.world().get::<MenuOpen>(menu.popup).is_some()
+    !app.world()
+        .entity(menu.popup)
+        .contains::<Propagate<Hidden>>()
 }
 
 fn spawn_scroller(app: &mut App) -> Entity {
@@ -82,8 +83,9 @@ fn offset_of(app: &App, scroller: Entity) -> Position {
     app.world().get::<ScrollOffset>(scroller).unwrap().0
 }
 
+// A tick moves no focus, and the menu is open while focus is inside it.
 #[test]
-fn wheel_outside_an_open_menu_dismisses_without_scrolling() {
+fn wheel_outside_an_open_menu_scrolls_and_leaves_it_open() {
     let mut app = app();
     let menu = spawn_menu(&mut app);
     let scroller = spawn_scroller(&mut app);
@@ -92,8 +94,8 @@ fn wheel_outside_an_open_menu_dismisses_without_scrolling() {
 
     scroll_at(&mut app, 15, 6, 1);
 
-    assert!(!is_open(&app, &menu), "an outside tick dismisses");
-    assert_eq!(offset_of(&app, scroller), Position::new(0, 0));
+    assert!(is_open(&app, &menu));
+    assert_eq!(offset_of(&app, scroller), Position::new(0, 1));
 }
 
 #[test]
@@ -157,12 +159,11 @@ fn item_click_emits_activate_and_closes() {
     click(&mut app, 3, 2);
     assert_eq!(app.world().resource::<Activated>().0, vec![menu.items[0]]);
     assert!(!is_open(&app, &menu));
+    assert_eq!(focused(&app), Some(menu.button), "and focus went home");
 }
 
-// A row's first TabIndex ancestor is the opener, outside the popup: the
-// press stops at the open overlay rather than pulling focus out of it.
 #[test]
-fn a_press_on_an_item_keeps_focus_inside_the_open_menu() {
+fn a_press_on_an_item_focuses_it_and_keeps_the_menu_open() {
     let mut app = app();
     let menu = spawn_menu(&mut app);
     click(&mut app, 2, 0);
@@ -170,7 +171,39 @@ fn a_press_on_an_item_keeps_focus_inside_the_open_menu() {
 
     press_at(&mut app, 3, 3);
 
+    assert_eq!(focused(&app), Some(menu.items[1]));
+    assert!(is_open(&app, &menu));
+}
+
+// The frame has no TabIndex, and its first above is the button: without
+// the popup stopping the walk, the press would focus the button and the
+// focus leaving the items would close the menu.
+#[test]
+fn a_press_on_the_popup_frame_keeps_the_menu_open() {
+    let mut app = app();
+    let menu = spawn_menu(&mut app);
+    click(&mut app, 2, 0);
+    app.update();
+    let frame = app.world().get::<ComputedWidgetArea>(menu.popup).unwrap().0;
+
+    click(&mut app, frame.x, frame.y);
+    app.update();
+
+    assert!(is_open(&app, &menu));
     assert_eq!(focused(&app), Some(menu.items[0]));
+}
+
+#[test]
+fn up_on_the_button_opens_at_the_last_item() {
+    let mut app = app();
+    let menu = spawn_menu_of(&mut app, &["Open", "Save", "Quit"]);
+    app.update();
+    plurimus_test::set_focus(&mut app, menu.button);
+
+    press_key(&mut app, Key::ArrowUp);
+
+    assert!(is_open(&app, &menu));
+    assert_eq!(focused(&app), Some(menu.items[2]));
 }
 
 #[test]
@@ -204,10 +237,10 @@ fn arrows_wrap_enter_activates_escape_closes() {
     assert_eq!(focused(&app), Some(menu.button));
 }
 
-// Tab would otherwise move focus to another tab stop and leave the popup
-// open behind it, still swallowing the pointer.
+// The popup is a modal tab group, so Tab cycles its items either way and
+// never leaves the menu open behind focus elsewhere.
 #[test]
-fn tab_either_way_closes_the_menu_and_refocuses_its_button() {
+fn tab_either_way_cycles_the_items_of_the_open_menu() {
     let mut app = app();
     let group = app.world_mut().spawn(TabGroup::new(0)).id();
     app.world_mut().spawn((
@@ -220,63 +253,25 @@ fn tab_either_way_closes_the_menu_and_refocuses_its_button() {
         .entity_mut(menu.button)
         .insert(ChildOf(group));
 
+    click(&mut app, 2, 0);
+    assert!(is_open(&app, &menu));
     for shift in [false, true] {
-        click(&mut app, 2, 0);
-        assert!(is_open(&app, &menu));
         if shift {
             press_key_with(&mut app, Key::Tab, KeyModifiers::none().with_shift(true));
         } else {
             press_key(&mut app, Key::Tab);
         }
-        assert!(!is_open(&app, &menu), "shift {shift}: closed");
-        assert_eq!(focused(&app), Some(menu.button), "shift {shift}");
+        assert!(is_open(&app, &menu), "shift {shift}: open");
+        let expected = if shift { menu.items[0] } else { menu.items[1] };
+        assert_eq!(focused(&app), Some(expected), "shift {shift}");
     }
 }
 
-// The table lives on the popup, so one component remaps the whole menu.
-// Three rows, because a two-row menu steps to the same place either way and
-// so cannot tell Previous from Next.
+// A disabled row is inert to Enter, which propagates: what it reaches next
+// is the menu button, whose own Enter toggles the menu shut. So the row
+// activates nothing, and the menu closes around it.
 #[test]
-fn a_remapped_menu_moves_and_closes_on_its_own_keys() {
-    let mut app = app();
-    let menu = spawn_menu_of(&mut app, &["Open", "Save", "Quit"]);
-    app.world_mut().entity_mut(menu.popup).insert(MenuKeys(vec![
-        (Key::Character("j".into()).into(), MenuAction::Next),
-        (Key::Character("k".into()).into(), MenuAction::Previous),
-        (Key::Character("q".into()).into(), MenuAction::Close),
-    ]));
-    click(&mut app, 2, 0);
-    assert_eq!(focused(&app), Some(menu.items[0]));
-
-    press_key(&mut app, character('j'));
-    assert_eq!(focused(&app), Some(menu.items[1]), "j steps down");
-    press_key(&mut app, character('j'));
-    assert_eq!(focused(&app), Some(menu.items[2]));
-    press_key(&mut app, character('k'));
-    assert_eq!(focused(&app), Some(menu.items[1]), "k steps back up");
-
-    press_key(&mut app, Key::ArrowDown);
-    assert_eq!(
-        focused(&app),
-        Some(menu.items[1]),
-        "and the arrow each replaced does nothing"
-    );
-
-    press_key(&mut app, Key::Escape);
-    assert!(is_open(&app, &menu), "Escape is unbound now");
-    press_key(&mut app, character('q'));
-    assert!(!is_open(&app, &menu));
-}
-
-// Both guards the menu's key path carries, neither of which any test saw
-// before: a disabled row is inert, and a held Enter commits once.
-//
-// Inert means this crate does nothing with the key, not that the key stops:
-// it propagates, and what it reaches next is the menu button, whose own
-// Enter toggles the menu shut. So the row activates nothing, and the menu
-// closes around it.
-#[test]
-fn a_disabled_item_activates_nothing_and_moves_nothing() {
+fn a_disabled_item_activates_nothing() {
     let mut app = app();
     app.init_resource::<Activated>();
     let menu = spawn_menu(&mut app);
@@ -293,18 +288,9 @@ fn a_disabled_item_activates_nothing_and_moves_nothing() {
         .insert(InteractionDisabled);
     app.update();
 
-    press_key(&mut app, Key::ArrowDown);
-    assert_eq!(
-        focused(&app),
-        Some(menu.items[0]),
-        "the row's movement keys move nothing"
-    );
-
     press_key(&mut app, Key::Enter);
-    assert!(
-        app.world().resource::<Activated>().0.is_empty(),
-        "and it activates nothing"
-    );
+    assert_eq!(app.world().resource::<Activated>().0, [] as [Entity; 0]);
+    assert!(!is_open(&app, &menu));
 }
 
 // A press and its autorepeat in one drained batch, which is the only way a
@@ -349,8 +335,9 @@ fn the_default_arrows_step_each_way() {
     );
 }
 
+// Focus leaving the menu closes it, and the press still lands.
 #[test]
-fn outside_click_dismisses_and_swallows() {
+fn an_outside_press_closes_the_menu_and_acts() {
     let mut app = app();
     let menu = spawn_menu(&mut app);
     let bystander = app
@@ -366,7 +353,7 @@ fn outside_click_dismisses_and_swallows() {
 
     press_at(&mut app, 13, 6);
     assert!(!is_open(&app, &menu));
-    assert!(app.world().get::<Pressed>(bystander).is_none());
+    assert!(app.world().get::<Pressed>(bystander).is_some());
 }
 
 #[test]
@@ -381,4 +368,27 @@ fn open_menu_renders_over_content() {
     app.update();
 
     insta::assert_snapshot!(composed_frame(&app));
+}
+
+// An item presses and clicks by bevy's hover map, uncaptured, so a release
+// that has left it is no click on it.
+#[test]
+fn a_release_off_an_item_activates_nothing() {
+    let mut app = app();
+    app.init_resource::<Activated>();
+    let menu = spawn_menu(&mut app);
+    app.world_mut().entity_mut(menu.items[0]).observe(
+        |activate: On<Activate>, mut activated: ResMut<Activated>| {
+            activated.0.push(activate.entity);
+        },
+    );
+    click(&mut app, 2, 0);
+    app.update();
+
+    press_at(&mut app, 3, 2);
+    plurimus_test::move_to(&mut app, 15, 6);
+    plurimus_test::release_at(&mut app, 15, 6);
+
+    assert_eq!(app.world().resource::<Activated>().0, [] as [Entity; 0]);
+    assert!(app.world().get::<Pressed>(menu.items[0]).is_none());
 }

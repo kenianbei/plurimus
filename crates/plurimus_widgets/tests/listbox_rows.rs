@@ -7,10 +7,10 @@ use bevy_ecs::hierarchy::ChildOf;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::composed_frame;
-use plurimus_ui::{Checked, UiArea};
+use plurimus_ui::{Selected, UiArea};
 use plurimus_widgets::{
     ListBoxSelectionMarker, ListItemTrailing, Marked, WidgetsPlugin, list_item, listbox,
-    listbox_self_update,
+    listbox_update_selection,
 };
 
 const WIDTH: u16 = 14;
@@ -38,11 +38,11 @@ fn frame(app: &mut App) -> String {
     composed_frame(app)
 }
 
-// `Checked` means the user selected it; a row can also be marked for a
-// reason of the app's own, and saying that with `Checked` lets any app-wide
+// `Selected` means the user selected it; a row can also be marked for a
+// reason of the app's own, and saying that with `Selected` lets any app-wide
 // selection updater redefine it.
 #[test]
-fn a_marked_row_lights_the_gutter_without_being_checked() {
+fn a_marked_row_lights_the_gutter_without_being_selected() {
     let mut app = app(WIDTH);
     let list = spawn_list(&mut app, WIDTH, true);
     app.world_mut().spawn((list_item("plain"), ChildOf(list)));
@@ -59,29 +59,29 @@ fn a_marked_row_lights_the_gutter_without_being_checked() {
     );
     assert!(drawn.contains("  plain"), "unmarked rows do not:\n{drawn}");
     assert!(
-        app.world().get::<Checked>(marked).is_none(),
+        app.world().get::<Selected>(marked).is_none(),
         "and marking never made it selected"
     );
 }
 
 #[test]
-fn a_checked_row_still_lights_the_gutter() {
+fn a_selected_row_still_lights_the_gutter() {
     let mut app = app(WIDTH);
     let list = spawn_list(&mut app, WIDTH, true);
     app.world_mut()
-        .spawn((list_item("sel"), Checked, ChildOf(list)));
+        .spawn((list_item("sel"), Selected, ChildOf(list)));
 
     let drawn = frame(&mut app);
 
     assert!(drawn.contains("▪ sel"), "{drawn}");
 }
 
-// The stock selection updater owns `Checked` alone, which is the whole point
+// The stock selection updater owns `Selected` alone, which is the whole point
 // of the second channel.
 #[test]
 fn the_selection_updater_leaves_marked_rows_alone() {
     let mut app = app(WIDTH);
-    app.add_observer(listbox_self_update);
+    app.add_observer(listbox_update_selection);
     let list = spawn_list(&mut app, WIDTH, true);
     let first = app
         .world_mut()
@@ -104,7 +104,7 @@ fn the_selection_updater_leaves_marked_rows_alone() {
         app.world().get::<Marked>(first).is_some(),
         "selecting another row does not unmark this one"
     );
-    assert!(app.world().get::<Checked>(second).is_some());
+    assert!(app.world().get::<Selected>(second).is_some());
 }
 
 #[test]

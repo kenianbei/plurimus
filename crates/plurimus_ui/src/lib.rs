@@ -45,7 +45,7 @@ pub use cursor::WidgetCursor;
 pub use interaction::{Activate, ValueChange};
 pub use interaction::{
     Checked, ComputedDisabled, ComputedWidgetArea, Hovered, InteractionDisabled,
-    PressFocusDisabled, Pressed,
+    PressFocusDisabled, Pressed, Selectable, Selected,
 };
 pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};

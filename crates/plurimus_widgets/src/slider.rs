@@ -1,20 +1,22 @@
-//! The slider widget: keyboard steps, track seek, and drag scrubbing.
+//! The slider widget on `bevy_ui_widgets`' own [`Slider`]: track seek and
+//! drag scrubbing at cell resolution, and a stylist.
 //!
-//! Three input routes converge on one value: a key bound through
-//! [`SliderKeys`] steps by the slider's step size, a press on the track jumps
-//! to that position, and a drag scrubs continuously. All three go through the same track-ratio conversion, so a
-//! click and a drag that end on the same cell produce the same value. The
-//! slider emits [`ValueChange`] and does not move itself unless the stock
-//! observer is attached.
+//! The keys are upstream's - the side arrows step by
+//! [`SliderStep`](crate::SliderStep), `Home` and `End` jump - since its key
+//! observer needs no layout. Its pointer observers measure a node, so a
+//! slider at a cell rect is driven here instead: a press on the track jumps
+//! to that position and a drag scrubs, both through the same track-ratio
+//! conversion, so a click and a drag that end on the same cell produce the
+//! same value. The slider emits
+//! [`ValueChange`] and does not move itself unless
+//! [`slider_self_update`](crate::slider_self_update) is attached.
 
 use core::cmp::Ordering;
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Component, On, Query, Res, With, Without};
-use bevy_input::keyboard::{Key, KeyboardInput};
-use bevy_input_focus::FocusedInput;
+use bevy_ecs::prelude::{Commands, On, Query, Res, With, Without};
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::buffer::Buffer;
@@ -25,114 +27,26 @@ use plurimus_core::ratatui_core::widgets::Widget;
 use super::ValueChange;
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
-use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_picking::events::{PointerCancel, PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::bevy_ui_widgets::{Slider, SliderRange, SliderValue};
 use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, Hovered, UiTheme, pointer_cell};
-use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
-/// A horizontal slider. Emits [`ValueChange<f32>`]; attach
-/// [`super::slider_self_update`] for uncontrolled behavior.
-#[derive(Component, Debug, Clone, Copy)]
-#[require(
-    SliderValue,
-    SliderRange,
-    SliderStep,
-    SliderKeys,
-    Hovered,
-    StylistCache
-)]
-pub struct Slider;
-
-/// The slider's current value.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct SliderValue(pub f32);
-
-/// The slider's value range.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct SliderRange {
-    start: f32,
-    end: f32,
-}
-
-impl SliderRange {
-    /// A range between `start` and `end`, in either order.
-    #[must_use]
-    pub const fn new(start: f32, end: f32) -> Self {
-        Self {
-            start: start.min(end),
-            end: start.max(end),
-        }
-    }
-
-    /// Lower bound.
-    #[must_use]
-    pub const fn start(&self) -> f32 {
-        self.start
-    }
-
-    /// Upper bound.
-    #[must_use]
-    pub const fn end(&self) -> f32 {
-        self.end
-    }
-
-    const fn clamp(self, value: f32) -> f32 {
-        value.clamp(self.start, self.end)
-    }
-}
-
-impl Default for SliderRange {
-    fn default() -> Self {
-        Self::new(0.0, 1.0)
-    }
-}
-
-/// What a [`SliderKeys`] binding does to the value.
+/// Spawn bundle for a slider over `start..=end` at `value`, stepping by
+/// upstream's default [`SliderStep`](crate::SliderStep) of one.
 ///
-/// Closed: a slider's keyboard moves the value one step either way, and a
-/// third direction is not a thing a slider has.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SliderAction {
-    /// One [`SliderStep`] towards the range's start.
-    Decrease,
-    /// One [`SliderStep`] towards the range's end.
-    Increase,
-}
-
-/// A [`Slider`]'s key bindings, scanned in order so the first match wins.
-///
-/// Replace it to remap: two keys may share an action by appearing twice.
-/// Defaults to the left and right arrows.
-#[derive(Component, Debug, Clone)]
-pub struct SliderKeys(pub Vec<(KeyBinding, SliderAction)>);
-
-impl Default for SliderKeys {
-    fn default() -> Self {
-        Self(vec![
-            (Key::ArrowLeft.into(), SliderAction::Decrease),
-            (Key::ArrowRight.into(), SliderAction::Increase),
-        ])
-    }
-}
-
-/// Keyboard adjustment increment.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct SliderStep(pub f32);
-
-impl Default for SliderStep {
-    fn default() -> Self {
-        Self(0.1)
-    }
-}
-
-/// Spawn bundle for a slider over `start..=end` at `value`.
+/// The bounds are taken in either order, since upstream's range clamps
+/// with them as given and a reversed pair would panic on the first step.
+/// Upstream's `SliderDragState` stays set after a drag here, the observer
+/// that clears it needing a node; nothing at a cell reads it.
 #[must_use]
 pub fn slider(start: f32, end: f32, value: f32) -> impl Bundle {
     (
-        Slider,
-        SliderRange::new(start, end),
+        Slider::default(),
+        SliderRange::new(start.min(end), start.max(end)),
         SliderValue(value),
+        Hovered::default(),
+        StylistCache::default(),
         TabIndex(0),
         UiWidget::default(),
     )
@@ -228,40 +142,9 @@ fn seek(
     }
 }
 
-pub(crate) fn slider_key(
-    mut input: On<FocusedInput<KeyboardInput>>,
-    held: HeldModifiers,
-    sliders: Query<
-        (&SliderValue, &SliderRange, &SliderStep, &SliderKeys),
-        (With<Slider>, Without<ComputedDisabled>),
-    >,
-    mut commands: Commands,
-) {
-    let Ok((value, range, step, keys)) = sliders.get(input.focused_entity) else {
-        return;
-    };
-    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
-        return;
-    };
-    let delta = match action {
-        SliderAction::Decrease => -step.0,
-        SliderAction::Increase => step.0,
-    };
-    let target = range.clamp(value.0 + delta);
-    if (target - value.0).abs() <= f32::EPSILON {
-        return;
-    }
-    input.propagate(false);
-    commands.trigger(ValueChange {
-        source: input.focused_entity,
-        value: target,
-        is_final: true,
-    });
-}
-
 fn track_value(area: Rect, range: SliderRange, x: u16) -> f32 {
     let ratio = super::track_ratio(area.x, area.width, x);
-    range.clamp(range.start + ratio * (range.end - range.start))
+    range.clamp(range.start() + ratio * range.span())
 }
 
 pub(crate) fn style_sliders(
@@ -284,8 +167,7 @@ pub(crate) fn style_sliders(
             continue;
         }
         let style = next.style(&theme);
-        let span = (range.end() - range.start()).max(f32::EPSILON);
-        let ratio = ((value.0 - range.start()) / span).clamp(0.0, 1.0);
+        let ratio = range.thumb_position(value.0).clamp(0.0, 1.0);
         *widget = UiWidget::new(SliderTrack { ratio, style });
     }
 }
@@ -333,15 +215,5 @@ mod tests {
         assert!((track_value(area, range, 7) - 50.0).abs() < f32::EPSILON);
         assert!((track_value(area, range, 12) - 100.0).abs() < f32::EPSILON);
         assert!((track_value(area, range, 40) - 100.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn reversed_bounds_mean_the_same_range() {
-        let range = SliderRange::new(100.0, 0.0);
-        assert!((range.start() - 0.0).abs() < f32::EPSILON);
-        assert!((range.end() - 100.0).abs() < f32::EPSILON);
-        assert!((range.clamp(-5.0) - 0.0).abs() < f32::EPSILON);
-        let area = Rect::new(2, 0, 11, 1);
-        assert!((track_value(area, range, 12) - 100.0).abs() < f32::EPSILON);
     }
 }

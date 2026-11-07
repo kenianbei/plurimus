@@ -8,16 +8,14 @@ use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{
-    character, move_to, press_at, press_key, release_at, send_focus, send_press_at, set_focus,
-    write_move_to, write_press_at,
+    move_to, press_at, press_key, release_at, send_focus, send_press_at, write_move_to,
+    write_press_at,
 };
 use plurimus_ui::Key;
 use plurimus_ui::bevy_picking::events::PointerClick;
 use plurimus_ui::{Hidden, Hovered, Pressed, Propagate, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{
-    Slider, SliderAction, SliderKeys, SliderRange, SliderValue, WidgetsPlugin, slider_self_update,
-};
+use plurimus_widgets::{Slider, SliderRange, SliderValue, WidgetsPlugin, slider_self_update};
 
 fn app() -> App {
     let mut app = App::new();
@@ -52,9 +50,10 @@ fn spawn_slider(app: &mut App) -> Entity {
         .spawn((
             UiWidget::new(Paragraph::new("track")),
             UiArea::Fixed(Rect::new(0, 0, 10, 1)),
-            Slider,
+            Slider::default(),
             SliderRange::new(0.0, 100.0),
             SliderValue(50.0),
+            Hovered::default(),
         ))
         .id();
     app.world_mut()
@@ -181,36 +180,6 @@ fn tab_cycles_focus_through_a_group() {
 
     press_key(&mut app, Key::Tab);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(second));
-}
-
-#[test]
-fn a_remapped_slider_steps_on_its_own_keys() {
-    let mut app = app();
-    app.world_mut().spawn(TerminalCamera::default());
-    let slider = spawn_slider(&mut app);
-    app.world_mut().entity_mut(slider).insert((
-        TabIndex(0),
-        SliderKeys(vec![
-            (Key::Character("h".into()).into(), SliderAction::Decrease),
-            (Key::Character("l".into()).into(), SliderAction::Increase),
-        ]),
-    ));
-    app.update();
-    set_focus(&mut app, slider);
-
-    press_key(&mut app, character('l'));
-    assert!(value(&app, slider) > 50.0, "the bound key steps");
-
-    let stepped = value(&app, slider);
-    press_key(&mut app, Key::ArrowRight);
-    assert_eq!(
-        value(&app, slider),
-        stepped,
-        "and the key it replaced does nothing"
-    );
-
-    press_key(&mut app, character('h'));
-    assert_eq!(value(&app, slider), 50.0);
 }
 
 #[derive(Resource, Default)]

@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{Changed, Component, Or, Query, RemovedComponents, With};
+use bevy_ecs::prelude::{Changed, Commands, Component, Or, Query, RemovedComponents, With};
 use bevy_ecs::query::QueryFilter;
 use plurimus_core::ratatui_core::layout::Size;
 use plurimus_core::ratatui_core::text::{Line, Text};
@@ -23,7 +23,7 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_ui::{ComputedWidgetArea, ScrollArea, StylistCache, UiTheme};
 
 /// Marks a container whose content changed: a row added, edited, restyled,
-/// or checked.
+/// or selected.
 ///
 /// [`mark_dirty_content`] and [`mark_cleared`] set it, and the container's
 /// stylist reads it beside its `StylistCache` rather than hashing every row
@@ -37,34 +37,38 @@ impl<M: Send + Sync + 'static> Default for ContentDirty<M> {
     }
 }
 
-/// The row a container's keys act on, whoever holds keyboard focus.
-///
-/// A container is driven either by holding focus itself or by another
-/// widget writing this - a search field stepping the list beneath it - so
-/// the cursor row is styled as the active one in both cases.
-///
-/// Kept pointing at a live row: when a container's children change, a value
-/// naming a row that is gone re-points to the first surviving one, and to
-/// `None` when none survives. A deliberately empty cursor stays empty.
-///
-/// Whoever writes it, the row is scrolled into view in the next
-/// [`WidgetSystems::Layout`](crate::WidgetSystems::Layout) - the same frame
-/// for a write from a key handler, the next one for a write from `Update`
-/// or from the pointer routing that follows it.
-#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ActiveDescendant(pub Option<Entity>);
+// Upstream's list cursor, shared with the table so both containers are
+// driven and drawn by one rule; the passes below keep it live and visible.
+pub(crate) use plurimus_ui::bevy_ui_widgets::ActiveDescendant;
+
+/// Points `container`'s cursor at `row`. The cursor is immutable, so it is
+/// inserted, and only when it moves: an unchanged insert would still count
+/// as a change and reveal the row again.
+pub(crate) fn point_cursor(
+    container: Entity,
+    active: &ActiveDescendant,
+    row: Entity,
+    commands: &mut Commands,
+) {
+    if active.0 != Some(row) {
+        commands
+            .entity(container)
+            .insert(ActiveDescendant(Some(row)));
+    }
+}
 
 /// Lights a row's marker gutter without claiming it is selected.
 ///
-/// [`Checked`](plurimus_ui::Checked) is the selection channel, written by
-/// [`listbox_self_update`](crate::listbox_self_update) and read as "the user
-/// picked this". A row can also be marked for a reason of the app's own -
+/// [`Selected`](plurimus_ui::Selected) is a list's selection channel,
+/// written by [`listbox_update_selection`](crate::listbox_update_selection)
+/// and read as "the user picked this" - [`Checked`](plurimus_ui::Checked) a
+/// table's. A row can also be marked for a reason of the app's own -
 /// a command already in force, a file with unsaved edits - and saying that
-/// with `Checked` means any app-wide selection updater silently redefines
-/// it. Nothing in this crate ever writes this one.
+/// with the selection channel means any app-wide selection updater
+/// silently redefines it. Nothing in this crate ever writes this one.
 ///
 /// Drawn by [`ListBoxSelectionMarker`](crate::ListBoxSelectionMarker),
-/// which lights the gutter for a row that is checked, marked, or both.
+/// which lights the gutter for a row that is selected, marked, or both.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Marked;
 
@@ -156,18 +160,19 @@ pub(crate) fn mark_cleared<Container: Component, C: Component>(
 /// A cursor an app deliberately emptied stays empty: only a value naming a
 /// row that is gone is repaired.
 pub(crate) fn repair_active_descendants<Container, Row>(
-    mut containers: Query<(Option<&Children>, &mut ActiveDescendant), With<Container>>,
+    containers: Query<(Option<&Children>, &ActiveDescendant), With<Container>>,
     refilled: Query<Entity, (With<Container>, Changed<Children>)>,
     // Losing the last child removes `Children` outright, so the container
     // an emptied list leaves behind matches no `Changed<Children>` filter.
     mut emptied: RemovedComponents<Children>,
     rows: Query<(), Row>,
+    mut commands: Commands,
 ) where
     Container: Component,
     Row: QueryFilter + 'static,
 {
     for container in refilled.iter().chain(emptied.read()) {
-        let Ok((children, mut active)) = containers.get_mut(container) else {
+        let Ok((children, active)) = containers.get(container) else {
             continue;
         };
         let Some(current) = active.0 else {
@@ -179,7 +184,7 @@ pub(crate) fn repair_active_descendants<Container, Row>(
         }
         let first =
             children.and_then(|kept| kept.iter().copied().find(|&child| rows.contains(child)));
-        active.set_if_neq(ActiveDescendant(first));
+        commands.entity(container).insert(ActiveDescendant(first));
     }
 }
 
@@ -246,12 +251,13 @@ pub(crate) fn cursor_symbol(over: Option<&Line<'static>>) -> Line<'static> {
 }
 
 /// What a container's copy takes, one row per line in child order: in a
-/// multi-select container every [`Checked`](plurimus_ui::Checked) row when
-/// any is, and otherwise the rows `fallback` keeps - the cursor's, or a
-/// whole column's worth. `rows` names each row beside whether it is
-/// checked, and `text` reads the one it is given.
+/// multi-select container every selected row when any is - a list's
+/// [`Selected`](plurimus_ui::Selected), a table's
+/// [`Checked`](plurimus_ui::Checked) - and otherwise the rows `fallback`
+/// keeps - the cursor's, or a whole column's worth. `rows` names each row
+/// beside whether it is selected, and `text` reads the one it is given.
 ///
-/// Single-select is left to the cursor because its one `Checked` row is
+/// Single-select is left to the cursor because its one selected row is
 /// whatever was last picked, which stays behind as the cursor moves on.
 /// [`Marked`] is not selection, so it has no say.
 pub(crate) fn copied_text(

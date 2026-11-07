@@ -10,8 +10,7 @@ use plurimus_ui::{
     ValueChange,
 };
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
-use plurimus_widgets::{WidgetsPlugin, scrollbar, text_editor};
+use plurimus_widgets::{ControlOrientation, WidgetsPlugin, scrollbar, text_editor};
 
 #[derive(Resource, Default)]
 struct OffsetChanges(Vec<Position>);
@@ -163,7 +162,7 @@ fn scrollbar_press_and_drag_seek_target() {
     let mut app = app();
     let target = scroll_entity(&mut app, Rect::new(0, 0, 10, 4), Size::new(10, 13), 0);
     app.world_mut().spawn((
-        scrollbar(target, ScrollbarOrientation::VerticalRight),
+        scrollbar(target, ControlOrientation::Vertical),
         UiArea::Fixed(Rect::new(10, 0, 1, 4)),
     ));
 

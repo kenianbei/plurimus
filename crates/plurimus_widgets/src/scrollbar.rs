@@ -16,6 +16,8 @@ use ratatui_widgets::scrollbar::{
     Scrollbar as ScrollbarWidget, ScrollbarOrientation, ScrollbarState,
 };
 
+use plurimus_ui::bevy_ui_widgets::ControlOrientation;
+
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
@@ -36,14 +38,15 @@ use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 pub struct Scrollbar {
     /// The scroll-area entity this bar controls.
     pub target: Entity,
-    /// The bar's axis and which edge its symbols face.
-    pub orientation: ScrollbarOrientation,
+    /// The bar's axis. Which edge it sits on is where the app places its
+    /// strip, the bar filling the area it is given.
+    pub orientation: ControlOrientation,
 }
 
 impl Scrollbar {
     /// A bar driving `target` along `orientation`'s axis.
     #[must_use]
-    pub const fn new(target: Entity, orientation: ScrollbarOrientation) -> Self {
+    pub const fn new(target: Entity, orientation: ControlOrientation) -> Self {
         Self {
             target,
             orientation,
@@ -53,7 +56,7 @@ impl Scrollbar {
 
 /// Spawn bundle for a scrollbar driving `target`.
 #[must_use]
-pub fn scrollbar(target: Entity, orientation: ScrollbarOrientation) -> impl Bundle {
+pub fn scrollbar(target: Entity, orientation: ControlOrientation) -> impl Bundle {
     (Scrollbar::new(target, orientation), UiWidget::default())
 }
 
@@ -139,7 +142,7 @@ fn seek(
         return;
     };
     let max = scroll.max_offset(target_area.0);
-    let sought = if bar.orientation.is_vertical() {
+    let sought = if bar.orientation == ControlOrientation::Vertical {
         Position::new(
             offset.0.x,
             track_value(track.y, track.height, pointer.y, max.y),
@@ -171,7 +174,7 @@ pub(crate) fn style_scrollbars(
             continue;
         };
         let shown = scroll.viewport(area.0);
-        let (position, content, viewport) = if bar.orientation.is_vertical() {
+        let (position, content, viewport) = if bar.orientation == ControlOrientation::Vertical {
             (offset.0.y, scroll.content_size.height, shown.height)
         } else {
             (offset.0.x, scroll.content_size.width, shown.width)
@@ -181,11 +184,19 @@ pub(crate) fn style_scrollbars(
             continue;
         }
         *widget = UiWidget::stateful(
-            ScrollbarWidget::new(bar.orientation.clone()).style(next.style(&theme)),
+            ScrollbarWidget::new(drawn_orientation(bar.orientation)).style(next.style(&theme)),
             ScrollbarState::new(usize::from(content))
                 .position(usize::from(position))
                 .viewport_content_length(usize::from(viewport)),
         );
+    }
+}
+
+// A bar's area is its own one-cell strip, so either edge of it is the bar.
+const fn drawn_orientation(orientation: ControlOrientation) -> ScrollbarOrientation {
+    match orientation {
+        ControlOrientation::Vertical => ScrollbarOrientation::VerticalRight,
+        ControlOrientation::Horizontal => ScrollbarOrientation::HorizontalBottom,
     }
 }
 

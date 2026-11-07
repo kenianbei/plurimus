@@ -123,16 +123,14 @@ fn slider_states() {
     insta::assert_snapshot!("slider_at_0", composed_styled_frame(&app));
 
     app.world_mut()
-        .get_mut::<plurimus_widgets::SliderValue>(track)
-        .unwrap()
-        .0 = 50.0;
+        .entity_mut(track)
+        .insert(plurimus_widgets::SliderValue(50.0));
     app.update();
     insta::assert_snapshot!("slider_at_50", composed_styled_frame(&app));
 
     app.world_mut()
-        .get_mut::<plurimus_widgets::SliderValue>(track)
-        .unwrap()
-        .0 = 100.0;
+        .entity_mut(track)
+        .insert(plurimus_widgets::SliderValue(100.0));
     set_focus(&mut app, track);
     app.update();
     insta::assert_snapshot!("slider_at_100_focused", composed_styled_frame(&app));

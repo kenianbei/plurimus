@@ -17,8 +17,8 @@ use plurimus::term::{InputCapabilities, KeyModifiers, PasteMessage, TerminalInpu
 use plurimus::ui::UiArea;
 use plurimus::ui::bevy_input_focus::FocusedInput;
 use plurimus::widgets::{
-    ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,
-    table_footer, table_header, table_row,
+    ActiveDescendant, TableSelection, WidgetsPlugin, button, table, table_footer, table_header,
+    table_row,
 };
 use plurimus_test::{character, press_key, send_focus, send_paste, set_focus, write_key};
 
@@ -107,32 +107,6 @@ fn a_focus_loss_releases_the_forwarded_key_in_the_same_frame() {
         !is_held(&app),
         "forwarding ran before the synthetic release was written, so bevy's \
          key state holds the key a frame longer than plurimus's own"
-    );
-}
-
-#[test]
-fn a_first_frame_page_moves_a_full_listbox_page() {
-    let mut app = app();
-    let world = app.world_mut();
-    let container = world.spawn((listbox(), UiArea::Fixed(AREA))).id();
-    let items: Vec<Entity> = (0..8)
-        .map(|index| {
-            world
-                .spawn((list_item(format!("item {index}")), ChildOf(container)))
-                .id()
-        })
-        .collect();
-    world
-        .entity_mut(container)
-        .insert(ActiveDescendant(Some(items[0])));
-    set_focus(&mut app, container);
-
-    press_key(&mut app, Key::PageDown);
-
-    assert_eq!(
-        active(&app, container),
-        Some(items[6]),
-        "six rows are visible on the first frame too, so a page is six rows"
     );
 }
 

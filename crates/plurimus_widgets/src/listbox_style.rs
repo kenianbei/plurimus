@@ -21,7 +21,7 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use ratatui_widgets::list::{List, ListItem as ListRow, ListState};
 
-use crate::listbox::{ListBox, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem};
+use crate::listbox::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe};
 use crate::rows::{
     ActiveDescendant, CURSOR_SYMBOL, ListItemText, ListItemTrailing, Marked, cursor_style,
     cursor_symbol,
@@ -29,7 +29,8 @@ use crate::rows::{
 use crate::rows::{ContentDirty, mark_cleared, mark_dirty_content};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
-use plurimus_ui::{Checked, ComputedWidgetArea, ScrollArea, UiStyle, UiTheme};
+use plurimus_ui::bevy_ui_widgets::{ListBox, ListItem};
+use plurimus_ui::{ComputedWidgetArea, ScrollArea, Selected, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, decorate, hashed_bits, observed};
 
 // `ListItem` catches a child that becomes a row without its label
@@ -40,7 +41,7 @@ type ListRowsChanged = Or<(
     Changed<ListItemText>,
     Changed<ListItemTrailing>,
     Changed<UiStyle>,
-    Changed<Checked>,
+    Changed<Selected>,
     Changed<Marked>,
 )>;
 
@@ -63,7 +64,7 @@ pub(crate) fn mark_list_content() -> ScheduleConfigs<ScheduleSystem> {
         mark_cleared::<ListBox, ListItemText>,
         mark_cleared::<ListBox, ListItemTrailing>,
         mark_cleared::<ListBox, UiStyle>,
-        mark_cleared::<ListBox, Checked>,
+        mark_cleared::<ListBox, Selected>,
         mark_cleared::<ListBox, Marked>,
     )
         .into_configs()
@@ -81,7 +82,7 @@ type RowItems<'w, 's> = Query<
     (
         &'static UiLabel,
         Option<&'static ListItemText>,
-        (Has<Checked>, Has<Marked>),
+        (Has<Selected>, Has<Marked>),
         Option<&'static ListItemTrailing>,
         Option<&'static UiStyle>,
     ),

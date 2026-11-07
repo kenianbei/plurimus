@@ -24,7 +24,7 @@ use bevy_picking::backend::{HitData, PointerHits};
 use bevy_picking::events::{Pointer, PointerCancel, PointerClick, PointerPress, PointerRelease};
 use bevy_picking::hover::PointerCaptureMap;
 use bevy_picking::pointer::{Location, PointerAction, PointerId, PointerInput, PointerLocation};
-use bevy_ui_widgets::{Button, Checkbox, RadioButton};
+use bevy_ui_widgets::{Button, Checkbox, MenuItem, RadioButton, Tab};
 use bevy_window::{Window, WindowFocused};
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_core::{
@@ -185,7 +185,7 @@ pub(crate) struct Picking<'w, 's> {
 
 impl Picking<'_, '_> {
     // A disabled opener cannot activate, so exempting it would leave the
-    // menu open with the press dead.
+    // overlay open with the press dead.
     fn outside(&self, at: Position) -> Option<PointerHits> {
         let toggle = self
             .toggles
@@ -274,8 +274,15 @@ fn layer(order: isize) -> f32 {
 
 /// The widgets `bevy_ui_widgets` observes: they press, release and click
 /// by bevy's hover map as a node does, so a release off one reaches what
-/// is under the pointer, and their [`Pressed`] is upstream's to insert.
-type Uncaptured = (Without<Button>, Without<Checkbox>, Without<RadioButton>);
+/// is under the pointer. Their [`Pressed`] is upstream's to insert where it
+/// has one - a tab has none.
+type Uncaptured = (
+    Without<Button>,
+    Without<Checkbox>,
+    Without<RadioButton>,
+    Without<MenuItem>,
+    Without<Tab>,
+);
 
 /// A press on a widget captures the pointer to it for the gesture, so a
 /// drag past its edge still ends on it, and marks it [`Pressed`]. A

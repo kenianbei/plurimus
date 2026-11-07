@@ -15,7 +15,7 @@ use plurimus_core::{
 };
 
 pub use bevy_picking::hover::Hovered;
-pub use bevy_ui::{Checked, InteractionDisabled, Pressed};
+pub use bevy_ui::{Checked, InteractionDisabled, Pressed, Selectable, Selected};
 pub use bevy_ui_widgets::{Activate, ValueChange};
 
 /// Present on every entity disabled by its own [`InteractionDisabled`] or

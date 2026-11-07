@@ -41,12 +41,23 @@ pub(crate) fn install(app: &mut App) {
     app.add_observer(navigate_on_arrows);
 }
 
+// A negative index is `bevy_input_focus`'s "focusable, but not a stop":
+// the tabs a roving strip is not resting on, which the map leaves out the
+// way Tab does.
 type FocusableQuery<'w, 's> = Query<
     'w,
     's,
-    (Entity, Ref<'static, ComputedWidgetArea>),
-    (With<TabIndex>, Without<ComputedDisabled>),
+    (
+        Entity,
+        Ref<'static, ComputedWidgetArea>,
+        Ref<'static, TabIndex>,
+    ),
+    Without<ComputedDisabled>,
 >;
+
+const fn is_stop(index: TabIndex) -> bool {
+    index.0 >= 0
+}
 
 const ALL_OCTANTS: [CompassOctant; 8] = [
     CompassOctant::North,
@@ -76,11 +87,13 @@ pub(crate) fn build_navigation_map(
     mut state: AutoEdgeState,
 ) {
     // Adds, removals, and filter flips all change the count; a same-count
-    // swap still marks the added area Changed.
+    // swap still marks the added area Changed, and a roving index its index.
     let count = focusables.iter().len();
     let is_stale = count != *state.previous_count
         || auto.is_changed()
-        || focusables.iter().any(|(_, area)| area.is_changed());
+        || focusables
+            .iter()
+            .any(|(_, area, index)| area.is_changed() || index.is_changed());
     if !is_stale {
         return;
     }
@@ -137,8 +150,8 @@ fn node_slots(nodes: &[FocusableArea]) -> impl Iterator<Item = (Entity, CompassO
 fn focusable_areas(focusables: &FocusableQuery) -> Vec<FocusableArea> {
     let mut rects: Vec<(Entity, Rect)> = focusables
         .iter()
-        .filter(|(_, area)| !area.0.is_empty())
-        .map(|(entity, area)| (entity, area.0))
+        .filter(|(_, area, index)| is_stop(**index) && !area.0.is_empty())
+        .map(|(entity, area, _)| (entity, area.0))
         .collect();
     rects.sort_by_key(|(entity, _)| *entity);
     rects

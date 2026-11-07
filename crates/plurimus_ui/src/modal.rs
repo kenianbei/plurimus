@@ -1,6 +1,6 @@
 //! Generic modal-overlay primitives the picking backend enforces.
 //!
-//! A modal overlay (a menu popup, a dialog) carries [`ModalOpen`] while it
+//! A modal overlay (a dialog, a palette) carries [`ModalOpen`] while it
 //! is showing, and the root's screen rect is the geometry a press and a
 //! wheel tick are both hit-tested against. A pointer outside every open
 //! modal reaches only the barrier, whose press or tick dismisses them; a

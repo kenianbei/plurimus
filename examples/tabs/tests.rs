@@ -10,15 +10,23 @@ fn headless_app() -> App {
     app.add_plugins(CorePlugin);
     app.insert_resource(TEST_SIZE);
     add_demo(&mut app);
+    // Upstream mirrors each bar's selection onto its tab in `PostUpdate`,
+    // which the frame after draws.
+    app.update();
     app.update();
     app
 }
 
+// Focus sits on a tab, so a bar holds it while one of its tabs does.
 fn focused_is<M: Component>(app: &mut App) -> bool {
     let focused = app.world().resource::<InputFocus>().get();
     let world = app.world_mut();
     let mut bars = world.query_filtered::<Entity, With<M>>();
-    bars.single(world).ok() == focused
+    let bar = bars.single(world).ok();
+    let parent = focused
+        .and_then(|tab| world.get::<ChildOf>(tab))
+        .map(ChildOf::parent);
+    bar.is_some() && parent == bar
 }
 
 fn line(frame: &str, row: usize) -> String {

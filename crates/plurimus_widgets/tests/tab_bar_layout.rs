@@ -7,7 +7,7 @@ use bevy_ecs::prelude::ChildOf;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, Hidden, Propagate, TerminalCamera, TerminalSize, UiOrder};
 use plurimus_ui::{ComputedWidgetArea, UiArea, UiLabel};
-use plurimus_widgets::{TabBarLook, TabBarOrientation, WidgetsPlugin, tab_bar, tab_item};
+use plurimus_widgets::{ControlOrientation, TabBarLook, TabList, WidgetsPlugin, tab_bar, tab_item};
 
 fn app() -> App {
     let mut app = App::new();
@@ -129,12 +129,16 @@ fn a_hidden_bar_places_its_items_nowhere() {
 #[test]
 fn vertical_items_stack_at_the_bar_width() {
     let mut app = app();
-    let (_, items) = spawn_bar(
+    let (bar, items) = spawn_bar(
         &mut app,
         Rect::new(1, 1, 12, 4),
-        TabBarLook::default().with_orientation(TabBarOrientation::Vertical),
+        TabBarLook::default(),
         &["Diary", "Plan"],
     );
+    app.world_mut().entity_mut(bar).insert(TabList {
+        orientation: ControlOrientation::Vertical,
+        ..TabList::default()
+    });
     app.update();
 
     assert_eq!(computed(&app, items[0]), Rect::new(1, 1, 12, 1));

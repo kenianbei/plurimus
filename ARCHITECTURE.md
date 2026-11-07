@@ -155,8 +155,8 @@ rule the sink applies to what it writes: a press or a release ends the frame's
 batch for pointer input, and what follows waits in `Last` to land for the whole
 of the next frame, because bevy hit-tests once a frame at the pointer's final
 position and sends a click against that frame's maps - so a release lands at its
-own cell against the state the press left, the menu a release opened or the
-widget a press captured. Keys and focus flow. `TermPlugin` installs bevy's
+own cell against the state the press left, the menu a press opened or the widget
+a press captured. Keys and focus flow. `TermPlugin` installs bevy's
 `InputPlugin` and `TimePlugin` where the app has not, spawns the virtual window
 where the app opened none, and requires `CorePlugin` first, since applying a
 resize writes core's `TerminalSize`.
@@ -284,109 +284,111 @@ state the press left. A press on a widget captures the pointer to it through
 `PointerCaptureMap`, so its drag and release reach it wherever the pointer goes,
 and marks it `Pressed` - all but the widgets `bevy_ui_widgets`' own observers
 drive, which `UiPlugin` installs (every fontless plugin, and the `UiScale` three
-of them read): a `Button`, `Checkbox` or `RadioButton` presses, releases and
-clicks by bevy's hover map, as a node does, so a release off one lands off it.
-`click_cell` is how a widget tells a click that ended on it from one that did
-not, and `pointer_cell` reads the cell under any pointer event, both from the
-event's live position rather than its hit, which under capture is the press's.
-What a press may do is a two-marker vocabulary beside bevy's `Pickable`: an
-`InteractionDisabled` widget is inert rather than invisible - it is still a hit,
-so it blocks what is beneath, but no gesture starts on it and its press goes no
-higher - while wheel ticks still fall through it, consuming being the wheel
-router's own opt-in; `Pickable::IGNORE` is transparency, the widget keeping its
-area for nothing the pointer does; and `PressFocusDisabled` suppresses only the
-focus a press would move, so a toolbar control is tab-reachable without a click
-on it taking the keyboard. Disabled reaches a widget's descendants as hidden
-does, through `ComputedDisabled`, resolved in `Areas` and read on every input
-path and by the stylists alike, so a disabled container is inert inside rather
-than merely drawn so; the same pass writes `InteractionDisabled` onto what it
-reaches, since upstream's observers read the entity's own flag alone, and takes
-back only what it wrote. Focus otherwise follows a press to the first `TabIndex`
-carrier at or above what it lands on - a part of a widget focuses the widget -
-stopping at `PressFocusDisabled`, whose promise covers what is inside it but an
-upstream `Checkbox`, whose own press handler focuses it and is ordered after
-nothing, and at an open overlay's root, whose opener lies outside it; a walk
-that finds none, or a press on nothing, which window picking reports as a press
-on the window, clears focus as it does on a desktop. Click counts are bevy's,
-per widget on the wall clock within `PickingSettings::multi_click_interval`, so
-a second press anywhere on the same widget runs with the first and a press on
-another widget starts over. What bevy's pointer events do not carry is
-`plurimus_term`'s `PointerModifiers`, the modifiers the terminal reported with
-the frame's button press, which a widget reads beside the event. A focus loss
-cancels the captured gesture: this crate writes the `PointerInput::Cancel` bevy
-raises for no mouse, at the cell the pointer last reached, and since the hover
-map is emptied for a cancelled pointer before its events run - so bevy's own
-cancel reaches nothing, and one landing with a press would swallow the press -
-it sends the `PointerCancel` to the captured widget itself, or with nothing
-captured to every pressed widget, clearing its `Pressed`, and holds a cancel
-that shares a frame with a press or a release back to the frame's end, where it
-lands ahead of what the press held back. It installs focus via
-`bevy_input_focus` and pins the dispatch into that sequence - after
-`bevy_input`'s own update and between `Areas` and `PickingSystems::Hover` - so a
-focused-input observer reads this frame's areas and settled key state rather
-than whatever the schedule happened to resolve; work that must see what one did
-is ordered after the dispatch, which is what `plurimus_widgets` does with
-`WidgetSystems::Layout`, itself before the backend so the rows and items it
-places are hit-tested in the frame they move. It also builds the directional
-navigation map, and provides scrolling (`ScrollArea`, `ScrollOffset`,
-`ScrollIntoView`) with cached extraction of scrolled content, plus the generic
-modal-overlay primitives (`ModalOpen`, `ModalDismiss`) that menus and popovers
-are built from. What "inside a modal" means is the overlay's own rect, for the
-pointer and the wheel alike: a position an open overlay covers admits that
-overlay's subtree and nothing else, so an overlay confines input rather than
-depending on every child of it being marked, and outside every open overlay the
-one thing picked is a barrier entity above everything, whose press dismisses
-them and beneath which nothing is reached - nodes included, since the barrier
-blocks bevy_ui's picks as a widget does. A press on a `ModalityToggle` is where
-geometry cannot answer, since an opener sits outside the menu it closes: an
-enabled toggle is picked in the barrier's place and dismisses only the overlays
-it does not own, those rooted beneath it, so a menu button closes its own menu
-by toggling it and switches away from a neighbour's. Taking the union of the
-overlays covering a position is what admits a submenu inside its parent without
-ordering modal roots against each other. Every scroll converges on one event: a
-wheel tick, routed by this crate from the frame's `PointerInput` at its own
-cell, arbitrated by z-order among the `WheelReceptive` widgets under it that an
-open overlay admits and that can still use that axis - a `ScrollArea` measured
-against its content at the tick, any other receptive widget taken at its word -
-with a tick outside every open overlay dismissing them instead, becomes a
-`ScrollBy`, which whoever stores the scroll consumes - this crate's
-`ScrollOffset`, a bevy_ui node's own position, a text editor's engine viewport -
-each clamping the step against its own extent; an app's own key handler sends
-the same event. `WheelReceptive` requires `Hovered`, which is what makes a
-widget a pick, so a tick over it never also reaches a node it is drawn over. The
-`(KeyBinding, Action)` bindings components share `first_bound`, the scan this
-crate owns so a widget family written elsewhere states "first match wins" by
-calling it rather than by copying it - seven of them across the workspace, one
-per widget whose keys are its own. Those that move something - a list box, a
-table, a tab bar, a slider - consume a bound key only when it changes something,
-so an arrow pressed at an edge falls through to directional navigation, which
-ignores repeats so that a held key stops there instead. A `KeyBinding` is a
-`Key` and the `KeyModifiers` it must be pressed under, and `KeyBinding::matches`
-is the one rule: every modifier but shift exactly, and shift exactly for a named
-key but only when asked for on a character, since a shifted symbol carries the
-bit on some terminals and not others. The modifiers it is checked against are
-polled through `plurimus_term`'s `HeldModifiers`, bevy's `KeyboardInput`
-carrying none of its own. `content_cell` is where a pointer cell becomes a
-content cell for any of it, clamping into the area so a captured drag past an
-edge keeps addressing the nearest one; `screen_cell` is the way back, refusing
-rather than clamping, and it is what places the focused widget's `WidgetCursor`
-on the terminal - a cursor whose cell is `None` names none, which is how a
-widget with nowhere to put its caret says so without discarding the shape an app
-gave it. Both take the scroll offset as the `ScrollOffset` a widget may or may
-not carry, because a widget carrying none is scrolled to the origin and that is
-the crate's rule to state rather than every caller's to know; scroll state kept
-anywhere else is put in one to ask.
+of them read): a `Button`, `Checkbox`, `RadioButton`, `Tab` or `MenuItem`
+presses, releases and clicks by bevy's hover map, as a node does, so a release
+off one lands off it. `click_cell` is how a widget tells a click that ended on
+it from one that did not, and `pointer_cell` reads the cell under any pointer
+event, both from the event's live position rather than its hit, which under
+capture is the press's. What a press may do is a two-marker vocabulary beside
+bevy's `Pickable`: an `InteractionDisabled` widget is inert rather than
+invisible - it is still a hit, so it blocks what is beneath, but no gesture
+starts on it and its press goes no higher - while wheel ticks still fall through
+it, consuming being the wheel router's own opt-in; `Pickable::IGNORE` is
+transparency, the widget keeping its area for nothing the pointer does; and
+`PressFocusDisabled` suppresses only the focus a press would move, so a toolbar
+control is tab-reachable without a click on it taking the keyboard. Disabled
+reaches a widget's descendants as hidden does, through `ComputedDisabled`,
+resolved in `Areas` and read on every input path and by the stylists alike, so a
+disabled container is inert inside rather than merely drawn so; the same pass
+writes `InteractionDisabled` onto what it reaches, since upstream's observers
+read the entity's own flag alone, and takes back only what it wrote. Focus
+otherwise follows a press to the first `TabIndex` carrier at or above what it
+lands on - a part of a widget focuses the widget - stopping at
+`PressFocusDisabled`, whose promise covers what is inside it but an upstream
+`Checkbox`, whose own press handler focuses it and is ordered after nothing, and
+at an open overlay's root, whose opener lies outside it; a walk that finds none,
+or a press on nothing, which window picking reports as a press on the window,
+clears focus as it does on a desktop. Click counts are bevy's, per widget on the
+wall clock within `PickingSettings::multi_click_interval`, so a second press
+anywhere on the same widget runs with the first and a press on another widget
+starts over. What bevy's pointer events do not carry is `plurimus_term`'s
+`PointerModifiers`, the modifiers the terminal reported with the frame's button
+press, which a widget reads beside the event. A focus loss cancels the captured
+gesture: this crate writes the `PointerInput::Cancel` bevy raises for no mouse,
+at the cell the pointer last reached, and since the hover map is emptied for a
+cancelled pointer before its events run - so bevy's own cancel reaches nothing,
+and one landing with a press would swallow the press - it sends the
+`PointerCancel` to the captured widget itself, or with nothing captured to every
+pressed widget, clearing its `Pressed`, and holds a cancel that shares a frame
+with a press or a release back to the frame's end, where it lands ahead of what
+the press held back. It installs focus via `bevy_input_focus` and pins the
+dispatch into that sequence - after `bevy_input`'s own update and between
+`Areas` and `PickingSystems::Hover` - so a focused-input observer reads this
+frame's areas and settled key state rather than whatever the schedule happened
+to resolve; work that must see what one did is ordered after the dispatch, which
+is what `plurimus_widgets` does with `WidgetSystems::Layout`, itself before the
+backend so the rows and items it places are hit-tested in the frame they move.
+It also builds the directional navigation map from the widget areas of every
+non-negative `TabIndex`, so a roving strip is one arrow target, as it is one Tab
+stop, and provides scrolling (`ScrollArea`, `ScrollOffset`, `ScrollIntoView`)
+with cached extraction of scrolled content, plus the generic modal-overlay
+primitives (`ModalOpen`, `ModalDismiss`) an app builds its own overlays from.
+What "inside a modal" means is the overlay's own rect, for the pointer and the
+wheel alike: a position an open overlay covers admits that overlay's subtree and
+nothing else, so an overlay confines input rather than depending on every child
+of it being marked, and outside every open overlay the one thing picked is a
+barrier entity above everything, whose press dismisses them and beneath which
+nothing is reached - nodes included, since the barrier blocks bevy_ui's picks as
+a widget does. A press on a `ModalityToggle` is where geometry cannot answer,
+since an opener sits outside the overlay it closes: an enabled toggle is picked
+in the barrier's place and dismisses only the overlays it does not own, those
+rooted beneath it, so an opener closes its own overlay by toggling it and
+switches away from a neighbour's. Taking the union of the overlays covering a
+position is what admits a submenu inside its parent without ordering modal roots
+against each other. Every scroll converges on one event: a wheel tick, routed by
+this crate from the frame's `PointerInput` at its own cell, arbitrated by
+z-order among the `WheelReceptive` widgets under it that an open overlay admits
+and that can still use that axis - a `ScrollArea` measured against its content
+at the tick, any other receptive widget taken at its word - with a tick outside
+every open overlay dismissing them instead, becomes a `ScrollBy`, which whoever
+stores the scroll consumes - this crate's `ScrollOffset`, a bevy_ui node's own
+position, a text editor's engine viewport - each clamping the step against its
+own extent; an app's own key handler sends the same event. `WheelReceptive`
+requires `Hovered`, which is what makes a widget a pick, so a tick over it never
+also reaches a node it is drawn over. The `(KeyBinding, Action)` bindings
+components share `first_bound`, the scan this crate owns so a widget family
+written elsewhere states "first match wins" by calling it rather than by copying
+it - the table's and the two text widgets', the widgets upstream has no
+counterpart for, and a list's one copy key. The table consumes a motion key only
+when it changes something, so an arrow pressed at an edge falls through to
+directional navigation, which ignores repeats so that a held key stops there
+instead; upstream's slider, list and tab bar consume every key they bind. A
+`KeyBinding` is a `Key` and the `KeyModifiers` it must be pressed under, and
+`KeyBinding::matches` is the one rule: every modifier but shift exactly, and
+shift exactly for a named key but only when asked for on a character, since a
+shifted symbol carries the bit on some terminals and not others. The modifiers
+it is checked against are polled through `plurimus_term`'s `HeldModifiers`,
+bevy's `KeyboardInput` carrying none of its own. `content_cell` is where a
+pointer cell becomes a content cell for any of it, clamping into the area so a
+captured drag past an edge keeps addressing the nearest one; `screen_cell` is
+the way back, refusing rather than clamping, and it is what places the focused
+widget's `WidgetCursor` on the terminal - a cursor whose cell is `None` names
+none, which is how a widget with nowhere to put its caret says so without
+discarding the shape an app gave it. Both take the scroll offset as the
+`ScrollOffset` a widget may or may not carry, because a widget carrying none is
+scrolled to the origin and that is the crate's rule to state rather than every
+caller's to know; scroll state kept anywhere else is put in one to ask.
 
 The interaction vocabulary itself is bevy's: `Hovered` is `bevy_picking`'s,
-`Pressed`, `Checked` and `InteractionDisabled` are `bevy_ui`'s, and `Activate`
-and `ValueChange` are `bevy_ui_widgets`'s, re-exported rather than mirrored, so
-a widget on a node and a widget at a cell rect report the same state in the same
-type and an app's skin reads one. The events are bevy's too - `PointerPress`,
-`PointerDrag`, `PointerRelease`, `PointerClick`, `PointerCancel` - reached
-through this crate's `bevy_picking` re-export, and `Hovered` has bevy's one
-writer: true on the topmost widget under the pointer and its ancestors, a
-disabled widget included while it blocks, which the stylists resolve beneath
-disabled.
+`Pressed`, `Checked`, `Selected` and `InteractionDisabled` are `bevy_ui`'s, and
+`Activate` and `ValueChange` are `bevy_ui_widgets`'s, re-exported rather than
+mirrored, so a widget on a node and a widget at a cell rect report the same
+state in the same type and an app's skin reads one. The events are bevy's too -
+`PointerPress`, `PointerDrag`, `PointerRelease`, `PointerClick`,
+`PointerCancel` - reached through this crate's `bevy_picking` re-export, and
+`Hovered` has bevy's one writer: true on the topmost widget under the pointer
+and its ancestors, a disabled widget included while it blocks, which the
+stylists resolve beneath disabled.
 
 It also owns the styling contract entire, so a widget library reaches it without
 depending on another widget library. `UiPlugin` initializes the `UiTheme`
@@ -417,21 +419,21 @@ The widget library, mirroring bevy_ui_widgets where upstream has a counterpart:
 its component vocabulary and event contract over terminal-native engines.
 Buttons, checkboxes, radio groups, sliders, scrollbars, list boxes, tab bars,
 panes, menus, popovers, a single-line `EditableText`, and a multi-line
-`TextEditor` built on ratatui-textarea; `Table` and `TabBar` are past the parity
-list, upstream having neither to mirror. The two text widgets, the list box and
-the table are the ones that talk to the clipboard: the text widgets' copy and
-cut and the list box's and table's copy offer the text to the terminal, and the
-text widgets' paste inserts `plurimus_term`'s `LastCopied`, read at the press,
-so a copy anywhere is a paste in either text widget. The editor's copy and cut
-fill its engine's own kill ring as well, which only its separate yank reads,
-beside what a line or word deletion puts there; a masked field copies nothing.
-The single-line field is the one whose engine is published instead: `TextInput`
-owns its value, a cursor resting on grapheme-cluster boundaries and the
-selection's other end, and `TextInput::handle` and `TextInput::paste` apply a
-key or pasted text to it, so a host routing its own keys drives a field it never
-focuses rather than rewriting the cluster stepping that is the hard part. What
-the stock observers add around those two calls is dispatch and policy, which is
-why the core leaves Enter and the clipboard's keys untaken, the field having no
+`TextEditor` built on ratatui-textarea; `Table` is past the parity list,
+upstream having none to mirror. The two text widgets, the list box and the table
+are the ones that talk to the clipboard: the text widgets' copy and cut and the
+list box's and table's copy offer the text to the terminal, and the text
+widgets' paste inserts `plurimus_term`'s `LastCopied`, read at the press, so a
+copy anywhere is a paste in either text widget. The editor's copy and cut fill
+its engine's own kill ring as well, which only its separate yank reads, beside
+what a line or word deletion puts there; a masked field copies nothing. The
+single-line field is the one whose engine is published instead: `TextInput` owns
+its value, a cursor resting on grapheme-cluster boundaries and the selection's
+other end, and `TextInput::handle` and `TextInput::paste` apply a key or pasted
+text to it, so a host routing its own keys drives a field it never focuses
+rather than rewriting the cluster stepping that is the hard part. What the stock
+observers add around those two calls is dispatch and policy, which is why the
+core leaves Enter and the clipboard's keys untaken, the field having no
 clipboard to reach. Enter's press emits the final `ValueChange` and a `Submit`
 carrying the value, a repeat emits neither since one intent commits once, and
 focus loss still emits that final `ValueChange` alone - which is the whole of
@@ -443,20 +445,28 @@ bar by default, since a block inverting its cell cancels the reversed one drawn
 beneath it; an app taking the field's look with `StylistDisabled` takes that
 cell with it. Most widgets are stateless controllers emitting entity events
 (`Activate`, `ValueChange`); apps apply them, or attach the stock
-`*_self_update` observers for uncontrolled behavior. The button, the checkbox
-and the radio group are `bevy_ui_widgets`' own types, driven by upstream's
-observers, so a cell widget and a node activate by one rule: a click ending on
-it, or a fresh Enter or space by physical key, unmodified and unremappable,
-while it holds focus. What is the crate's is the constructor and the stylist -
-the bundles carry the `Hovered` and `StylistCache` upstream's markers do not
-require. The radio group is upstream's model too: the group is the tab stop and
-the addressable value, a press on an option focuses it, its arrows move the
-check and wrap, and the checked option is drawn focused while the group holds
-it; `radio_group()` carries a widget drawing nothing so directional navigation
-reaches the group, at the `UiArea` its app gives it. A menu binds its own Enter
-and space through `MenuKeys`, which sits on the popup rather than on every row
-of it: one table per menu, independent of a button's keys deliberately, since a
-menu's Enter is not a form's.
+`*_self_update` observers for uncontrolled behavior. The button, checkbox, radio
+group, slider, list box, tab bar and menu are `bevy_ui_widgets`' own types,
+driven by upstream's observers and following its models, so a cell widget and a
+node answer one rule: a click ending on it, or upstream's keys by physical key,
+unmodified and unremappable, while it holds focus. What is the crate's is the
+constructor, the stylist, the placement, and the pointer routing a cell rect
+needs where upstream's measures a node - the slider's seek and scrub, and the
+row a list's press, drag and click land on, which a click hands upstream through
+`SetSelected`. The bundles carry the `Hovered` and `StylistCache` upstream's
+markers do not require. The radio group is upstream's model too: the group is
+the tab stop and the addressable value, a press on an option focuses it, its
+arrows move the check and wrap, and the checked option is drawn focused while
+the group holds it; `radio_group()` carries a widget drawing nothing so
+directional navigation reaches the group, at the `UiArea` its app gives it. A
+menu is upstream's model whole: its button asks for the popup through a bubbling
+`MenuEvent`, the open popup takes focus onto its first or last item, and it
+closes when focus leaves it, so a press outside closes the menu and still acts
+on what it hit. Upstream leaves answering that event to the app; this crate
+answers it for a popup holding its `Popover`, showing and hiding it through
+`Propagate<Hidden>`, and leaves a menu of nodes to its own app. The popup is a
+pick that stops the focus walk and takes wheel ticks, so a press on its frame
+keeps focus inside and a tick over it scrolls nothing beneath.
 
 A `Popover` is placed against its anchor's resolved area every frame, so it
 follows a moving anchor without being told, and a press or a click inside it
@@ -483,38 +493,34 @@ why `PopoverSide` has four variants and not five: a box drawn _inside_ its
 anchor has no side to mirror and no edge to align to, and is a child holding a
 `UiArea::Fixed` placed through `local_area`.
 
-A `TabBar` is a strip of `TabItem` children and the one tab stop among them: the
-bar carries the `TabIndex` and the `TabBarKeys`, and the items are placed by it,
-one rect each along its axis in child order, written to their `UiArea` and
-`ComputedWidgetArea` in `WidgetSystems::Layout` the way menu rows are, with an
-`UiOrder` one above the bar's so a label is never under the chrome. That pass
-runs only when the bar's area, look, children or order changed or a label did,
-and a hidden bar's area is already zero, which places its items nowhere. The
-active item is the child carrying `Checked`, exactly as a radio group's selected
-option is, and there is no cursor: a key steps straight to the next enabled
-item, stopping at the ends, where the key propagates, and every activation - a
-key, a `Select(index)` over the enabled items, or a click ending on an item - is
-one `ValueChange<Entity>` on the bar, which `tab_bar_self_update` answers by
-moving `Checked` among the items as upstream's `radio_self_update` does among a
-group's options. A `Select` past the last item and a key on a disabled bar
-propagate; a disabled item is stepped over and drawn disabled, as every item of
-a disabled bar is. An item has no `TabIndex`, so a press on one focuses the bar,
-the nearest ancestor that does; `PressFocusDisabled` on the bar keeps it.
-`TabBarLook` is composable fields rather than variants - `orientation`,
-`border`, `divider`, `padding`, `joined` - and `thickness()` is one cell or
-three. The bar draws chrome and each item draws itself: the bar's stylist fills
-its area, draws the divider in each gap and, when `joined` names an edge across
-the bar's axis in a border that has a `line::Set`, a baseline along that edge;
-it redraws on `ContentDirty`, marked by `mark_dirty_content` when an item's
-rect, the children or the look change. An item's stylist reads the parent's look
-and active style and hashes the bar's focus into its cache, since an item never
-holds focus itself, and resolves the active item as focused while the bar is,
-patching `TabBarActiveStyle` over the theme and beneath the item's own
-`UiStyle`, frame and label alike. A boxed item is a `Block` with ratatui's
-padding; on a joined look the active box clears its joined edge and turns its
-two corners outward while every closed box tees its corners into the baseline,
-glyphs taken from the `line::Set` matching the `BorderType`, which is why the
-quadrant borders draw closed.
+A `TabBar` is a marker requiring upstream's `TabList`, whose `Tab` children are
+the tab stops: one rests on a roving `TabIndex`, the arrows along the bar move
+focus among them and wrap, Enter or space selects under the default `Manual`
+activation and moving focus does under `Automatic`, and the selection is the
+list's `SelectedTab`, mirrored onto its tabs as `Selected` in `PostUpdate`, and
+changed only by a `ValueChange<Option<Entity>>` on the list that
+`tablist_self_update` applies. What is the crate's is placement and drawing. The
+tabs are placed by the bar, one rect each along `TabList::orientation` in child
+order, written to their `UiArea` and `ComputedWidgetArea` in
+`WidgetSystems::Layout` the way menu rows are, with an `UiOrder` one above the
+bar's so a label is never under the chrome; that pass runs only when the bar's
+area, look, list, children or order changed or a label did, and a hidden bar's
+area is already zero, which places its tabs nowhere. Being placed, a tab is
+picked, so upstream's own click observer finds it under a click. `TabBarLook` is
+composable fields rather than variants - `border`, `divider`, `padding`,
+`joined` - and `thickness()` is one cell or three. The bar draws chrome and each
+tab draws itself: the bar's stylist fills its area, resolved focused while focus
+is within it, draws the divider in each gap and, when `joined` names an edge
+across the bar's axis in a border that has a `line::Set`, a baseline along that
+edge; it redraws on `ContentDirty`, marked by `mark_dirty_content` when a tab's
+rect, the children, the look or the list change. A tab's stylist reads the
+parent's look and active style, resolves focused when the tab holds focus, and
+patches `TabBarActiveStyle` over the selected tab, beneath its own `UiStyle`,
+frame and label alike. A boxed tab is a `Block` with ratatui's padding; on a
+joined look the selected box clears its joined edge and turns its two corners
+outward while every closed box tees its corners into the baseline, glyphs taken
+from the `line::Set` matching the `BorderType`, which is why the quadrant
+borders draw closed.
 
 A stylist rebuilds a widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the
 state it last drew differs from the current one, or when its label changed, not
@@ -549,26 +555,30 @@ every row to find out, which is what keeps a settled list of any length free on
 an idle frame. A row is one terminal row tall unless it carries `ListItemText`,
 which only a list box draws: that row is as tall as its text has lines, and the
 extent, the row a click lands in, and the reveal that keeps the cursor visible
-all measure by height rather than by count. A row's marker gutter lights for
-`Checked` or for `Marked`, two channels because `Checked` is the selection the
-stock updater writes and an app marking a row for a reason of its own must not
-have that redefined under it; `ListItemTrailing` is right-aligned by the list
-against a width only the list has, a row being built before the box is placed.
-Both containers band their rows the same way - `ListBoxStripe`, `TableStripe` -
-patched over every second row counting in child order, so stripes do not crawl
-on scroll and a multi-line row counts once, beneath the row's own `UiStyle` and
-the cursor's highlight; the two stylists share the rule and not a type, their
-rows resolving in different shapes. Both copy by one rule too: the cursor row,
-or every `Checked` row of a multi-select container - a single-select container's
-one checked row is its last pick, left behind as the cursor moves on, and
+all measure by height rather than by count. A list row's marker gutter lights
+for `Selected` or for `Marked`, two channels because `Selected` is the selection
+the stock updater writes and an app marking a row for a reason of its own must
+not have that redefined under it; `ListItemTrailing` is right-aligned by the
+list against a width only the list has, a row being built before the box is
+placed. Both containers band their rows the same way - `ListBoxStripe`,
+`TableStripe` - patched over every second row counting in child order, so
+stripes do not crawl on scroll and a multi-line row counts once, beneath the
+row's own `UiStyle` and the cursor's highlight; the two stylists share the rule
+and not a type, their rows resolving in different shapes. Both copy by one rule
+too: the cursor row, or every selected row of a multi-select container - a
+list's `Selected`, a table's `Checked` - a single-select container's one
+selected row being its last pick, left behind as the cursor moves on, and
 `Marked` is not selection. Whichever container holds the cursor, the row it
 names is styled as focused even when focus sits elsewhere - being driven is what
 `ActiveDescendant` is for, and a cursor nobody can see is that pattern
-contradicting itself. For a list box the driver's door is `ListBoxAccess`: a
-motion applied to a list that holds no focus, answering whether the cursor moved
-so the key it came from goes on when it did not. Both containers also take their
-movement and copy keys from a component of `(KeyBinding, Action)` bindings -
-`ListBoxKeys`, `TableKeys` - which is how an app remaps a list to vim keys,
+contradicting itself. The cursor is upstream's `ActiveDescendant`, immutable, so
+every writer inserts it and only when it moves, an unchanged insert counting as
+a change that reveals the row again; a list's is cleared when it loses focus and
+restored to its selected row when it gains it, as upstream's focus rule has it,
+so a list is driven from elsewhere by inserting the cursor it should show. A
+list's keys are upstream's, with copy on a fixed Ctrl+c beside them; the table
+takes its movement and copy keys from `TableKeys`, a component of
+`(KeyBinding, Action)` bindings, which is how an app remaps it to vim keys,
 `Ctrl+D` included, without reimplementing movement beside the widget. Only the
 bindings are the crate's: the scan itself is `plurimus_ui`'s `first_bound`.
 Every widget here whose keys are its own takes them that way. The two text

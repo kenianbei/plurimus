@@ -14,10 +14,10 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{
     composed_frame, composed_styled_frame, press_key, set_focus, widget_content, write_key,
 };
-use plurimus_ui::{Checked, InteractionDisabled, UiArea, UiLabel, UiStyle, UiTheme};
+use plurimus_ui::{InteractionDisabled, Selected, UiArea, UiLabel, UiStyle, UiTheme};
 use plurimus_widgets::{
     ActiveDescendant, ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, ListItem, ListItemText,
-    ListItemTrailing, WidgetsPlugin, list_item, listbox, listbox_self_update,
+    ListItemTrailing, WidgetsPlugin, list_item, listbox, listbox_update_selection,
 };
 
 const TINT: Color = Color::Indexed(236);
@@ -244,6 +244,8 @@ fn rebuilds_after_setup(
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
     setup(&mut app, container, items);
+    // Focus gives the list its cursor in `PostUpdate`, drawn a frame later.
+    app.update();
     app.update();
     let before = widget_content(&app, container);
 
@@ -291,9 +293,9 @@ fn a_row_edit_reaches_the_stylist() {
     );
     assert!(
         rebuilds_after(|app, _, items| {
-            app.world_mut().entity_mut(items[0]).insert(Checked);
+            app.world_mut().entity_mut(items[0]).insert(Selected);
         }),
-        "a row being checked"
+        "a row being selected"
     );
     // The child is already there and already labelled, so `Children` and
     // `UiLabel` both stay quiet; only `ListItem` itself reports it.
@@ -315,8 +317,8 @@ fn a_row_edit_reaches_the_stylist() {
 #[test]
 fn a_removed_row_component_reaches_the_stylist() {
     assert!(
-        rebuilds_after_removing(Checked),
-        "a row unchecked in place, the cursor never moving"
+        rebuilds_after_removing(Selected),
+        "a row deselected in place, the cursor never moving"
     );
     assert!(
         rebuilds_after_removing(UiStyle(Style::new().fg(Color::Green))),
@@ -428,7 +430,7 @@ fn an_idle_frame_rebuilds_nothing() {
 #[test]
 fn a_key_driven_selection_paints_in_the_frame_it_happens() {
     let mut app = app();
-    app.add_observer(listbox_self_update);
+    app.add_observer(listbox_update_selection);
     let (container, _) = spawn_listbox(&mut app);
     app.world_mut()
         .entity_mut(container)
@@ -447,13 +449,13 @@ fn a_key_driven_selection_paints_in_the_frame_it_happens() {
         composed_frame(&app),
         "the check mark is painted by the frame the key landed in, not one later"
     );
-    assert!(landed.contains('▪'), "the row is checked at all: {landed}");
+    assert!(landed.contains('▪'), "the row is selected at all: {landed}");
 }
 
 #[test]
 fn listbox_renders_rows_and_highlight() {
     let mut app = app();
-    app.add_observer(listbox_self_update);
+    app.add_observer(listbox_update_selection);
     let (_, _) = spawn_listbox(&mut app);
 
     press_key(&mut app, Key::ArrowDown);
@@ -481,7 +483,7 @@ fn a_tall_rows_continuation_lines_keep_the_gutter_width() {
         .spawn((
             list_item("head"),
             ListItemText(Text::from(vec![Line::from("head"), Line::from("tail")])),
-            Checked,
+            Selected,
             ChildOf(container),
         ))
         .id();

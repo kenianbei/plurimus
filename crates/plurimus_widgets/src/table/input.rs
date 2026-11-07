@@ -1,7 +1,7 @@
 //! Table interaction: keys through the app's own map, clicks through the
 //! column layout that [`geometry`](super::geometry) resolves.
 
-use bevy_ecs::change_detection::{DetectChangesMut, Mut};
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Changed, Commands, On, Query, Res, With, Without};
@@ -18,7 +18,7 @@ use super::{
     ActiveColumn, Table, TableAction, TableColumns, TableHeaderClick, TableKeys, TablePosition,
     TableSelection, cursor_gutter,
 };
-use crate::rows::ActiveDescendant;
+use crate::rows::{ActiveDescendant, point_cursor};
 use plurimus_core::CellSize;
 use plurimus_ui::bevy_picking::events::PointerClick;
 use plurimus_ui::{
@@ -32,7 +32,7 @@ type Navigable<'a> = (
     &'a TableSelection,
     &'a TableKeys,
     &'a ComputedWidgetArea,
-    &'a mut ActiveDescendant,
+    &'a ActiveDescendant,
     &'a mut ActiveColumn,
 );
 
@@ -41,7 +41,7 @@ type Clickable<'a> = (
     &'a TableColumns,
     &'a TableSelection,
     Placement<'a>,
-    &'a mut ActiveDescendant,
+    &'a ActiveDescendant,
     &'a mut ActiveColumn,
 );
 
@@ -55,8 +55,7 @@ pub(crate) fn table_key(
     mut commands: Commands,
 ) {
     let table = input.focused_entity;
-    let Ok((children, columns, selection, keys, area, mut active, mut column)) =
-        tables.get_mut(table)
+    let Ok((children, columns, selection, keys, area, active, mut column)) = tables.get_mut(table)
     else {
         return;
     };
@@ -67,7 +66,7 @@ pub(crate) fn table_key(
         TableAction::Select => {
             input.propagate(false);
             if !input.input.repeat {
-                let value = position(*selection, *active, *column);
+                let value = position(*selection, active.0, *column);
                 commands.trigger(ValueChange {
                     source: table,
                     value,
@@ -87,7 +86,13 @@ pub(crate) fn table_key(
         | TableAction::RowFirst
         | TableAction::RowLast
         | TableAction::PageUp
-        | TableAction::PageDown => move_row(action, (children, &rows, *area), &mut active),
+        | TableAction::PageDown => {
+            let Some(row) = moved_to(action, (children, &rows, *area), active) else {
+                return;
+            };
+            commands.entity(table).insert(ActiveDescendant(Some(row)));
+            true
+        }
     };
     if moved {
         input.propagate(false);
@@ -120,15 +125,14 @@ pub(crate) fn reveal_table_cursor(
     }
 }
 
-fn move_row(
+/// The row a motion lands on, or `None` when it stays where it was.
+fn moved_to(
     action: TableAction,
     (children, rows, area): (&Children, &Rows, ComputedWidgetArea),
-    active: &mut Mut<ActiveDescendant>,
-) -> bool {
+    active: &ActiveDescendant,
+) -> Option<Entity> {
     let body: Vec<Entity> = body_rows(children, rows).collect();
-    let Some(last) = body.len().checked_sub(1) else {
-        return false;
-    };
+    let last = body.len().checked_sub(1)?;
     let current = active
         .0
         .and_then(|row| body.iter().position(|&candidate| candidate == row));
@@ -137,7 +141,7 @@ fn move_row(
     // table, which keeps focus but has no area.
     let page = usize::from(body_height(area, (header, footer))).max(1);
     let index = moved_row(action, current, last, page);
-    active.set_if_neq(ActiveDescendant(Some(body[index])))
+    (current != Some(index)).then_some(body[index])
 }
 
 /// What a pointer cell landed on, once the column layout has been solved.
@@ -206,8 +210,7 @@ pub(crate) fn table_click(
     mut commands: Commands,
 ) {
     let table = event.entity;
-    let Ok((children, columns, selection, placement, mut active, mut column)) =
-        tables.get_mut(table)
+    let Ok((children, columns, selection, placement, active, mut column)) = tables.get_mut(table)
     else {
         return;
     };
@@ -235,13 +238,13 @@ pub(crate) fn table_click(
         }
         Hit::Body(row, hit_column) => (row, hit_column),
     };
-    active.set_if_neq(ActiveDescendant(Some(row)));
+    point_cursor(table, active, row, &mut commands);
     if selection.tracks_column()
         && let Some(hit_column) = hit_column
     {
         column.set_if_neq(ActiveColumn(Some(hit_column)));
     }
-    let value = position(*selection, *active, *column);
+    let value = position(*selection, Some(row), *column);
     commands.trigger(ValueChange {
         source: table,
         value,
@@ -249,13 +252,9 @@ pub(crate) fn table_click(
     });
 }
 
-fn position(
-    selection: TableSelection,
-    active: ActiveDescendant,
-    column: ActiveColumn,
-) -> TablePosition {
+fn position(selection: TableSelection, row: Option<Entity>, column: ActiveColumn) -> TablePosition {
     TablePosition {
-        row: selection.tracks_row().then_some(active.0).flatten(),
+        row: selection.tracks_row().then_some(row).flatten(),
         column: selection.tracks_column().then_some(column.0).flatten(),
     }
 }

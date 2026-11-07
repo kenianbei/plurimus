@@ -65,7 +65,7 @@ fn slider_steps_seeks_and_scrubs() {
         .spawn((
             UiWidget::new(Paragraph::new("track")),
             UiArea::Fixed(Rect::new(2, 2, 11, 1)),
-            Slider,
+            Slider::default(),
             SliderRange::new(0.0, 100.0),
             SliderValue(50.0),
             SliderStep(10.0),
@@ -110,7 +110,7 @@ fn slider_scrub_holds_capture_outside_the_track() {
         .spawn((
             UiWidget::new(Paragraph::new("track")),
             UiArea::Fixed(Rect::new(2, 2, 11, 1)),
-            Slider,
+            Slider::default(),
             SliderRange::new(0.0, 100.0),
             SliderValue(50.0),
             Hovered::default(),

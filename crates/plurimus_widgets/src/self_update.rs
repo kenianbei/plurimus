@@ -7,49 +7,11 @@
 //! attaches them per widget. Controlled and uncontrolled widgets can sit side
 //! by side in one tree.
 
-use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Children, Commands, Has, On, Query, With};
-use bevy_ecs::query::QueryData;
 
-use super::{
-    ListBox, ListBoxMultiSelect, ListItem, SliderRange, SliderValue, TabBar, TabItem, Table,
-    TableMultiSelect, TablePosition, TableRow, ValueChange,
-};
+use super::{Table, TableMultiSelect, TablePosition, TableRow, ValueChange};
 use plurimus_ui::Checked;
-
-/// Moves [`Checked`] to the activated tab among a [`TabBar`]'s items.
-pub fn tab_bar_self_update(
-    change: On<ValueChange<Entity>>,
-    bars: Query<&Children, With<TabBar>>,
-    items: Query<(), With<TabItem>>,
-    mut commands: Commands,
-) {
-    let Ok(children) = bars.get(change.source) else {
-        return;
-    };
-    move_checked_among(children, &items, change.value, &mut commands);
-}
-
-/// Applies list selection to [`Checked`]: single-select moves it among
-/// the items, multi-select toggles the selected item.
-pub fn listbox_self_update(
-    change: On<ValueChange<Entity>>,
-    boxes: Query<(&Children, Has<ListBoxMultiSelect>), With<ListBox>>,
-    items: Query<Has<Checked>, With<ListItem>>,
-    mut commands: Commands,
-) {
-    let Ok((children, multi_select)) = boxes.get(change.source) else {
-        return;
-    };
-    if multi_select {
-        if let Ok(checked) = items.get(change.value) {
-            set_checked(change.value, !checked, &mut commands);
-        }
-        return;
-    }
-    move_checked_among(children, &items, change.value, &mut commands);
-}
 
 /// Applies table selection to [`Checked`]: single-select moves it among the
 /// rows, multi-select toggles the selected one. A selection that tracks only
@@ -72,7 +34,11 @@ pub fn table_self_update(
         }
         return;
     }
-    move_checked_among(children, &rows, selected, &mut commands);
+    for &child in children {
+        if rows.contains(child) {
+            set_checked(child, child == selected, &mut commands);
+        }
+    }
 }
 
 fn set_checked(entity: Entity, checked: bool, commands: &mut Commands) {
@@ -80,28 +46,5 @@ fn set_checked(entity: Entity, checked: bool, commands: &mut Commands) {
         commands.entity(entity).insert(Checked);
     } else {
         commands.entity(entity).remove::<Checked>();
-    }
-}
-
-fn move_checked_among<M: Component, D: QueryData>(
-    children: &Children,
-    members: &Query<D, With<M>>,
-    selected: Entity,
-    commands: &mut Commands,
-) {
-    for &child in children {
-        if members.contains(child) {
-            set_checked(child, child == selected, commands);
-        }
-    }
-}
-
-/// Applies slider changes to [`SliderValue`], clamped to the range.
-pub fn slider_self_update(
-    change: On<ValueChange<f32>>,
-    mut sliders: Query<(&mut SliderValue, &SliderRange)>,
-) {
-    if let Ok((mut value, range)) = sliders.get_mut(change.source) {
-        value.0 = change.value.clamp(range.start(), range.end());
     }
 }

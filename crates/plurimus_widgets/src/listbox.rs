@@ -1,15 +1,15 @@
-//! The list box widget: a focusable list container with entity items.
+//! The list box on `bevy_ui_widgets`' own [`ListBox`] and [`ListItem`].
 //!
 //! Rows are entities carrying [`ListItem`], not strings, so an app builds a
 //! list the same way it builds anything else and each row can hold its own
-//! components. The list box owns selection and keyboard movement, its
-//! bindings data in [`ListBoxKeys`] rather than a closed match; making it
-//! scrollable is a separate decision, and adding a
-//! [`ScrollArea`](plurimus_ui::ScrollArea) is all it takes for the generic
-//! scroll machinery to window the rows.
+//! components. The keys, the cursor's focus rules and the selection updater
+//! are upstream's; what is here is what a cell list needs beyond them - the
+//! pointer, since a row has no area of its own to be picked by, and the
+//! copy upstream does not have. Making it scrollable is a separate
+//! decision, and adding a [`ScrollArea`](plurimus_ui::ScrollArea) is all it
+//! takes for the generic scroll machinery to window the rows.
 
 use bevy_ecs::bundle::Bundle;
-use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{
     Changed, Children, Commands, Component, Has, On, Query, Res, With, Without,
@@ -23,43 +23,31 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_term::HeldModifiers;
 
-use super::ValueChange;
 use crate::clipboard::Clipboard;
-use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, copied_text, row_height};
+use crate::rows::{
+    ActiveDescendant, ContentDirty, ListItemText, copied_text, point_cursor, row_height,
+};
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::bevy_ui_widgets::{ListBox, ListBoxMultiSelect, ListItem, SetSelected};
 use plurimus_ui::{
-    Checked, ComputedDisabled, ComputedWidgetArea, Hovered, click_cell, pointer_cell,
+    ComputedDisabled, ComputedWidgetArea, Hovered, KeyBinding, Selected, click_cell, first_bound,
+    pointer_cell,
 };
-use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
 
-/// A focusable list of [`ListItem`] children. Selection emits
-/// [`ValueChange<Entity>`] on the list box; attach
-/// [`listbox_self_update`](super::listbox_self_update) for uncontrolled
-/// behavior.
-#[derive(Component, Debug, Clone, Copy)]
-#[require(
-    Hovered,
-    StylistCache,
-    ActiveDescendant,
-    ContentDirty<Self>,
-    ListBoxKeys,
-    ComputedWidgetArea
-)]
-pub struct ListBox;
+/// The one key a list binds beyond upstream's, which has no copy: the
+/// cursor row, or every [`Selected`] row of a [`ListBoxMultiSelect`] list.
+fn copy_key() -> KeyBinding {
+    KeyBinding::new(Key::Character("c".into())).with_ctrl()
+}
 
-/// Allows multiple [`Checked`](plurimus_ui::Checked) items in a [`ListBox`].
-#[derive(Component, Debug, Clone, Copy)]
-pub struct ListBoxMultiSelect;
-
-/// Draws a [`ListBox`]'s marker column, telling
-/// [`Checked`](plurimus_ui::Checked) rows apart from the row under the
-/// cursor. Costs two cells of width, so it is asked for rather than
-/// assumed.
+/// Draws a [`ListBox`]'s marker column, telling [`Selected`] and
+/// [`Marked`](crate::Marked) rows apart from the row under the cursor.
+/// Costs two cells of width, so it is asked for rather than assumed.
 ///
 /// Applied when the list is spawned; a marker removed from a live list
 /// does not repaint until something else about the list changes.
@@ -89,15 +77,21 @@ pub struct ListBoxCursor(pub Line<'static>);
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ListBoxStripe(pub Style);
 
-/// One row of a [`ListBox`]: a child entity carrying its
-/// [`UiLabel`] and [`Checked`](plurimus_ui::Checked) selection state.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct ListItem;
-
 /// Spawn bundle for a list box; parent [`list_item`]s to it.
+///
+/// Upstream's [`ListBox`] requires none of what a cell list draws or is
+/// picked with, so the bundle carries it.
 #[must_use]
 pub fn listbox() -> impl Bundle {
-    (ListBox, TabIndex(0), UiWidget::default())
+    (
+        ListBox,
+        Hovered::default(),
+        StylistCache::default(),
+        ContentDirty::<ListBox>::default(),
+        ComputedWidgetArea::default(),
+        TabIndex(0),
+        UiWidget::default(),
+    )
 }
 
 /// Spawn bundle for one list row.
@@ -105,162 +99,27 @@ pub fn list_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (ListItem, UiLabel(label.into()))
 }
 
-/// What a key does to a [`ListBox`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ListBoxAction {
-    /// Move the cursor up one row.
-    Up,
-    /// Move the cursor down one row.
-    Down,
-    /// Move the cursor to the first row.
-    First,
-    /// Move the cursor to the last row.
-    Last,
-    /// Move the cursor up by the visible height.
-    PageUp,
-    /// Move the cursor down by the visible height.
-    PageDown,
-    /// Select the row the cursor is on.
-    Select,
-    /// Copy the cursor row's text, or every checked row's in a
-    /// [`ListBoxMultiSelect`] list, one row per line.
-    Copy,
-}
-
-/// A [`ListBox`]'s key bindings, scanned in order so the first match wins.
-///
-/// Replace it to remap: two keys may share an action by appearing twice.
-/// Defaults to the arrows, `Home` and `End`, `PageUp` and `PageDown`,
-/// `Enter` and space to select, and `Ctrl+c` to copy.
-#[derive(Component, Debug, Clone)]
-pub struct ListBoxKeys(pub Vec<(KeyBinding, ListBoxAction)>);
-
-impl Default for ListBoxKeys {
-    fn default() -> Self {
-        Self(vec![
-            (Key::ArrowUp.into(), ListBoxAction::Up),
-            (Key::ArrowDown.into(), ListBoxAction::Down),
-            (Key::Home.into(), ListBoxAction::First),
-            (Key::End.into(), ListBoxAction::Last),
-            (Key::PageUp.into(), ListBoxAction::PageUp),
-            (Key::PageDown.into(), ListBoxAction::PageDown),
-            (Key::Enter.into(), ListBoxAction::Select),
-            (Key::Character(" ".into()).into(), ListBoxAction::Select),
-            (
-                KeyBinding::new(Key::Character("c".into())).with_ctrl(),
-                ListBoxAction::Copy,
-            ),
-        ])
-    }
-}
-
-/// A [`ListBox`]'s cursor, for whoever drives the list without focusing
-/// it - a search field stepping the results beneath it.
-#[derive(SystemParam)]
-pub struct ListBoxAccess<'w, 's> {
-    boxes: Query<
-        'w,
-        's,
-        (
-            &'static ComputedWidgetArea,
-            Option<&'static ScrollOffset>,
-            &'static Children,
-            &'static mut ActiveDescendant,
-        ),
-        (With<ListBox>, Without<ComputedDisabled>),
-    >,
-    items: RowTexts<'w, 's>,
-}
-
-impl ListBoxAccess<'_, '_> {
-    /// Moves the cursor as the bound key would, answering false when
-    /// nothing moved - at an edge, with no rows, or for a disabled or
-    /// non-list entity - so the caller can pass the key on.
-    /// [`ListBoxAction::Select`] and [`ListBoxAction::Copy`] are not
-    /// motions and answer false.
-    pub fn apply(&mut self, list: Entity, action: ListBoxAction) -> bool {
-        let is_motion = matches!(
-            action,
-            ListBoxAction::Up
-                | ListBoxAction::Down
-                | ListBoxAction::First
-                | ListBoxAction::Last
-                | ListBoxAction::PageUp
-                | ListBoxAction::PageDown
-        );
-        if !is_motion {
-            return false;
-        }
-        let Ok((area, _, children, mut active)) = self.boxes.get_mut(list) else {
-            return false;
-        };
-        let rows: Vec<RowSpan> = row_spans(children, &self.items).collect();
-        move_active(action, &rows, *area, &mut active)
-    }
-
-    fn cursor(&self, list: Entity) -> Option<Entity> {
-        let (.., active) = self.boxes.get(list).ok()?;
-        active.0.filter(|&row| self.items.contains(row))
-    }
-}
-
-pub(crate) fn listbox_key(
-    mut input: On<FocusedInput<KeyboardInput>>,
-    held: HeldModifiers,
-    keys: Query<&ListBoxKeys, With<ListBox>>,
-    mut access: ListBoxAccess,
-    mut commands: Commands,
-) {
-    let listbox = input.focused_entity;
-    let Ok(keys) = keys.get(listbox) else {
-        return;
-    };
-    let Some(action) = first_bound(&keys.0, &input.input, held.get()) else {
-        return;
-    };
-    if action == ListBoxAction::Select {
-        let Some(item) = access.cursor(listbox) else {
-            return;
-        };
-        // A repeat selects nothing, but still must not reach a form's
-        // submit above the list.
-        input.propagate(false);
-        if !input.input.repeat {
-            commands.trigger(ValueChange {
-                source: listbox,
-                value: item,
-                is_final: true,
-            });
-        }
-    } else if access.apply(listbox, action) {
-        input.propagate(false);
-    }
-}
-
-/// Copies what [`copied_text`] picks when the key is bound to
-/// [`ListBoxAction::Copy`], each row as it reads - its [`ListItemText`],
-/// else its label. With nothing to copy the key goes on to the list's
-/// ancestors.
+/// Copies what [`copied_text`] picks on [`copy_key`], each row as it reads -
+/// its [`ListItemText`], else its label. With nothing to copy the key goes
+/// on to the list's ancestors.
 pub(crate) fn listbox_copy(
     mut input: On<FocusedInput<KeyboardInput>>,
     held: HeldModifiers,
     boxes: Query<
+        (&Children, &ActiveDescendant, Has<ListBoxMultiSelect>),
         (
-            &Children,
-            &ListBoxKeys,
-            &ActiveDescendant,
-            Has<ListBoxMultiSelect>,
+            With<ListBox>,
+            With<ComputedWidgetArea>,
+            Without<ComputedDisabled>,
         ),
-        (With<ListBox>, Without<ComputedDisabled>),
     >,
-    rows: Query<(Option<&ListItemText>, Option<&UiLabel>, Has<Checked>), With<ListItem>>,
+    rows: Query<(Option<&ListItemText>, Option<&UiLabel>, Has<Selected>), With<ListItem>>,
     mut clipboard: Clipboard,
 ) {
-    let Ok((children, keys, active, is_multi_select)) = boxes.get(input.focused_entity) else {
+    let Ok((children, active, is_multi_select)) = boxes.get(input.focused_entity) else {
         return;
     };
-    if first_bound(&keys.0, &input.input, held.get()) != Some(ListBoxAction::Copy) {
+    if first_bound(&[(copy_key(), ())], &input.input, held.get()).is_none() {
         return;
     }
     let listed = children
@@ -290,7 +149,11 @@ fn row_text((text, label, _): (Option<&ListItemText>, Option<&UiLabel>, bool)) -
 pub(crate) fn reveal_listbox_cursor(
     boxes: Query<
         (Entity, &Children, &ActiveDescendant),
-        (With<ListBox>, Changed<ActiveDescendant>),
+        (
+            With<ListBox>,
+            With<ComputedWidgetArea>,
+            Changed<ActiveDescendant>,
+        ),
     >,
     items: RowTexts,
     mut commands: Commands,
@@ -309,48 +172,34 @@ pub(crate) fn reveal_listbox_cursor(
     }
 }
 
-fn move_active(
-    action: ListBoxAction,
-    rows: &[RowSpan],
-    area: ComputedWidgetArea,
-    active: &mut Mut<ActiveDescendant>,
-) -> bool {
-    let Some(last) = rows.len().checked_sub(1) else {
-        return false;
-    };
-    let current = active
-        .0
-        .and_then(|item| rows.iter().position(|row| row.entity == item));
-    // A page is a count of items rather than of lines, so a page of
-    // multi-line rows travels further than one screen - never less. The
-    // floor is for a hidden list, which keeps focus but has no area.
-    let page = usize::from(area.0.height).max(1);
-    let index = moved_index(action, current, last, page);
-    active.set_if_neq(ActiveDescendant(Some(rows[index].entity)))
+/// What the list's pointer routing reads: the list's geometry and cursor,
+/// and its rows' heights and state.
+#[derive(SystemParam)]
+pub(crate) struct ListPointer<'w, 's> {
+    lists: Query<
+        'w,
+        's,
+        (
+            &'static ComputedWidgetArea,
+            Option<&'static ScrollOffset>,
+            &'static Children,
+            &'static ActiveDescendant,
+        ),
+        (With<ListBox>, Without<ComputedDisabled>),
+    >,
+    items: RowTexts<'w, 's>,
 }
 
-fn moved_index(action: ListBoxAction, current: Option<usize>, last: usize, page: usize) -> usize {
-    match (action, current) {
-        (ListBoxAction::Up, Some(index)) => index.saturating_sub(1),
-        (ListBoxAction::Down, Some(index)) => (index + 1).min(last),
-        (ListBoxAction::PageUp, Some(index)) => index.saturating_sub(page),
-        (ListBoxAction::PageDown, Some(index)) => index.saturating_add(page).min(last),
-        (ListBoxAction::Last, _) => last,
-        _ => 0,
-    }
-}
-
-fn row_at(
-    position: Position,
-    (area, offset, children): (&ComputedWidgetArea, Option<&ScrollOffset>, &Children),
-    items: &RowTexts,
-) -> Option<Entity> {
-    let cell = content_cell(position, area.0, offset)?;
-    Some(
-        row_spans(children, items)
+impl ListPointer<'_, '_> {
+    /// The row under `position` in `list`, with the list's cursor.
+    fn row_at(&self, list: Entity, position: Position) -> Option<(Entity, &ActiveDescendant)> {
+        let (area, offset, children, active) = self.lists.get(list).ok()?;
+        let cell = content_cell(position, area.0, offset)?;
+        let row = row_spans(children, &self.items)
             .find(|span| span.contains(cell.y))?
-            .entity,
-    )
+            .entity;
+        Some((row, active))
+    }
 }
 
 /// Moves the cursor to the row under the pointer, so a press shows what it
@@ -358,17 +207,17 @@ fn row_at(
 pub(crate) fn listbox_press(
     mut event: On<PointerPress>,
     cell: Res<CellSize>,
-    mut access: ListBoxAccess,
+    lists: ListPointer,
+    mut commands: Commands,
 ) {
-    let Ok((area, offset, children, mut active)) = access.boxes.get_mut(event.entity) else {
+    if !lists.lists.contains(event.entity) {
         return;
-    };
+    }
     event.propagate(false);
     let position = pointer_cell(&event.pointer, *cell);
-    let Some(row) = row_at(position, (area, offset, children), &access.items) else {
-        return;
-    };
-    active.set_if_neq(ActiveDescendant(Some(row)));
+    if let Some((row, active)) = lists.row_at(event.entity, position) {
+        point_cursor(event.entity, active, row, &mut commands);
+    }
 }
 
 /// Keeps the cursor under a held pointer, so the highlight never disagrees
@@ -376,49 +225,48 @@ pub(crate) fn listbox_press(
 pub(crate) fn listbox_drag(
     mut event: On<PointerDrag>,
     cell: Res<CellSize>,
-    mut access: ListBoxAccess,
+    lists: ListPointer,
+    mut commands: Commands,
 ) {
-    let Ok((area, offset, children, mut active)) = access.boxes.get_mut(event.entity) else {
+    if !lists.lists.contains(event.entity) {
         return;
-    };
+    }
     event.propagate(false);
     let position = pointer_cell(&event.pointer, *cell);
-    let Some(row) = row_at(position, (area, offset, children), &access.items) else {
-        return;
-    };
-    active.set_if_neq(ActiveDescendant(Some(row)));
+    if let Some((row, active)) = lists.row_at(event.entity, position) {
+        point_cursor(event.entity, active, row, &mut commands);
+    }
 }
 
-/// Selects the row the pointer was released on.
+/// Selects the row the pointer was released on through upstream's
+/// [`SetSelected`], whose rule a key follows too: a disabled row moves the
+/// cursor and selects nothing, the [`Selected`] row is reselected, any other
+/// is a [`ValueChange`](crate::ValueChange).
 ///
 /// The release edge rather than the press: a list selection usually closes
 /// the thing it was made in, and closing on the way down despawns the entity
 /// `bevy_picking` is still holding a gesture for. A release outside the list
 /// or any row selects nothing, and a drag across rows names the one it ended
-/// on.
+/// on. Upstream's own row click finds no row here, a cell row being no pick.
 pub(crate) fn listbox_click(
     mut event: On<PointerClick>,
     cell: Res<CellSize>,
-    mut access: ListBoxAccess,
+    lists: ListPointer,
     mut commands: Commands,
 ) {
-    let listbox = event.entity;
-    let Ok((area, offset, children, mut active)) = access.boxes.get_mut(listbox) else {
+    let list = event.entity;
+    let Ok((area, ..)) = lists.lists.get(list) else {
         return;
     };
     event.propagate(false);
     let Some(position) = click_cell(&event, area, *cell) else {
         return;
     };
-    let Some(row) = row_at(position, (area, offset, children), &access.items) else {
+    let Some((row, active)) = lists.row_at(list, position) else {
         return;
     };
-    active.set_if_neq(ActiveDescendant(Some(row)));
-    commands.trigger(ValueChange {
-        source: listbox,
-        value: row,
-        is_final: true,
-    });
+    point_cursor(list, active, row, &mut commands);
+    commands.trigger(SetSelected { entity: list, row });
 }
 
 /// The rows a list's geometry is measured from: every [`ListItem`] child,

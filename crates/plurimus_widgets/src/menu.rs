@@ -1,23 +1,24 @@
-//! Menu button, popup, and items: stateless controllers over the popover
-//! placement machinery.
+//! Menus on `bevy_ui_widgets`' own [`MenuButton`], [`MenuPopup`] and
+//! [`MenuItem`], over the popover placement machinery.
 //!
-//! A menu is assembled rather than built in: the button opens a popup, the
-//! popup is placed by `popover`, and the rows are ordinary entities. Menus
-//! own no dismissal logic of their own - they mark the popup modal and let
-//! `plurimus_ui`'s picking confine the pointer to it and dismiss on what
-//! lands outside - so what remains here is opening, closing, and moving the
-//! highlight.
+//! The model is upstream's: the button asks for its menu through a
+//! bubbling [`MenuEvent`], the open popup takes focus onto its first or
+//! last item, its keys step and activate, and it closes when focus leaves
+//! it - so a press outside closes the menu and still acts on what it hit.
+//! Upstream leaves answering the event to the app, the way a window app's
+//! theme does; [`drive_menu_popups`] is that answer here, showing and
+//! hiding the popup through `Propagate<Hidden>`. What else is the crate's is
+//! drawing and placement: the popup is a `Popover` child of its button,
+//! sized around its items, and each item is given its row.
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::hierarchy::{ChildOf, Children};
+use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::Res;
-use bevy_ecs::prelude::{Commands, Component, Has, On, Query, ResMut, With, Without};
-use bevy_ecs::system::SystemParam;
-use bevy_input::keyboard::{Key, KeyboardInput};
-use bevy_input_focus::tab_navigation::TabIndex;
-use bevy_input_focus::{FocusCause, FocusedInput, InputFocus};
+use bevy_ecs::prelude::{Commands, Has, On, Query, ResMut, With};
+use bevy_input_focus::tab_navigation::{NavAction, TabIndex};
+use bevy_input_focus::{FocusCause, InputFocus};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 use plurimus_core::ratatui_core::style::Style;
@@ -28,91 +29,22 @@ use ratatui_widgets::clear::Clear;
 use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::Popover;
-use crate::{Activate, Button};
-use plurimus_core::CellSize;
 use plurimus_core::{Hidden, Propagate, UiOrder, UiWidget};
-use plurimus_term::HeldModifiers;
-use plurimus_ui::UiLabel;
-use plurimus_ui::bevy_picking::events::PointerClick;
-use plurimus_ui::{
-    ComputedDisabled, ComputedWidgetArea, Hovered, ModalDismiss, ModalOpen, ModalityToggle,
-    UiStyle, UiTheme, click_cell,
+use plurimus_ui::bevy_ui_widgets::{
+    MenuAction, MenuButton, MenuEvent, MenuFocusState, MenuItem, MenuPopup,
 };
+use plurimus_ui::{Hovered, PressFocusDisabled, UiLabel, UiStyle, UiTheme, WheelReceptive};
 use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
-use plurimus_ui::{KeyBinding, first_bound};
 
 /// Items render above the popup frame.
 const ITEM_ORDER: UiOrder = UiOrder(UiOrder::OVERLAY.0 + 1);
 
-/// A button that toggles its child [`MenuPopup`] on [`Activate`].
-#[derive(Component, Debug, Clone, Copy)]
-#[require(Button, ModalityToggle, Hovered, StylistCache)]
-pub struct MenuButton;
-
-/// The popup container; a child of its [`MenuButton`], auto-sized around
-/// its [`MenuItem`] children.
-#[derive(Component, Debug, Clone, Copy)]
-#[require(StylistCache, MenuKeys)]
-pub struct MenuPopup;
-
-/// What a [`MenuKeys`] binding does to the open menu.
-///
-/// Closed: an open menu moves its highlight, commits, or gives up, and a
-/// fourth thing is not something a menu does.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuAction {
-    /// Move focus to the item above, wrapping.
-    Previous,
-    /// Move focus to the item below, wrapping.
-    Next,
-    /// Activate the focused item and close.
-    Activate,
-    /// Close without activating.
-    Close,
-}
-
-/// An open [`MenuPopup`]'s key bindings, scanned in order so the first
-/// match wins.
-///
-/// One table per menu rather than one per row, and read from the popup the
-/// focused item sits in. Defaults to the up and down arrows, `Escape`, `Tab`
-/// and `Shift+Tab` to close, and `Enter` and space to activate. Tab closes
-/// rather than moving on because focus leaving an open menu would leave its
-/// popup open behind it. That last pair is what a [`Button`] answers to as
-/// well, and the two stay independent deliberately - a menu's Enter is not a
-/// form's, focus sitting inside the popup while it is open - but a menu's
-/// copy is data an app replaces rather than a literal it cannot reach.
-#[derive(Component, Debug, Clone)]
-pub struct MenuKeys(pub Vec<(KeyBinding, MenuAction)>);
-
-impl Default for MenuKeys {
-    fn default() -> Self {
-        Self(vec![
-            (Key::ArrowUp.into(), MenuAction::Previous),
-            (Key::ArrowDown.into(), MenuAction::Next),
-            (Key::Escape.into(), MenuAction::Close),
-            (Key::Tab.into(), MenuAction::Close),
-            (KeyBinding::new(Key::Tab).with_shift(), MenuAction::Close),
-            (Key::Enter.into(), MenuAction::Activate),
-            (Key::Character(" ".into()).into(), MenuAction::Activate),
-        ])
-    }
-}
-
-/// Present on a [`MenuPopup`] while it is open.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct MenuOpen;
-
-/// One row inside a [`MenuPopup`]. Emits [`Activate`] and closes the
-/// menu when activated.
-#[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ModalityToggle)]
-pub struct MenuItem;
-
-/// Spawn bundle for a menu button.
+/// Spawn bundle for a menu button; parent its [`menu_popup`] to it.
 pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         MenuButton,
+        Hovered::default(),
+        StylistCache::default(),
         UiLabel(label.into()),
         TabIndex(0),
         UiWidget::default(),
@@ -120,211 +52,78 @@ pub fn menu_button(label: impl Into<Line<'static>>) -> impl Bundle {
 }
 
 /// Spawn bundle for a menu popup; parent it to its `anchor` button.
+///
+/// Hidden until its button opens it. A press on its frame keeps focus on
+/// the item that holds it rather than walking up to the button, whose focus
+/// would close the menu, and a wheel tick over it scrolls nothing beneath.
 #[must_use]
 pub fn menu_popup(anchor: Entity) -> impl Bundle {
     (
-        MenuPopup,
+        MenuPopup::default(),
         Popover::new(anchor, Size::ZERO),
         Propagate(Hidden),
+        PressFocusDisabled,
+        WheelReceptive,
+        StylistCache::default(),
         UiWidget::default(),
     )
 }
 
 /// Spawn bundle for a menu item; parent it to a [`MenuPopup`].
+///
+/// Focusable, since an open popup takes focus onto its items and stays
+/// open while one holds it.
 pub fn menu_item(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         MenuItem,
         UiLabel(label.into()),
+        TabIndex(0),
+        Hovered::default(),
+        StylistCache::default(),
         ITEM_ORDER,
         UiWidget::default(),
     )
 }
 
-/// Queries every menu open/close transition needs.
-#[derive(SystemParam)]
-pub(crate) struct MenuAccess<'w, 's> {
-    children: Query<'w, 's, &'static Children>,
-    parents: Query<'w, 's, &'static ChildOf>,
-    popups: Query<'w, 's, Entity, With<MenuPopup>>,
-    open: Query<'w, 's, Entity, With<MenuOpen>>,
-    items: Query<'w, 's, Has<ComputedDisabled>, With<MenuItem>>,
-    areas: Query<'w, 's, &'static ComputedWidgetArea>,
-    keys: Query<'w, 's, &'static MenuKeys>,
-}
-
-impl MenuAccess<'_, '_> {
-    fn popup_of(&self, button: Entity) -> Option<Entity> {
-        let children = self.children.get(button).ok()?;
-        children.iter().copied().find(|&c| self.popups.contains(c))
-    }
-
-    /// The bindings an item takes its keys from: the menu's rather than its
-    /// own, since they live on the popup rather than on every row of it.
-    ///
-    /// `None` for anything that is not a live menu item, which is what keeps
-    /// a disabled row from acting on a key.
-    fn item_keys(&self, item: Entity) -> Option<&MenuKeys> {
-        if !self.is_live_item(item) {
-            return None;
-        }
-        let popup = self.parents.get(item).ok()?.parent();
-        self.keys.get(popup).ok()
-    }
-
-    /// Whether `entity` is a menu item that may act on input at all.
-    pub(crate) fn is_live_item(&self, entity: Entity) -> bool {
-        self.items.get(entity).is_ok_and(|disabled| !disabled)
-    }
-
-    pub(crate) fn item_rows(&self, popup: Entity) -> Vec<Entity> {
-        let Ok(children) = self.children.get(popup) else {
-            return Vec::new();
-        };
+/// Answers a [`MenuEvent`] reaching a [`MenuButton`] whose popup is this
+/// crate's: `Open` and `Toggle` show it and hand upstream the item to focus,
+/// `CloseAll` hides it, `FocusRoot` focuses the button.
+///
+/// Keyed on the popup's [`Popover`], so a menu built of nodes, whose app
+/// answers its own events, is left alone.
+pub(crate) fn drive_menu_popups(
+    mut event: On<MenuEvent>,
+    buttons: Query<&Children, With<MenuButton>>,
+    popups: Query<Has<Propagate<Hidden>>, (With<MenuPopup>, With<Popover>)>,
+    mut focus: ResMut<InputFocus>,
+    mut commands: Commands,
+) {
+    let button = event.source;
+    let Some((popup, is_hidden)) = buttons.get(button).ok().and_then(|children| {
         children
             .iter()
-            .copied()
-            .filter(|&child| self.items.contains(child))
-            .collect()
-    }
-
-    fn open_menu(&self, popup: Entity, focus: &mut InputFocus, commands: &mut Commands) {
-        commands
-            .entity(popup)
-            .insert((MenuOpen, ModalOpen))
-            .remove::<Propagate<Hidden>>();
-        let first = self.children.get(popup).ok().and_then(|children| {
-            children
-                .iter()
-                .copied()
-                .find(|&child| self.items.contains(child))
-        });
-        if let Some(first) = first {
-            focus.set(first, FocusCause::Navigated);
+            .find_map(|&child| Some((child, popups.get(child).ok()?)))
+    }) else {
+        return;
+    };
+    event.propagate(false);
+    match event.action {
+        MenuAction::Open(nav) => show(popup, nav, &mut commands),
+        MenuAction::Toggle if is_hidden => show(popup, NavAction::First, &mut commands),
+        MenuAction::Toggle | MenuAction::CloseAll => {
+            commands
+                .entity(popup)
+                .insert((Propagate(Hidden), MenuFocusState::Closed));
         }
-    }
-
-    fn close_menu(&self, popup: Entity, focus: &mut InputFocus, commands: &mut Commands) {
-        commands
-            .entity(popup)
-            .remove::<(MenuOpen, ModalOpen)>()
-            .insert(Propagate(Hidden));
-        // A press that switched menus has already moved focus on.
-        let is_focus_inside = focus.get().is_some_and(|focused| {
-            focused == popup
-                || self
-                    .parents
-                    .iter_ancestors(focused)
-                    .any(|ancestor| ancestor == popup)
-        });
-        if !is_focus_inside {
-            return;
-        }
-        match self.parents.get(popup) {
-            Ok(parent) => focus.set(parent.parent(), FocusCause::Navigated),
-            Err(_) => focus.clear(),
-        }
-    }
-
-    fn close_item_menu(&self, item: Entity, focus: &mut InputFocus, commands: &mut Commands) {
-        if let Ok(popup) = self.parents.get(item).map(ChildOf::parent) {
-            self.close_menu(popup, focus, commands);
-        }
+        MenuAction::FocusRoot => focus.set(button, FocusCause::Navigated),
     }
 }
 
-pub(crate) fn menu_dismiss(
-    dismiss: On<ModalDismiss>,
-    popups: Query<(), With<MenuPopup>>,
-    menus: MenuAccess,
-    mut focus: ResMut<InputFocus>,
-    mut commands: Commands,
-) {
-    if popups.contains(dismiss.entity) {
-        menus.close_menu(dismiss.entity, &mut focus, &mut commands);
-    }
-}
-
-pub(crate) fn menu_button_activate(
-    activate: On<Activate>,
-    buttons: Query<(), (With<MenuButton>, Without<ComputedDisabled>)>,
-    menus: MenuAccess,
-    mut focus: ResMut<InputFocus>,
-    mut commands: Commands,
-) {
-    if !buttons.contains(activate.entity) {
-        return;
-    }
-    let Some(popup) = menus.popup_of(activate.entity) else {
-        return;
-    };
-    if menus.open.contains(popup) {
-        menus.close_menu(popup, &mut focus, &mut commands);
-    } else {
-        menus.open_menu(popup, &mut focus, &mut commands);
-    }
-}
-
-pub(crate) fn menu_item_click(
-    mut click: On<PointerClick>,
-    cell: Res<CellSize>,
-    menus: MenuAccess,
-    mut focus: ResMut<InputFocus>,
-    mut commands: Commands,
-) {
-    if !menus.is_live_item(click.entity)
-        || !menus
-            .areas
-            .get(click.entity)
-            .is_ok_and(|area| click_cell(&click, area, *cell).is_some())
-    {
-        return;
-    }
-    click.propagate(false);
-    commands.trigger(Activate {
-        entity: click.entity,
-    });
-    menus.close_item_menu(click.entity, &mut focus, &mut commands);
-}
-
-pub(crate) fn menu_key(
-    mut input: On<FocusedInput<KeyboardInput>>,
-    held: HeldModifiers,
-    menus: MenuAccess,
-    mut focus: ResMut<InputFocus>,
-    mut commands: Commands,
-) {
-    let item = input.focused_entity;
-    let Some(bindings) = menus.item_keys(item) else {
-        return;
-    };
-    let Some(action) = first_bound(&bindings.0, &input.input, held.get()) else {
-        return;
-    };
-    match action {
-        MenuAction::Previous => step_focus(item, -1, &menus, &mut focus),
-        MenuAction::Next => step_focus(item, 1, &menus, &mut focus),
-        MenuAction::Close => menus.close_item_menu(item, &mut focus, &mut commands),
-        MenuAction::Activate => {
-            // A repeat commits once, the way every other activation does.
-            if !input.input.repeat {
-                commands.trigger(Activate { entity: item });
-                menus.close_item_menu(item, &mut focus, &mut commands);
-            }
-        }
-    }
-    input.propagate(false);
-}
-
-fn step_focus(item: Entity, step: isize, menus: &MenuAccess, focus: &mut InputFocus) {
-    let Ok(popup) = menus.parents.get(item).map(ChildOf::parent) else {
-        return;
-    };
-    let rows = menus.item_rows(popup);
-    let Some(index) = rows.iter().position(|&row| row == item) else {
-        return;
-    };
-    let next = (index as isize + step).rem_euclid(rows.len() as isize) as usize;
-    focus.set(rows[next], FocusCause::Navigated);
+fn show(popup: Entity, nav: NavAction, commands: &mut Commands) {
+    commands
+        .entity(popup)
+        .remove::<Propagate<Hidden>>()
+        .insert(MenuFocusState::Opening(nav));
 }
 
 pub(crate) fn style_menu_items(

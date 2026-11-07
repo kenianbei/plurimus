@@ -14,7 +14,7 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{InteractionDisabled, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{WidgetsPlugin, slider};
+use plurimus_widgets::{SelectedTab, WidgetsPlugin, slider, tab_bar, tab_item};
 
 fn app() -> App {
     let mut app = App::new();
@@ -223,28 +223,32 @@ fn focused_slider_consumes_horizontal_arrows() {
     assert_eq!(focused(&app), Some(track));
 }
 
+// Upstream's slider consumes a side arrow even at its bound, and binds
+// nothing on the other axis.
 #[test]
-fn a_slider_at_its_minimum_lets_left_move_focus() {
+fn a_slider_keeps_left_at_its_minimum_and_passes_down_on() {
     let mut app = app();
     let root = app.world_mut().spawn(TabGroup::new(0)).id();
-    let left = spawn_focusable(
-        &mut app,
-        Rect::new(2, 1, 6, 1),
-        (TabIndex(0), ChildOf(root)),
-    );
     let track = app
         .world_mut()
         .spawn((
             slider(0.0, 1.0, 0.0),
-            UiArea::Fixed(Rect::new(12, 1, 8, 1)),
+            UiArea::Fixed(Rect::new(2, 1, 8, 1)),
             ChildOf(root),
         ))
         .id();
+    let below = spawn_focusable(
+        &mut app,
+        Rect::new(2, 3, 8, 1),
+        (TabIndex(1), ChildOf(root)),
+    );
     app.update();
 
     set_focus(&mut app, track);
     press_key(&mut app, Key::ArrowLeft);
-    assert_eq!(focused(&app), Some(left));
+    assert_eq!(focused(&app), Some(track));
+    press_key(&mut app, Key::ArrowDown);
+    assert_eq!(focused(&app), Some(below));
 }
 
 #[test]
@@ -279,4 +283,46 @@ fn modal_group_traps_arrows() {
     set_focus(&mut app, outside);
     press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(inside));
+}
+
+// A roving strip is one stop: the tabs it is not resting on carry a
+// negative index, which the map leaves out the way Tab does, so Up reaches
+// the selected tab and never the one beside it.
+#[test]
+fn a_tab_strip_is_one_arrow_target_at_its_roving_tab() {
+    let mut app = app();
+    let root = app.world_mut().spawn(TabGroup::new(0)).id();
+    let bar = app
+        .world_mut()
+        .spawn((
+            tab_bar(),
+            UiArea::Fixed(Rect::new(0, 1, 20, 1)),
+            ChildOf(root),
+        ))
+        .id();
+    let resting = app.world_mut().spawn((tab_item("a"), ChildOf(bar))).id();
+    let selected = app.world_mut().spawn((tab_item("b"), ChildOf(bar))).id();
+    app.world_mut()
+        .entity_mut(bar)
+        .insert(SelectedTab(Some(selected)));
+    let under_resting = spawn_focusable(
+        &mut app,
+        Rect::new(0, 4, 3, 1),
+        (TabIndex(0), ChildOf(root)),
+    );
+    let under_selected = spawn_focusable(
+        &mut app,
+        Rect::new(3, 4, 3, 1),
+        (TabIndex(1), ChildOf(root)),
+    );
+    app.update();
+    app.update();
+
+    set_focus(&mut app, under_resting);
+    press_key(&mut app, Key::ArrowUp);
+    assert_ne!(focused(&app), Some(resting));
+
+    set_focus(&mut app, under_selected);
+    press_key(&mut app, Key::ArrowUp);
+    assert_eq!(focused(&app), Some(selected));
 }
