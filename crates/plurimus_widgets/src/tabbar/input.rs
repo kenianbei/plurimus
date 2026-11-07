@@ -3,14 +3,18 @@
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{Commands, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{Commands, Has, On, Query, Res, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use plurimus_term::bevy_compat::HeldModifiers;
 
 use super::{TabBar, TabBarAction, TabBarKeys, TabItem};
-use plurimus_ui::{Checked, Click, ComputedDisabled, ValueChange, first_bound};
+use plurimus_core::CellSize;
+use plurimus_ui::bevy_picking::events::PointerClick;
+use plurimus_ui::{
+    Checked, ComputedDisabled, ComputedWidgetArea, ValueChange, click_cell, first_bound,
+};
 
 #[derive(SystemParam)]
 pub(crate) struct TabAccess<'w, 's> {
@@ -77,11 +81,22 @@ pub(crate) fn tab_bar_key(
     }
 }
 
-pub(crate) fn tab_item_click(click: On<Click>, tabs: TabAccess, mut commands: Commands) {
+pub(crate) fn tab_item_click(
+    mut click: On<PointerClick>,
+    cell: Res<CellSize>,
+    areas: Query<&ComputedWidgetArea>,
+    tabs: TabAccess,
+    mut commands: Commands,
+) {
     let item = click.entity;
-    if !tabs.items.contains(item) {
+    if !tabs.items.contains(item)
+        || !areas
+            .get(item)
+            .is_ok_and(|area| click_cell(&click, area, *cell).is_some())
+    {
         return;
     }
+    click.propagate(false);
     let Ok(bar) = tabs.parents.get(item).map(ChildOf::parent) else {
         return;
     };

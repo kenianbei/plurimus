@@ -13,9 +13,8 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiHidden, UiWidget
 use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{click, press_at, release_at, send_mouse, write_mouse, write_release_at};
 use plurimus_ui::bevy_input_focus::InputFocus;
-use plurimus_ui::{
-    ComputedWidgetArea, Hovered, ModalOpen, PointerPress, ScrollArea, ScrollOffset, UiArea,
-};
+use plurimus_ui::bevy_picking::events::PointerPress;
+use plurimus_ui::{ComputedWidgetArea, Hovered, ModalOpen, ScrollArea, ScrollOffset, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
 
@@ -27,7 +26,11 @@ fn app() -> App {
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(20, 8));
     app.init_resource::<Presses>();
-    app.add_observer(|press: On<PointerPress>, mut log: ResMut<Presses>| log.0.push(press.entity));
+    app.add_observer(|press: On<PointerPress>, mut log: ResMut<Presses>| {
+        if press.entity == press.original_event_target() {
+            log.0.push(press.entity);
+        }
+    });
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
@@ -201,52 +204,6 @@ fn a_tick_behind_an_opening_click_lands_on_the_open_menu() {
 
     assert!(is_open(&app, popup));
     assert_eq!(offset_of(&app, beneath), Position::new(0, 0));
-}
-
-// Behind a dismissing tick the menu is still open until its dismissal
-// lands, so a press routed in the same pass would dismiss again and be
-// swallowed.
-#[test]
-fn a_dismissing_tick_defers_the_rest_of_the_batch() {
-    let mut app = app();
-    let popup = spawn_menu(&mut app);
-    click(&mut app, 2, 0);
-    let outside = spawn_pressable(&mut app, Rect::new(15, 6, 4, 1), None);
-    app.update();
-
-    write_mouse(&mut app, MouseKind::ScrollDown, 16, 6);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 16, 6);
-    write_release_at(&mut app, 16, 6);
-    app.update();
-    assert!(!is_open(&app, popup), "the tick dismissed");
-    assert!(!was_pressed(&app, outside), "and the press waited");
-    app.update();
-
-    assert!(was_pressed(&app, outside), "then landed");
-}
-
-// A press the overlay swallows is not a modal flip, so the rest of the
-// batch still hit-tests a state nothing is about to change.
-#[test]
-fn a_swallowed_press_does_not_defer_the_rest_of_the_batch() {
-    let mut app = app();
-    let popup = spawn_menu(&mut app);
-    click(&mut app, 2, 0);
-    app.update();
-    let frame = popup_area(&app, popup);
-    let child = spawn_pressable(&mut app, footer_of(frame), Some(popup));
-    app.update();
-
-    for (x, y) in [(frame.x, frame.y), (frame.x, footer_of(frame).y)] {
-        write_mouse(&mut app, MouseKind::Down(MouseButton::Left), x, y);
-        write_release_at(&mut app, x, y);
-    }
-    app.update();
-
-    assert!(
-        was_pressed(&app, child),
-        "the second press landed this frame"
-    );
 }
 
 // Admission is the union of the modals containing the pointer, not of

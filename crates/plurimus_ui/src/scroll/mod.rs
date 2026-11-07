@@ -11,18 +11,20 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, Mut, On, Query, With, Without};
+use bevy_ecs::prelude::{
+    Commands, Component, EntityEvent, MessageReader, Mut, On, Query, Res, With, Without,
+};
 use bevy_ecs::system::SystemParam;
 use bevy_ecs::world::DeferredWorld;
-use plurimus_core::RasterDeferred;
+use bevy_picking::pointer::PointerInput;
+use plurimus_core::CellSize;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_term::{MouseKind, MouseMessage};
+use plurimus_core::{RasterDeferred, UiOrder};
 use tui_scrollview::ScrollbarVisibility;
 
-use crate::interaction::{
-    AreaTargetQuery, ComputedDisabled, ComputedWidgetArea, ValueChange, topmost_at,
-};
+use crate::interaction::{ComputedDisabled, ComputedWidgetArea, Hovered, ValueChange, z_order_key};
 use crate::modal::ModalGuard;
+use crate::pointer::{cell_of, scroll_step};
 
 /// Declares a widget entity's content to be `content_size` cells,
 /// windowed into the resolved area at render time by its
@@ -151,9 +153,11 @@ pub struct ScrollIntoView {
 /// receptive widget beneath.
 ///
 /// Wheel arbitration only: a scroll addressed to a widget by any other
-/// route reaches it without consulting this.
+/// route reaches it without consulting this. Requires [`Hovered`], which
+/// is what makes the widget a pick, so a tick over it never also reaches
+/// a node it is drawn over.
 #[derive(Component, Debug, Clone, Copy, Default)]
-#[require(WheelAxes)]
+#[require(WheelAxes, Hovered)]
 pub struct WheelReceptive;
 
 /// Wheel axes a [`WheelReceptive`] widget can currently consume. The
@@ -230,8 +234,16 @@ impl ScrollBy {
 // Disabled still means fall-through here, unlike the press: consuming a
 // tick is this router's own opt-in, and a disabled widget consuming
 // nothing is the same as an axis it cannot scroll.
-type WheelTargetQuery<'w, 's> =
-    AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<ComputedDisabled>)>;
+type WheelTargetQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static ComputedWidgetArea,
+        Option<&'static UiOrder>,
+    ),
+    (With<WheelReceptive>, Without<ComputedDisabled>),
+>;
 
 /// Everything a wheel tick routes against beside the modal state.
 #[derive(SystemParam)]
@@ -253,41 +265,37 @@ impl WheelRouting<'_, '_> {
             self.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
                 && modal.admits(position, entity)
         };
-        topmost_at(position, &self.targets, consumes)
-    }
-
-    /// Whether a receptive widget the open modals admit is at `position`,
-    /// whatever it can move by.
-    pub(crate) fn covers(&self, position: Position, modal: &ModalGuard) -> bool {
-        topmost_at(position, &self.targets, |entity| {
-            modal.admits(position, entity)
-        })
-        .is_some()
+        self.targets
+            .iter()
+            .filter(|(entity, area, _)| area.0.contains(position) && consumes(*entity))
+            .max_by_key(|(entity, area, order)| z_order_key(*entity, *order, area.0))
+            .map(|(entity, ..)| entity)
     }
 }
 
-// A step of the pointer router's batch, so a tick behind a modal flip waits
-// with the rest; true when it dismissed, deferring what follows likewise.
-pub(crate) fn route_tick(
-    message: MouseMessage,
-    wheel: &WheelRouting,
-    modal: &ModalGuard,
-    commands: &mut Commands,
-) -> bool {
-    let Some(step) = wheel_step(message.kind) else {
-        return false;
-    };
-    let position = message.position;
-    if modal.dismisses(position) {
-        modal.dismiss_all(commands);
-        return true;
+/// Every tick of the frame, at its own cell: the topmost receptive widget
+/// that can move by it and the open overlays admit is sent a [`ScrollBy`],
+/// and a tick outside every open overlay dismisses them.
+pub(crate) fn route_wheel(
+    mut inputs: MessageReader<PointerInput>,
+    cell: Res<CellSize>,
+    wheel: WheelRouting,
+    modal: ModalGuard,
+    mut commands: Commands,
+) {
+    for input in inputs.read() {
+        let Some(step) = scroll_step(input.action) else {
+            continue;
+        };
+        let position = cell_of(input.location.position, *cell);
+        if modal.dismisses(position) {
+            modal.dismiss_all(&mut commands);
+            continue;
+        }
+        if let Some(entity) = wheel.target(position, step, &modal) {
+            commands.trigger(ScrollBy { entity, step });
+        }
     }
-    // Letting a covered tick through would scroll what the overlay is
-    // drawn on top of.
-    if let Some(entity) = wheel.target(position, step, modal) {
-        commands.trigger(ScrollBy { entity, step });
-    }
-    false
 }
 
 // Only a widget's own extents tell the router which ticks it can use;
@@ -361,16 +369,6 @@ pub(crate) fn scroll_into_view(
         .min(max.y),
     );
     apply_offset(event.entity, revealed, &mut offset, &mut commands);
-}
-
-const fn wheel_step(kind: MouseKind) -> Option<(i32, i32)> {
-    match kind {
-        MouseKind::ScrollUp => Some((0, -1)),
-        MouseKind::ScrollDown => Some((0, 1)),
-        MouseKind::ScrollLeft => Some((-1, 0)),
-        MouseKind::ScrollRight => Some((1, 0)),
-        _ => None,
-    }
 }
 
 /// Writes `position` into the entity's [`ScrollOffset`], emitting

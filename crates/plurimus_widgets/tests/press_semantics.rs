@@ -1,5 +1,5 @@
-//! What a press on a disabled widget does: absorbs, unless the widget
-//! opts out of hit-testing entirely.
+//! What a press on a disabled widget does: blocks what is beneath without
+//! being a gesture, unless the widget opts out of picking entirely.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -12,12 +12,11 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder, UiWidget};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{click, press_at, press_key, release_at, send_mouse, set_focus};
-use plurimus_ui::{
-    Click, Hovered, InteractionDisabled, PointerDrag, PointerPress, PressFocusDisabled,
-    PressPassThrough, Pressed, UiArea,
-};
+use plurimus_ui::bevy_picking::Pickable;
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::{Activate, Hovered, InteractionDisabled, PressFocusDisabled, Pressed, UiArea};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
+use plurimus_widgets::{MenuOpen, WidgetsPlugin, button, menu_button, menu_item, menu_popup};
 
 const AREA: Rect = Rect::new(0, 2, 10, 3);
 
@@ -32,7 +31,11 @@ fn app() -> App {
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(20, 8));
     app.init_resource::<Presses>();
-    app.add_observer(|press: On<PointerPress>, mut log: ResMut<Presses>| log.0.push(press.entity));
+    app.add_observer(|press: On<PointerPress>, mut log: ResMut<Presses>| {
+        if press.entity == press.original_event_target() {
+            log.0.push(press.entity);
+        }
+    });
     app.world_mut().spawn(TerminalCamera::default());
     app
 }
@@ -61,8 +64,8 @@ fn was_pressed(app: &App, entity: Entity) -> bool {
 }
 
 // Two widgets on the same rect: the covering one disabled, the covered one
-// live. Before the press knew "inert", the disabled one was invisible and
-// the press went straight through it.
+// live. The disabled one is still a hit, which is what keeps the press off
+// what it covers, but no gesture starts on it.
 #[test]
 fn a_press_on_a_disabled_widget_reaches_nothing_beneath() {
     let mut app = app();
@@ -73,11 +76,11 @@ fn a_press_on_a_disabled_widget_reaches_nothing_beneath() {
         .insert(InteractionDisabled);
     app.update();
 
-    click(&mut app, AREA.x + 1, AREA.y + 1);
+    press_at(&mut app, AREA.x + 1, AREA.y + 1);
 
     assert!(!was_pressed(&app, beneath), "the press was absorbed");
     assert!(
-        !was_pressed(&app, cover),
+        !app.world().entity(cover).contains::<Pressed>(),
         "and the disabled widget is inert"
     );
 }
@@ -102,34 +105,21 @@ fn a_press_on_a_disabled_widget_moves_no_focus() {
     );
 }
 
+// Transparency is bevy's: a widget that should not be hit says so with
+// `Pickable`, disabled or not.
 #[test]
-fn pass_through_restores_the_fall_through() {
+fn a_pickable_ignore_widget_is_invisible_to_the_press() {
     let mut app = app();
     let beneath = spawn_widget(&mut app, AREA);
     let cover = spawn_cover(&mut app, AREA);
     app.world_mut()
         .entity_mut(cover)
-        .insert((InteractionDisabled, PressPassThrough));
+        .insert((InteractionDisabled, Pickable::IGNORE));
     app.update();
 
     click(&mut app, AREA.x + 1, AREA.y + 1);
 
     assert!(was_pressed(&app, beneath), "the press fell through");
-    assert!(!was_pressed(&app, cover));
-}
-
-// The marker is not gated on being disabled: it is press transparency.
-#[test]
-fn an_enabled_pass_through_widget_is_invisible_to_the_press() {
-    let mut app = app();
-    let beneath = spawn_widget(&mut app, AREA);
-    let cover = spawn_cover(&mut app, AREA);
-    app.world_mut().entity_mut(cover).insert(PressPassThrough);
-    app.update();
-
-    click(&mut app, AREA.x + 1, AREA.y + 1);
-
-    assert!(was_pressed(&app, beneath));
     assert!(!was_pressed(&app, cover));
 }
 
@@ -196,8 +186,10 @@ fn a_press_focus_disabled_widget_still_drags_and_clicks() {
         .entity_mut(toolbar)
         .insert((TabIndex(0), PressFocusDisabled));
     app.init_resource::<Gestures>();
-    app.add_observer(|_: On<PointerDrag>, mut log: ResMut<Gestures>| log.0.push("drag"));
-    app.add_observer(|_: On<Click>, mut log: ResMut<Gestures>| log.0.push("click"));
+    app.world_mut()
+        .entity_mut(toolbar)
+        .observe(|_: On<PointerDrag>, mut log: ResMut<Gestures>| log.0.push("drag"))
+        .observe(|_: On<PointerClick>, mut log: ResMut<Gestures>| log.0.push("click"));
     app.update();
 
     press_at(&mut app, AREA.x + 1, AREA.y + 1);
@@ -232,16 +224,19 @@ fn tab_still_reaches_a_press_focus_disabled_widget() {
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(toolbar));
 }
 
-// Disabling a widget mid-gesture silences the whole rest of the gesture:
-// the release must not activate a control that went grey under the
-// pointer. The target query no longer excludes disabled widgets, so this
-// is the release path's own term, not the query's.
+// Disabling a widget mid-gesture silences the rest of the gesture: the
+// release must not activate a control that went grey under the pointer.
+// The click still arrives, since the capture is bevy's; the stock
+// observers are what refuse it.
 #[test]
-fn a_widget_disabled_mid_gesture_does_not_click() {
+fn a_widget_disabled_mid_gesture_does_not_activate() {
     let mut app = app();
-    let widget = spawn_widget(&mut app, AREA);
+    let widget = app
+        .world_mut()
+        .spawn((button("go"), UiArea::Fixed(AREA)))
+        .id();
     app.init_resource::<Gestures>();
-    app.add_observer(|_: On<Click>, mut log: ResMut<Gestures>| log.0.push("click"));
+    app.add_observer(|_: On<Activate>, mut log: ResMut<Gestures>| log.0.push("activate"));
     app.update();
 
     press_at(&mut app, AREA.x + 1, AREA.y + 1);
@@ -253,7 +248,7 @@ fn a_widget_disabled_mid_gesture_does_not_click() {
 
     assert!(
         app.world().resource::<Gestures>().0.is_empty(),
-        "no click from a widget that went grey mid-gesture"
+        "no activation from a widget that went grey mid-gesture"
     );
     assert!(
         !app.world().entity(widget).contains::<Pressed>(),
@@ -262,7 +257,7 @@ fn a_widget_disabled_mid_gesture_does_not_click() {
 }
 
 // Inside an open modal the guard confines rather than dismisses, and a
-// disabled child then absorbs like anywhere else.
+// disabled child then blocks like anywhere else.
 #[test]
 fn a_disabled_child_inside_a_modal_absorbs_without_dismissing() {
     let mut app = app();
@@ -297,7 +292,7 @@ fn a_disabled_child_inside_a_modal_absorbs_without_dismissing() {
         "the confined press dismissed nothing"
     );
     assert!(
-        !was_pressed(&app, child),
+        !app.world().entity(child).contains::<Pressed>(),
         "and the disabled child absorbed it"
     );
 }

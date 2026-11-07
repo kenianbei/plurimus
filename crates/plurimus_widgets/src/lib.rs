@@ -112,6 +112,7 @@ use bevy_ecs::schedule::SystemSet;
 use bevy_input_focus::InputFocusSystems;
 
 use plurimus_core::CameraSystems;
+use plurimus_ui::bevy_picking::PickingSystems;
 use plurimus_ui::{UiPlugin, UiSystems};
 
 // Shared track convention: first cell is 0.0, last is 1.0, outside clamps.
@@ -131,7 +132,7 @@ pub enum WidgetSystems {
     /// for the containers drawn from row children, the reveal that keeps a
     /// cursor visible, popup sizing, and popover and menu row placement.
     /// Runs after [`UiSystems::Areas`] and focus dispatch, before
-    /// [`UiSystems::Hover`] - so a cursor written later in the frame is
+    /// `PickingSystems::Backend` - so a cursor written later in the frame is
     /// revealed on the next one.
     Layout,
     /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`](plurimus_core::UiWidget).
@@ -164,7 +165,7 @@ fn add_layout_systems(app: &mut App) {
         WidgetSystems::Layout
             .after(UiSystems::Areas)
             .after(InputFocusSystems::Dispatch)
-            .before(UiSystems::Hover),
+            .before(PickingSystems::Backend),
     );
     app.add_systems(
         PreUpdate,

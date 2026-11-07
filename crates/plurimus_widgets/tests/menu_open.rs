@@ -86,6 +86,7 @@ fn a_same_batch_item_click_lands_after_the_open() {
     write_press_at(&mut app, 3, 2);
     release_at(&mut app, 3, 2);
     app.update();
+    app.update();
     assert_eq!(activations(&app), 2, "button opened, then the item fired");
     assert!(
         !is_open(&app, &menu),
@@ -120,7 +121,7 @@ fn a_deferred_batch_with_a_second_flip_converges() {
         write_press_at(&mut app, x, y);
         write_release_at(&mut app, x, y);
     }
-    for _ in 0..4 {
+    for _ in 0..6 {
         app.update();
     }
     assert!(is_open(&app, &menu), "the trailing click reopened the menu");

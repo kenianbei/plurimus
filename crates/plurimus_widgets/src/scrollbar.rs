@@ -16,10 +16,12 @@ use ratatui_widgets::scrollbar::{
     Scrollbar as ScrollbarWidget, ScrollbarOrientation, ScrollbarState,
 };
 
+use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
 use plurimus_ui::{
-    ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, ScrollArea,
-    ScrollOffset, StylistDisabled, UiTheme, apply_offset, max_offset,
+    ComputedWidgetArea, Hovered, ScrollArea, ScrollOffset, StylistDisabled, UiTheme, apply_offset,
+    max_offset, pointer_cell,
 };
 use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 
@@ -55,7 +57,7 @@ pub fn scrollbar(target: Entity, orientation: ScrollbarOrientation) -> impl Bund
     (Scrollbar::new(target, orientation), UiWidget::default())
 }
 
-type BarQuery<'w, 's> = Query<'w, 's, (&'static ComputedWidgetArea, &'static Scrollbar)>;
+type Bar<'a> = (&'a ComputedWidgetArea, &'a Scrollbar);
 
 type TargetQuery<'w, 's> = Query<
     'w,
@@ -68,56 +70,70 @@ type TargetQuery<'w, 's> = Query<
 >;
 
 pub(crate) fn scrollbar_press(
-    event: On<PointerPress>,
-    bars: BarQuery,
+    mut event: On<PointerPress>,
+    cell: Res<CellSize>,
+    bars: Query<Bar>,
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    let Ok(bar) = bars.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
     seek(
-        (event.entity, event.position),
-        &bars,
+        bar,
+        pointer_cell(&event.pointer, *cell),
         &mut targets,
         &mut commands,
     );
 }
 
 pub(crate) fn scrollbar_drag(
-    event: On<PointerDrag>,
-    bars: BarQuery,
+    mut event: On<PointerDrag>,
+    cell: Res<CellSize>,
+    bars: Query<Bar>,
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    let Ok(bar) = bars.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
     seek(
-        (event.entity, event.position),
-        &bars,
+        bar,
+        pointer_cell(&event.pointer, *cell),
         &mut targets,
         &mut commands,
     );
 }
 
+// The click rather than the release: bevy sends a release to whatever the
+// pointer is over, and a click only to what this pointer pressed.
 pub(crate) fn scrollbar_release(
-    event: On<PointerRelease>,
-    bars: BarQuery,
+    mut event: On<PointerClick>,
+    cell: Res<CellSize>,
+    bars: Query<Bar>,
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    let Ok(bar) = bars.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
     seek(
-        (event.entity, event.position),
-        &bars,
+        bar,
+        pointer_cell(&event.pointer, *cell),
         &mut targets,
         &mut commands,
     );
 }
 
 fn seek(
-    (entity, pointer): (Entity, Position),
-    bars: &BarQuery,
+    (bar_area, bar): Bar,
+    pointer: Position,
     targets: &mut TargetQuery,
     commands: &mut Commands,
 ) {
-    let Ok((bar_area, bar)) = bars.get(entity) else {
-        return;
-    };
     let track = bar_area.0;
     let Ok((scroll, target_area, mut offset)) = targets.get_mut(bar.target) else {
         return;

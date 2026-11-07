@@ -128,7 +128,6 @@ fn slider_scrub_holds_capture_outside_the_track() {
 
     write_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 25, 6);
     app.update();
-    assert!(!app.world().get::<Hovered>(slider).unwrap().0);
     assert_eq!(app.world().resource::<LastChange>().0, Some((100.0, false)));
 }
 

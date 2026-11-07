@@ -4,7 +4,7 @@
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Changed, Commands, On, Query, With, Without};
+use bevy_ecs::prelude::{Changed, Commands, On, Query, Res, With, Without};
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
@@ -19,8 +19,10 @@ use super::{
     TableSelection, cursor_gutter,
 };
 use crate::rows::ActiveDescendant;
+use plurimus_core::CellSize;
+use plurimus_ui::bevy_picking::events::PointerClick;
 use plurimus_ui::{
-    Click, ComputedDisabled, ComputedWidgetArea, ScrollIntoView, ValueChange, content_cell,
+    ComputedDisabled, ComputedWidgetArea, ScrollIntoView, ValueChange, click_cell, content_cell,
     first_bound,
 };
 
@@ -189,15 +191,16 @@ impl Geometry<'_> {
 /// header click.
 ///
 /// The release edge rather than the press: selecting usually closes what was
-/// clicked, and closing on the way down despawns the entity the pointer
-/// router is still holding a gesture for.
+/// clicked, and closing on the way down despawns the entity `bevy_picking`
+/// is still holding a gesture for.
 ///
 /// A press moves nothing, which the column geometry requires rather than
 /// merely permits: the cursor gutter exists only while a row is current, so
 /// a press that set the cursor would shift every column before the release
 /// resolved against them - against a layout no frame had drawn yet.
 pub(crate) fn table_click(
-    event: On<Click>,
+    mut event: On<PointerClick>,
+    cell: Res<CellSize>,
     mut tables: Query<Clickable, Interactive>,
     rows: Rows,
     mut commands: Commands,
@@ -208,6 +211,10 @@ pub(crate) fn table_click(
     else {
         return;
     };
+    event.propagate(false);
+    let Some(clicked) = click_cell(&event, placement.0, *cell) else {
+        return;
+    };
     let geometry = Geometry {
         children,
         columns,
@@ -215,7 +222,7 @@ pub(crate) fn table_click(
         placement,
         active: active.0,
     };
-    let Some(hit) = geometry.hit(event.position, &rows) else {
+    let Some(hit) = geometry.hit(clicked, &rows) else {
         return;
     };
     let (row, hit_column) = match hit {

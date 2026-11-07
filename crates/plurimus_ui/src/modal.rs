@@ -1,14 +1,13 @@
-//! Generic modal-overlay primitives the input routers enforce.
+//! Generic modal-overlay primitives the picking backend enforces.
 //!
 //! A modal overlay (a menu popup, a dialog) carries [`ModalOpen`] while it
 //! is showing, and the root's screen rect is the geometry a press and a
 //! wheel tick are both hit-tested against. A pointer outside every open
-//! modal requests dismissal and is swallowed; a pointer inside one is
-//! confined to the subtrees of the modals containing it, so nothing an
-//! overlay covers is reachable through it. A press on a [`ModalityToggle`]
-//! entity outside the overlays dismisses only the modals it does not own,
-//! then routes, and a click on one defers the rest of the input batch a
-//! frame so it hit-tests the settled state.
+//! modal reaches only the barrier, whose press or tick dismisses them; a
+//! pointer inside one is confined to the subtrees of the modals containing
+//! it, so nothing an overlay covers is reachable through it. A press on a
+//! [`ModalityToggle`] entity outside the overlays dismisses only the modals
+//! it does not own, then lands.
 
 use core::iter;
 
@@ -27,13 +26,11 @@ use crate::interaction::ComputedWidgetArea;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ModalOpen;
 
-/// Marks an entity whose activation changes modal state. It answers two
-/// questions, and a widget usually wants one of them: a press on one
-/// outside every open modal dismisses only the modals it does not own - those
-/// whose [`ModalOpen`] root descends from it - and then routes, which is how
-/// an opener closes what it opened and a neighbouring opener switches to its
-/// own; and a click on one defers the rest of the pointer batch, which is
-/// what a row inside an overlay needs.
+/// Marks an entity whose activation changes modal state: a press on one
+/// outside every open modal reaches it instead of the barrier, dismissing
+/// only the modals it does not own - those whose [`ModalOpen`] root descends
+/// from it - which is how an opener closes what it opened and a
+/// neighbouring opener switches to its own.
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct ModalityToggle;
 
@@ -46,11 +43,10 @@ pub struct ModalDismiss {
     pub entity: Entity,
 }
 
-/// The open-modal state the input routers consult.
+/// The open-modal state the picking backend and the wheel router consult.
 #[derive(SystemParam)]
 pub(crate) struct ModalGuard<'w, 's> {
     open: Query<'w, 's, (Entity, &'static ComputedWidgetArea), With<ModalOpen>>,
-    toggles: Query<'w, 's, (), With<ModalityToggle>>,
     parents: Query<'w, 's, &'static ChildOf>,
 }
 
@@ -74,10 +70,6 @@ impl ModalGuard<'_, '_> {
 
     pub(crate) fn is_open(&self) -> bool {
         !self.open.is_empty()
-    }
-
-    pub(crate) fn affects_modality(&self, target: Entity) -> bool {
-        self.toggles.contains(target)
     }
 
     pub(crate) fn dismiss_all(&self, commands: &mut Commands) {

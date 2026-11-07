@@ -17,6 +17,7 @@ use bevy_input_focus::tab_navigation::TabNavigationPlugin;
 use bevy_input_focus::{
     InputDispatchPlugin, InputFocus, InputFocusPlugin, InputFocusSystems, dispatch_focused_input,
 };
+use bevy_picking::PickingSystems;
 use bevy_window::{PrimaryWindow, Window};
 use plurimus_term::{InputSystems, PasteMessage, bevy_compat};
 
@@ -44,7 +45,7 @@ pub(crate) fn install(app: &mut App) {
             InputFocusSystems::Dispatch
                 .after(bevy_input::InputSystems)
                 .after(UiSystems::Areas)
-                .before(UiSystems::Hover),
+                .before(PickingSystems::Hover),
         ),
     );
     app.add_systems(
@@ -59,7 +60,7 @@ pub(crate) fn install(app: &mut App) {
         PreUpdate,
         sync_focus_within
             .after(InputFocusSystems::Dispatch)
-            .after(crate::pointer::pointer_interaction),
+            .after(UiSystems::Route),
     );
     app.add_systems(PreStartup, spawn_virtual_window);
 }

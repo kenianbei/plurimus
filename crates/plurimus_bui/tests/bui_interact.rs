@@ -7,12 +7,12 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_ui::{FlexDirection, Node, PositionType, UiRect, Val};
 use plurimus_bui::BuiPlugin;
-use plurimus_bui::bevy_picking::Pickable;
 use plurimus_bui::bevy_ui_widgets::Button;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{click, press_key, release_at, send_mouse, set_focus};
+use plurimus_ui::bevy_picking::Pickable;
 use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen, UiLabel};
 use plurimus_widgets::WidgetsPlugin;
 
@@ -244,4 +244,26 @@ fn a_disabled_node_absorbs_the_press() {
     click(&mut app, 2, 0);
 
     assert_eq!(activations(&app), &[] as &[Entity]);
+}
+
+// Window picking stays on: a press on no node is a press on the window,
+// which clears focus as it does on a desktop.
+#[test]
+fn a_press_on_no_node_clears_focus() {
+    let mut app = app();
+    let root = app
+        .world_mut()
+        .spawn(Node {
+            width: Val::Px(8.0),
+            height: Val::Px(1.0),
+            ..Node::default()
+        })
+        .id();
+    let node = button(&mut app, root);
+    settle(&mut app);
+    set_focus(&mut app, node);
+
+    click(&mut app, 15, 4);
+
+    assert_eq!(app.world().resource::<InputFocus>().get(), None);
 }

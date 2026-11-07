@@ -1,57 +1,36 @@
-//! Pointer interaction state over widget screen rects.
+//! Interaction state over widget screen rects.
 //!
-//! A widget's [`ComputedWidgetArea`] is the only thing hit-testing needs, so
-//! hover, press, drag, release and click all resolve by z-ordered rect
-//! search: the topmost area containing the cursor wins, and the components
-//! that result ([`Hovered`], [`Pressed`], [`Click`]) are what widget crates
-//! observe rather than raw mouse messages.
+//! A widget's [`ComputedWidgetArea`] is the only thing hit-testing needs:
+//! the picking backend reports the areas under the pointer by z-order, and
+//! `bevy_picking` resolves [`Hovered`], [`Pressed`] and the pointer events
+//! widget crates observe from there.
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::{Entity, EntityHashSet};
 use bevy_ecs::hierarchy::Children;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, Has, Local, Query, Res, With, Without};
-use bevy_ecs::query::QueryFilter;
-use plurimus_core::ratatui_core::layout::{Position, Rect};
+use bevy_ecs::prelude::{Commands, Component, Has, Local, Query, With, Without};
+use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{
     CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiOrder, UiWidget, resolve_area,
 };
-use plurimus_term::{CursorCell, KeyModifiers};
 
 pub use bevy_picking::hover::Hovered;
 pub use bevy_ui::{Checked, InteractionDisabled, Pressed};
 pub use bevy_ui_widgets::{Activate, ValueChange};
 
-/// The click count of the press holding [`Pressed`] - see
-/// [`PointerPress::count`]. Inserted and removed beside it by the router.
-///
-/// The count lives on the entity because a gesture outlives the message
-/// that started it: the [`Click`] a release completes reports the same
-/// number the press did, and a [`PointerDrag`] observer reads it off the
-/// entity, a drag through the second press of a run being a different
-/// gesture from a drag through the first. A `Pressed` without one is a lone
-/// press, which is what a gesture something other than this router started
-/// counts as.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PressCount(pub u8);
-
-impl Default for PressCount {
-    fn default() -> Self {
-        Self(1)
-    }
-}
-
 /// Present on every entity disabled by its own [`InteractionDisabled`] or
 /// an ancestor's, through `ChildOf`.
 ///
-/// A disabled widget is inert, not invisible: it still wins press
-/// arbitration and absorbs the press - no event, no focus movement, and
-/// nothing beneath it is pressed - the way a disabled control blocks a
-/// click everywhere else. [`PressPassThrough`] is the opt-out. Wheel ticks
-/// are the exception: a disabled widget consumes none, so they fall
-/// through, the same as an axis it cannot scroll.
+/// A disabled widget is inert, not invisible: it is still picked and so
+/// blocks what is beneath it, but its press moves no focus, captures
+/// nothing and goes no higher - the way a disabled control blocks a click
+/// everywhere else. A widget that should be transparent instead carries
+/// bevy's `Pickable`. Wheel ticks are the exception: a disabled widget
+/// consumes none, so they fall through, the same as an axis it cannot
+/// scroll.
 ///
 /// Resolved in [`UiSystems::Areas`](crate::UiSystems::Areas), before focus
-/// dispatch and the pointer router read it, so what is disabled later in a
+/// dispatch and the pointer events read it, so what is disabled later in a
 /// frame takes effect from the next one. Read it rather than write it: the
 /// resolver removes it from whatever no [`InteractionDisabled`] reaches.
 #[derive(Component, Debug, Clone, Copy)]
@@ -79,16 +58,9 @@ pub(crate) fn propagate_disabled(
     }
 }
 
-/// Exempts the widget from press hit-testing: a press lands on whatever
-/// is beneath it. Presses only - the widget keeps its area for hover, the
-/// wheel, and navigation. On a widget with [`InteractionDisabled`], this
-/// restores fall-through where the default is to absorb.
-#[derive(Component, Debug, Clone, Copy, Default)]
-pub struct PressPassThrough;
-
 /// Keeps a press on the widget, or on anything inside it, from moving
-/// focus, while the press itself still lands - [`Pressed`], [`PointerDrag`],
-/// [`Click`] all arrive. For a toolbar control beside an editor:
+/// focus, while the press itself still lands - [`Pressed`], the drag and
+/// the click all arrive. For a toolbar control beside an editor:
 /// tab-reachable through its `TabIndex`, but a click on it leaves the
 /// keyboard - and any armed selection - where they were.
 ///
@@ -107,158 +79,6 @@ pub struct PressFocusDisabled;
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[require(ComputedUiCamera)]
 pub struct ComputedWidgetArea(pub Rect);
-
-/// Pointer click completed on a widget: pressed and released on it.
-///
-/// The release edge, so a widget that closes or despawns something on being
-/// clicked does it after the pointer router is done with the gesture. What
-/// the click landed on is resolved from [`position`](Self::position), not
-/// from where the press was: a drag that starts on one row and ends on
-/// another names the one it ended on.
-#[derive(EntityEvent, Debug, Clone, Copy)]
-#[non_exhaustive]
-pub struct Click {
-    /// The clicked widget.
-    pub entity: Entity,
-    /// Cursor cell at release time, inside the widget's area.
-    pub position: Position,
-    /// Click count of the press this completes; see
-    /// [`PointerPress::count`].
-    pub count: u8,
-}
-
-impl Click {
-    /// A click completed on `entity`, released at `position`, the first of
-    /// its run.
-    #[must_use]
-    pub const fn new(entity: Entity, position: Position) -> Self {
-        Self {
-            entity,
-            position,
-            count: 1,
-        }
-    }
-
-    /// The same click, counted as the `count`th of its run.
-    #[must_use]
-    pub const fn with_count(mut self, count: u8) -> Self {
-        self.count = count;
-        self
-    }
-}
-
-/// Pointer pressed on a widget. Sent to the topmost hovered widget only,
-/// so a press on an overlay never also reaches widgets beneath it.
-#[derive(EntityEvent, Debug, Clone, Copy)]
-#[non_exhaustive]
-pub struct PointerPress {
-    /// The pressed widget.
-    pub entity: Entity,
-    /// Cursor cell at press time.
-    pub position: Position,
-    /// How many presses have run together here: 1 for a lone press, 2 for a
-    /// double click, and up.
-    ///
-    /// Synthesized, since no terminal reports one, from the run of presses
-    /// this crate keeps against the app-wide
-    /// [`MultiClickWindow`](plurimus_term::MultiClickWindow). A run is this
-    /// widget's and this cell's: a press elsewhere, on another widget, or on
-    /// none at all starts the next press over at 1. It saturates rather than
-    /// wrapping, so what a long run means is this widget's to decide.
-    pub count: u8,
-    /// The modifiers the terminal reported with the press.
-    ///
-    /// Read from the mouse event rather than from the keys held, which a
-    /// terminal without modifier key events learns only from a key message:
-    /// a shift reported with a click would otherwise go unseen.
-    pub modifiers: KeyModifiers,
-}
-
-impl PointerPress {
-    /// A press on `entity` at `position`, the first of its run, with nothing
-    /// held.
-    #[must_use]
-    pub const fn new(entity: Entity, position: Position) -> Self {
-        Self {
-            entity,
-            position,
-            count: 1,
-            modifiers: KeyModifiers::none(),
-        }
-    }
-
-    /// The same press, counted as the `count`th of its run.
-    #[must_use]
-    pub const fn with_count(mut self, count: u8) -> Self {
-        self.count = count;
-        self
-    }
-
-    /// The same press, made with `modifiers` held.
-    #[must_use]
-    pub const fn with_modifiers(mut self, modifiers: KeyModifiers) -> Self {
-        self.modifiers = modifiers;
-        self
-    }
-}
-
-/// Pointer moved while a widget is [`Pressed`]. Captured to that widget:
-/// it arrives regardless of where the cursor has since moved.
-#[derive(EntityEvent, Debug, Clone, Copy)]
-#[non_exhaustive]
-pub struct PointerDrag {
-    /// The widget the gesture started on.
-    pub entity: Entity,
-    /// Current cursor cell.
-    pub position: Position,
-}
-
-impl PointerDrag {
-    /// A drag captured to `entity`, now at `position`.
-    #[must_use]
-    pub const fn new(entity: Entity, position: Position) -> Self {
-        Self { entity, position }
-    }
-}
-
-/// Pointer released, ending the gesture on a [`Pressed`] widget. Captured
-/// like [`PointerDrag`]; [`Click`] is the separate activation event, sent
-/// only when the release lands back on the widget.
-#[derive(EntityEvent, Debug, Clone, Copy)]
-#[non_exhaustive]
-pub struct PointerRelease {
-    /// The widget the gesture started on.
-    pub entity: Entity,
-    /// Cursor cell at release time.
-    pub position: Position,
-}
-
-impl PointerRelease {
-    /// A release ending the gesture on `entity`.
-    #[must_use]
-    pub const fn new(entity: Entity, position: Position) -> Self {
-        Self { entity, position }
-    }
-}
-
-/// The gesture on a [`Pressed`] widget ended without a release, as it does
-/// when the terminal loses focus: no [`PointerRelease`] and no [`Click`]
-/// follow, and a release reported afterwards reaches nothing. For a widget
-/// that has to settle what a drag left behind.
-#[derive(EntityEvent, Debug, Clone, Copy)]
-#[non_exhaustive]
-pub struct PointerCancel {
-    /// The widget the gesture started on.
-    pub entity: Entity,
-}
-
-impl PointerCancel {
-    /// A cancel ending the gesture on `entity`.
-    #[must_use]
-    pub const fn new(entity: Entity) -> Self {
-        Self { entity }
-    }
-}
 
 /// Arbitration key: highest band first, then the innermost (smallest)
 /// rect, then a stable tiebreak. Innermost-wins is what routes a tick to
@@ -303,45 +123,4 @@ pub(crate) fn compute_widget_areas(
             .map_or(Rect::ZERO, |viewport| resolve_area(*area, viewport));
         computed.set_if_neq(ComputedWidgetArea(resolved));
     }
-}
-
-// `Hovered` is immutable, so a change is an insert.
-pub(crate) fn hover_widgets(
-    cursor: Res<CursorCell>,
-    widgets: Query<(Entity, &ComputedWidgetArea, &Hovered)>,
-    mut commands: Commands,
-) {
-    for (entity, area, hovered) in &widgets {
-        let over = cursor.0.is_some_and(|position| area.0.contains(position));
-        if hovered.0 != over {
-            commands.entity(entity).insert(Hovered(over));
-        }
-    }
-}
-
-/// Widgets an input router arbitrates between, `F` selecting which kind
-/// of input they receive.
-pub(crate) type AreaTargetQuery<'w, 's, F> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static ComputedWidgetArea,
-        Option<&'static UiOrder>,
-    ),
-    F,
->;
-
-/// The topmost target containing `position` that `accepts` the input, by
-/// [`z_order_key`]. Rejected targets fall through to the next beneath.
-pub(crate) fn topmost_at<F: QueryFilter>(
-    position: Position,
-    targets: &AreaTargetQuery<'_, '_, F>,
-    accepts: impl Fn(Entity) -> bool,
-) -> Option<Entity> {
-    targets
-        .iter()
-        .filter(|(entity, area, _)| area.0.contains(position) && accepts(*entity))
-        .max_by_key(|(entity, area, order)| z_order_key(*entity, *order, area.0))
-        .map(|(entity, ..)| entity)
 }

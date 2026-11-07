@@ -8,10 +8,10 @@
 //! installed.
 //!
 //! Computed nodes rasterize beneath every widget and are picked by
-//! `bevy_picking` through `bevy_ui`'s own backend, fed from the terminal's
-//! mouse, so the upstream `bevy_ui_widgets` run on them unchanged - all but
-//! `TextInputPlugin`, which edits through `bevy_text` and so has nothing to
-//! draw with here.
+//! `bevy_picking` through `bevy_ui`'s own backend, on the pointer
+//! `plurimus_ui` feeds from the terminal's mouse, so the upstream
+//! `bevy_ui_widgets` run on them unchanged - all but `TextInputPlugin`,
+//! which edits through `bevy_text` and so has nothing to draw with here.
 //!
 //! # What a cell cannot show
 //!
@@ -30,36 +30,30 @@
 //! node through `UiArea`; arrow-key navigation, which `plurimus_ui` builds
 //! from widget areas here and nothing builds for nodes on a window; focus
 //! restored when an upstream dialog closes, which neither target does; and
-//! hover on a node beneath a plurimus widget, which the pick gate withholds.
+//! hover on a node beneath a plurimus widget, which the widget blocks.
 
 mod camera;
 mod decorate;
 mod extract;
-mod picking;
 mod rasterize;
 mod rect;
 mod stack;
 mod text;
 mod visibility;
 
-pub use bevy_picking;
 pub use bevy_text;
 pub use bevy_ui_widgets;
 pub use rect::ComputedNodeRect;
 
-use bevy_app::{
-    App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PreUpdate, PropagateSet,
-    Startup,
-};
+use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PropagateSet};
 use bevy_camera::visibility::VisibilitySystems;
 use bevy_ecs::prelude::{
     DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
 };
 use bevy_input::mouse::MouseScrollPixelsPerLine;
 use bevy_input_focus::pointer_focus::PointerFocusPlugin;
-use bevy_picking::{InteractionPlugin, PickingPlugin, PickingSettings, PickingSystems};
 use bevy_text::{EmSize, RemSize};
-use bevy_ui::picking_backend::{UiPickingPlugin, ui_picking};
+use bevy_ui::picking_backend::UiPickingPlugin;
 use bevy_ui::ui_surface::UiSurface;
 use bevy_ui::update::{propagate_ui_target_cameras, update_clipping_system};
 use bevy_ui::{
@@ -70,8 +64,7 @@ use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{
     CellSize, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
-use plurimus_term::InputSystems;
-use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
+use plurimus_ui::UiPlugin;
 
 /// Runs `bevy_ui`'s layout and picking against terminal cameras, at
 /// [`CellSize`] pixels per cell, with the fontless `bevy_ui_widgets` plugins
@@ -132,38 +125,12 @@ impl Plugin for BuiPlugin {
     }
 }
 
-// Window picking is off: a press on no node is `plurimus_ui`'s to route,
-// and a window hit would clear the focus it left alone.
+// `plurimus_ui` installs picking, feeds the pointer and focuses on a press;
+// upstream's `PointerFocusPlugin` would be a second focus writer.
 fn add_picking(app: &mut App) {
-    if !app.is_plugin_added::<PickingPlugin>() {
-        app.add_plugins((PickingPlugin, InteractionPlugin));
-    }
-    if !app.is_plugin_added::<PointerFocusPlugin>() {
-        app.add_plugins(PointerFocusPlugin);
-    }
     if !app.is_plugin_added::<UiPickingPlugin>() {
         app.add_plugins(UiPickingPlugin);
     }
-    app.world_mut()
-        .resource_mut::<PickingSettings>()
-        .is_window_picking_enabled = false;
-    // Both stacks write `Hovered`: `bevy_picking` clears it on every
-    // carrier it does not hover, which is every plurimus widget, so
-    // `plurimus_ui` writes last.
-    app.configure_sets(PreUpdate, PuiSystems::Hover.after(PickingSystems::Hover));
-    app.add_systems(Startup, picking::spawn_pointer);
-    app.add_systems(
-        PreUpdate,
-        (
-            picking::feed_pointer
-                .after(InputSystems::Update)
-                .before(PickingSystems::ProcessInput),
-            picking::gate_hits
-                .in_set(PickingSystems::Backend)
-                .after(ui_picking)
-                .after(PuiSystems::Areas),
-        ),
-    );
 }
 
 fn add_upstream_widgets(app: &mut App) {

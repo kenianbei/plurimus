@@ -66,9 +66,7 @@ title. Best-effort, because nothing a terminal is asked can be confirmed.
 the kitty keyboard protocol give real press, repeat, and release; elsewhere
 releases are synthesized on a `ReleaseTimeout`, which is degraded but documented
 rather than silent. Losing focus releases every held key on any tier, since a
-terminal reports nothing while unfocused. `MultiClickWindow` is the other knob
-set once for every widget: how soon a second press has to land to count as a
-double-click, which no terminal reports either.
+terminal reports nothing while unfocused.
 
 ### Crossterm (`plurimus_crossterm`)
 
@@ -139,8 +137,8 @@ Only layout runs: `bevy_ui`'s text, focus, picking, and asset systems stay out,
 and text is measured by grapheme width rather than font rasterization.
 
 Use it instead of hand-computed `Rect`s for responsive panels and nested rows
-and columns. Nodes bridge into the interaction routers, so they hover, click,
-and scroll like other widgets.
+and columns. Nodes are picked by `bevy_picking` beside the widgets, so they
+hover, click, and scroll like them.
 
 ### 2d Rendering (`plurimus_2d`)
 

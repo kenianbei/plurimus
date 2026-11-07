@@ -9,21 +9,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **Upstream `bevy_ui_widgets` run on `bevy_ui` nodes.** `BuiPlugin` installs
-  `bevy_picking`, bevy_ui's picking backend, `PointerFocusPlugin` and the
-  fontless `bevy_ui_widgets` plugins, and feeds the pointer from the terminal's
-  mouse, so bevy's own `Button`, `Checkbox`, `RadioGroup`, `Slider`, menus,
-  dialogs and `ScrollArea` work on a node tree unchanged - hover, press, click,
-  click-to-focus, Enter and Space, and wheel ticks that scroll one row.
-  `TextInputPlugin` stays out, since it edits through a font engine.
-  - A node pick is dropped where a plurimus widget would take the press or the
-    tick, so widgets drawn over nodes take the pointer alone; a tick over a
-    widget that takes presses alone, or cannot move on the ticked axis, falls to
-    the node beneath, as a wheel over a button reaches the scroll area around it
-    in a window. While a plurimus overlay is open, only the nodes of its own
+  bevy_ui's picking backend and the fontless `bevy_ui_widgets` plugins on the
+  pointer `plurimus_ui` feeds from the terminal's mouse, so bevy's own `Button`,
+  `Checkbox`, `RadioGroup`, `Slider`, menus, dialogs and `ScrollArea` work on a
+  node tree unchanged - hover, press, click, click-to-focus, Enter and Space,
+  and wheel ticks that scroll one row. `TextInputPlugin` stays out, since it
+  edits through a font engine.
+  - Widget hits are ordered above node hits and block what is beneath, so a
+    plurimus widget drawn over a node takes the press and the hover alone; a
+    tick over a widget that does not scroll on the ticked axis reaches no node
+    beneath it. While a plurimus overlay is open, only the nodes of its own
     subtree are picked inside it - an overlay built of nodes works, and one
     drawn over nodes covers them - and nothing is picked outside it, where a
-    press dismisses it. `plurimus_ui::PointerTargets` is that question, for any
-    other pointer stack.
+    press or a tick dismisses it.
   - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
     `ZIndex` and `GlobalZIndex` order both, and a root spawned later stands over
     an earlier one, as in a window.
@@ -93,12 +91,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ValueChange` are now bevy's own types, re-exported: `Hovered` from
   `bevy_picking`, the three markers from `bevy_ui`, the two events from
   `bevy_ui_widgets`. Imports keep working; what changes is their shape.
-  - `Pressed` is a unit marker. The click count it carried moves to
-    `PressCount`, inserted and removed beside it.
+  - `Pressed` is a unit marker. The click count it carried is bevy's, on
+    `PointerPress::count` and `PointerClick::count`.
   - `ValueChange { source, value, is_final }` replaces `ValueChange::new` and
     carries bevy's `is_final`, which plurimus widgets set to `true`.
-  - `Hovered` is a component holding a `bool`, written to widgets that carry it
-    as before.
+  - `Hovered` is a component holding a `bool`, written by `bevy_picking` to the
+    topmost widget under the pointer and its ancestors - so a widget must carry
+    it to be picked at all, and `WheelReceptive` requires it.
 - **Breaking: `bevy_ui` nodes interact through `bevy_picking` alone.** The
   bridges that published node rects as plurimus widget areas and wheel targets
   are gone: a node is hovered, pressed, focused and scrolled by bevy's stack,
@@ -112,7 +111,37 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A border with one side draws straight.** A top-only border runs end to end
   and a left-only one the full height; a corner glyph appears only where both of
   its sides are present.
-- `plurimus_bui` re-exports `bevy_picking`, `bevy_text` and `bevy_ui_widgets`.
+- **Breaking: plurimus widgets are picked by `bevy_picking`.** `plurimus_ui` is
+  a picking backend: each frame it reports the widgets under the pointer, per
+  terminal camera, and bevy's hover map, pointer capture, pointer events and
+  click counts replace the crate's own router. A widget observes bevy's
+  `PointerPress`, `PointerDrag`, `PointerRelease`, `PointerClick` and
+  `PointerCancel`, named through `plurimus_ui::bevy_picking`; `pointer_cell`
+  reads the cell under any of them, `click_cell` the cell a click ended on when
+  that is inside the widget, and `PointerModifiers` the modifiers the terminal
+  sent with the frame's mouse input, which bevy's events have no field for. A
+  press captures the pointer to the widget it lands on, so its drag and release
+  reach it wherever the pointer goes; a focus loss sends that widget a
+  `PointerCancel`. `UiPlugin` installs `PickingPlugin` and `InteractionPlugin`
+  and feeds the pointer itself, ending a frame's batch at every press and
+  release so what follows is hit-tested against the state the click left.
+  - Click counts are per widget on the wall clock, within
+    `PickingSettings::multi_click_interval`: a second press anywhere on the same
+    widget runs with the first, and a press on another widget starts over.
+  - A press on a widget with no `TabIndex` at or above it clears focus, as a
+    press on nothing does; `PressFocusDisabled` and an open overlay's root keep
+    it, as before.
+  - A disabled widget is still picked, so it blocks what is beneath and is
+    hovered while it does; no gesture starts on it. A widget that should be
+    transparent to the pointer carries bevy's `Pickable::IGNORE`, which replaces
+    `PressPassThrough` and removes its hover too.
+  - Outside every open overlay the one thing picked is a barrier, so a press or
+    a tick there dismisses the overlays and reaches nothing - a node beneath
+    included - and an enabled `ModalityToggle` is picked in its place.
+  - A right or middle press is a press, as it is on a node; the old router took
+    the left button alone.
+- `plurimus_ui` re-exports `bevy_picking`; `plurimus_bui` re-exports `bevy_text`
+  and `bevy_ui_widgets`.
 
 ### Removed
 
@@ -124,6 +153,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the `IsDefaultUiCamera` toggle and reads core's `CellSize`.
 - The `InheritedVisibility::VISIBLE` stand-in `BuiPlugin` registered for nodes;
   visibility is now computed.
+- `plurimus_ui`'s `Click`, `PointerPress`, `PointerDrag`, `PointerRelease`,
+  `PointerCancel`, `PressCount`, `PressPassThrough`, `PointerTargets` and
+  `UiSystems::Hover`, and `plurimus_term`'s `MultiClickWindow`: the pointer
+  events, the click run and the hit test are `bevy_picking`'s.
 
 ### Fixed
 

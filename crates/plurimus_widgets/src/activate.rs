@@ -12,7 +12,7 @@
 //! terminals have no timely release events.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{ChildOf, Commands, Component, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{ChildOf, Commands, Component, Has, On, Query, Res, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
@@ -22,8 +22,12 @@ use plurimus_term::bevy_compat::HeldModifiers;
 use crate::button::Button;
 use crate::checkbox::Checkbox;
 use crate::radio::{RadioButton, RadioGroup};
+use plurimus_core::CellSize;
 pub use plurimus_ui::Activate;
-use plurimus_ui::{Checked, Click, ComputedDisabled, KeyBinding, ValueChange};
+use plurimus_ui::bevy_picking::events::PointerClick;
+use plurimus_ui::{
+    Checked, ComputedDisabled, ComputedWidgetArea, KeyBinding, ValueChange, click_cell,
+};
 
 /// The keys that activate a [`Button`], [`Checkbox`] or [`RadioButton`]
 /// holding focus, defaulting to `Enter` and space.
@@ -70,8 +74,23 @@ impl ActivationTargets<'_, '_> {
     }
 }
 
-pub(crate) fn widget_click(click: On<Click>, targets: ActivationTargets, mut commands: Commands) {
-    activate_widget(click.entity, &targets, &mut commands);
+/// A click completes an activation only when it ended on the widget.
+pub(crate) fn widget_click(
+    mut click: On<PointerClick>,
+    cell: Res<CellSize>,
+    areas: Query<&ComputedWidgetArea>,
+    targets: ActivationTargets,
+    mut commands: Commands,
+) {
+    let Ok(area) = areas.get(click.entity) else {
+        return;
+    };
+    if click_cell(&click, area, *cell).is_none() {
+        return;
+    }
+    if activate_widget(click.entity, &targets, &mut commands) {
+        click.propagate(false);
+    }
 }
 
 pub(crate) fn widget_key(

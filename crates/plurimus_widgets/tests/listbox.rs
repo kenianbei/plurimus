@@ -299,7 +299,7 @@ fn click_selects_the_clicked_row() {
 }
 
 // Selecting usually closes what was clicked, and closing on the way down
-// despawns the entity the pointer router is still owed a release for.
+// despawns the entity `bevy_picking` is still owed a release for.
 #[test]
 fn a_press_moves_the_cursor_without_selecting() {
     let mut app = app();

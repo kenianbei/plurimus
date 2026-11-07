@@ -37,13 +37,13 @@ use bevy_ui::{
 use bevy_ui_render::UiRenderPlugin;
 use bevy_window::{Window, WindowPlugin};
 use bevy_winit::WinitPlugin;
-use plurimus::bui::bevy_picking::DefaultPickingPlugins;
-use plurimus::bui::bevy_picking::hover::Hovered;
 use plurimus::bui::bevy_ui_widgets::{Activate, TextInput, UiWidgetsPlugins};
+use plurimus::ui::Hovered;
 use plurimus::ui::bevy_input_focus::tab_navigation::{TabIndex, TabNavigationPlugin};
 use plurimus::ui::bevy_input_focus::{
     FocusedInput, InputDispatchPlugin, InputFocus, InputFocusPlugin,
 };
+use plurimus::ui::bevy_picking::DefaultPickingPlugins;
 
 use crate::model::{Done, Part, Todos};
 use crate::{State, add_shared, toggle, write};

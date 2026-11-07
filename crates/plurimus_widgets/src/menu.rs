@@ -4,8 +4,8 @@
 //! A menu is assembled rather than built in: the button opens a popup, the
 //! popup is placed by `popover`, and the rows are ordinary entities. Menus
 //! own no dismissal logic of their own - they mark the popup modal and let
-//! `plurimus_ui`'s routers confine the pointer to it and swallow what lands
-//! outside - so what remains here is opening, closing, and moving the
+//! `plurimus_ui`'s picking confine the pointer to it and dismiss on what
+//! lands outside - so what remains here is opening, closing, and moving the
 //! highlight.
 
 use bevy_ecs::bundle::Bundle;
@@ -29,11 +29,14 @@ use ratatui_widgets::paragraph::Paragraph;
 
 use crate::popover::Popover;
 use crate::{Activate, Button};
+use plurimus_core::CellSize;
 use plurimus_core::{UiHidden, UiOrder, UiWidget};
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::UiLabel;
+use plurimus_ui::bevy_picking::events::PointerClick;
 use plurimus_ui::{
-    Click, ComputedDisabled, Hovered, ModalDismiss, ModalOpen, ModalityToggle, UiStyle, UiTheme,
+    ComputedDisabled, ComputedWidgetArea, Hovered, ModalDismiss, ModalOpen, ModalityToggle,
+    UiStyle, UiTheme, click_cell,
 };
 use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
 use plurimus_ui::{KeyBinding, first_bound};
@@ -147,6 +150,7 @@ pub(crate) struct MenuAccess<'w, 's> {
     popups: Query<'w, 's, Entity, With<MenuPopup>>,
     open: Query<'w, 's, Entity, With<MenuOpen>>,
     items: Query<'w, 's, Has<ComputedDisabled>, With<MenuItem>>,
+    areas: Query<'w, 's, &'static ComputedWidgetArea>,
     keys: Query<'w, 's, &'static MenuKeys>,
 }
 
@@ -263,14 +267,21 @@ pub(crate) fn menu_button_activate(
 }
 
 pub(crate) fn menu_item_click(
-    click: On<Click>,
+    mut click: On<PointerClick>,
+    cell: Res<CellSize>,
     menus: MenuAccess,
     mut focus: ResMut<InputFocus>,
     mut commands: Commands,
 ) {
-    if !menus.is_live_item(click.entity) {
+    if !menus.is_live_item(click.entity)
+        || !menus
+            .areas
+            .get(click.entity)
+            .is_ok_and(|area| click_cell(&click, area, *cell).is_some())
+    {
         return;
     }
+    click.propagate(false);
     commands.trigger(Activate {
         entity: click.entity,
     });

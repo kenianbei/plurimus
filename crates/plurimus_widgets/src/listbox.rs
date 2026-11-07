@@ -11,7 +11,9 @@
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChangesMut, Mut};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Changed, Children, Commands, Component, Has, On, Query, With, Without};
+use bevy_ecs::prelude::{
+    Changed, Children, Commands, Component, Has, On, Query, Res, With, Without,
+};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
@@ -24,11 +26,13 @@ use plurimus_term::bevy_compat::HeldModifiers;
 use super::ValueChange;
 use crate::clipboard::Clipboard;
 use crate::rows::{ActiveDescendant, ContentDirty, ListItemText, copied_text, row_height};
+use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
 use plurimus_ui::{
-    Checked, Click, ComputedDisabled, ComputedWidgetArea, Hovered, PointerDrag, PointerPress,
+    Checked, ComputedDisabled, ComputedWidgetArea, Hovered, click_cell, pointer_cell,
 };
 use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{ScrollIntoView, ScrollOffset, content_cell};
@@ -351,11 +355,17 @@ fn row_at(
 
 /// Moves the cursor to the row under the pointer, so a press shows what it
 /// is on. Selecting is the release's, in [`listbox_click`].
-pub(crate) fn listbox_press(event: On<PointerPress>, mut access: ListBoxAccess) {
+pub(crate) fn listbox_press(
+    mut event: On<PointerPress>,
+    cell: Res<CellSize>,
+    mut access: ListBoxAccess,
+) {
     let Ok((area, offset, children, mut active)) = access.boxes.get_mut(event.entity) else {
         return;
     };
-    let Some(row) = row_at(event.position, (area, offset, children), &access.items) else {
+    event.propagate(false);
+    let position = pointer_cell(&event.pointer, *cell);
+    let Some(row) = row_at(position, (area, offset, children), &access.items) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
@@ -363,11 +373,17 @@ pub(crate) fn listbox_press(event: On<PointerPress>, mut access: ListBoxAccess) 
 
 /// Keeps the cursor under a held pointer, so the highlight never disagrees
 /// with the row a release would select.
-pub(crate) fn listbox_drag(event: On<PointerDrag>, mut access: ListBoxAccess) {
+pub(crate) fn listbox_drag(
+    mut event: On<PointerDrag>,
+    cell: Res<CellSize>,
+    mut access: ListBoxAccess,
+) {
     let Ok((area, offset, children, mut active)) = access.boxes.get_mut(event.entity) else {
         return;
     };
-    let Some(row) = row_at(event.position, (area, offset, children), &access.items) else {
+    event.propagate(false);
+    let position = pointer_cell(&event.pointer, *cell);
+    let Some(row) = row_at(position, (area, offset, children), &access.items) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));
@@ -377,14 +393,24 @@ pub(crate) fn listbox_drag(event: On<PointerDrag>, mut access: ListBoxAccess) {
 ///
 /// The release edge rather than the press: a list selection usually closes
 /// the thing it was made in, and closing on the way down despawns the entity
-/// the pointer router is still holding a gesture for. A release outside any
-/// row selects nothing, and a drag across rows names the one it ended on.
-pub(crate) fn listbox_click(event: On<Click>, mut access: ListBoxAccess, mut commands: Commands) {
+/// `bevy_picking` is still holding a gesture for. A release outside the list
+/// or any row selects nothing, and a drag across rows names the one it ended
+/// on.
+pub(crate) fn listbox_click(
+    mut event: On<PointerClick>,
+    cell: Res<CellSize>,
+    mut access: ListBoxAccess,
+    mut commands: Commands,
+) {
     let listbox = event.entity;
     let Ok((area, offset, children, mut active)) = access.boxes.get_mut(listbox) else {
         return;
     };
-    let Some(row) = row_at(event.position, (area, offset, children), &access.items) else {
+    event.propagate(false);
+    let Some(position) = click_cell(&event, area, *cell) else {
+        return;
+    };
+    let Some(row) = row_at(position, (area, offset, children), &access.items) else {
         return;
     };
     active.set_if_neq(ActiveDescendant(Some(row)));

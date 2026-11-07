@@ -12,7 +12,8 @@ use plurimus_test::{
     press_at, press_key, release_at, send_focus, send_mouse, set_focus, write_mouse,
 };
 use plurimus_ui::Key;
-use plurimus_ui::{Click, FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget, ValueChange};
+use plurimus_ui::bevy_picking::events::PointerClick;
+use plurimus_ui::{FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
     Slider, SliderAction, SliderKeys, SliderRange, SliderValue, WidgetsPlugin, slider_self_update,
@@ -139,7 +140,7 @@ fn click_presses_focuses_and_triggers() {
         .id();
     app.world_mut()
         .entity_mut(widget)
-        .observe(|_click: On<Click>, mut clicks: ResMut<Clicks>| clicks.0 += 1);
+        .observe(|_click: On<PointerClick>, mut clicks: ResMut<Clicks>| clicks.0 += 1);
 
     press_at(&mut app, 3, 1);
     assert!(app.world().get::<Pressed>(widget).is_some());

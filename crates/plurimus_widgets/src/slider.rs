@@ -23,12 +23,11 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::widgets::Widget;
 
 use super::ValueChange;
+use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
 use plurimus_term::bevy_compat::HeldModifiers;
-use plurimus_ui::{
-    ComputedDisabled, ComputedWidgetArea, Hovered, PointerCancel, PointerDrag, PointerPress,
-    PointerRelease, UiTheme,
-};
+use plurimus_ui::bevy_picking::events::{PointerCancel, PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, Hovered, UiTheme, pointer_cell};
 use plurimus_ui::{KeyBinding, first_bound};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
@@ -139,6 +138,8 @@ pub fn slider(start: f32, end: f32, value: f32) -> impl Bundle {
     )
 }
 
+type SliderItem<'a> = (&'a ComputedWidgetArea, &'a SliderValue, &'a SliderRange);
+
 type SliderQuery<'w, 's> = Query<
     'w,
     's,
@@ -147,38 +148,51 @@ type SliderQuery<'w, 's> = Query<
         &'static SliderValue,
         &'static SliderRange,
     ),
-    With<Slider>,
+    (With<Slider>, Without<ComputedDisabled>),
 >;
 
-pub(crate) fn slider_press(event: On<PointerPress>, sliders: SliderQuery, mut commands: Commands) {
-    seek(
-        (event.entity, event.position.x),
-        false,
-        &sliders,
-        &mut commands,
-    );
-}
-
-pub(crate) fn slider_drag(event: On<PointerDrag>, sliders: SliderQuery, mut commands: Commands) {
-    seek(
-        (event.entity, event.position.x),
-        false,
-        &sliders,
-        &mut commands,
-    );
-}
-
-pub(crate) fn slider_release(
-    event: On<PointerRelease>,
+pub(crate) fn slider_press(
+    mut event: On<PointerPress>,
+    cell: Res<CellSize>,
     sliders: SliderQuery,
     mut commands: Commands,
 ) {
-    seek(
-        (event.entity, event.position.x),
-        true,
-        &sliders,
-        &mut commands,
-    );
+    let Ok(slider) = sliders.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
+    let x = pointer_cell(&event.pointer, *cell).x;
+    seek(event.entity, slider, x, false, &mut commands);
+}
+
+pub(crate) fn slider_drag(
+    mut event: On<PointerDrag>,
+    cell: Res<CellSize>,
+    sliders: SliderQuery,
+    mut commands: Commands,
+) {
+    let Ok(slider) = sliders.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
+    let x = pointer_cell(&event.pointer, *cell).x;
+    seek(event.entity, slider, x, false, &mut commands);
+}
+
+// The click rather than the release: bevy sends a release to whatever the
+// pointer is over, and a click only to what this pointer pressed.
+pub(crate) fn slider_release(
+    mut event: On<PointerClick>,
+    cell: Res<CellSize>,
+    sliders: SliderQuery,
+    mut commands: Commands,
+) {
+    let Ok(slider) = sliders.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
+    let x = pointer_cell(&event.pointer, *cell).x;
+    seek(event.entity, slider, x, true, &mut commands);
 }
 
 // A cancelled drag commits rather than reverts, as a text field does on
@@ -198,14 +212,12 @@ pub(crate) fn slider_cancel(
 }
 
 fn seek(
-    (entity, x): (Entity, u16),
+    entity: Entity,
+    (area, value, range): SliderItem,
+    x: u16,
     is_final: bool,
-    sliders: &SliderQuery,
     commands: &mut Commands,
 ) {
-    let Ok((area, value, range)) = sliders.get(entity) else {
-        return;
-    };
     let target = track_value(area.0, *range, x);
     if is_final || (target - value.0).abs() > f32::EPSILON {
         commands.trigger(ValueChange {

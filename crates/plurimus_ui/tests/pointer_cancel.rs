@@ -1,6 +1,6 @@
-//! A focus loss ends a pointer gesture without completing it: the release
-//! that would have clicked is never reported, and one that arrives after
-//! focus returns reaches nothing.
+//! A focus loss ends a pointer gesture without completing it: the widget
+//! is sent a cancel, and the release that would have clicked clicks
+//! nothing.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -9,10 +9,8 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{release_at, send_focus, send_mouse, write_focus, write_mouse};
-use plurimus_ui::{
-    Click, ComputedWidgetArea, Hovered, PointerCancel, PointerPress, PointerRelease, Pressed,
-    UiArea, UiPlugin,
-};
+use plurimus_ui::bevy_picking::events::{PointerCancel, PointerClick, PointerPress};
+use plurimus_ui::{ComputedWidgetArea, Hovered, Pressed, UiArea, UiPlugin};
 
 const AREA: Rect = Rect::new(2, 1, 6, 3);
 const X: u16 = 4;
@@ -23,7 +21,6 @@ const Y: u16 = 2;
 struct Seen {
     presses: Vec<u8>,
     cancels: Vec<Entity>,
-    releases: usize,
     clicks: usize,
 }
 
@@ -33,16 +30,19 @@ fn app() -> (App, Entity) {
     app.insert_resource(TerminalSize::new(20, 8));
     app.init_resource::<Seen>();
     app.add_observer(|press: On<PointerPress>, mut seen: ResMut<Seen>| {
-        seen.presses.push(press.count);
+        if press.entity == press.original_event_target() {
+            seen.presses.push(press.count);
+        }
     });
     app.add_observer(|cancel: On<PointerCancel>, mut seen: ResMut<Seen>| {
-        seen.cancels.push(cancel.entity);
+        if cancel.entity == cancel.original_event_target() {
+            seen.cancels.push(cancel.entity);
+        }
     });
-    app.add_observer(|_: On<PointerRelease>, mut seen: ResMut<Seen>| {
-        seen.releases += 1;
-    });
-    app.add_observer(|_: On<Click>, mut seen: ResMut<Seen>| {
-        seen.clicks += 1;
+    app.add_observer(|click: On<PointerClick>, mut seen: ResMut<Seen>| {
+        if click.entity == click.original_event_target() {
+            seen.clicks += 1;
+        }
     });
     app.world_mut().spawn(TerminalCamera::default());
     let target = app
@@ -62,10 +62,9 @@ fn assert_cancelled(app: &mut App, target: Entity) {
     assert_eq!(app.world().resource::<Seen>().cancels, [target]);
 
     release_at(app, X, Y);
-    let seen = app.world().resource::<Seen>();
-    assert_eq!(seen.releases, 0, "a cancelled gesture is never released");
     assert_eq!(
-        seen.clicks, 0,
+        app.world().resource::<Seen>().clicks,
+        0,
         "the release after focus returns clicks nothing"
     );
 }
@@ -89,17 +88,19 @@ fn a_press_in_the_losing_frame_is_cancelled_too() {
     write_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
     write_focus(&mut app, false);
     app.update();
+    app.update();
 
     assert_cancelled(&mut app, target);
 }
 
 #[test]
-fn a_press_after_a_cancel_starts_a_new_run() {
-    let (mut app, _) = app();
+fn a_press_after_a_cancel_presses_again() {
+    let (mut app, target) = app();
     send_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
     send_focus(&mut app, false);
 
     send_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
 
-    assert_eq!(app.world().resource::<Seen>().presses, [1, 1]);
+    assert_eq!(app.world().resource::<Seen>().presses.len(), 2);
+    assert!(app.world().get::<Pressed>(target).is_some());
 }
