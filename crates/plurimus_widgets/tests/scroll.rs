@@ -4,8 +4,7 @@ use bevy_app::App;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{release_at, send_mouse};
+use plurimus_test::{move_to, release_at, scroll_at, scroll_sideways, send_press_at};
 use plurimus_ui::{
     InteractionDisabled, ScrollArea, ScrollIntoView, ScrollOffset, UiArea, UiOrder, UiWidget,
     ValueChange,
@@ -52,7 +51,7 @@ fn wheel_scrolls_topmost_area_one_cell() {
     let bottom = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 10), 0);
     let top = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 10), 1);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+    scroll_at(&mut app, 5, 1, 1);
 
     assert_eq!(offset_of(&app, top), Position::new(0, 1));
     assert_eq!(offset_of(&app, bottom), Position::new(0, 0));
@@ -67,7 +66,7 @@ fn wheel_outside_area_is_ignored() {
     let mut app = app();
     let scrolled = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 10), 0);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 15, 5);
+    scroll_at(&mut app, 15, 5, 1);
 
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
     assert_eq!(app.world().resource::<OffsetChanges>().0, []);
@@ -78,12 +77,12 @@ fn wheel_clamps_at_both_extremes() {
     let mut app = app();
     let scrolled = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 4), 0);
 
-    send_mouse(&mut app, MouseKind::ScrollUp, 5, 1);
+    scroll_at(&mut app, 5, 1, -1);
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
     assert_eq!(app.world().resource::<OffsetChanges>().0, []);
 
     for _ in 0..3 {
-        send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+        scroll_at(&mut app, 5, 1, 1);
     }
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 2));
     assert_eq!(
@@ -97,10 +96,10 @@ fn wheel_scrolls_horizontally() {
     let mut app = app();
     let scrolled = scroll_entity(&mut app, Rect::new(0, 0, 5, 3), Size::new(8, 3), 0);
 
-    send_mouse(&mut app, MouseKind::ScrollRight, 2, 1);
+    scroll_sideways(&mut app, 2, 1, 1);
     assert_eq!(offset_of(&app, scrolled), Position::new(1, 0));
 
-    send_mouse(&mut app, MouseKind::ScrollLeft, 2, 1);
+    scroll_sideways(&mut app, 2, 1, -1);
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
 }
 
@@ -116,7 +115,7 @@ fn wheel_arbitrates_across_widget_families() {
     ));
     app.update();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+    scroll_at(&mut app, 5, 1, 1);
 
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 0));
     assert_eq!(app.world().resource::<OffsetChanges>().0, []);
@@ -128,7 +127,7 @@ fn wheel_prefers_the_innermost_of_two_same_order_areas() {
     let outer = scroll_entity(&mut app, Rect::new(0, 0, 12, 4), Size::new(12, 40), 0);
     let inner = scroll_entity(&mut app, Rect::new(2, 1, 4, 2), Size::new(4, 40), 0);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 3, 1);
+    scroll_at(&mut app, 3, 1, 1);
 
     assert_eq!(offset_of(&app, inner), Position::new(0, 1));
     assert_eq!(offset_of(&app, outer), Position::new(0, 0));
@@ -140,7 +139,7 @@ fn wheel_falls_through_an_axis_a_widget_cannot_scroll() {
     let below = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 10), 0);
     let above = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(20, 2), 1);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+    scroll_at(&mut app, 5, 1, 1);
 
     assert_eq!(offset_of(&app, above), Position::new(0, 0), "no y overflow");
     assert_eq!(offset_of(&app, below), Position::new(0, 1));
@@ -153,7 +152,7 @@ fn wheel_falls_through_a_disabled_area() {
     let top = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(10, 10), 1);
     app.world_mut().entity_mut(top).insert(InteractionDisabled);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+    scroll_at(&mut app, 5, 1, 1);
 
     assert_eq!(offset_of(&app, top), Position::new(0, 0));
     assert_eq!(offset_of(&app, bottom), Position::new(0, 1));
@@ -168,10 +167,10 @@ fn scrollbar_press_and_drag_seek_target() {
         UiArea::Fixed(Rect::new(10, 0, 1, 4)),
     ));
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 10, 3);
+    send_press_at(&mut app, 10, 3);
     assert_eq!(offset_of(&app, target), Position::new(0, 10));
 
-    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 10, 1);
+    move_to(&mut app, 10, 1);
     assert_eq!(offset_of(&app, target), Position::new(0, 3));
 
     release_at(&mut app, 10, 0);
@@ -212,8 +211,8 @@ fn the_last_column_and_row_scroll_out_from_under_the_bars() {
     let last = Position::new(4, 4);
     let wheeled = scroll_entity(&mut app, area, Size::new(8, 6), 0);
     for _ in 0..10 {
-        send_mouse(&mut app, MouseKind::ScrollRight, 1, 1);
-        send_mouse(&mut app, MouseKind::ScrollDown, 1, 1);
+        scroll_sideways(&mut app, 1, 1, 1);
+        scroll_at(&mut app, 1, 1, 1);
     }
     assert_eq!(offset_of(&app, wheeled), last, "by the wheel");
 
@@ -236,7 +235,7 @@ fn a_row_under_a_horizontal_bar_takes_the_wheel() {
     let scrolled = scroll_entity(&mut app, Rect::new(0, 0, 10, 3), Size::new(20, 3), 0);
     app.update();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 1);
+    scroll_at(&mut app, 5, 1, 1);
 
     assert_eq!(offset_of(&app, scrolled), Position::new(0, 1));
 }

@@ -5,13 +5,13 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabGroup;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder, UiWidget};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_at, press_key, release_at, send_mouse, set_focus};
+use plurimus_test::{click, move_to, press_at, press_key, release_at, set_focus};
 use plurimus_ui::bevy_picking::Pickable;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
 use plurimus_ui::{Activate, Hovered, InteractionDisabled, PressFocusDisabled, Pressed, UiArea};
@@ -193,12 +193,7 @@ fn a_press_focus_disabled_widget_still_drags_and_clicks() {
     app.update();
 
     press_at(&mut app, AREA.x + 1, AREA.y + 1);
-    send_mouse(
-        &mut app,
-        MouseKind::Drag(MouseButton::Left),
-        AREA.x + 2,
-        AREA.y + 1,
-    );
+    move_to(&mut app, AREA.x + 2, AREA.y + 1);
     release_at(&mut app, AREA.x + 2, AREA.y + 1);
 
     assert_eq!(
@@ -219,7 +214,7 @@ fn tab_still_reaches_a_press_focus_disabled_widget() {
         .insert((TabIndex(0), PressFocusDisabled, ChildOf(root)));
     app.update();
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
 
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(toolbar));
 }

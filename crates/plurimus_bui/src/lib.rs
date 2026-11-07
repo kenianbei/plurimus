@@ -8,8 +8,8 @@
 //! installed.
 //!
 //! Computed nodes rasterize beneath every widget and are picked by
-//! `bevy_picking` through `bevy_ui`'s own backend, on the pointer
-//! `plurimus_ui` feeds from the terminal's mouse, so the upstream
+//! `bevy_picking` through `bevy_ui`'s own backend, on the mouse pointer the
+//! terminal backend reports to `bevy_picking`, so the upstream
 //! `bevy_ui_widgets` run on them unchanged - all but `TextInputPlugin`,
 //! which edits through `bevy_text` and so has nothing to draw with here.
 //!
@@ -50,7 +50,6 @@ use bevy_camera::visibility::VisibilitySystems;
 use bevy_ecs::prelude::{
     DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
 };
-use bevy_input::mouse::MouseScrollPixelsPerLine;
 use bevy_input_focus::pointer_focus::PointerFocusPlugin;
 use bevy_text::{EmSize, RemSize};
 use bevy_ui::picking_backend::UiPickingPlugin;
@@ -125,7 +124,7 @@ impl Plugin for BuiPlugin {
     }
 }
 
-// `plurimus_ui` installs picking, feeds the pointer and focuses on a press;
+// `plurimus_ui` installs picking and its pointer and focuses on a press;
 // upstream's `PointerFocusPlugin` would be a second focus writer.
 fn add_picking(app: &mut App) {
     if !app.is_plugin_added::<UiPickingPlugin>() {
@@ -134,7 +133,6 @@ fn add_picking(app: &mut App) {
 }
 
 fn add_upstream_widgets(app: &mut App) {
-    app.init_resource::<MouseScrollPixelsPerLine>();
     if !app.is_plugin_added::<ButtonPlugin>() {
         app.add_plugins(
             UiWidgetsPlugins

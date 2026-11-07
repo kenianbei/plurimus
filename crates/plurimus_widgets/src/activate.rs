@@ -17,7 +17,7 @@ use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 
 use crate::button::Button;
 use crate::checkbox::Checkbox;

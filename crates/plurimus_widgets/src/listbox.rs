@@ -21,7 +21,7 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 
 use super::ValueChange;
 use crate::clipboard::Clipboard;

@@ -31,7 +31,7 @@ use crate::popover::Popover;
 use crate::{Activate, Button};
 use plurimus_core::CellSize;
 use plurimus_core::{Hidden, Propagate, UiOrder, UiWidget};
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 use plurimus_ui::UiLabel;
 use plurimus_ui::bevy_picking::events::PointerClick;
 use plurimus_ui::{

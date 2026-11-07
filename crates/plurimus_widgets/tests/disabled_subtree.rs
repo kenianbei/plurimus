@@ -5,10 +5,10 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
 use plurimus_test::{click, press_at, press_key, set_focus};
 use plurimus_ui::{ComputedDisabled, InteractionDisabled, Pressed, StylistCache, UiArea};
 use plurimus_widgets::{Activate, WidgetsPlugin, button, tab_bar, tab_item};
@@ -53,9 +53,9 @@ fn try_every_path(app: &mut App, inner: Entity, outer: Entity) -> u32 {
     let before = activations(app);
     click(app, 1, 0);
     set_focus(app, inner);
-    press_key(app, KeyCode::Enter);
+    press_key(app, Key::Enter);
     set_focus(app, outer);
-    press_key(app, KeyCode::Left);
+    press_key(app, Key::ArrowLeft);
     activations(app) - before + u32::from(focused(app) == Some(inner))
 }
 

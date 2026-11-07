@@ -6,8 +6,8 @@ use std::time::Duration;
 use bevy_math::IVec2;
 use bevy_time::TimeUpdateStrategy;
 use plurimus::core::TerminalSize;
-use plurimus::term::KeyCode;
-use plurimus_test::{composed_frame, composed_styled_frame, write_key};
+use plurimus::term::bevy_input::keyboard::Key;
+use plurimus_test::{character, composed_frame, composed_styled_frame, write_key};
 
 use crate::actor::{Actor, Dir, advance};
 use crate::chase::best_direction;
@@ -155,7 +155,7 @@ fn walls_stop_the_player() {
 fn a_queued_turn_commits_at_the_next_tile_center() {
     let mut app = headless_app();
     set_player(&mut app, IVec2::new(1, 13), Dir::Right);
-    write_key(&mut app, KeyCode::Up);
+    write_key(&mut app, Key::ArrowUp);
 
     for _ in 0..10 {
         app.update();
@@ -249,7 +249,7 @@ fn restarting_rebuilds_the_maze_and_the_counters() {
     }
     assert!(cheese_count(&mut app) < full);
 
-    write_key(&mut app, KeyCode::Char('r'));
+    write_key(&mut app, character('r'));
     app.update();
     app.update();
 

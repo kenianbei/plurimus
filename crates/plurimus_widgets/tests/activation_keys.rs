@@ -7,8 +7,8 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key, repeat_key, set_focus};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{character, press_key, press_key_with, repeat_key, set_focus};
 use plurimus_ui::{InteractionDisabled, KeyBinding, ValueChange};
 use plurimus_widgets::{
     Activate, ActivateKeys, RadioGroup, WidgetsPlugin, button, checkbox, radio,
@@ -72,8 +72,8 @@ fn the_default_bindings_activate_and_consume() {
     count_activations(&mut app, button);
     set_focus(&mut app, button);
 
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, character(' '));
 
     assert_eq!(
         app.world().resource::<Activations>().0,
@@ -103,7 +103,7 @@ fn a_narrowed_checkbox_leaves_enter_to_the_form() {
     );
     set_focus(&mut app, check);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Activations>().0,
         0,
@@ -115,7 +115,7 @@ fn a_narrowed_checkbox_leaves_enter_to_the_form() {
         "the key the checkbox left alone must reach the form"
     );
 
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, character(' '));
     assert_eq!(app.world().resource::<Activations>().0, 1);
     assert_eq!(seen(&app), [Key::Enter], "the bound key is consumed");
 }
@@ -139,7 +139,7 @@ fn a_chord_activates_apart_from_its_bare_key() {
         .observe(|_on: On<Activate>, mut activations: ResMut<Activations>| activations.0 += 1);
     set_focus(&mut app, ok);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Activations>().0,
         0,
@@ -147,7 +147,7 @@ fn a_chord_activates_apart_from_its_bare_key() {
     );
     assert_eq!(seen(&app), [Key::Enter], "and so reaches the form");
 
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Enter);
+    press_key_with(&mut app, Key::Enter, KeyModifiers::none().with_ctrl(true));
     assert_eq!(
         app.world().resource::<Activations>().0,
         1,
@@ -178,11 +178,11 @@ fn a_narrowed_radio_uses_only_its_bound_key() {
         .id();
     set_focus(&mut app, option);
 
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, character(' '));
     assert_eq!(app.world().resource::<Activations>().0, 0);
     assert_eq!(seen(&app), [space()]);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(app.world().resource::<Activations>().0, 1);
     assert_eq!(seen(&app), [space()]);
 }
@@ -198,8 +198,8 @@ fn an_empty_binding_list_activates_on_nothing() {
     count_activations(&mut app, button);
     set_focus(&mut app, button);
 
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, character(' '));
 
     assert_eq!(app.world().resource::<Activations>().0, 0);
     assert_eq!(
@@ -222,7 +222,7 @@ fn a_disabled_widget_leaves_its_bound_keys_alone() {
     );
     set_focus(&mut app, check);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
 
     assert_eq!(app.world().resource::<Activations>().0, 0);
     assert_eq!(
@@ -239,8 +239,8 @@ fn a_repeat_of_a_bound_key_does_not_activate() {
     count_activations(&mut app, button);
     set_focus(&mut app, button);
 
-    press_key(&mut app, KeyCode::Enter);
-    repeat_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
+    repeat_key(&mut app, Key::Enter);
 
     assert_eq!(
         app.world().resource::<Activations>().0,

@@ -49,7 +49,7 @@ pub use interaction::{
 pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
 pub use plurimus_core::{Hidden, Propagate, TerminalWidget, UiArea, UiCamera, UiOrder, UiWidget};
-pub use pointer::{PointerModifiers, click_cell, pointer_cell};
+pub use pointer::{click_cell, pointer_cell};
 pub use scroll::{
     ScrollArea, ScrollBy, ScrollIntoView, ScrollOffset, WheelReceptive, apply_offset, content_cell,
     max_offset, screen_cell,
@@ -61,17 +61,17 @@ pub use stylist::{
 };
 pub use theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 
-use bevy_app::{App, Plugin, PreUpdate, Startup};
+use bevy_app::{App, First, Last, Plugin, PreUpdate, Startup};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
+use bevy_picking::input::{PointerInputPlugin, PointerInputSettings};
 use bevy_picking::{InteractionPlugin, PickingPlugin, PickingSystems};
 use plurimus_core::{CameraSystems, TerminalRenderApp, TerminalRenderAppExt};
 use plurimus_term::InputSystems;
 
 /// Ordered phases of ui maintenance in `PreUpdate`, after
-/// [`InputSystems::Update`] and [`CameraSystems::ResolveViewports`], around
-/// `bevy_picking`'s own. Widget libraries interleave their systems against
-/// these.
+/// [`CameraSystems::ResolveViewports`], around `bevy_picking`'s own. Widget
+/// libraries interleave their systems against these.
 ///
 /// Focus dispatch sits between [`Areas`](Self::Areas) and
 /// [`PickingSystems::Hover`], and after `bevy_input`'s own update, so a
@@ -98,7 +98,9 @@ pub enum UiSystems {
 ///
 /// Requires [`plurimus_core::CorePlugin`] to be added first. Installs
 /// `bevy_picking` with window picking on, so a press on nothing clears
-/// focus as it does on a window.
+/// focus as it does on a window, and its mouse pointer, fed from the window
+/// events the terminal backend writes; touch stays off, a terminal having
+/// none to report.
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
@@ -109,9 +111,16 @@ impl Plugin for UiPlugin {
         if !app.is_plugin_added::<PickingPlugin>() {
             app.add_plugins((PickingPlugin, InteractionPlugin));
         }
+        if !app.is_plugin_added::<PointerInputPlugin>() {
+            app.add_plugins(PointerInputPlugin);
+            app.insert_resource(PointerInputSettings {
+                is_touch_enabled: false,
+                is_mouse_enabled: true,
+            });
+        }
         focus::install(app);
         app.init_resource::<UiTheme>();
-        app.init_resource::<PointerModifiers>();
+        app.init_resource::<pointer::DeferredCancel>();
         add_schedule(app);
         app.add_observer(pointer::capture_press);
         app.add_observer(pointer::release_press);
@@ -126,23 +135,30 @@ impl Plugin for UiPlugin {
 }
 
 fn add_schedule(app: &mut App) {
+    // The terminal's input lands before picking reads the frame's pointer
+    // events, so a pump never lags them a frame.
+    app.configure_sets(
+        First,
+        InputSystems::Synthesize.before(PickingSystems::Input),
+    );
     app.configure_sets(
         PreUpdate,
         (
             UiSystems::Areas
-                .after(InputSystems::Update)
                 .after(CameraSystems::ResolveViewports)
                 .before(PickingSystems::Backend),
             UiSystems::Route.after(PickingSystems::Hover),
         ),
     );
-    app.add_systems(Startup, pointer::spawn_pointer);
+    app.add_systems(Startup, pointer::spawn_barrier);
+    app.add_systems(
+        First,
+        pointer::cancel_on_focus_loss.after(PickingSystems::Input),
+    );
+    app.add_systems(Last, pointer::flush_deferred_cancel);
     app.add_systems(
         PreUpdate,
         (
-            pointer::feed_pointer
-                .after(InputSystems::Update)
-                .before(PickingSystems::ProcessInput),
             (
                 interaction::attach_widget_areas,
                 interaction::compute_widget_areas,
@@ -151,8 +167,8 @@ fn add_schedule(app: &mut App) {
                 .in_set(UiSystems::Areas),
             interaction::propagate_disabled.in_set(UiSystems::Areas),
             pointer::pick_widgets.in_set(PickingSystems::Backend),
-            // After the feed, before the hover pass releases the capture it
-            // reads.
+            // After picking's input, before the hover pass releases the
+            // capture it reads.
             pointer::cancel_gestures
                 .after(PickingSystems::ProcessInput)
                 .before(PickingSystems::Hover),

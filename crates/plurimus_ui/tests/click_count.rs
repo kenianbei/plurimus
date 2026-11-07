@@ -9,8 +9,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, release_at, send_mouse, write_mouse};
+use plurimus_test::{click, release_at, send_press_at, write_press_at};
 use plurimus_ui::bevy_picking::PickingSettings;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerPress};
 use plurimus_ui::{ComputedWidgetArea, Hovered, UiArea, UiPlugin};
@@ -130,7 +129,7 @@ fn a_click_completed_in_one_batch_carries_its_count() {
     spawn_target(&mut app, AREA);
 
     click_at(&mut app, CELL);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.x, CELL.y);
+    write_press_at(&mut app, CELL.x, CELL.y);
     release_at(&mut app, CELL.x, CELL.y);
     app.update();
 
@@ -144,7 +143,7 @@ fn a_click_released_a_frame_later_carries_its_count() {
     spawn_target(&mut app, AREA);
 
     click_at(&mut app, CELL);
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.x, CELL.y);
+    send_press_at(&mut app, CELL.x, CELL.y);
     release_at(&mut app, CELL.x, CELL.y);
 
     assert_eq!(presses(&app), vec![1, 2]);

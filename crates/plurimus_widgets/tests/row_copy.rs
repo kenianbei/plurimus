@@ -11,8 +11,8 @@ use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::ratatui_core::text::Text;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{clipboard_writes, press_chord, press_key, set_focus};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{character, clipboard_writes, press_key, press_key_with, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, KeyBinding, UiArea};
 use plurimus_widgets::{
     ActiveColumn, ActiveDescendant, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItemText,
@@ -76,7 +76,7 @@ fn point_at(app: &mut App, list: Entity, row: Entity) {
 }
 
 fn copy(app: &mut App) {
-    press_chord(app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+    press_key_with(app, character('c'), KeyModifiers::none().with_ctrl(true));
 }
 
 fn propagated(app: &App) -> &[Key] {
@@ -199,7 +199,7 @@ fn copy_follows_a_remapped_binding() {
     )]);
     app.world_mut().entity_mut(list).insert(keys);
 
-    press_key(&mut app, KeyCode::Char('y'));
+    press_key(&mut app, character('y'));
     copy(&mut app);
 
     assert_eq!(clipboard_writes(&mut app), ["gamma"]);

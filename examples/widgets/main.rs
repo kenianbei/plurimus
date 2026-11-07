@@ -33,7 +33,9 @@ use plurimus::core::{
     CameraSystems, CorePlugin, ResolvedViewport, TerminalCamera, TerminalSize, UiArea, UiWidget,
 };
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::HeldModifiers;
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus::ui::InteractionDisabled;
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
@@ -235,21 +237,22 @@ pub(crate) fn toggle_disabled(
 // The text widgets consume plain keys, so `q` only quits while nothing
 // holds focus.
 fn quit_on_key(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
+    held: HeldModifiers,
     mut focus: ResMut<InputFocus>,
     mut exit: MessageWriter<AppExit>,
 ) {
     for key in keys.read() {
-        if key.kind != KeyKind::Press {
+        if key.state != ButtonState::Pressed || key.repeat {
             continue;
         }
-        if key.modifiers.ctrl && key.code == KeyCode::Char('c') {
+        if held.get().ctrl && key.logical_key == Key::Character("c".into()) {
             exit.write(AppExit::Success);
             continue;
         }
-        match key.code {
-            KeyCode::Esc => focus.clear(),
-            KeyCode::Char('q') if focus.get().is_none() => {
+        match &key.logical_key {
+            Key::Escape => focus.clear(),
+            Key::Character(c) if c == "q" && focus.get().is_none() => {
                 exit.write(AppExit::Success);
             }
             _ => {}

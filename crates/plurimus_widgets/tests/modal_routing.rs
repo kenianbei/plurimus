@@ -10,8 +10,9 @@ use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, Hidden, Propagate, TerminalCamera, TerminalSize, UiWidget};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, press_at, release_at, send_mouse, write_mouse, write_release_at};
+use plurimus_test::{
+    click, press_at, release_at, scroll_at, write_press_at, write_release_at, write_scroll_at,
+};
 use plurimus_ui::bevy_input_focus::InputFocus;
 use plurimus_ui::bevy_picking::events::PointerPress;
 use plurimus_ui::{ComputedWidgetArea, Hovered, ModalOpen, ScrollArea, ScrollOffset, UiArea};
@@ -162,7 +163,7 @@ fn a_wheel_tick_inside_a_modal_scrolls_that_modal_and_nothing_under_it() {
     let inside = spawn_scroller(&mut app, Rect::new(0, 0, 20, 8), Some(popup));
     app.update();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, frame.x + 1, frame.y + 1);
+    scroll_at(&mut app, frame.x + 1, frame.y + 1, 1);
 
     assert_eq!(offset_of(&app, inside), Position::new(0, 1), "it scrolled");
     assert_eq!(offset_of(&app, beneath), Position::new(0, 0), "it did not");
@@ -180,7 +181,7 @@ fn a_wheel_tick_inside_a_modal_with_nothing_to_scroll_dies() {
     app.update();
     let frame = popup_area(&app, popup);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, frame.x + 1, frame.y + 1);
+    scroll_at(&mut app, frame.x + 1, frame.y + 1, 1);
 
     assert_eq!(offset_of(&app, beneath), Position::new(0, 0));
     assert!(is_open(&app, popup), "and it dismissed nothing");
@@ -196,9 +197,9 @@ fn a_tick_behind_an_opening_click_lands_on_the_open_menu() {
     let beneath = spawn_scroller(&mut app, COVERED, None);
     app.update();
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    write_press_at(&mut app, 2, 0);
     write_release_at(&mut app, 2, 0);
-    write_mouse(&mut app, MouseKind::ScrollDown, 3, 2);
+    write_scroll_at(&mut app, 3, 2, 1);
     app.update();
     app.update();
 
@@ -273,9 +274,9 @@ fn a_switching_press_defers_the_rest_of_the_batch() {
     let row = app.world().get::<Children>(near).unwrap()[0];
     let cell = popup_area(&app, row).as_position();
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 12, 0);
+    write_press_at(&mut app, 12, 0);
     write_release_at(&mut app, 15, 6);
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), cell.x, cell.y);
+    write_press_at(&mut app, cell.x, cell.y);
     write_release_at(&mut app, cell.x, cell.y);
     app.update();
     app.update();

@@ -9,8 +9,8 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers};
-use plurimus_test::{clipboard_writes, press_key, press_key_with, set_focus};
+use plurimus_term::{InputCapabilities, KeyModifiers};
+use plurimus_test::{character, clipboard_writes, press_key, press_key_with, set_focus};
 use plurimus_ui::{KeyBinding, UiArea};
 use plurimus_widgets::ratatui_textarea::CursorMove;
 use plurimus_widgets::{TextEditor, TextEditorAction, TextEditorKeys, WidgetsPlugin, text_editor};
@@ -74,16 +74,16 @@ fn editor_handle(app: &App, editor: Entity) -> &TextEditor {
     app.world().get::<TextEditor>(editor).unwrap()
 }
 
-fn ctrl(app: &mut App, character: char) {
+fn ctrl(app: &mut App, typed: char) {
     press_key_with(
         app,
-        KeyCode::Char(character),
+        character(typed),
         KeyModifiers::default().with_ctrl(true),
     );
 }
 
-fn shift(app: &mut App, code: KeyCode) {
-    press_key_with(app, code, KeyModifiers::default().with_shift(true));
+fn shift(app: &mut App, key: Key) {
+    press_key_with(app, key, KeyModifiers::default().with_shift(true));
 }
 
 #[test]
@@ -96,9 +96,9 @@ fn a_remapped_key_acts_instead_of_typing() {
     )]);
     app.world_mut().entity_mut(editor).insert(keys);
 
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Char('l'));
-    press_key(&mut app, KeyCode::Char('x'));
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, character('l'));
+    press_key(&mut app, character('x'));
 
     assert_eq!(lines(&app, editor), ["axb"], "l moved rather than typed");
 }
@@ -111,8 +111,8 @@ fn an_unbound_character_still_types_under_an_empty_table() {
         .entity_mut(editor)
         .insert(TextEditorKeys(Vec::new()));
 
-    press_key(&mut app, KeyCode::Char('a'));
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, character('a'));
+    press_key(&mut app, Key::Enter);
 
     assert_eq!(lines(&app, editor), ["a"], "Enter is a binding, not a key");
     assert_eq!(propagated(&app), [Key::Enter]);
@@ -134,7 +134,7 @@ fn a_bound_key_that_moves_nothing_is_consumed() {
     let mut app = app();
     spawn_editor(&mut app, "ab");
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
 
     assert!(propagated(&app).is_empty(), "{:?}", propagated(&app));
 }
@@ -143,7 +143,7 @@ fn a_bound_key_that_moves_nothing_is_consumed() {
 fn ctrl_y_redoes_what_ctrl_z_undid() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "");
-    press_key(&mut app, KeyCode::Char('a'));
+    press_key(&mut app, character('a'));
 
     ctrl(&mut app, 'z');
     assert_eq!(lines(&app, editor), [""]);
@@ -156,11 +156,11 @@ fn ctrl_y_redoes_what_ctrl_z_undid() {
 fn alt_backspace_deletes_a_word() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab cd");
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
 
     press_key_with(
         &mut app,
-        KeyCode::Backspace,
+        Key::Backspace,
         KeyModifiers::default().with_alt(true),
     );
 
@@ -182,10 +182,10 @@ fn ctrl_a_selects_everything() {
 fn escape_ends_the_selection() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "abcd");
-    shift(&mut app, KeyCode::End);
+    shift(&mut app, Key::End);
     assert!(is_selecting(&app, editor));
 
-    press_key(&mut app, KeyCode::Esc);
+    press_key(&mut app, Key::Escape);
 
     assert!(!is_selecting(&app, editor));
     assert!(propagated(&app).is_empty(), "{:?}", propagated(&app));
@@ -197,9 +197,9 @@ fn escape_ends_the_selection() {
 fn a_plain_arrow_ends_the_selection_even_at_the_edge() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab");
-    shift(&mut app, KeyCode::End);
+    shift(&mut app, Key::End);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
 
     assert!(!is_selecting(&app, editor));
 }
@@ -208,9 +208,9 @@ fn a_plain_arrow_ends_the_selection_even_at_the_edge() {
 fn a_shift_arrow_that_cannot_move_starts_no_selection() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab");
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
 
-    shift(&mut app, KeyCode::Right);
+    shift(&mut app, Key::ArrowRight);
 
     assert!(!is_selecting(&app, editor));
 }
@@ -219,12 +219,12 @@ fn a_shift_arrow_that_cannot_move_starts_no_selection() {
 fn ctrl_shift_home_selects_to_the_start_of_the_document() {
     let mut app = app();
     spawn_editor(&mut app, "ab\ncd");
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::End);
 
     press_key_with(
         &mut app,
-        KeyCode::Home,
+        Key::Home,
         KeyModifiers::default().with_ctrl(true).with_shift(true),
     );
     ctrl(&mut app, 'c');
@@ -236,9 +236,9 @@ fn ctrl_shift_home_selects_to_the_start_of_the_document() {
 fn delete_at_the_end_of_the_text_deletes_nothing() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab");
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
 
-    press_key(&mut app, KeyCode::Delete);
+    press_key(&mut app, Key::Delete);
 
     assert_eq!(lines(&app, editor), ["ab"]);
 }
@@ -249,9 +249,9 @@ fn delete_at_the_end_of_the_text_deletes_nothing() {
 fn shift_backspace_still_deletes() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab");
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
 
-    shift(&mut app, KeyCode::Backspace);
+    shift(&mut app, Key::Backspace);
 
     assert_eq!(lines(&app, editor), ["a"]);
 }

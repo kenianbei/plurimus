@@ -1,39 +1,38 @@
 //! The input no terminal will send.
 //!
-//! Two gaps, both ending with a release written as if a backend had reported
-//! it. Most terminals report only key presses, so a press without a real
-//! release is expired on a timeout, and that half turns itself off when
+//! Two gaps, both ending with a key release written as if a backend had
+//! reported it. Most terminals report only key presses, so a press without a
+//! real release is expired on a timeout, and that half turns itself off when
 //! [`InputCapabilities`](crate::InputCapabilities) says the terminal reports
 //! releases itself. The other half no capability covers: a terminal reports
 //! nothing at all while unfocused, so a key held across a focus loss is
-//! released here or stays down forever.
+//! released here or stays down forever - as `bevy_winit` releases what a
+//! window held when it loses focus.
 //!
 //! Both read one [`HeldKeys`] registry, which is why recording into it is a
 //! system of its own rather than the first half of the timeout's: what is
 //! held has to be known on every tier, and only the expiry is a capability's
 //! to turn off.
-//!
-//! A focus loss ends the pointer's gesture too, but as a cancel rather than a
-//! release, since a release completes a click.
 
 use std::collections::HashMap;
 use std::time::Duration;
 
-use bevy_ecs::message::{MessageCursor, Messages};
-use bevy_ecs::prelude::{Local, MessageReader, MessageWriter, Res, ResMut, Resource};
+use bevy_ecs::prelude::{MessageReader, MessageWriter, Res, ResMut, Resource};
+use bevy_input::keyboard::{KeyCode, KeyboardFocusLost, KeyboardInput};
+use bevy_input::mouse::MouseButton;
+use bevy_input::{ButtonInput, ButtonState};
 use bevy_time::{Real, Time};
+use bevy_window::WindowFocused;
 
-use super::{
-    CursorCell, FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers,
-    MouseKind, MouseMessage,
-};
+use crate::InputCapabilities;
 
-/// Every key the crate believes is down, timed from its last press or repeat.
+/// Every key the crate believes is down - the press that put it there, timed
+/// from its last press or repeat.
 ///
-/// Keyed by [`KeyCode::held_as`], so shifting a hold does not file a second
-/// entry the release of the first can never reach.
+/// Keyed by the physical code bevy polls by, so a hold shifted midway still
+/// has one entry: `w` and `W` are both `KeyW`.
 #[derive(Resource, Default, Debug)]
-pub(crate) struct HeldKeys(HashMap<KeyCode, Duration>);
+pub(crate) struct HeldKeys(HashMap<KeyCode, (KeyboardInput, Duration)>);
 
 /// How long after the last press/repeat a key without release events is
 /// considered released. Must exceed the OS first-repeat delay.
@@ -52,19 +51,18 @@ impl Default for ReleaseTimeout {
 /// own releases still reports nothing while unfocused, so there is no tier on
 /// which [`release_keys_on_focus_loss`] can do without this.
 pub(crate) fn record_held_keys(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
     time: Res<Time<Real>>,
     mut held: ResMut<HeldKeys>,
 ) {
     let now = time.elapsed();
-    for message in keys.read() {
-        let identity = message.code.held_as();
-        match message.kind {
-            KeyKind::Press | KeyKind::Repeat => {
-                held.0.insert(identity, now);
+    for input in keys.read() {
+        match input.state {
+            ButtonState::Pressed => {
+                held.0.insert(input.key_code, (input.clone(), now));
             }
-            KeyKind::Release => {
-                held.0.remove(&identity);
+            ButtonState::Released => {
+                held.0.remove(&input.key_code);
             }
         }
     }
@@ -77,11 +75,9 @@ pub(crate) fn expire_held_keys(
     timeout: Res<ReleaseTimeout>,
     time: Res<Time<Real>>,
     mut held: ResMut<HeldKeys>,
-    mut keys: MessageWriter<KeyMessage>,
+    mut keys: MessageWriter<KeyboardInput>,
 ) {
-    for message in expire_held(&mut held, time.elapsed(), timeout.0) {
-        keys.write(message);
-    }
+    keys.write_batch(expire_held(&mut held, time.elapsed(), timeout.0));
 }
 
 /// Whether the terminal leaves releases for [`expire_held_keys`] to guess at.
@@ -89,288 +85,237 @@ pub(crate) fn releases_are_synthesized(capabilities: Res<InputCapabilities>) -> 
     !capabilities.key_release
 }
 
-/// Releases every held key when the terminal reports losing focus.
+/// Releases every held key when the terminal reports losing focus, and
+/// drops every held mouse button.
 ///
 /// No capability covers this gap: a terminal reports nothing at all while
 /// unfocused, so the release of a key held across an alt-tab is never sent,
-/// and on the kitty tier nothing expires it either.
+/// and on the kitty tier nothing expires it either. A [`KeyboardFocusLost`]
+/// goes with the releases, as `bevy_winit` sends one, and bevy's own polled
+/// state answers it.
 ///
-/// Keys only, and deliberately. Every keyboard consumer acts on a press, so a
-/// synthetic release corrects held state and triggers nothing else; a pointer
-/// release is not inert in the same way - it completes a click - so a
-/// captured drag is ended by [`cancel_pointer_on_focus_loss`] instead.
+/// The mouse buttons are [`release_buttons_on_focus_loss`]'s, and ending the
+/// pointer's gesture is `plurimus_ui`'s, which sees the same focus loss.
 ///
-/// Runs after [`record_held_keys`] and before
-/// [`update_button_input`](crate::state::update_button_input): the first puts
-/// this frame's presses in the registry, which is the ordinary case since
-/// alt-tab's own keys arrive in that batch, and the second turns the releases
-/// written here into polled state without a frame's delay.
+/// Runs after [`record_held_keys`]: that puts this frame's presses in the
+/// registry, which is the ordinary case since alt-tab's own keys arrive in
+/// that batch.
 pub(crate) fn release_keys_on_focus_loss(
-    mut focus: MessageReader<FocusMessage>,
+    mut focus: MessageReader<WindowFocused>,
     mut held: ResMut<HeldKeys>,
-    mut keys: MessageWriter<KeyMessage>,
+    mut keys: MessageWriter<KeyboardInput>,
+    mut lost: MessageWriter<KeyboardFocusLost>,
 ) {
-    if !focus.read().any(|message| !message.gained) {
+    if !focus.read().any(|message| !message.focused) {
         return;
     }
-    for (code, _) in held.0.drain() {
-        keys.write(synthetic_release(code));
-    }
+    keys.write_batch(held.0.drain().map(|(_, (press, _))| release_of(press)));
+    lost.write(KeyboardFocusLost);
 }
 
-/// Ends the pointer's gesture when the terminal reports losing focus.
-///
-/// Writes one [`MouseKind::Cancel`] after whatever this frame pumped, so a
-/// press in the losing frame is cancelled too, placed where the pointer last
-/// was so [`CursorCell`] stays put. Before any pointer has reported there is
-/// nothing to cancel, and nothing is written.
-///
-/// Reading and writing one message type through two system params conflicts,
-/// so it reads through a cursor of its own, advanced every frame.
-pub(crate) fn cancel_pointer_on_focus_loss(
-    mut focus: MessageReader<FocusMessage>,
-    mut pumped: Local<MessageCursor<MouseMessage>>,
-    mut mouse: ResMut<Messages<MouseMessage>>,
-    cursor: Res<CursorCell>,
+/// Drops every button held across a focus loss from the polled state, as
+/// `bevy_input` drops the keys on a [`KeyboardFocusLost`]. No release is
+/// written: `bevy_picking` would complete a click nobody made from one,
+/// where `plurimus_ui` cancels the gesture instead.
+pub(crate) fn release_buttons_on_focus_loss(
+    mut focus: MessageReader<WindowFocused>,
+    mut buttons: ResMut<ButtonInput<MouseButton>>,
 ) {
-    let last = pumped.read(&mouse).last().map(|message| message.position);
-    if !focus.read().any(|message| !message.gained) {
-        return;
-    }
-    if let Some(position) = last.or(cursor.0) {
-        mouse.write(MouseMessage::new(
-            MouseKind::Cancel,
-            position,
-            KeyModifiers::default(),
-        ));
+    if focus.read().any(|message| !message.focused) {
+        buttons.release_all();
     }
 }
 
-/// A release written as if a backend had reported it.
-///
-/// Names the key as it is held rather than as it was struck, and carries no
-/// modifiers. Both say the same thing: an event reports the state it leaves
-/// behind, and a shifted character is exactly what nothing being held can no
-/// longer produce.
-fn synthetic_release(code: KeyCode) -> KeyMessage {
-    KeyMessage::new(code, KeyModifiers::default(), KeyKind::Release)
+/// A release written as if a backend had reported it: the press it ends,
+/// coming up, producing no text.
+fn release_of(press: KeyboardInput) -> KeyboardInput {
+    KeyboardInput {
+        state: ButtonState::Released,
+        text: None,
+        repeat: false,
+        ..press
+    }
 }
 
-fn expire_held(held: &mut HeldKeys, now: Duration, timeout: Duration) -> Vec<KeyMessage> {
+fn expire_held(
+    held: &mut HeldKeys,
+    now: Duration,
+    timeout: Duration,
+) -> impl Iterator<Item = KeyboardInput> {
     held.0
-        .extract_if(|_, at| now.saturating_sub(*at) >= timeout)
-        .map(|(code, _)| synthetic_release(code))
-        .collect()
+        .extract_if(move |_, (_, at)| now.saturating_sub(*at) >= timeout)
+        .map(|(_, (press, _))| release_of(press))
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
+    use bevy_ecs::entity::Entity;
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::World;
+    use bevy_input::keyboard::{Key, KeyCode, KeyboardFocusLost, KeyboardInput};
+    use bevy_input::mouse::MouseButton;
+    use bevy_input::{ButtonInput, ButtonState};
     use bevy_time::{Real, Time};
-
-    use plurimus_core::ratatui_core::layout::Position;
+    use bevy_window::WindowFocused;
 
     use super::{
-        HeldKeys, ReleaseTimeout, cancel_pointer_on_focus_loss, expire_held, expire_held_keys,
-        record_held_keys, release_keys_on_focus_loss,
+        HeldKeys, ReleaseTimeout, expire_held, record_held_keys, release_buttons_on_focus_loss,
+        release_keys_on_focus_loss,
     };
-    use crate::{
-        CursorCell, FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseKind,
-        MouseMessage,
-    };
+    use crate::physical_code;
 
-    fn holding(code: KeyCode, at: Duration) -> HeldKeys {
+    fn press(key: Key) -> KeyboardInput {
+        KeyboardInput {
+            key_code: physical_code(&key),
+            logical_key: key,
+            state: ButtonState::Pressed,
+            text: None,
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        }
+    }
+
+    fn character(c: &str) -> Key {
+        Key::Character(c.into())
+    }
+
+    fn holding(key: Key, at: Duration) -> HeldKeys {
         let mut held = HeldKeys::default();
-        held.0.insert(code.held_as(), at);
+        let pressed = press(key);
+        held.0.insert(pressed.key_code, (pressed, at));
         held
     }
 
     #[test]
     fn stale_keys_expire_as_releases() {
-        let mut held = holding(KeyCode::Char('w'), Duration::ZERO);
+        let mut held = holding(character("w"), Duration::ZERO);
 
-        let before = expire_held(
+        let before: Vec<_> = expire_held(
             &mut held,
             Duration::from_millis(100),
             Duration::from_millis(600),
-        );
+        )
+        .collect();
         assert_eq!(before, []);
 
-        let after = expire_held(
+        let after: Vec<_> = expire_held(
             &mut held,
             Duration::from_millis(700),
             Duration::from_millis(600),
-        );
+        )
+        .collect();
         assert_eq!(after.len(), 1);
-        assert_eq!(after[0].kind, KeyKind::Release);
-        assert_eq!(after[0].code, KeyCode::Char('w'));
+        assert_eq!(after[0].state, ButtonState::Released);
+        assert_eq!(after[0].key_code, KeyCode::KeyW);
+        assert_eq!(after[0].logical_key, character("w"));
         assert!(held.0.is_empty());
     }
 
     #[test]
     fn refreshed_keys_stay_alive() {
-        let mut held = holding(KeyCode::Char('w'), Duration::from_millis(500));
-
-        let expired = expire_held(
+        let mut held = holding(character("w"), Duration::from_millis(500));
+        let expired: Vec<_> = expire_held(
             &mut held,
             Duration::from_millis(700),
             Duration::from_millis(600),
-        );
+        )
+        .collect();
         assert_eq!(expired, []);
         assert_eq!(held.0.len(), 1);
     }
 
-    // Naming `W` would pair a shifted character with the empty modifiers
-    // every synthetic release carries - a message no backend can produce.
-    #[test]
-    fn a_shifted_hold_expires_as_the_key_it_is_held_as() {
-        let mut held = holding(KeyCode::Char('W'), Duration::ZERO);
-        assert_eq!(held.0.len(), 1);
-
-        let expired = expire_held(&mut held, Duration::from_millis(700), Duration::ZERO);
-        assert_eq!(expired.len(), 1);
-        assert_eq!(expired[0].code, KeyCode::Char('w'));
-        assert_eq!(expired[0].modifiers, KeyModifiers::none());
-    }
-
     fn world() -> World {
         let mut world = World::new();
-        world.init_resource::<Messages<KeyMessage>>();
-        world.init_resource::<Messages<FocusMessage>>();
+        world.init_resource::<Messages<KeyboardInput>>();
+        world.init_resource::<Messages<KeyboardFocusLost>>();
+        world.init_resource::<Messages<WindowFocused>>();
         world.init_resource::<HeldKeys>();
+        world.init_resource::<ButtonInput<MouseButton>>();
         world.insert_resource(ReleaseTimeout(Duration::ZERO));
         world.insert_resource(Time::<Real>::default());
         world
     }
 
-    /// Whether a press carrying `press` is still held after a release
-    /// carrying `release`, with a zero timeout expiring anything that is.
-    fn still_held_after_release(press: KeyModifiers, release: KeyModifiers) -> bool {
+    // The gesture a raw-byte probe caught: hold `w`, press shift, release
+    // `w`. Kitty substitutes the shifted character, so the release arrives
+    // as `W` - and lands on the same physical key.
+    #[test]
+    fn a_hold_shifted_before_it_ends_is_still_released() {
         let mut world = world();
         let record = world.register_system(record_held_keys);
-        let expire = world.register_system(expire_held_keys);
-
-        let code = KeyCode::Char('a');
-        world.write_message(KeyMessage::new(code, press, KeyKind::Press));
-        world.write_message(KeyMessage::new(code, release, KeyKind::Release));
+        world.write_message(press(character("w")));
+        world.write_message(KeyboardInput {
+            state: ButtonState::Released,
+            ..press(character("W"))
+        });
         world.run_system(record).unwrap();
-        world.run_system(expire).unwrap();
-        !world.resource::<HeldKeys>().0.is_empty()
+        assert!(world.resource::<HeldKeys>().0.is_empty());
     }
 
-    fn on_focus_change(gained: bool, pressed: &[KeyCode]) -> Vec<KeyMessage> {
+    fn on_focus_change(focused: bool, pressed: &[Key]) -> (Vec<KeyboardInput>, usize) {
         let mut world = world();
         let record = world.register_system(record_held_keys);
         let release = world.register_system(release_keys_on_focus_loss);
-
-        for &code in pressed {
-            world.write_message(KeyMessage::new(code, KeyModifiers::none(), KeyKind::Press));
+        for key in pressed {
+            world.write_message(press(key.clone()));
         }
         world.run_system(record).unwrap();
-        world.resource_mut::<Messages<KeyMessage>>().clear();
-
-        world.write_message(FocusMessage::new(gained));
+        world.resource_mut::<Messages<KeyboardInput>>().clear();
+        world.write_message(WindowFocused {
+            window: Entity::PLACEHOLDER,
+            focused,
+        });
         world.run_system(release).unwrap();
-        world
-            .resource_mut::<Messages<KeyMessage>>()
+        let released = world
+            .resource_mut::<Messages<KeyboardInput>>()
             .drain()
-            .collect()
+            .collect();
+        let lost = world.resource::<Messages<KeyboardFocusLost>>().len();
+        (released, lost)
     }
 
     #[test]
-    fn losing_focus_releases_every_held_key() {
-        let held = [KeyCode::Char('w'), KeyCode::Left];
-        let released = on_focus_change(false, &held);
-
+    fn losing_focus_releases_every_held_key_and_says_so() {
+        let held = [character("w"), Key::ArrowLeft];
+        let (released, lost) = on_focus_change(false, &held);
         assert_eq!(released.len(), 2);
         assert!(
             released
                 .iter()
-                .all(|message| message.kind == KeyKind::Release)
+                .all(|input| input.state == ButtonState::Released && input.text.is_none())
         );
-        for code in held {
-            assert!(released.iter().any(|message| message.code == code));
+        for key in held {
+            assert!(released.iter().any(|input| input.logical_key == key));
         }
+        assert_eq!(lost, 1);
     }
 
     #[test]
-    fn a_shifted_hold_is_released_as_the_key_it_is_held_as() {
-        let released = on_focus_change(false, &[KeyCode::Char('W')]);
-        assert_eq!(released.len(), 1);
-        assert_eq!(released[0].code, KeyCode::Char('w'));
+    fn losing_focus_drops_every_held_button() {
+        let mut world = world();
+        let release = world.register_system(release_buttons_on_focus_loss);
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        world.write_message(WindowFocused {
+            window: Entity::PLACEHOLDER,
+            focused: false,
+        });
+        world.run_system(release).unwrap();
+        let buttons = world.resource::<ButtonInput<MouseButton>>();
+        assert!(!buttons.pressed(MouseButton::Left));
+        assert!(buttons.just_released(MouseButton::Left));
     }
 
     #[test]
     fn focus_arriving_releases_nothing() {
-        assert_eq!(on_focus_change(true, &[KeyCode::Char('w')]), []);
+        assert_eq!(on_focus_change(true, &[character("w")]), (vec![], 0));
     }
 
     #[test]
-    fn losing_focus_with_nothing_held_is_silent() {
-        assert_eq!(on_focus_change(false, &[]), []);
-    }
-
-    // A terminal reports the state an event leaves behind, so the real
-    // shift+a gesture ends with an `a` release carrying nothing at all.
-    #[test]
-    fn a_release_cancels_its_press_whatever_bits_it_carries() {
-        let shifted = KeyModifiers::none().with_shift(true);
-        let bare = KeyModifiers::none();
-
-        assert!(!still_held_after_release(shifted, bare));
-        assert!(!still_held_after_release(bare, bare));
-    }
-
-    /// The cancels a focus change writes, with the pointer last seen at
-    /// `cursor` and `pumped` arriving in the same frame.
-    fn cancels(gained: bool, cursor: Option<Position>, pumped: &[Position]) -> Vec<MouseMessage> {
-        let mut world = World::new();
-        world.init_resource::<Messages<MouseMessage>>();
-        world.init_resource::<Messages<FocusMessage>>();
-        world.insert_resource(CursorCell(cursor));
-        let cancel = world.register_system(cancel_pointer_on_focus_loss);
-
-        for &position in pumped {
-            world.write_message(MouseMessage::new(
-                MouseKind::Moved,
-                position,
-                KeyModifiers::none(),
-            ));
-        }
-        world.write_message(FocusMessage::new(gained));
-        world.run_system(cancel).unwrap();
-        world
-            .resource_mut::<Messages<MouseMessage>>()
-            .drain()
-            .filter(|message| message.kind == MouseKind::Cancel)
-            .collect()
-    }
-
-    #[test]
-    fn losing_focus_cancels_where_the_pointer_last_was() {
-        let seen = Position::new(1, 1);
-        let moved = Position::new(4, 2);
-
-        let written = cancels(false, Some(seen), &[moved]);
-        assert_eq!(written.len(), 1);
-        assert_eq!(
-            written[0].position, moved,
-            "a stale position would move the cursor back"
-        );
-
-        assert_eq!(cancels(false, Some(seen), &[])[0].position, seen);
-    }
-
-    #[test]
-    fn losing_focus_before_any_pointer_cancels_nothing() {
-        assert_eq!(cancels(false, None, &[]), []);
-    }
-
-    #[test]
-    fn focus_arriving_cancels_nothing() {
-        assert_eq!(cancels(true, Some(Position::new(1, 1)), &[]), []);
+    fn losing_focus_with_nothing_held_still_says_so() {
+        assert_eq!(on_focus_change(false, &[]), (vec![], 1));
     }
 }

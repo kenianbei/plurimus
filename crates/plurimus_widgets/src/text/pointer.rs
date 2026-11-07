@@ -4,10 +4,9 @@
 use bevy_ecs::prelude::{On, Query, Res, With, Without};
 use plurimus_core::CellSize;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
+use plurimus_term::PointerModifiers;
 use plurimus_ui::bevy_picking::events::{PointerDrag, PointerPress};
-use plurimus_ui::{
-    ComputedDisabled, ComputedWidgetArea, PointerModifiers, content_cell, pointer_cell,
-};
+use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, content_cell, pointer_cell};
 
 use super::field::char_at_cell;
 use super::input::{EditableText, TextMask};

@@ -7,13 +7,12 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
-use plurimus_core::ratatui_core::layout::{Position, Rect};
+use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{
-    InputCapabilities, KeyCode, KeyModifiers, LastCopied, MouseButton, MouseKind, MouseMessage,
-};
+use plurimus_term::{InputCapabilities, KeyModifiers, LastCopied};
 use plurimus_test::{
-    click, clipboard_writes, press_at, press_key, press_key_with, release_at, send_mouse, set_focus,
+    character, click, clipboard_writes, move_to, press_at, press_key, press_key_with, release_at,
+    set_focus, write_press_at_with,
 };
 use plurimus_ui::{InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
@@ -90,14 +89,14 @@ fn edits(app: &App) -> &[String] {
     &app.world().resource::<Edits>().0
 }
 
-fn shift(app: &mut App, code: KeyCode) {
-    press_key_with(app, code, KeyModifiers::default().with_shift(true));
+fn shift(app: &mut App, key: Key) {
+    press_key_with(app, key, KeyModifiers::default().with_shift(true));
 }
 
-fn ctrl(app: &mut App, character: char) {
+fn ctrl(app: &mut App, typed: char) {
     press_key_with(
         app,
-        KeyCode::Char(character),
+        character(typed),
         KeyModifiers::default().with_ctrl(true),
     );
 }
@@ -107,17 +106,17 @@ fn shift_selects_by_cluster_and_ctrl_shift_by_word() {
     let mut app = app();
     let field = spawn_field(&mut app, "one two");
 
-    shift(&mut app, KeyCode::Left);
+    shift(&mut app, Key::ArrowLeft);
     assert_eq!(selected(&app, field).as_deref(), Some("o"));
 
     press_key_with(
         &mut app,
-        KeyCode::Left,
+        Key::ArrowLeft,
         KeyModifiers::default().with_shift(true).with_ctrl(true),
     );
     assert_eq!(selected(&app, field).as_deref(), Some("two"));
 
-    shift(&mut app, KeyCode::Home);
+    shift(&mut app, Key::Home);
     assert_eq!(selected(&app, field).as_deref(), Some("one two"));
     assert_eq!(propagated(&app), []);
 }
@@ -127,8 +126,8 @@ fn typing_over_a_one_char_selection_notifies() {
     let mut app = app();
     let field = spawn_field(&mut app, "abc");
 
-    shift(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Char('x'));
+    shift(&mut app, Key::ArrowLeft);
+    press_key(&mut app, character('x'));
 
     assert_eq!(text(&app, field).value(), "abx");
     assert_eq!(
@@ -143,9 +142,9 @@ fn backspace_deletes_the_selection_rather_than_a_cluster() {
     let mut app = app();
     let field = spawn_field(&mut app, "abcd");
 
-    shift(&mut app, KeyCode::Left);
-    shift(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Backspace);
+    shift(&mut app, Key::ArrowLeft);
+    shift(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::Backspace);
 
     assert_eq!(text(&app, field).value(), "ab");
 }
@@ -157,9 +156,9 @@ fn a_plain_arrow_ends_the_selection_and_steps_from_the_cursor() {
     let mut app = app();
     let field = spawn_field(&mut app, "abc");
 
-    shift(&mut app, KeyCode::Left);
-    shift(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Right);
+    shift(&mut app, Key::ArrowLeft);
+    shift(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(text(&app, field).selection(), None);
     assert_eq!(text(&app, field).cursor(), 2);
@@ -184,8 +183,8 @@ fn ctrl_x_cuts_and_notifies() {
     let mut app = app();
     let field = spawn_field(&mut app, "abcde");
 
-    shift(&mut app, KeyCode::Left);
-    shift(&mut app, KeyCode::Left);
+    shift(&mut app, Key::ArrowLeft);
+    shift(&mut app, Key::ArrowLeft);
     ctrl(&mut app, 'x');
 
     assert_eq!(clipboard_writes(&mut app), ["de"]);
@@ -230,7 +229,7 @@ fn an_empty_copy_is_consumed_and_escape_still_propagates() {
     spawn_field(&mut app, "hello");
 
     ctrl(&mut app, 'c');
-    press_key(&mut app, KeyCode::Esc);
+    press_key(&mut app, Key::Escape);
 
     assert_eq!(clipboard_writes(&mut app), [] as [String; 0]);
     assert_eq!(propagated(&app), [Key::Escape]);
@@ -250,7 +249,7 @@ fn losing_focus_ends_the_selection() {
 }
 
 fn drag_to(app: &mut App, x: u16) {
-    send_mouse(app, MouseKind::Drag(MouseButton::Left), x, 0);
+    move_to(app, x, 0);
 }
 
 #[test]
@@ -309,12 +308,7 @@ fn a_shifted_click_extends_from_the_caret() {
     click(&mut app, 0, 0);
 
     let shift = KeyModifiers::default().with_shift(true);
-    let at = Position::new(5, 0);
-    app.world_mut().write_message(MouseMessage::new(
-        MouseKind::Down(MouseButton::Left),
-        at,
-        shift,
-    ));
+    write_press_at_with(&mut app, 5, 0, shift);
     app.update();
     release_at(&mut app, 5, 0);
 

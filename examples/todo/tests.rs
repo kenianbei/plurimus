@@ -2,8 +2,9 @@ use bevy_ecs::prelude::Entity;
 use bevy_ui::Checked;
 use plurimus::bui::ComputedNodeRect;
 use plurimus::core::TerminalSize;
+use plurimus::term::bevy_input::keyboard::KeyCode;
 use plurimus::widgets::TextInput;
-use plurimus_test::{click, composed_frame, press_key, set_focus};
+use plurimus_test::{character, click, composed_frame, press_key, set_focus};
 
 use super::*;
 use model::{Part, TodoId};
@@ -100,9 +101,9 @@ fn typing_into_the_field_and_enter_adds_a_todo() {
     let field = part(&mut app, Part::Field, None);
     set_focus(&mut app, field);
     for letter in "milk".chars() {
-        press_key(&mut app, KeyCode::Char(letter));
+        press_key(&mut app, character(letter));
     }
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     settle(&mut app);
 
     assert_eq!(rows(&mut app), 4);
@@ -118,7 +119,7 @@ fn the_add_button_submits_the_field() {
     let field = part(&mut app, Part::Field, None);
     set_focus(&mut app, field);
     for letter in "eggs".chars() {
-        press_key(&mut app, KeyCode::Char(letter));
+        press_key(&mut app, character(letter));
     }
     let add = part(&mut app, Part::AddButton, None);
     click_center(&mut app, add);
@@ -134,13 +135,13 @@ fn space_toggles_and_enter_deletes_from_the_keyboard() {
     let mut app = headless_app();
     let check = part(&mut app, Part::Check, Some(3));
     set_focus(&mut app, check);
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, character(' '));
     settle(&mut app);
     assert!(app.world().get::<Checked>(check).is_some());
 
     let delete = part(&mut app, Part::Delete, Some(1));
     set_focus(&mut app, delete);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     settle(&mut app);
     assert_eq!(rows(&mut app), 2);
     assert!(!composed_frame(&app).contains("Try the terminal skin"));
@@ -173,11 +174,11 @@ fn tab_walks_from_the_field_into_the_ledger() {
     let field = part(&mut app, Part::Field, None);
     set_focus(&mut app, field);
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     app.update();
     assert_eq!(focused(&app), Some(part(&mut app, Part::AddButton, None)));
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     app.update();
     assert_eq!(focused(&app), Some(part(&mut app, Part::Check, Some(1))));
 }
@@ -185,7 +186,7 @@ fn tab_walks_from_the_field_into_the_ledger() {
 mod desktop_skin {
     use bevy_color::Color;
     use bevy_input::ButtonState;
-    use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+    use bevy_input::keyboard::{Key, KeyboardInput};
     use bevy_text::{EditableText, Strikethrough};
     use bevy_ui::{BackgroundColor, Checked, GridTrack, Node, Outline};
     use plurimus::bui::bevy_ui_widgets::TextInput;

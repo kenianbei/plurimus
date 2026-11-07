@@ -3920,6 +3920,7 @@ version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_input",
  "bevy_log",
  "crossterm",
  "plurimus_core",
@@ -3935,7 +3936,9 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_input",
+ "bevy_math",
  "bevy_time",
+ "bevy_window",
  "plurimus_core",
 ]
 
@@ -3945,7 +3948,9 @@ version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_input",
  "bevy_input_focus",
+ "bevy_window",
  "plurimus_core",
  "plurimus_term",
 ]
@@ -3978,7 +3983,9 @@ name = "plurimus_web"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_clipboard",
  "bevy_ecs",
+ "bevy_input",
  "console_error_panic_hook",
  "critical-section",
  "plurimus_core",

@@ -1,15 +1,15 @@
+use bevy_input::ButtonState;
+use bevy_input::keyboard::Key;
 use crossterm::event::{
     KeyCode as CtKeyCode, KeyEvent, KeyEventKind, KeyModifiers as CtModifiers, MouseButton,
     MouseEvent, MouseEventKind,
 };
-use plurimus_core::ratatui_core::layout::Position;
-use plurimus_term::{KeyCode, KeyKind, MouseKind};
 
 use crossterm::event::Event;
 
 use plurimus_term::InputCapabilities;
 
-use super::{autorepeat_press_at, convert_key, convert_mouse, learn_capabilities};
+use super::{TerminalPointer, autorepeat_press_at, convert_key, convert_mouse, learn_capabilities};
 
 fn key_event(code: CtKeyCode, kind: KeyEventKind) -> Event {
     let mut key = KeyEvent::new(code, CtModifiers::NONE);
@@ -87,24 +87,25 @@ fn a_press_first_is_never_the_start_of_a_pair() {
 fn converts_char_with_modifiers() {
     let key = KeyEvent::new(CtKeyCode::Char('q'), CtModifiers::CONTROL);
     let message = convert_key(key).unwrap();
-    assert_eq!(message.code, KeyCode::Char('q'));
+    assert_eq!(message.key, Key::Character("q".into()));
     assert!(message.modifiers.ctrl);
     assert!(!message.modifiers.alt);
-    assert_eq!(message.kind, KeyKind::Press);
+    assert_eq!(message.state, ButtonState::Pressed);
+    assert!(!message.repeat);
 }
 
 #[test]
 fn converts_release_kind() {
     let mut key = KeyEvent::new(CtKeyCode::Char('w'), CtModifiers::NONE);
     key.kind = KeyEventKind::Release;
-    assert_eq!(convert_key(key).unwrap().kind, KeyKind::Release);
+    assert_eq!(convert_key(key).unwrap().state, ButtonState::Released);
 }
 
 #[test]
 fn back_tab_becomes_shifted_tab() {
     let bare = KeyEvent::new(CtKeyCode::BackTab, CtModifiers::NONE);
     let message = convert_key(bare).unwrap();
-    assert_eq!(message.code, KeyCode::Tab);
+    assert_eq!(message.key, Key::Tab);
     assert!(message.modifiers.shift);
 
     let flagged = KeyEvent::new(CtKeyCode::BackTab, CtModifiers::SHIFT);
@@ -115,7 +116,7 @@ fn back_tab_becomes_shifted_tab() {
 fn an_uppercase_letter_carries_shift_on_either_tier() {
     let substituted = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::NONE);
     let message = convert_key(substituted).unwrap();
-    assert_eq!(message.code, KeyCode::Char('W'));
+    assert_eq!(message.key, Key::Character("W".into()));
     assert!(message.modifiers.shift);
 
     let legacy = KeyEvent::new(CtKeyCode::Char('W'), CtModifiers::SHIFT);
@@ -143,7 +144,7 @@ fn a_shifted_symbol_keeps_the_bit_it_arrived_with() {
 fn plain_tab_carries_no_shift() {
     let key = KeyEvent::new(CtKeyCode::Tab, CtModifiers::NONE);
     let message = convert_key(key).unwrap();
-    assert_eq!(message.code, KeyCode::Tab);
+    assert_eq!(message.key, Key::Tab);
     assert!(!message.modifiers.shift);
 }
 
@@ -156,22 +157,21 @@ fn drops_unmapped_keys() {
 #[test]
 fn converts_lock_keys() {
     let caps = KeyEvent::new(CtKeyCode::CapsLock, CtModifiers::NONE);
-    assert_eq!(convert_key(caps).unwrap().code, KeyCode::CapsLock);
+    assert_eq!(convert_key(caps).unwrap().key, Key::CapsLock);
 
     let mut num = KeyEvent::new(CtKeyCode::NumLock, CtModifiers::NONE);
     num.kind = KeyEventKind::Release;
     let message = convert_key(num).unwrap();
-    assert_eq!(message.code, KeyCode::NumLock);
-    assert_eq!(message.kind, KeyKind::Release);
+    assert_eq!(message.key, Key::NumLock);
+    assert_eq!(message.state, ButtonState::Released);
 
     let scroll = KeyEvent::new(CtKeyCode::ScrollLock, CtModifiers::NONE);
-    assert_eq!(convert_key(scroll).unwrap().code, KeyCode::ScrollLock);
+    assert_eq!(convert_key(scroll).unwrap().key, Key::ScrollLock);
 }
 
 #[test]
-fn converts_modifier_keys_with_sides() {
+fn converts_modifier_keys_without_their_side() {
     use crossterm::event::ModifierKeyCode;
-    use plurimus_term::ModifierKey;
 
     let mut key = KeyEvent::new(
         CtKeyCode::Modifier(ModifierKeyCode::RightShift),
@@ -179,8 +179,8 @@ fn converts_modifier_keys_with_sides() {
     );
     key.kind = KeyEventKind::Release;
     let message = convert_key(key).unwrap();
-    assert_eq!(message.code, KeyCode::Modifier(ModifierKey::ShiftRight));
-    assert_eq!(message.kind, KeyKind::Release);
+    assert_eq!(message.key, Key::Shift);
+    assert_eq!(message.state, ButtonState::Released);
 
     let iso = KeyEvent::new(
         CtKeyCode::Modifier(ModifierKeyCode::IsoLevel3Shift),
@@ -190,25 +190,23 @@ fn converts_modifier_keys_with_sides() {
 }
 
 #[test]
-fn converts_mouse_kinds_in_cell_coordinates() {
-    let down = MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: 7,
-        row: 3,
-        modifiers: CtModifiers::NONE,
-    };
-    let message = convert_mouse(down);
+fn converts_mouse_kinds_to_the_sinks_terms() {
     assert_eq!(
-        message.kind,
-        MouseKind::Down(plurimus_term::MouseButton::Left)
+        convert_mouse(MouseEventKind::Down(MouseButton::Left)),
+        TerminalPointer::Button(plurimus_term::MouseButton::Left, ButtonState::Pressed)
     );
-    assert_eq!(message.position, Position::new(7, 3));
-
-    let sideways = MouseEvent {
-        kind: MouseEventKind::ScrollLeft,
-        ..down
-    };
-    assert_eq!(convert_mouse(sideways).kind, MouseKind::ScrollLeft);
+    assert_eq!(
+        convert_mouse(MouseEventKind::Drag(MouseButton::Left)),
+        TerminalPointer::Moved
+    );
+    assert_eq!(
+        convert_mouse(MouseEventKind::ScrollDown),
+        TerminalPointer::Wheel(0, -1)
+    );
+    assert_eq!(
+        convert_mouse(MouseEventKind::ScrollLeft),
+        TerminalPointer::Wheel(1, 0)
+    );
 }
 
 fn learned(batch: &[Event]) -> InputCapabilities {

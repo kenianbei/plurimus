@@ -28,7 +28,7 @@ use super::grapheme::{cluster_len_after, cluster_len_before};
 use super::keys::unbound_text;
 use crate::clipboard::Clipboard;
 use plurimus_core::UiWidget;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 use plurimus_ui::{ComputedDisabled, Hovered, first_bound};
 use plurimus_ui::{ScrollBy, WheelReceptive};
 

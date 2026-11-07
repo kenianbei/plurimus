@@ -14,8 +14,7 @@ use plurimus_bui::bevy_text::{
 use plurimus_bui::{BuiPlugin, ComputedNodeRect};
 use plurimus_core::bevy_camera::Camera;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::MouseKind;
-use plurimus_test::{composed_frame, composed_styled_frame, send_mouse};
+use plurimus_test::{composed_frame, composed_styled_frame, scroll_at};
 
 fn app(cols: u16, rows: u16) -> App {
     let mut app = App::new();
@@ -144,7 +143,7 @@ fn wheel_scrolls_overflow_scroll_node() {
     insta::assert_snapshot!("bui_scroll_top", composed_styled_frame(&app));
 
     for _ in 0..5 {
-        send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+        scroll_at(&mut app, 2, 1, 1);
     }
     app.update();
 

@@ -3,14 +3,15 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{InputCapabilities, KeyCode, KeyModifiers, LastCopied, ModifierKey, MouseKind};
+use plurimus_term::{InputCapabilities, KeyModifiers, LastCopied};
 use plurimus_test::{
-    clipboard_writes, composed_frame, press_chord, press_key, press_key_with, send_mouse,
-    send_paste, set_focus, write_key,
+    character, clipboard_writes, composed_frame, press_key, press_key_with, scroll_at, send_paste,
+    set_focus, write_key,
 };
-use plurimus_ui::{Key, KeyBinding, UiArea};
+use plurimus_ui::{KeyBinding, UiArea};
 use plurimus_widgets::{
     TextChanged, TextEditor, TextEditorAction, TextEditorKeys, WidgetsPlugin, text_editor,
 };
@@ -39,15 +40,12 @@ fn spawn_editor(app: &mut App, text: &str) -> Entity {
     editor
 }
 
-// Only the modifier bits, with no modifier key press: this is what a
-// terminal without the kitty tier sends.
-fn ctrl_key(app: &mut App, code: KeyCode) {
-    press_key_with(app, code, KeyModifiers::default().with_ctrl(true));
+fn ctrl_key(app: &mut App, key: Key) {
+    press_key_with(app, key, KeyModifiers::default().with_ctrl(true));
 }
 
-// The kitty-tier spelling of the same chord, modifier key and all.
-fn ctrl_chord(app: &mut App, character: char) {
-    press_chord(app, ModifierKey::ControlLeft, KeyCode::Char(character));
+fn ctrl_chord(app: &mut App, typed: char) {
+    press_key_with(app, character(typed), KeyModifiers::none().with_ctrl(true));
 }
 
 fn ctrl_letter(letter: &str) -> KeyBinding {
@@ -55,16 +53,16 @@ fn ctrl_letter(letter: &str) -> KeyBinding {
 }
 
 fn select_from_home(app: &mut App, count: usize) {
-    press_key(app, KeyCode::Home);
+    press_key(app, Key::Home);
     for _ in 0..count {
-        press_chord(app, ModifierKey::ShiftLeft, KeyCode::Right);
+        press_key_with(app, Key::ArrowRight, KeyModifiers::none().with_shift(true));
     }
 }
 
 fn editor_typed_ab(app: &mut App) -> Entity {
     let editor = spawn_editor(app, "");
-    press_key(app, KeyCode::Char('a'));
-    press_key(app, KeyCode::Char('b'));
+    press_key(app, character('a'));
+    press_key(app, character('b'));
     assert_eq!(lines_of(app, editor), ["ab"]);
     editor
 }
@@ -83,10 +81,10 @@ fn typing_edits_multiple_lines() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "");
 
-    press_key(&mut app, KeyCode::Char('a'));
-    press_key(&mut app, KeyCode::Char('b'));
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Char('c'));
+    press_key(&mut app, character('a'));
+    press_key(&mut app, character('b'));
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, character('c'));
 
     assert_eq!(lines_of(&app, editor), ["ab", "c"]);
     assert_eq!(app.world().resource::<Changes>().0, 4);
@@ -97,7 +95,7 @@ fn tab_is_not_forwarded_to_the_editor() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "x");
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
 
     assert_eq!(lines_of(&app, editor), ["x"]);
     assert_eq!(app.world().resource::<Changes>().0, 0);
@@ -129,7 +127,7 @@ fn ctrl_undo_from_synthesized_modifiers() {
     app.insert_resource(InputCapabilities::none());
     let editor = editor_typed_ab(&mut app);
 
-    ctrl_key(&mut app, KeyCode::Char('z'));
+    ctrl_key(&mut app, character('z'));
 
     assert_eq!(lines_of(&app, editor), ["a"], "ctrl+z undoes, inserts no z");
 }
@@ -150,8 +148,8 @@ fn live_view_renders_edits_without_rebuild() {
     let mut app = app();
     spawn_editor(&mut app, "");
 
-    press_key(&mut app, KeyCode::Char('h'));
-    press_key(&mut app, KeyCode::Char('i'));
+    press_key(&mut app, character('h'));
+    press_key(&mut app, character('i'));
     app.update();
 
     insta::assert_snapshot!("editor_live_view", composed_frame(&app));
@@ -163,11 +161,15 @@ fn live_view_renders_edits_without_rebuild() {
 fn a_chord_leaves_its_modifier_released() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "abcd");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
 
-    press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Right);
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Backspace);
+    press_key_with(
+        &mut app,
+        Key::ArrowRight,
+        KeyModifiers::none().with_shift(true),
+    );
+    press_key(&mut app, Key::ArrowRight);
+    press_key(&mut app, Key::Backspace);
 
     assert_eq!(
         lines_of(&app, editor),
@@ -211,7 +213,7 @@ fn a_cut_offers_the_selection_and_removes_it() {
 fn a_copy_with_no_selection_offers_nothing() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "abcd");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
 
     ctrl_chord(&mut app, 'c');
     ctrl_chord(&mut app, 'x');
@@ -242,11 +244,11 @@ fn a_copy_fills_the_shared_buffer() {
 fn a_seeded_buffer_pastes_on_the_next_frame() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "");
-    write_key(&mut app, KeyCode::Modifier(ModifierKey::ControlLeft));
+    write_key(&mut app, Key::Control);
     app.update();
 
     app.world_mut().resource_mut::<LastCopied>().0 = Some("seeded".to_owned());
-    ctrl_key(&mut app, KeyCode::Char('v'));
+    ctrl_key(&mut app, character('v'));
 
     assert_eq!(lines_of(&app, editor), ["seeded"]);
 }
@@ -282,7 +284,7 @@ fn a_kill_still_yanks_what_it_killed() {
     select_from_home(&mut app, 2);
     ctrl_chord(&mut app, 'c');
 
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     ctrl_chord(&mut app, 'k');
     ctrl_chord(&mut app, 'u');
 
@@ -300,7 +302,7 @@ fn wheel_scrolls_the_viewport() {
     app.update();
 
     for _ in 0..2 {
-        send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+        scroll_at(&mut app, 2, 1, 1);
     }
 
     insta::assert_snapshot!("editor_scrolled", composed_frame(&app));

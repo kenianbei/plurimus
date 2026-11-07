@@ -2,10 +2,11 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key, set_focus};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{press_key, press_key_with, set_focus};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextInput, WidgetsPlugin, editable_text};
 
@@ -51,7 +52,7 @@ fn arrow_left_crosses_a_whole_cluster() {
     for value in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let field = spawn_field(&mut app, value);
-        press_key(&mut app, KeyCode::Left);
+        press_key(&mut app, Key::ArrowLeft);
         assert_eq!(
             position_of(&app, field),
             0,
@@ -65,8 +66,8 @@ fn arrow_right_crosses_a_whole_cluster() {
     for value in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let field = spawn_field(&mut app, value);
-        press_key(&mut app, KeyCode::Home);
-        press_key(&mut app, KeyCode::Right);
+        press_key(&mut app, Key::Home);
+        press_key(&mut app, Key::ArrowRight);
         let text = value_of(&app, field);
         let position = position_of(&app, field);
         assert_eq!(
@@ -82,7 +83,7 @@ fn backspace_removes_a_whole_cluster() {
     for value in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let field = spawn_field(&mut app, value);
-        press_key(&mut app, KeyCode::Backspace);
+        press_key(&mut app, Key::Backspace);
         assert_eq!(
             value_of(&app, field),
             "",
@@ -96,8 +97,8 @@ fn delete_removes_a_whole_cluster() {
     for value in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let field = spawn_field(&mut app, value);
-        press_key(&mut app, KeyCode::Home);
-        press_key(&mut app, KeyCode::Delete);
+        press_key(&mut app, Key::Home);
+        press_key(&mut app, Key::Delete);
         assert_eq!(
             value_of(&app, field),
             "",
@@ -110,8 +111,8 @@ fn delete_removes_a_whole_cluster() {
 fn clusters_are_crossed_without_disturbing_neighbours() {
     let mut app = app();
     let field = spawn_field(&mut app, &format!("a{FAMILY}b"));
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Backspace);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::Backspace);
     assert_eq!(value_of(&app, field), "ab");
 }
 
@@ -119,11 +120,15 @@ fn clusters_are_crossed_without_disturbing_neighbours() {
 fn word_motion_matches_textarea_boundaries() {
     let mut app = app();
     let field = spawn_field(&mut app, "fn foo(a)");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     let expected = [3, 6, 7, 8, 9];
     let mut stops = Vec::new();
     for _ in 0..expected.len() {
-        press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Right);
+        press_key_with(
+            &mut app,
+            Key::ArrowRight,
+            KeyModifiers::none().with_ctrl(true),
+        );
         stops.push(position_of(&app, field));
     }
     assert_eq!(stops, expected);
@@ -136,7 +141,11 @@ fn word_motion_runs_backward() {
     let expected = [8, 7, 6, 3, 0];
     let mut stops = Vec::new();
     for _ in 0..expected.len() {
-        press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Left);
+        press_key_with(
+            &mut app,
+            Key::ArrowLeft,
+            KeyModifiers::none().with_ctrl(true),
+        );
         stops.push(position_of(&app, field));
     }
     assert_eq!(stops, expected);
@@ -146,7 +155,11 @@ fn word_motion_runs_backward() {
 fn word_deletion_removes_back_to_the_boundary() {
     let mut app = app();
     let field = spawn_field(&mut app, "fn foo bar");
-    press_chord(&mut app, ModifierKey::AltLeft, KeyCode::Backspace);
+    press_key_with(
+        &mut app,
+        Key::Backspace,
+        KeyModifiers::none().with_alt(true),
+    );
     assert_eq!(value_of(&app, field), "fn foo ");
 }
 
@@ -154,8 +167,8 @@ fn word_deletion_removes_back_to_the_boundary() {
 fn forward_word_deletion_removes_to_the_boundary() {
     let mut app = app();
     let field = spawn_field(&mut app, "fn foo bar");
-    press_key(&mut app, KeyCode::Home);
-    press_chord(&mut app, ModifierKey::AltLeft, KeyCode::Delete);
+    press_key(&mut app, Key::Home);
+    press_key_with(&mut app, Key::Delete, KeyModifiers::none().with_alt(true));
     assert_eq!(value_of(&app, field), " foo bar");
 }
 
@@ -163,7 +176,11 @@ fn forward_word_deletion_removes_to_the_boundary() {
 fn word_deletion_takes_whole_clusters() {
     let mut app = app();
     let field = spawn_field(&mut app, &format!("hi {FAMILY}{FLAG}"));
-    press_chord(&mut app, ModifierKey::AltLeft, KeyCode::Backspace);
+    press_key_with(
+        &mut app,
+        Key::Backspace,
+        KeyModifiers::none().with_alt(true),
+    );
     assert_eq!(value_of(&app, field), "hi ");
 }
 
@@ -171,9 +188,13 @@ fn word_deletion_takes_whole_clusters() {
 fn word_motion_never_lands_inside_a_cluster() {
     let mut app = app();
     let field = spawn_field(&mut app, &format!("a{KEYCAP}b"));
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Right);
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Right);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::ArrowRight);
+    press_key_with(
+        &mut app,
+        Key::ArrowRight,
+        KeyModifiers::none().with_ctrl(true),
+    );
     assert_eq!(
         position_of(&app, field),
         4,
@@ -185,8 +206,8 @@ fn word_motion_never_lands_inside_a_cluster() {
 fn word_deletion_never_splits_a_cluster() {
     let mut app = app();
     let field = spawn_field(&mut app, &format!("a{KEYCAP}"));
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Right);
-    press_chord(&mut app, ModifierKey::AltLeft, KeyCode::Delete);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::ArrowRight);
+    press_key_with(&mut app, Key::Delete, KeyModifiers::none().with_alt(true));
     assert_eq!(value_of(&app, field), "a", "left a cluster fragment");
 }

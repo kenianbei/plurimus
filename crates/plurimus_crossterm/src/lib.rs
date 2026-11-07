@@ -21,9 +21,9 @@ use std::io::BufWriter;
 use std::io::{self, Stdout, Write};
 use std::sync::Mutex;
 
-use bevy_app::{App, Plugin, PreUpdate};
+use bevy_app::{App, First, Plugin};
 use bevy_ecs::prelude::IntoScheduleConfigs;
-use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt};
+use plurimus_core::{PresenterPlugin, TerminalRenderApp, TerminalRenderAppExt};
 use plurimus_term::{InputCapabilities, InputSystems};
 
 /// Owns the terminal and presents composed frames via crossterm.
@@ -100,7 +100,7 @@ impl<W: Write + Send + Sync + 'static> CrosstermPlugin<W> {
         }
     }
 
-    /// Sets mouse capture ([`plurimus_term::MouseMessage`]); on by default.
+    /// Sets mouse capture; on by default.
     #[must_use]
     pub const fn mouse(mut self, mouse: bool) -> Self {
         self.mouse = mouse;
@@ -169,12 +169,7 @@ impl<W: Write + Send + Sync + 'static> Plugin for CrosstermPlugin<W> {
         if self.detect_color_depth {
             app.insert_resource(color_depth);
         }
-        app.add_systems(
-            PreUpdate,
-            events::pump_events
-                .in_set(InputSystems::Pump)
-                .before(CameraSystems::SyncSize),
-        );
+        app.add_systems(First, events::pump_events.in_set(InputSystems::Pump));
         app.add_plugins(PresenterPlugin::new(backend));
         app.add_extract_systems((
             request::write_terminal_requests::<W>,

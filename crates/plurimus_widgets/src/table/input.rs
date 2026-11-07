@@ -8,7 +8,7 @@ use bevy_ecs::prelude::{Changed, Commands, On, Query, Res, With, Without};
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 
 use super::geometry::{
     Placed, Placement, Rows, bands, body_height, body_rows, clicked_column, clicked_row,

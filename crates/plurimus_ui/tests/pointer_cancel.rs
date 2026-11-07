@@ -7,8 +7,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{release_at, send_focus, send_mouse, write_focus, write_mouse};
+use plurimus_test::{release_at, send_focus, send_press_at, write_focus, write_press_at};
 use plurimus_ui::bevy_picking::events::{PointerCancel, PointerClick, PointerPress};
 use plurimus_ui::{ComputedWidgetArea, Hovered, Pressed, UiArea, UiPlugin};
 
@@ -72,7 +71,7 @@ fn assert_cancelled(app: &mut App, target: Entity) {
 #[test]
 fn losing_focus_cancels_a_held_press() {
     let (mut app, target) = app();
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
+    send_press_at(&mut app, X, Y);
     assert!(app.world().get::<Pressed>(target).is_some());
 
     send_focus(&mut app, false);
@@ -85,7 +84,7 @@ fn losing_focus_cancels_a_held_press() {
 #[test]
 fn a_press_in_the_losing_frame_is_cancelled_too() {
     let (mut app, target) = app();
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
+    write_press_at(&mut app, X, Y);
     write_focus(&mut app, false);
     app.update();
     app.update();
@@ -96,10 +95,10 @@ fn a_press_in_the_losing_frame_is_cancelled_too() {
 #[test]
 fn a_press_after_a_cancel_presses_again() {
     let (mut app, target) = app();
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
+    send_press_at(&mut app, X, Y);
     send_focus(&mut app, false);
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), X, Y);
+    send_press_at(&mut app, X, Y);
 
     assert_eq!(app.world().resource::<Seen>().presses.len(), 2);
     assert!(app.world().get::<Pressed>(target).is_some());

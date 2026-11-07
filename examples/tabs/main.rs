@@ -23,13 +23,14 @@ use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::ratatui_core::style::{Color, Style};
 use plurimus::core::{CorePlugin, Edge, Hidden, Propagate, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus::ui::bevy_input_focus::{FocusCause, InputFocus};
 use plurimus::ui::{Checked, UiLabel, ValueChange};
 use plurimus::widgets::ratatui_widgets::borders::BorderType;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
-    Key, TabBarAction, TabBarActiveStyle, TabBarKeys, TabBarLook, TabBarOrientation, WidgetsPlugin,
+    TabBarAction, TabBarActiveStyle, TabBarKeys, TabBarLook, TabBarOrientation, WidgetsPlugin,
     pane, tab_bar, tab_bar_self_update, tab_item,
 };
 
@@ -247,13 +248,13 @@ fn apply_look(
 // Focus is the app's to move between two bars that are not in one
 // hierarchy; Tab alternates them while both are shown.
 fn swap_focus_on_tab(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
     top: Query<Entity, With<TopBar>>,
     looks: Query<Entity, (With<LooksBar>, Without<Hidden>)>,
     mut focus: ResMut<InputFocus>,
 ) {
     for key in keys.read() {
-        if key.kind != KeyKind::Press || key.code != KeyCode::Tab {
+        if key.state != ButtonState::Pressed || key.repeat || key.logical_key != Key::Tab {
             continue;
         }
         let (Ok(top), Ok(looks)) = (top.single(), looks.single()) else {
@@ -264,9 +265,12 @@ fn swap_focus_on_tab(
     }
 }
 
-fn quit_on_key(mut keys: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
+fn quit_on_key(mut keys: MessageReader<KeyboardInput>, mut exit: MessageWriter<AppExit>) {
     for key in keys.read() {
-        if key.kind == KeyKind::Press && key.code == KeyCode::Char('q') {
+        if key.state == ButtonState::Pressed
+            && !key.repeat
+            && key.logical_key == Key::Character("q".into())
+        {
             exit.write(AppExit::Success);
         }
     }

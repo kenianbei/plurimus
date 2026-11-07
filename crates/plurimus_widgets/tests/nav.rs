@@ -4,13 +4,13 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Bundle, ChildOf};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::directional_navigation::DirectionalNavigationMap;
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use bevy_math::CompassOctant;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{InteractionDisabled, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
@@ -155,7 +155,7 @@ fn blocked_manual_edge_survives_and_gates_navigation() {
     app.update();
 
     set_focus(&mut app, left);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(left), "blocked edge gates navigation");
     assert_eq!(neighbor(&app, right, CompassOctant::West), Some(left));
 }
@@ -166,16 +166,16 @@ fn arrows_move_focus_between_widgets() {
     let (left, right) = spawn_grouped_pair(&mut app);
     app.update();
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(left));
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(right));
 
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(focused(&app), Some(left));
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(focused(&app), Some(left));
 }
 
@@ -195,7 +195,7 @@ fn first_arrow_focuses_lowest_tab_index() {
     );
     app.update();
 
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(focused(&app), Some(lowest));
 }
 
@@ -219,7 +219,7 @@ fn focused_slider_consumes_horizontal_arrows() {
     app.update();
 
     set_focus(&mut app, track);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(track));
 }
 
@@ -243,7 +243,7 @@ fn a_slider_at_its_minimum_lets_left_move_focus() {
     app.update();
 
     set_focus(&mut app, track);
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(focused(&app), Some(left));
 }
 
@@ -270,13 +270,13 @@ fn modal_group_traps_arrows() {
     app.update();
 
     set_focus(&mut app, inside);
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(focused(&app), Some(inside));
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(inside_east));
 
     set_focus(&mut app, outside);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(inside));
 }

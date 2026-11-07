@@ -1,161 +1,15 @@
-//! Keyboard half of the input contract: key messages and modifier state.
+//! Modifier state: the bits a terminal reports with an event, and the keys
+//! bevy polls them back from.
 
-use bevy_ecs::message::Message;
-
-/// A key event forwarded from the terminal backend.
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct KeyMessage {
-    /// The key.
-    pub code: KeyCode,
-    /// Modifier state at event time.
-    pub modifiers: KeyModifiers,
-    /// Press, repeat, or release.
-    pub kind: KeyKind,
-}
-
-impl KeyMessage {
-    /// A key event as a backend reports it.
-    #[must_use]
-    pub const fn new(code: KeyCode, modifiers: KeyModifiers, kind: KeyKind) -> Self {
-        Self {
-            code,
-            modifiers,
-            kind,
-        }
-    }
-}
-
-/// The kind of a key event.
-///
-/// Legacy terminals only report presses; releases are synthesized after
-/// [`crate::ReleaseTimeout`] unless [`crate::InputCapabilities::key_release`]
-/// is set.
-///
-/// Closed: press, repeat and release are the whole key lifecycle, so an
-/// exhaustive match over it stays correct.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum KeyKind {
-    /// Key went down.
-    Press,
-    /// Key is held (terminal autorepeat or kitty repeat).
-    Repeat,
-    /// Key went up.
-    Release,
-}
-
-/// Keys reported by terminal backends.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum KeyCode {
-    /// A printable character.
-    Char(char),
-    /// The enter/return key.
-    Enter,
-    /// The escape key.
-    Esc,
-    /// The tab key.
-    Tab,
-    /// The backspace key.
-    Backspace,
-    /// The delete key.
-    Delete,
-    /// The insert key.
-    Insert,
-    /// The up arrow.
-    Up,
-    /// The down arrow.
-    Down,
-    /// The left arrow.
-    Left,
-    /// The right arrow.
-    Right,
-    /// The home key.
-    Home,
-    /// The end key.
-    End,
-    /// The page-up key.
-    PageUp,
-    /// The page-down key.
-    PageDown,
-    /// A function key.
-    F(u8),
-    /// The caps lock key (kitty tier only).
-    CapsLock,
-    /// The num lock key (kitty tier only).
-    NumLock,
-    /// The scroll lock key (kitty tier only).
-    ScrollLock,
-    /// A modifier key pressed as a key in its own right (kitty tier only;
-    /// legacy terminals never emit these).
-    Modifier(ModifierKey),
-}
-
-impl KeyCode {
-    /// The key this one is held as, which is what polled
-    /// [`ButtonInput<KeyCode>`](crate::ButtonInput) is keyed on.
-    ///
-    /// A character folds to its lowercase; every other key is its own
-    /// identity. A terminal reports the character produced rather than the
-    /// key struck, so pressing shift while `w` is held makes its release
-    /// arrive as `W` - and a release has to name the press it ends, or the
-    /// press is held forever.
-    ///
-    /// Only a case difference survives that round trip. A shifted symbol
-    /// carries no trace of the key it came from, `!` and `1` being unrelated
-    /// characters, and a character whose lowercase is more than one character
-    /// is left alone rather than guessed at.
-    #[must_use]
-    pub fn held_as(self) -> Self {
-        let Self::Char(character) = self else {
-            return self;
-        };
-        let mut folded = character.to_lowercase();
-        match (folded.next(), folded.next()) {
-            (Some(lowercase), None) => Self::Char(lowercase),
-            _ => self,
-        }
-    }
-}
-
-/// Modifier keys reported as keys, with left/right distinguished.
-///
-/// [`KeyModifiers`] does not keep that distinction: both sides drive one
-/// flag there. Iso-level shift keys are not represented and stay dropped.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum ModifierKey {
-    /// Left shift.
-    ShiftLeft,
-    /// Right shift.
-    ShiftRight,
-    /// Left control.
-    ControlLeft,
-    /// Right control.
-    ControlRight,
-    /// Left alt.
-    AltLeft,
-    /// Right alt.
-    AltRight,
-    /// Left super.
-    SuperLeft,
-    /// Right super.
-    SuperRight,
-    /// Left hyper.
-    HyperLeft,
-    /// Right hyper.
-    HyperRight,
-    /// Left meta.
-    MetaLeft,
-    /// Right meta.
-    MetaRight,
-}
+use bevy_ecs::entity::Entity;
+use bevy_ecs::system::{Res, SystemParam};
+use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+use bevy_input::{ButtonInput, ButtonState};
 
 /// Modifier keys held during an input event.
 ///
-/// One flag per modifier, with left and right collapsed: a `ShiftRight`
-/// press sets `shift`. Super/hyper/meta are only reported on the kitty
-/// tier.
+/// One flag per modifier, with left and right collapsed: a right shift
+/// sets `shift`. Super/hyper/meta are only reported on the kitty tier.
 ///
 /// A shifted character reports the character, and `shift` beside it is only
 /// dependable for letters: `W` carries the flag on every terminal, while a
@@ -205,14 +59,6 @@ impl KeyModifiers {
         }
     }
 
-    /// Whether the flag `key` drives is held.
-    ///
-    /// Sides collapse: `ShiftLeft` and `ShiftRight` both read `shift`.
-    #[must_use]
-    pub const fn holds(mut self, key: ModifierKey) -> bool {
-        *self.slot(key)
-    }
-
     /// Sets whether control is held.
     #[must_use]
     pub const fn with_ctrl(mut self, held: bool) -> Self {
@@ -255,55 +101,171 @@ impl KeyModifiers {
         self
     }
 
-    pub(crate) const fn slot(&mut self, key: ModifierKey) -> &mut bool {
-        use ModifierKey as M;
-        match key {
-            M::ShiftLeft | M::ShiftRight => &mut self.shift,
-            M::ControlLeft | M::ControlRight => &mut self.ctrl,
-            M::AltLeft | M::AltRight => &mut self.alt,
-            M::SuperLeft | M::SuperRight => &mut self.super_key,
-            M::HyperLeft | M::HyperRight => &mut self.hyper,
-            M::MetaLeft | M::MetaRight => &mut self.meta,
-        }
+    fn holds(mut self, modifier: &Modifier) -> bool {
+        *(modifier.flag)(&mut self)
     }
 }
 
-impl From<ModifierKey> for KeyModifiers {
-    /// The modifier state implied by holding `key`, with no other
-    /// modifiers. Sides collapse, so both shift keys yield `shift`.
-    fn from(key: ModifierKey) -> Self {
-        let mut modifiers = Self::default();
-        *modifiers.slot(key) = true;
-        modifiers
+/// One [`KeyModifiers`] flag: both physical keys that drive it, the logical
+/// key they report, and the flag itself.
+///
+/// Reading and synthesizing both work from this one table, so neither can
+/// come to disagree about which keys drive which flag. Hyper and meta have
+/// one physical code in bevy, so their pair is the same key twice.
+struct Modifier {
+    left: KeyCode,
+    right: KeyCode,
+    logical: Key,
+    flag: for<'a> fn(&'a mut KeyModifiers) -> &'a mut bool,
+}
+
+const MODIFIERS: [Modifier; 6] = [
+    Modifier {
+        left: KeyCode::ShiftLeft,
+        right: KeyCode::ShiftRight,
+        logical: Key::Shift,
+        flag: |held| &mut held.shift,
+    },
+    Modifier {
+        left: KeyCode::ControlLeft,
+        right: KeyCode::ControlRight,
+        logical: Key::Control,
+        flag: |held| &mut held.ctrl,
+    },
+    Modifier {
+        left: KeyCode::AltLeft,
+        right: KeyCode::AltRight,
+        logical: Key::Alt,
+        flag: |held| &mut held.alt,
+    },
+    Modifier {
+        left: KeyCode::SuperLeft,
+        right: KeyCode::SuperRight,
+        logical: Key::Super,
+        flag: |held| &mut held.super_key,
+    },
+    Modifier {
+        left: KeyCode::Hyper,
+        right: KeyCode::Hyper,
+        logical: Key::Hyper,
+        flag: |held| &mut held.hyper,
+    },
+    Modifier {
+        left: KeyCode::Meta,
+        right: KeyCode::Meta,
+        logical: Key::Meta,
+        flag: |held| &mut held.meta,
+    },
+];
+
+/// The modifiers `keys` currently holds, for a consumer that reads bevy's
+/// polled key state rather than the bits an event arrived with.
+///
+/// A `FocusedInput` observer is the case this exists for: bevy's
+/// `KeyboardInput` carries no modifier state, so a chord has to come from
+/// here. Sides collapse - either control key sets `ctrl`.
+///
+/// This is frame state, not event state. It answers "what is held now",
+/// which is the same thing only while no modifier is released in the frame
+/// the key it modified arrives.
+#[must_use]
+pub fn held_modifiers(keys: &ButtonInput<KeyCode>) -> KeyModifiers {
+    let mut held = KeyModifiers::default();
+    for modifier in &MODIFIERS {
+        *(modifier.flag)(&mut held) = keys.any_pressed([modifier.left, modifier.right]);
     }
+    held
+}
+
+/// [`held_modifiers`] as a system parameter, for an observer that wants
+/// the one answer without naming the resource it comes from.
+#[derive(SystemParam)]
+pub struct HeldModifiers<'w> {
+    keys: Res<'w, ButtonInput<KeyCode>>,
+}
+
+impl HeldModifiers<'_> {
+    /// The modifiers held now; see [`held_modifiers`] for what "now" means.
+    #[must_use]
+    pub fn get(&self) -> KeyModifiers {
+        held_modifiers(&self.keys)
+    }
+}
+
+/// The modifier key presses and releases that take `was` to `current`, each
+/// naming the left key since the bits carry no side.
+///
+/// For a terminal that reports modifiers only as bits on other events, these
+/// are the key events it never sent.
+pub(crate) fn modifier_transitions(
+    was: KeyModifiers,
+    current: KeyModifiers,
+    window: Entity,
+) -> impl Iterator<Item = KeyboardInput> + use<> {
+    MODIFIERS
+        .into_iter()
+        .filter(move |modifier| was.holds(modifier) != current.holds(modifier))
+        .map(move |modifier| KeyboardInput {
+            key_code: modifier.left,
+            state: if current.holds(&modifier) {
+                ButtonState::Pressed
+            } else {
+                ButtonState::Released
+            },
+            logical_key: modifier.logical,
+            text: None,
+            repeat: false,
+            window,
+        })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::KeyCode;
+    use bevy_ecs::entity::Entity;
+    use bevy_input::ButtonInput;
+    use bevy_input::keyboard::KeyCode;
 
-    #[test]
-    fn a_shifted_letter_is_held_as_its_unshifted_self() {
-        assert_eq!(KeyCode::Char('W').held_as(), KeyCode::Char('w'));
-        assert_eq!(KeyCode::Char('w').held_as(), KeyCode::Char('w'));
-    }
+    use super::{KeyModifiers, MODIFIERS, held_modifiers, modifier_transitions};
 
-    // The pump restores the shift bit by `is_uppercase` rather than by its
-    // ascii sibling, so the fold reaches as far as the substitution does.
-    #[test]
-    fn the_fold_reaches_past_ascii() {
-        assert_eq!(KeyCode::Char('Ф').held_as(), KeyCode::Char('ф'));
-    }
-
-    #[test]
-    fn a_letter_lowercasing_to_two_is_left_alone() {
-        assert_eq!(KeyCode::Char('İ').held_as(), KeyCode::Char('İ'));
+    fn holding(pressed: &[KeyCode]) -> KeyModifiers {
+        let mut keys = ButtonInput::default();
+        for &key in pressed {
+            keys.press(key);
+        }
+        held_modifiers(&keys)
     }
 
     #[test]
-    fn a_symbol_and_a_named_key_are_their_own_identity() {
-        assert_eq!(KeyCode::Char(':').held_as(), KeyCode::Char(':'));
-        assert_eq!(KeyCode::Enter.held_as(), KeyCode::Enter);
-        assert_eq!(KeyCode::F(5).held_as(), KeyCode::F(5));
+    fn either_side_of_every_modifier_sets_the_flag_it_shares() {
+        assert_eq!(holding(&[]), KeyModifiers::default(), "nothing held");
+        for modifier in &MODIFIERS {
+            let mut expected = KeyModifiers::default();
+            *(modifier.flag)(&mut expected) = true;
+            assert_eq!(holding(&[modifier.left]), expected, "{:?}", modifier.left);
+            assert_eq!(holding(&[modifier.right]), expected, "{:?}", modifier.right);
+        }
+    }
+
+    #[test]
+    fn a_key_that_is_no_modifier_is_never_held() {
+        assert_eq!(holding(&[KeyCode::KeyW]), KeyModifiers::none());
+    }
+
+    #[test]
+    fn transitions_name_each_flag_that_changed_once() {
+        let none = KeyModifiers::none();
+        let shifted = none.with_shift(true).with_hyper(true);
+        let pressed: Vec<_> = modifier_transitions(none, shifted, Entity::PLACEHOLDER).collect();
+        assert_eq!(pressed.len(), 2);
+        assert_eq!(pressed[0].key_code, KeyCode::ShiftLeft);
+        assert_eq!(pressed[1].key_code, KeyCode::Hyper);
+
+        let released: Vec<_> = modifier_transitions(shifted, none, Entity::PLACEHOLDER).collect();
+        assert_eq!(released.len(), 2);
+        assert!(
+            modifier_transitions(none, none, Entity::PLACEHOLDER)
+                .next()
+                .is_none()
+        );
     }
 }

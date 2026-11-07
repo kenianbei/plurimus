@@ -25,7 +25,7 @@ use crate::ValueChange;
 use crate::clipboard::Clipboard;
 use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 use plurimus_ui::{
     ComputedDisabled, ComputedWidgetArea, Hovered, StylistDisabled, UiTheme, WidgetCursor,
     first_bound,

@@ -3,6 +3,7 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_ui::{FlexDirection, Node, PositionType, UiRect, Val};
@@ -10,8 +11,7 @@ use plurimus_bui::BuiPlugin;
 use plurimus_bui::bevy_ui_widgets::Button;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_key, release_at, send_mouse, set_focus};
+use plurimus_test::{click, move_to, press_key, release_at, send_press_at, set_focus};
 use plurimus_ui::bevy_picking::Pickable;
 use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen, UiLabel};
 use plurimus_widgets::WidgetsPlugin;
@@ -87,10 +87,10 @@ fn a_node_button_activates_by_click_and_enter() {
     let button = button(&mut app, root);
     settle(&mut app);
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 1);
+    move_to(&mut app, 2, 1);
     assert_eq!(app.world().get::<Hovered>(button), Some(&Hovered(true)));
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    send_press_at(&mut app, 2, 1);
     assert_eq!(
         app.world().resource::<InputFocus>().get(),
         Some(button),
@@ -100,7 +100,7 @@ fn a_node_button_activates_by_click_and_enter() {
     assert_eq!(activations(&app), [button]);
 
     set_focus(&mut app, button);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(activations(&app), [button, button]);
 }
 

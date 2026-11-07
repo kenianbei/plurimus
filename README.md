@@ -54,10 +54,12 @@ terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_color`, and
 
 Everything that needs a terminal to mean anything, in both directions.
 
-Inbound arrives in two shapes from the same events. Discrete messages -
-`KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`, `FocusMessage`,
-`TerminalResized` - for text entry and keymaps; polled `ButtonInput<KeyCode>`
-and `ButtonInput<MouseButton>` for game loops.
+Inbound arrives in two shapes from the same events. Discrete messages - bevy's
+`KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
+`WindowFocused`, plus `PasteMessage` and `TerminalResized` - for text entry and
+keymaps; polled `ButtonInput<KeyCode>` and `ButtonInput<MouseButton>` for game
+loops. The pointer sits at a cell's centre in `CellSize` pixels, which is what
+`bevy_picking` hit-tests against.
 
 Outbound is `TerminalRequest`: copy to a clipboard selection, set the window
 title. Best-effort, because nothing a terminal is asked can be confirmed.
@@ -241,12 +243,16 @@ Both APIs come from the same events, so systems can mix them:
 
 ```rust,no_run
 use bevy_ecs::prelude::{MessageReader, Res};
-use plurimus::term::{ButtonInput, KeyCode, KeyKind, KeyMessage};
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+use plurimus::term::{ButtonInput, HeldModifiers};
 
 // Discrete: one action per press.
-fn handle_commands(mut keys: MessageReader<KeyMessage>) {
+fn handle_commands(mut keys: MessageReader<KeyboardInput>, held: HeldModifiers) {
     for key in keys.read() {
-        if key.kind == KeyKind::Press && key.code == KeyCode::Char('r') {
+        let is_press = key.state == ButtonState::Pressed && !key.repeat;
+        let is_r = key.logical_key == Key::Character("r".into());
+        if is_press && is_r && !held.get().ctrl {
             // reset something
         }
     }
@@ -254,16 +260,18 @@ fn handle_commands(mut keys: MessageReader<KeyMessage>) {
 
 // Polled: continuous, for movement.
 fn move_player(keys: Res<ButtonInput<KeyCode>>) {
-    if keys.pressed(KeyCode::Char('w')) {
+    if keys.pressed(KeyCode::KeyW) {
         // step forward while held
     }
 }
 ```
 
-Polled keys are keyed by `KeyCode::held_as`, the key a character is _held_ as:
-`Char('w')` stays held whether it was struck or released as `w` or `W`, so shift
-pressed midway through a hold does not strand it. Poll for the lowercase key -
-`pressed(KeyCode::Char('W'))` is never true.
+A message carries the character the terminal produced as its `logical_key`, case
+and all; polled keys are keyed by the physical `KeyCode` the sink infers from
+it, so `KeyW` stays held whether it was struck or released as `w` or `W`, and
+shift pressed midway through a hold does not strand it. The modifiers held with
+a key are polled through `HeldModifiers`, since bevy's `KeyboardInput` carries
+none of its own.
 
 ### Exiting
 
@@ -310,8 +318,9 @@ let top_row: String = (0..frame.area.width)
 assert!(top_row.starts_with("ready"));
 ```
 
-Input is injected the same way the backend delivers it - write a `KeyMessage` or
-`MouseMessage` into the world and run `app.update()`.
+Input is injected the same way the backend delivers it - `plurimus_test`'s
+helpers write bevy's messages into the world through the same sink a backend
+uses and run `app.update()`.
 
 ## Examples
 

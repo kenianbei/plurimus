@@ -31,7 +31,7 @@ impl TextInput {
     /// `keys` is the table scanned first; an unbound unchorded character
     /// inserts itself in place of the selection. `held`
     /// is the modifier state a chord is matched against;
-    /// [`HeldModifiers`](plurimus_term::bevy_compat::HeldModifiers) is where
+    /// [`HeldModifiers`](plurimus_term::HeldModifiers) is where
     /// a bevy app gets it.
     ///
     /// Taking a key is not the same as changing the value - an arrow key

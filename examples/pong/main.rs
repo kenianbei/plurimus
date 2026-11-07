@@ -33,7 +33,7 @@ mod tests {
     use bevy_time::TimeUpdateStrategy;
     use bevy_transform::components::Transform;
     use plurimus::core::TerminalSize;
-    use plurimus::term::KeyCode;
+    use plurimus_test::character;
     use plurimus_test::write_key;
 
     use super::game::{Ball, CELL_HEIGHT, Paddle, Score, add_game};
@@ -63,7 +63,7 @@ mod tests {
         let mut app = headless_app();
         assert_eq!(ball_state(&mut app).0, Vec2::ZERO);
 
-        write_key(&mut app, KeyCode::Char('r'));
+        write_key(&mut app, character('r'));
         app.update();
         app.update();
 
@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn missed_ball_scores_for_the_opponent_and_resets() {
         let mut app = headless_app();
-        write_key(&mut app, KeyCode::Char('r'));
+        write_key(&mut app, character('r'));
 
         let scored = (0..80).any(|_| {
             app.update();
@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn key_press_steps_the_left_paddle_one_cell() {
         let mut app = headless_app();
-        write_key(&mut app, KeyCode::Char('w'));
+        write_key(&mut app, character('w'));
 
         for _ in 0..4 {
             app.update();
@@ -114,7 +114,7 @@ mod tests {
         let mut paddles = world.query::<(&Paddle, &Transform)>();
         let left = paddles
             .iter(world)
-            .find(|(paddle, _)| paddle.direction_keys.0 == KeyCode::Char('w'))
+            .find(|(paddle, _)| paddle.direction_keys.0 == character('w'))
             .unwrap();
         assert_eq!(left.1.translation.y, CELL_HEIGHT);
     }

@@ -9,7 +9,6 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
 use plurimus_test::{press_key, repeat_key, set_focus};
 use plurimus_ui::{UiArea, ValueChange};
 use plurimus_widgets::{
@@ -84,11 +83,11 @@ fn a_list_passes_on_what_moves_its_cursor_nowhere() {
     let mut app = app();
     let list = spawn_in_form(&mut app, listbox(), vec![list_item("a"), list_item("b")]);
 
-    press_key(&mut app, KeyCode::Up);
-    press_key(&mut app, KeyCode::Up);
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::PageDown);
+    press_key(&mut app, Key::ArrowUp);
+    press_key(&mut app, Key::ArrowUp);
+    press_key(&mut app, Key::End);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::PageDown);
 
     assert_eq!(
         propagated(&app),
@@ -104,10 +103,10 @@ fn a_list_passes_enter_on_only_while_it_has_no_cursor() {
     let mut app = app();
     spawn_in_form(&mut app, listbox(), vec![list_item("a"), list_item("b")]);
 
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    repeat_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
+    repeat_key(&mut app, Key::Enter);
 
     assert_eq!(propagated(&app), [Key::Enter]);
     assert_eq!(changes(&app), 1);
@@ -117,12 +116,12 @@ fn a_list_passes_enter_on_only_while_it_has_no_cursor() {
 fn a_row_table_passes_the_side_arrows_on_and_keeps_its_cursor() {
     let mut app = app();
     let table = spawn_table(&mut app, TableSelection::Row);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::ArrowDown);
     let second = cursor(&app, table);
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(propagated(&app), [Key::ArrowLeft, Key::ArrowRight]);
     assert_eq!(cursor(&app, table), second);
@@ -132,11 +131,11 @@ fn a_row_table_passes_the_side_arrows_on_and_keeps_its_cursor() {
 fn a_cell_table_at_its_first_cell_passes_up_and_left_on() {
     let mut app = app();
     let table = spawn_table(&mut app, TableSelection::Cell);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::ArrowRight);
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowUp);
 
     assert_eq!(propagated(&app), [Key::ArrowLeft, Key::ArrowUp]);
     assert_eq!(app.world().get::<ActiveColumn>(table).unwrap().0, Some(0));
@@ -147,11 +146,11 @@ fn a_slider_at_its_bound_passes_the_arrow_on_and_reports_nothing() {
     let mut app = app();
     spawn_in_form(&mut app, slider(0.0, 1.0, 0.0), Vec::<()>::new());
 
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(propagated(&app), [Key::ArrowLeft]);
     assert_eq!(changes(&app), 0);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(propagated(&app), [Key::ArrowLeft]);
     assert_eq!(changes(&app), 1);
 }

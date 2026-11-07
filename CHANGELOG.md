@@ -10,7 +10,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Upstream `bevy_ui_widgets` run on `bevy_ui` nodes.** `BuiPlugin` installs
   bevy_ui's picking backend and the fontless `bevy_ui_widgets` plugins on the
-  pointer `plurimus_ui` feeds from the terminal's mouse, so bevy's own `Button`,
+  mouse pointer the terminal reports to `bevy_picking`, so bevy's own `Button`,
   `Checkbox`, `RadioGroup`, `Slider`, menus, dialogs and `ScrollArea` work on a
   node tree unchanged - hover, press, click, click-to-focus, Enter and Space,
   and wheel ticks that scroll one row. `TextInputPlugin` stays out, since it
@@ -122,9 +122,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sent with the frame's mouse input, which bevy's events have no field for. A
   press captures the pointer to the widget it lands on, so its drag and release
   reach it wherever the pointer goes; a focus loss sends that widget a
-  `PointerCancel`. `UiPlugin` installs `PickingPlugin` and `InteractionPlugin`
-  and feeds the pointer itself, ending a frame's batch at every press and
-  release so what follows is hit-tested against the state the click left.
+  `PointerCancel`. `UiPlugin` installs `PickingPlugin`, `InteractionPlugin` and
+  `PointerInputPlugin`; a frame's batch ends at every press and release, so what
+  follows is hit-tested against the state the click left.
   - Click counts are per widget on the wall clock, within
     `PickingSettings::multi_click_interval`: a second press anywhere on the same
     widget runs with the first, and a press on another widget starts over.
@@ -142,6 +142,44 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     the left button alone.
 - `plurimus_ui` re-exports `bevy_picking`; `plurimus_bui` re-exports `bevy_text`
   and `bevy_ui_widgets`.
+- **Breaking: input is bevy's own messages.** A backend reports what its
+  terminal said through `plurimus_term::TerminalInput`, and an app reads bevy's
+  `KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
+  `WindowFocused`, written for the primary window - the one `TermPlugin` spawns
+  where the app opened none - as `bevy_winit` would write them, each also in the
+  ordered `WindowEvent` stream. `PasteMessage` and `TerminalResized` stay,
+  having no bevy counterpart.
+  - A key names bevy's `Key` and the `KeyCode` `physical_code` infers from it: a
+    letter or digit is its own key whatever its case, a named key its namesake,
+    a modifier its left side. `KeyboardInput::text` carries a character press.
+    Modifiers are not on the message: `HeldModifiers`, now at `plurimus_term`'s
+    root, polls them from `ButtonInput<KeyCode>` for a key observer, and
+    `PointerModifiers`, now `plurimus_term`'s too, keeps the ones the terminal
+    sent with the frame's button press. On a terminal that sends modifiers only
+    as bits, the sink writes the modifier key presses and releases they imply,
+    so a shift-click holds `ShiftLeft` there as well.
+  - The pointer sits at the cell's centre in `CellSize` pixels; a `CursorMoved`
+    is written only when the cell changes, and a wheel notch is one cell in
+    pixels, so a `bevy_ui` node scrolls one row or column per notch. A press or
+    a release still ends the frame's batch for pointer input, now in the sink
+    rather than in `plurimus_ui`, which runs `bevy_picking`'s
+    `PointerInputPlugin` - mouse on, touch off - instead of a feed of its own.
+  - Input runs in `First`: `InputSystems::Pump`, then `Synthesize`, after bevy's
+    clock and message swap and before `bevy_picking` reads the frame's events.
+    `InputSystems::Update` is gone; polled `ButtonInput<KeyCode>` and
+    `ButtonInput<MouseButton>` are fed by `bevy_input`'s `InputPlugin`, which
+    `TermPlugin` installs.
+  - A focus loss releases every held key with a `KeyboardFocusLost` beside the
+    releases, drops every held button from `ButtonInput<MouseButton>` without
+    writing a release, and cancels the captured widget's gesture through bevy's
+    `PointerInput::Cancel`, which `plurimus_ui` writes.
+  - `plurimus_web` copies to the browser clipboard through `bevy_clipboard`.
+  - `plurimus_test`'s key helpers take bevy's `Key`, `character('a')` naming a
+    typed character, and its mouse helpers are named: `move_to`, `press_at`,
+    `release_at`, `click`, `scroll_at`, `scroll_sideways` and `send_press_at`
+    tick, the `write_*` forms queue, and `write_press_at_with` carries
+    modifiers. A chord is `press_key_with`; a drag is a move while a button is
+    held.
 - **Breaking: hiding and camera naming run on bevy's hierarchy propagation.**
   `plurimus_core` installs `bevy_app::HierarchyPropagatePlugin` for both. A
   subtree is hidden by `Propagate(Hidden)` on its root, which lands `Hidden` on
@@ -177,6 +215,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `PointerCancel`, `PressCount`, `PressPassThrough`, `PointerTargets` and
   `UiSystems::Hover`, and `plurimus_term`'s `MultiClickWindow`: the pointer
   events, the click run and the hit test are `bevy_picking`'s.
+- `plurimus_term`'s `KeyMessage`, `KeyCode`, `KeyKind`, `ModifierKey`,
+  `MouseMessage`, `MouseKind`, `CursorCell`, `FocusMessage`, `bevy_compat`,
+  `InputSystems::Update` and `KeyModifiers::holds`; `plurimus_test`'s
+  `send_mouse`, `write_mouse`, `drag_to` and `press_chord`. Every input type is
+  bevy's, above.
 - `plurimus_core::UiHidden` and `ComputedHidden`, now `Propagate<Hidden>` and
   `Hidden`; `plurimus_core::raster::LinearColorSum`, now `linear_average`; and
   `plurimus_ui::FocusWithin`, `WheelAxes`, `NavigationConfig`, `ScrollKeys` and

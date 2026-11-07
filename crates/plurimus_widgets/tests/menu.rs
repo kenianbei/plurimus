@@ -7,8 +7,11 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabGroup;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey, MouseKind};
-use plurimus_test::{click, composed_frame, press_at, press_chord, press_key, send_mouse};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{
+    character, click, composed_frame, press_at, press_key, press_key_with, scroll_at, write_key,
+    write_repeat,
+};
 use plurimus_ui::Key;
 use plurimus_ui::{
     Hovered, InteractionDisabled, Pressed, ScrollArea, ScrollOffset, UiArea, UiWidget,
@@ -87,7 +90,7 @@ fn wheel_outside_an_open_menu_dismisses_without_scrolling() {
     click(&mut app, 2, 0);
     assert!(is_open(&app, &menu));
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 15, 6);
+    scroll_at(&mut app, 15, 6, 1);
 
     assert!(!is_open(&app, &menu), "an outside tick dismisses");
     assert_eq!(offset_of(&app, scroller), Position::new(0, 0));
@@ -100,7 +103,7 @@ fn wheel_over_an_open_menu_scrolls_nothing_and_keeps_it_open() {
     let scroller = spawn_scroller(&mut app);
     click(&mut app, 2, 0);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    scroll_at(&mut app, 2, 1, 1);
 
     assert!(is_open(&app, &menu), "a tick on the menu leaves it open");
     assert_eq!(offset_of(&app, scroller), Position::new(0, 0));
@@ -112,7 +115,7 @@ fn wheel_scrolls_normally_with_no_menu_open() {
     spawn_menu(&mut app);
     let scroller = spawn_scroller(&mut app);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 15, 6);
+    scroll_at(&mut app, 15, 6, 1);
 
     assert_eq!(offset_of(&app, scroller), Position::new(0, 1));
 }
@@ -183,20 +186,20 @@ fn arrows_wrap_enter_activates_escape_closes() {
     );
     click(&mut app, 2, 0);
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(focused(&app), Some(items[1]));
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(focused(&app), Some(items[0]));
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(focused(&app), Some(items[1]));
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(app.world().resource::<Activated>().0, vec![items[1]]);
     assert!(!is_open(&app, &menu));
 
     click(&mut app, 2, 0);
     assert!(is_open(&app, &menu));
-    press_key(&mut app, KeyCode::Esc);
+    press_key(&mut app, Key::Escape);
     assert!(!is_open(&app, &menu));
     assert_eq!(focused(&app), Some(menu.button));
 }
@@ -221,9 +224,9 @@ fn tab_either_way_closes_the_menu_and_refocuses_its_button() {
         click(&mut app, 2, 0);
         assert!(is_open(&app, &menu));
         if shift {
-            press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Tab);
+            press_key_with(&mut app, Key::Tab, KeyModifiers::none().with_shift(true));
         } else {
-            press_key(&mut app, KeyCode::Tab);
+            press_key(&mut app, Key::Tab);
         }
         assert!(!is_open(&app, &menu), "shift {shift}: closed");
         assert_eq!(focused(&app), Some(menu.button), "shift {shift}");
@@ -245,23 +248,23 @@ fn a_remapped_menu_moves_and_closes_on_its_own_keys() {
     click(&mut app, 2, 0);
     assert_eq!(focused(&app), Some(menu.items[0]));
 
-    press_key(&mut app, KeyCode::Char('j'));
+    press_key(&mut app, character('j'));
     assert_eq!(focused(&app), Some(menu.items[1]), "j steps down");
-    press_key(&mut app, KeyCode::Char('j'));
+    press_key(&mut app, character('j'));
     assert_eq!(focused(&app), Some(menu.items[2]));
-    press_key(&mut app, KeyCode::Char('k'));
+    press_key(&mut app, character('k'));
     assert_eq!(focused(&app), Some(menu.items[1]), "k steps back up");
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         focused(&app),
         Some(menu.items[1]),
         "and the arrow each replaced does nothing"
     );
 
-    press_key(&mut app, KeyCode::Esc);
+    press_key(&mut app, Key::Escape);
     assert!(is_open(&app, &menu), "Escape is unbound now");
-    press_key(&mut app, KeyCode::Char('q'));
+    press_key(&mut app, character('q'));
     assert!(!is_open(&app, &menu));
 }
 
@@ -290,14 +293,14 @@ fn a_disabled_item_activates_nothing_and_moves_nothing() {
         .insert(InteractionDisabled);
     app.update();
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         focused(&app),
         Some(menu.items[0]),
         "the row's movement keys move nothing"
     );
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert!(
         app.world().resource::<Activated>().0.is_empty(),
         "and it activates nothing"
@@ -320,17 +323,8 @@ fn holding_the_activation_key_commits_once() {
     );
     click(&mut app, 2, 0);
 
-    let world = app.world_mut();
-    world.write_message(KeyMessage::new(
-        KeyCode::Enter,
-        KeyModifiers::default(),
-        KeyKind::Press,
-    ));
-    world.write_message(KeyMessage::new(
-        KeyCode::Enter,
-        KeyModifiers::default(),
-        KeyKind::Repeat,
-    ));
+    write_key(&mut app, Key::Enter);
+    write_repeat(&mut app, Key::Enter);
     app.update();
 
     assert_eq!(app.world().resource::<Activated>().0, vec![menu.items[0]]);
@@ -343,11 +337,11 @@ fn the_default_arrows_step_each_way() {
     let menu = spawn_menu_of(&mut app, &["Open", "Save", "Quit"]);
     click(&mut app, 2, 0);
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(focused(&app), Some(menu.items[1]));
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(focused(&app), Some(menu.items[0]));
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(
         focused(&app),
         Some(menu.items[2]),

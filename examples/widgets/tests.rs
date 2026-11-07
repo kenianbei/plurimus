@@ -4,12 +4,13 @@ use bevy_ecs::prelude::Without;
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::bui::ComputedNodeRect;
 use plurimus::core::TerminalSize;
-use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
+use plurimus::term::bevy_input::keyboard::Key;
+use plurimus::term::{InputCapabilities, KeyModifiers};
 use plurimus::ui::bevy_input_focus::{InputFocus, IsFocused};
 use plurimus::ui::{ComputedWidgetArea, UiLabel};
 use plurimus::widgets::{MenuButton, Pane, SliderValue, TextInput};
 use plurimus_test::{
-    click, composed_frame, press_chord, press_key, press_key_with, send_mouse, set_focus,
+    character, click, composed_frame, press_key, press_key_with, scroll_at, set_focus,
 };
 
 use super::*;
@@ -54,11 +55,11 @@ fn wraparound_edge_loops_focus_between_ends() {
     click(&mut app, 3, 7);
     assert_eq!(focused_label(&mut app).as_deref(), Some("pop"));
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
 
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(focused_label(&mut app).as_deref(), Some("pop"));
 }
 
@@ -82,7 +83,7 @@ fn clicking_the_track_seeks_and_arrows_step_the_slider() {
     let sought = themed_slider(&app);
     assert!(sought < SLIDER_START, "{sought}");
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     let stepped = themed_slider(&app);
     assert!(
         (stepped - sought - SLIDER_KEY_STEP).abs() < f32::EPSILON,
@@ -111,8 +112,8 @@ fn menu_opens_over_widgets_and_reset_item_clears_state() {
 fn arrows_move_the_listbox_selection() {
     let mut app = headless_app();
     click(&mut app, 3, 10);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
 
     let choice = app.world().resource::<DemoState>().themed.choice.clone();
     assert_eq!(choice, "beta");
@@ -123,8 +124,8 @@ fn arrows_move_the_listbox_selection() {
 fn typing_edits_the_single_line_field() {
     let mut app = headless_app();
     click(&mut app, 3, 16);
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::Char('!'));
+    press_key(&mut app, Key::End);
+    press_key(&mut app, character('!'));
 
     let frame = composed_frame(&app);
     assert!(frame.contains(&format!("{FIELD_TEXT}!")), "{frame}");
@@ -134,7 +135,7 @@ fn typing_edits_the_single_line_field() {
 fn typing_edits_the_multi_line_editor() {
     let mut app = headless_app();
     click(&mut app, 3, 18);
-    press_key(&mut app, KeyCode::Char('z'));
+    press_key(&mut app, character('z'));
 
     let frame = composed_frame(&app);
     assert!(frame.contains("za multi-line"), "{frame}");
@@ -147,7 +148,7 @@ fn the_wheel_scrolls_the_log_and_moves_its_scrollbar() {
     assert!(before.contains("03-02: boot"), "{before}");
 
     for _ in 0..4 {
-        send_mouse(&mut app, MouseKind::ScrollDown, 10, 24);
+        scroll_at(&mut app, 10, 24, 1);
     }
 
     // Four lines is two entries, because every entry is two rows tall.
@@ -241,7 +242,7 @@ fn typing_edits_the_bui_side_field() {
     let mut app = headless_app();
     let field = single::<(With<EditableText>, With<Node>)>(&mut app);
     click_center(&mut app, field);
-    press_key(&mut app, KeyCode::Char('?'));
+    press_key(&mut app, character('?'));
 
     let value = app
         .world()
@@ -260,7 +261,7 @@ fn tab_walks_from_the_themed_side_to_the_bui_side() {
     click_center(&mut app, themed_button);
 
     for _ in 0..THEMED_FOCUSABLES {
-        press_key(&mut app, KeyCode::Tab);
+        press_key(&mut app, Key::Tab);
         if app.world().resource::<InputFocus>().get() == Some(bui_button) {
             return;
         }
@@ -282,7 +283,7 @@ fn typing_d_in_the_editor_leaves_widgets_enabled() {
     let mut app = headless_app();
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     click(&mut app, 3, 18);
-    press_key(&mut app, KeyCode::Char('d'));
+    press_key(&mut app, character('d'));
 
     assert!(app.world().get::<InteractionDisabled>(button).is_none());
     assert!(composed_frame(&app).contains("da multi-line"));
@@ -335,11 +336,11 @@ fn shift_tab_walks_focus_backwards_on_the_kitty_tier() {
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     click_center(&mut app, button);
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     let forward = app.world().resource::<InputFocus>().get();
     assert_ne!(forward, Some(button));
 
-    press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Tab);
+    press_key_with(&mut app, Key::Tab, KeyModifiers::none().with_shift(true));
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
 }
 
@@ -350,13 +351,9 @@ fn shift_tab_walks_focus_backwards_on_the_legacy_tier() {
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     click_center(&mut app, button);
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert_ne!(app.world().resource::<InputFocus>().get(), Some(button));
 
-    press_key_with(
-        &mut app,
-        KeyCode::Tab,
-        KeyModifiers::default().with_shift(true),
-    );
+    press_key_with(&mut app, Key::Tab, KeyModifiers::default().with_shift(true));
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
 }

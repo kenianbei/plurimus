@@ -8,8 +8,7 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
-use plurimus_test::{press_key, repeat_key, set_focus};
+use plurimus_test::{character, press_key, repeat_key, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::{
     TabBarAction, TabBarKeys, WidgetsPlugin, tab_bar, tab_bar_self_update, tab_item,
@@ -92,12 +91,12 @@ fn arrows_step_on_both_axes_and_home_end_jump() {
     let mut app = app();
     let bar = spawn_bar(&mut app, &["a", "b", "c"], Some(1));
 
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Up);
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowRight);
+    press_key(&mut app, Key::ArrowUp);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::End);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowDown);
 
     assert_eq!(
         activated(&app),
@@ -119,10 +118,10 @@ fn stepping_stops_at_the_ends_and_passes_the_key_on() {
     let mut app = app();
     let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::ArrowRight);
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(activated(&app), [bar.items[1]]);
     assert_eq!(
@@ -136,8 +135,8 @@ fn next_with_nothing_active_lands_on_the_first() {
     let mut app = app();
     let bar = spawn_bar(&mut app, &["a", "b"], None);
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(activated(&app), [bar.items[0]]);
 }
@@ -150,7 +149,7 @@ fn a_disabled_item_is_stepped_over() {
         .entity_mut(bar.items[1])
         .insert(InteractionDisabled);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(activated(&app), [bar.items[2]]);
 }
@@ -160,8 +159,8 @@ fn a_held_arrow_keeps_stepping() {
     let mut app = app();
     let bar = spawn_bar(&mut app, &["a", "b", "c"], Some(0));
 
-    press_key(&mut app, KeyCode::Right);
-    repeat_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
+    repeat_key(&mut app, Key::ArrowRight);
 
     assert_eq!(activated(&app), [bar.items[1], bar.items[2]]);
 }
@@ -182,9 +181,9 @@ fn a_remapped_table_drives_the_bar_and_the_arrows_propagate() {
     let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
     remap(&mut app, &bar);
 
-    press_key(&mut app, KeyCode::Char(']'));
-    press_key(&mut app, KeyCode::Char('['));
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, character(']'));
+    press_key(&mut app, character('['));
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(activated(&app), [bar.items[1], bar.items[0]]);
     assert_eq!(unconsumed(&app), [Key::ArrowRight]);
@@ -196,9 +195,9 @@ fn select_activates_its_item_every_press_and_never_on_a_repeat() {
     let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
     remap(&mut app, &bar);
 
-    press_key(&mut app, KeyCode::Char('2'));
-    press_key(&mut app, KeyCode::Char('2'));
-    repeat_key(&mut app, KeyCode::Char('2'));
+    press_key(&mut app, character('2'));
+    press_key(&mut app, character('2'));
+    repeat_key(&mut app, character('2'));
 
     assert_eq!(activated(&app), [bar.items[1], bar.items[1]]);
     assert_eq!(unconsumed(&app), []);
@@ -210,7 +209,7 @@ fn select_past_the_last_item_activates_nothing_and_propagates() {
     let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
     remap(&mut app, &bar);
 
-    press_key(&mut app, KeyCode::Char('9'));
+    press_key(&mut app, character('9'));
 
     assert_eq!(activated(&app), []);
     assert_eq!(unconsumed(&app), [Key::Character("9".into())]);
@@ -224,7 +223,7 @@ fn a_disabled_bar_consumes_nothing() {
         .entity_mut(bar.bar)
         .insert(InteractionDisabled);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
 
     assert_eq!(activated(&app), []);
     assert_eq!(unconsumed(&app), [Key::ArrowRight]);

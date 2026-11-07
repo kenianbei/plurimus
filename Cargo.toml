@@ -26,6 +26,7 @@ plurimus_3d = { path = "crates/plurimus_3d", version = "0.9.0" }
 plurimus_web = { path = "crates/plurimus_web", version = "0.9.0" }
 bevy_app = "0.20"
 bevy_ecs = "0.20"
+bevy_clipboard = "0.20"
 bevy_input = { version = "0.20", features = ["keyboard", "mouse"] }
 bevy_time = "0.20"
 bevy_input_focus = { version = "0.20", default-features = false, features = ["std", "keyboard", "bevy_picking"] }

@@ -7,9 +7,9 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
 use plurimus_test::{
-    press_at, press_key, release_at, send_focus, send_mouse, set_focus, write_mouse,
+    character, move_to, press_at, press_key, release_at, send_focus, send_press_at, set_focus,
+    write_move_to, write_press_at,
 };
 use plurimus_ui::Key;
 use plurimus_ui::bevy_picking::events::PointerClick;
@@ -39,10 +39,10 @@ fn hover_tracks_cursor_over_computed_area() {
         ))
         .id();
 
-    send_mouse(&mut app, MouseKind::Moved, 3, 1);
+    move_to(&mut app, 3, 1);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(true)));
 
-    send_mouse(&mut app, MouseKind::Moved, 0, 0);
+    move_to(&mut app, 0, 0);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(false)));
 }
 
@@ -69,8 +69,8 @@ fn press_lands_when_the_cursor_leaves_in_the_same_frame() {
     app.world_mut().spawn(TerminalCamera::default());
     let slider = spawn_slider(&mut app);
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 9, 0);
-    write_mouse(&mut app, MouseKind::Moved, 18, 4);
+    write_press_at(&mut app, 9, 0);
+    write_move_to(&mut app, 18, 4);
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_some());
@@ -87,8 +87,8 @@ fn press_outside_is_not_delivered_when_the_cursor_arrives_later() {
     app.world_mut().spawn(TerminalCamera::default());
     let slider = spawn_slider(&mut app);
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 25, 6);
-    write_mouse(&mut app, MouseKind::Moved, 5, 0);
+    write_press_at(&mut app, 25, 6);
+    write_move_to(&mut app, 5, 0);
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_none());
@@ -113,7 +113,7 @@ fn hidden_widget_ignores_pointer_until_unhidden() {
         ))
         .id();
 
-    send_mouse(&mut app, MouseKind::Moved, 3, 1);
+    move_to(&mut app, 3, 1);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(false)));
 
     app.world_mut()
@@ -176,10 +176,10 @@ fn tab_cycles_focus_through_a_group() {
         .id();
     app.update();
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(first));
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(second));
 }
 
@@ -198,18 +198,18 @@ fn a_remapped_slider_steps_on_its_own_keys() {
     app.update();
     set_focus(&mut app, slider);
 
-    press_key(&mut app, KeyCode::Char('l'));
+    press_key(&mut app, character('l'));
     assert!(value(&app, slider) > 50.0, "the bound key steps");
 
     let stepped = value(&app, slider);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(
         value(&app, slider),
         stepped,
         "and the key it replaced does nothing"
     );
 
-    press_key(&mut app, KeyCode::Char('h'));
+    press_key(&mut app, character('h'));
     assert_eq!(value(&app, slider), 50.0);
 }
 
@@ -232,8 +232,8 @@ fn a_drag_cut_off_by_a_focus_loss_commits_where_it_reached() {
         },
     );
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 0, 0);
-    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 9, 0);
+    send_press_at(&mut app, 0, 0);
+    move_to(&mut app, 9, 0);
     send_focus(&mut app, false);
 
     assert!(app.world().get::<Pressed>(slider).is_none());

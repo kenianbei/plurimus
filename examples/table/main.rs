@@ -32,12 +32,13 @@ use plurimus::core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus::core::ratatui_core::text::Line;
 use plurimus::core::{CorePlugin, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::{KeyBinding, ScrollArea, UiStyle, ValueChange};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
-    Key, TableAction, TableCheckedStyle, TableHeaderClick, TableKeys, TablePosition, TableRow,
+    TableAction, TableCheckedStyle, TableHeaderClick, TableKeys, TablePosition, TableRow,
     TableSelection, TableStripe, WidgetsPlugin, pane, table, table_footer, table_header, table_row,
     table_self_update,
 };
@@ -288,9 +289,12 @@ fn update_status(
     }
 }
 
-fn quit_on_key(mut keys: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
+fn quit_on_key(mut keys: MessageReader<KeyboardInput>, mut exit: MessageWriter<AppExit>) {
     for key in keys.read() {
-        if key.kind == KeyKind::Press && key.code == KeyCode::Char('q') {
+        if key.state == ButtonState::Pressed
+            && !key.repeat
+            && key.logical_key == Key::Character("q".into())
+        {
             exit.write(AppExit::Success);
         }
     }

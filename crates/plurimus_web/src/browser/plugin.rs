@@ -3,11 +3,12 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use bevy_app::{App, Plugin, PreUpdate};
+use bevy_app::{App, First, Plugin};
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::backend::Backend;
-use plurimus_core::{CameraSystems, PresenterPlugin, TerminalRenderAppExt, TerminalSize};
-use plurimus_term::{InputCapabilities, InputSystems, KeyCode, KeyModifiers, TermPlugin};
+use plurimus_core::{PresenterPlugin, TerminalRenderAppExt, TerminalSize};
+use plurimus_term::{InputCapabilities, InputSystems, KeyModifiers, TermPlugin};
 use ratzilla::backend::webgl2::{FontAtlasConfig, WebGl2BackendOptions};
 use ratzilla::{CellSized, WebGl2Backend};
 use wasm_bindgen::JsCast;
@@ -21,7 +22,7 @@ use super::measure::CellMeter;
 use super::runner::{ExitTarget, run_on_animation_frames};
 use super::{document, warn, window};
 use crate::fit::{GridFit, Surface, font_px};
-use crate::keys::DEFAULT_PASSTHROUGH;
+use crate::keys::default_passthrough;
 
 const DEFAULT_FONT: &str = "monospace";
 
@@ -42,7 +43,7 @@ pub struct WebPlugin {
     font: String,
     fit: GridFit,
     parent: Option<String>,
-    passthrough: Vec<(KeyCode, KeyModifiers)>,
+    passthrough: Vec<(Key, KeyModifiers)>,
     font_loaded: Arc<AtomicBool>,
 }
 
@@ -54,7 +55,7 @@ impl WebPlugin {
             font: DEFAULT_FONT.to_owned(),
             fit: GridFit::default(),
             parent: None,
-            passthrough: DEFAULT_PASSTHROUGH.to_vec(),
+            passthrough: default_passthrough(),
             font_loaded: Arc::default(),
         }
     }
@@ -88,7 +89,7 @@ impl WebPlugin {
     /// kept from the browser, so Tab, arrows, Space and Ctrl chords reach
     /// the app. A key matches only with exactly these modifiers held.
     #[must_use]
-    pub fn passthrough(mut self, keys: impl IntoIterator<Item = (KeyCode, KeyModifiers)>) -> Self {
+    pub fn passthrough(mut self, keys: impl IntoIterator<Item = (Key, KeyModifiers)>) -> Self {
         self.passthrough.extend(keys);
         self
     }
@@ -105,6 +106,9 @@ impl Plugin for WebPlugin {
         console_error_panic_hook::set_once();
         if !app.is_plugin_added::<TermPlugin>() {
             app.add_plugins(TermPlugin);
+        }
+        if !app.is_plugin_added::<bevy_clipboard::ClipboardPlugin>() {
+            app.add_plugins(bevy_clipboard::ClipboardPlugin);
         }
         // A browser reports every key's release, and a release lost to a
         // focus change is covered by the blur that caused it.
@@ -138,12 +142,7 @@ impl Plugin for WebPlugin {
         let cell_css = (f64::from(cell_width), f64::from(cell_height));
         app.insert_resource(TerminalSize::new(size.width, size.height));
         app.insert_non_send(listen(&canvas, self.passthrough.clone(), cell_css));
-        app.add_systems(
-            PreUpdate,
-            pump_browser_events
-                .in_set(InputSystems::Pump)
-                .before(CameraSystems::SyncSize),
-        );
+        app.add_systems(First, pump_browser_events.in_set(InputSystems::Pump));
         app.insert_non_send(ExitTarget {
             canvas: canvas.clone(),
             title: document().title(),

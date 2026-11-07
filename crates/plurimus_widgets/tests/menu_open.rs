@@ -7,9 +7,8 @@ use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::MouseKind;
 use plurimus_test::{
-    click, composed_frame, press_at, release_at, send_mouse, write_press_at, write_release_at,
+    click, composed_frame, move_to, press_at, release_at, write_press_at, write_release_at,
 };
 use plurimus_ui::UiArea;
 use plurimus_widgets::{Activate, MenuOpen, WidgetsPlugin, menu_button, menu_item, menu_popup};
@@ -116,7 +115,7 @@ fn a_deferred_batch_with_a_second_flip_converges() {
     let menu = spawn_menu(&mut app);
     app.update();
     // One batch: open, dismiss outside, open again.
-    send_mouse(&mut app, MouseKind::Moved, 2, 0);
+    move_to(&mut app, 2, 0);
     for (x, y) in [(2, 0), (15, 6), (2, 0)] {
         write_press_at(&mut app, x, y);
         write_release_at(&mut app, x, y);

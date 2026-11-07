@@ -25,7 +25,7 @@ use plurimus_core::ratatui_core::widgets::Widget;
 use super::ValueChange;
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 use plurimus_ui::bevy_picking::events::{PointerCancel, PointerClick, PointerDrag, PointerPress};
 use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, Hovered, UiTheme, pointer_cell};
 use plurimus_ui::{KeyBinding, first_bound};

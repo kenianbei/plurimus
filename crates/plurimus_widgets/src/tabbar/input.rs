@@ -7,7 +7,7 @@ use bevy_ecs::prelude::{Commands, Has, On, Query, Res, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 
 use super::{TabBar, TabBarAction, TabBarKeys, TabItem};
 use plurimus_core::CellSize;

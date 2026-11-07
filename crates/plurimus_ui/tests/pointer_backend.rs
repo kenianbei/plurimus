@@ -1,4 +1,4 @@
-//! The picking backend and the feed behind it, driven headlessly: what a
+//! The picking backend and the pointer behind it, driven headlessly: what a
 //! press does to the frame's batch, to focus, and to an open overlay.
 
 use bevy_app::App;
@@ -8,8 +8,10 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder};
-use plurimus_term::{MouseButton, MouseKind};
-use plurimus_test::{click, send_focus, send_mouse, set_focus, write_mouse};
+use plurimus_test::{
+    click, move_to, scroll_at, send_focus, send_press_at, set_focus, write_press_at,
+    write_release_at,
+};
 use plurimus_ui::bevy_picking::events::{PointerCancel, PointerPress};
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, ModalDismiss, ModalOpen, Pressed, UiArea, UiPlugin,
@@ -74,14 +76,9 @@ fn a_press_and_a_release_each_end_their_frame_of_the_batch() {
     let second = spawn_target(&mut app, NEIGHBOUR);
     app.update();
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.x, CELL.y);
-    write_mouse(&mut app, MouseKind::Up(MouseButton::Left), CELL.x, CELL.y);
-    write_mouse(
-        &mut app,
-        MouseKind::Down(MouseButton::Left),
-        ON_NEIGHBOUR.x,
-        ON_NEIGHBOUR.y,
-    );
+    write_press_at(&mut app, CELL.x, CELL.y);
+    write_release_at(&mut app, CELL.x, CELL.y);
+    write_press_at(&mut app, ON_NEIGHBOUR.x, ON_NEIGHBOUR.y);
     app.update();
     assert_eq!(presses(&app), vec![first], "the rest of the batch waited");
     app.update();
@@ -132,7 +129,7 @@ fn a_tick_outside_every_open_overlay_dismisses() {
     });
     app.update();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, CELL.x, CELL.y);
+    scroll_at(&mut app, CELL.x, CELL.y, 1);
 
     assert!(
         !app.world().entity(overlay).contains::<ModalOpen>(),
@@ -146,13 +143,8 @@ fn losing_focus_mid_drag_cancels_the_gesture() {
     let mut app = app();
     let target = spawn_target(&mut app, AREA);
     app.update();
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), CELL.x, CELL.y);
-    send_mouse(
-        &mut app,
-        MouseKind::Drag(MouseButton::Left),
-        NOWHERE.x,
-        NOWHERE.y,
-    );
+    send_press_at(&mut app, CELL.x, CELL.y);
+    move_to(&mut app, NOWHERE.x, NOWHERE.y);
     assert!(app.world().entity(target).contains::<Pressed>());
 
     send_focus(&mut app, false);

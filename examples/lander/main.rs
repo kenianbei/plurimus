@@ -90,10 +90,9 @@ mod tests {
     use plurimus::core::bevy_camera::{Camera, ClearColorConfig};
     use plurimus::core::{TerminalCamera, TerminalSize};
     use plurimus::render3d::{EdgeOverlay, RAMP_ASCII, RAMP_SHADING, Strategy3d};
-    use plurimus::term::KeyCode;
     use plurimus::ui::ComputedWidgetArea;
     use plurimus::widgets::Button;
-    use plurimus_test::{click, composed_styled_frame, write_key};
+    use plurimus_test::{character, click, composed_styled_frame, write_key};
 
     use super::game::{
         FUEL_START, Fuel, GROUND_CLEARANCE, Lander, PAD_CENTER_X, Phase, START_POSITION, add_game,
@@ -188,7 +187,7 @@ mod tests {
     #[test]
     fn thrust_burns_fuel_and_pushes_up() {
         let mut app = headless_app();
-        write_key(&mut app, KeyCode::Char('w'));
+        write_key(&mut app, character('w'));
 
         app.update();
 
@@ -259,7 +258,7 @@ mod tests {
         }
         assert_ne!(*app.world().resource::<Phase>(), Phase::Flying);
 
-        write_key(&mut app, KeyCode::Char('r'));
+        write_key(&mut app, character('r'));
         app.update();
 
         assert_eq!(*app.world().resource::<Phase>(), Phase::Flying);
@@ -291,7 +290,7 @@ mod tests {
 
         let mut seen = Vec::new();
         for _ in 0..4 {
-            write_key(&mut app, KeyCode::Char('t'));
+            write_key(&mut app, character('t'));
             app.update();
             seen.push(*app.world().entity(camera).get::<Strategy3d>().unwrap());
         }
@@ -311,7 +310,7 @@ mod tests {
 
         let mut seen = Vec::new();
         for _ in 0..4 {
-            write_key(&mut app, KeyCode::Char('e'));
+            write_key(&mut app, character('e'));
             app.update();
             seen.push(
                 app.world()

@@ -6,11 +6,11 @@ use bevy_app::App;
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::ratatui_core::text::{Line, Span, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
 use plurimus_test::{
     composed_frame, composed_styled_frame, press_key, set_focus, widget_content, write_key,
 };
@@ -435,9 +435,9 @@ fn a_key_driven_selection_paints_in_the_frame_it_happens() {
         .insert(ListBoxSelectionMarker);
     app.update();
 
-    write_key(&mut app, KeyCode::Down);
+    write_key(&mut app, Key::ArrowDown);
     app.update();
-    write_key(&mut app, KeyCode::Enter);
+    write_key(&mut app, Key::Enter);
     app.update();
     let landed = composed_frame(&app);
 
@@ -456,9 +456,9 @@ fn listbox_renders_rows_and_highlight() {
     app.add_observer(listbox_self_update);
     let (_, _) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, Key::ArrowDown);
     app.update();
 
     insta::assert_snapshot!(composed_frame(&app));

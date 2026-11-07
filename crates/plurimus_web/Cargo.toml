@@ -14,11 +14,13 @@ rust-version.workspace = true
 [dependencies]
 bevy_app = { workspace = true }
 bevy_ecs = { workspace = true }
+bevy_input = { workspace = true }
 plurimus_core = { workspace = true }
 plurimus_term = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy_app = { workspace = true, features = ["web"] }
+bevy_clipboard = { workspace = true }
 console_error_panic_hook = { workspace = true }
 critical-section = { workspace = true, features = ["std"] }
 ratzilla = { workspace = true }

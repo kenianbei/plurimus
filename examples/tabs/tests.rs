@@ -1,5 +1,5 @@
 use plurimus::core::TerminalSize;
-use plurimus_test::{click, composed_frame, press_key};
+use plurimus_test::{character, click, composed_frame, press_key};
 
 use super::*;
 
@@ -40,15 +40,15 @@ fn the_demo_opens_on_the_diary_under_a_joined_bar() {
 fn brackets_and_digits_switch_panels() {
     let mut app = headless_app();
 
-    press_key(&mut app, KeyCode::Char(']'));
+    press_key(&mut app, character(']'));
     app.update();
     assert!(line(&composed_frame(&app), 4).contains("mon fast"));
 
-    press_key(&mut app, KeyCode::Char('3'));
+    press_key(&mut app, character('3'));
     app.update();
     assert!(line(&composed_frame(&app), 4).contains("lentils 116"));
 
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     app.update();
     assert!(line(&composed_frame(&app), 4).contains("oats and coffee"));
 }
@@ -68,22 +68,22 @@ fn settings_shows_the_looks_bar_and_picking_one_restyles_the_top_bar() {
     let mut app = headless_app();
     assert!(!composed_frame(&app).contains("joined"));
 
-    press_key(&mut app, KeyCode::Char('4'));
+    press_key(&mut app, character('4'));
     app.update();
     let frame = composed_frame(&app);
     assert!(line(&frame, 6).contains("joined"));
     assert!(line(&frame, 7).contains("boxed"));
     assert!(focused_is::<LooksBar>(&mut app));
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     app.update();
     let frame = composed_frame(&app);
     assert!(line(&frame, 0).starts_with("┌───────┐┌──────┐"));
     assert!(line(&frame, 2).starts_with("└───────┘└──────┘"));
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert!(focused_is::<TopBar>(&mut app));
-    press_key(&mut app, KeyCode::Char('1'));
+    press_key(&mut app, character('1'));
     app.update();
     let frame = composed_frame(&app);
     assert!(!frame.contains("joined"));

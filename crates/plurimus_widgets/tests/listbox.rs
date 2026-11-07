@@ -4,16 +4,19 @@ use bevy_app::App;
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_at, press_key, release_at, repeat_key, send_mouse, set_focus};
+use plurimus_test::{
+    character, click, move_to, press_at, press_key, release_at, repeat_key, scroll_at,
+    send_press_at, set_focus,
+};
 use plurimus_ui::{
     Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
 };
 use plurimus_widgets::{
-    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItem, ListItemText,
+    ActiveDescendant, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItem, ListItemText,
     WidgetsPlugin, button, list_item, listbox, listbox_self_update,
 };
 
@@ -77,19 +80,19 @@ fn keyboard_moves_active_descendant() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(active(&app, container), Some(items[0]));
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(active(&app, container), Some(items[1]));
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(active(&app, container), Some(items[0]));
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(active(&app, container), Some(items[0]));
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
     assert_eq!(active(&app, container), Some(items[2]));
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(active(&app, container), Some(items[2]));
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     assert_eq!(active(&app, container), Some(items[0]));
 }
 
@@ -104,13 +107,13 @@ fn the_bindings_are_the_apps_to_replace() {
             (Key::Character("k".into()).into(), ListBoxAction::Up),
         ]));
 
-    press_key(&mut app, KeyCode::Char('j'));
-    press_key(&mut app, KeyCode::Char('j'));
+    press_key(&mut app, character('j'));
+    press_key(&mut app, character('j'));
     assert_eq!(active(&app, container), Some(items[1]), "j walks down");
-    press_key(&mut app, KeyCode::Char('k'));
+    press_key(&mut app, character('k'));
     assert_eq!(active(&app, container), Some(items[0]), "k walks up");
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         active(&app, container),
         Some(items[0]),
@@ -129,8 +132,8 @@ fn the_first_binding_for_a_key_is_the_one_that_wins() {
             (Key::End.into(), ListBoxAction::Last),
         ]));
 
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
+    press_key(&mut app, Key::End);
     assert_eq!(
         active(&app, container),
         Some(items[1]),
@@ -145,17 +148,17 @@ fn a_page_key_moves_by_the_visible_height() {
     let (container, items) = spawn_scrolling_listbox(&mut app);
     app.update();
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::PageDown);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::PageDown);
     assert_eq!(
         active(&app, container),
         Some(items[3]),
         "three rows are visible, so a page is three rows down"
     );
-    press_key(&mut app, KeyCode::PageUp);
+    press_key(&mut app, Key::PageUp);
     assert_eq!(active(&app, container), Some(items[0]), "and back again");
 
-    press_key(&mut app, KeyCode::PageUp);
+    press_key(&mut app, Key::PageUp);
     assert_eq!(
         active(&app, container),
         Some(items[0]),
@@ -169,18 +172,18 @@ fn a_page_key_moves_by_the_visible_height() {
 fn a_held_key_repeats_movement_but_not_selection() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     let selections = app.world().resource::<Selections>().0.len();
 
-    repeat_key(&mut app, KeyCode::Enter);
+    repeat_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Selections>().0.len(),
         selections,
         "a repeated Enter selects nothing further"
     );
 
-    repeat_key(&mut app, KeyCode::Down);
+    repeat_key(&mut app, Key::ArrowDown);
     assert_eq!(
         active(&app, container),
         Some(items[1]),
@@ -194,12 +197,12 @@ fn a_held_key_repeats_movement_but_not_selection() {
 fn selecting_a_list_with_no_rows_left_reports_nothing() {
     let mut app = app();
     let (_, items) = spawn_listbox(&mut app);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     for item in items {
         app.world_mut().entity_mut(item).remove::<ListItem>();
     }
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
 
     assert!(
         app.world().resource::<Selections>().0.is_empty(),
@@ -215,8 +218,8 @@ fn a_disabled_listbox_takes_no_keys() {
         .entity_mut(container)
         .insert(InteractionDisabled);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
 
     assert_eq!(active(&app, container), None, "no cursor moved");
     assert!(
@@ -230,12 +233,12 @@ fn enter_selects_the_active_descendant() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(app.world().resource::<Selections>().0, []);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Selections>().0,
         [(container, items[1])]
@@ -248,13 +251,13 @@ fn single_select_self_update_moves_checked() {
     app.add_observer(listbox_self_update);
     let (_, items) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     app.update();
     assert!(app.world().get::<Checked>(items[0]).is_some());
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     app.update();
     assert!(app.world().get::<Checked>(items[0]).is_none());
     assert!(app.world().get::<Checked>(items[1]).is_some());
@@ -269,16 +272,16 @@ fn multi_select_self_update_toggles_checked() {
         .entity_mut(container)
         .insert(ListBoxMultiSelect);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     app.update();
     assert!(app.world().get::<Checked>(items[0]).is_some());
     assert!(app.world().get::<Checked>(items[1]).is_some());
 
-    press_key(&mut app, KeyCode::Up);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowUp);
+    press_key(&mut app, Key::Enter);
     app.update();
     assert!(app.world().get::<Checked>(items[0]).is_none());
     assert!(app.world().get::<Checked>(items[1]).is_some());
@@ -335,7 +338,7 @@ fn a_held_pointer_drags_the_cursor_with_it() {
     press_at(&mut app, 2, 0);
     assert_eq!(active(&app, container), Some(items[0]));
 
-    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 2, 2);
+    move_to(&mut app, 2, 2);
 
     assert_eq!(active(&app, container), Some(items[2]));
     assert_eq!(app.world().resource::<Selections>().0, []);
@@ -374,14 +377,14 @@ fn click_resolves_rows_through_scroll_offset() {
     let (container, items) = spawn_scrolling_listbox(&mut app);
     app.update();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    scroll_at(&mut app, 2, 1, 1);
+    scroll_at(&mut app, 2, 1, 1);
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 2)
     );
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    send_press_at(&mut app, 2, 0);
     assert_eq!(active(&app, container), Some(items[2]));
 }
 
@@ -391,14 +394,14 @@ fn keyboard_keeps_the_active_row_visible() {
     let (container, items) = spawn_scrolling_listbox(&mut app);
     app.update();
 
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
     assert_eq!(active(&app, container), Some(items[5]));
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 3)
     );
 
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 0)
@@ -497,7 +500,7 @@ fn a_click_anywhere_in_a_tall_row_selects_it() {
     app.update();
 
     for (line, expected) in [(0, items[0]), (1, items[0]), (2, items[1])] {
-        send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, line);
+        send_press_at(&mut app, 2, line);
         assert_eq!(
             active(&app, container),
             Some(expected),
@@ -512,8 +515,8 @@ fn a_tall_row_is_revealed_whole() {
     let (container, _) = spawn_tall_listbox(&mut app);
     app.update();
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::ArrowDown);
     app.update();
 
     // The cursor is on the three-line row spanning lines 2 to 4, and the
