@@ -12,11 +12,11 @@
 //!
 //! [`Backend`]: ratatui_core::backend::Backend
 
-use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::prelude::{Res, ResMut, Resource};
+use bevy_ecs::prelude::Resource;
+use bevy_extract::extract_resource::ExtractResource;
 use ratatui_core::layout::Position;
 
-use crate::extract::MainWorld;
+use crate::TerminalRenderApp;
 
 /// Where the terminal cursor sits, in screen cells.
 ///
@@ -30,7 +30,8 @@ use crate::extract::MainWorld;
 /// written on the app's behalf whenever the focused widget carries a
 /// `WidgetCursor`, and that wins for as long as it lasts: a widget caret
 /// and an app caret cannot both have the one terminal cursor.
-#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Resource, ExtractResource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[extract_app(TerminalRenderApp)]
 #[non_exhaustive]
 pub struct TerminalCursor {
     /// Screen cell the cursor occupies; `None` hides it.
@@ -65,13 +66,6 @@ pub(crate) enum PreviousCursor {
     Unknown,
     /// The cell last applied; `None` is a cursor that was hidden.
     Applied(Option<Position>),
-}
-
-pub(crate) fn extract_terminal_cursor(
-    main_world: Res<MainWorld>,
-    mut cursor: ResMut<TerminalCursor>,
-) {
-    cursor.set_if_neq(*main_world.resource::<TerminalCursor>());
 }
 
 #[cfg(test)]

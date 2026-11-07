@@ -8,10 +8,10 @@
 
 use std::ops::Range;
 
-use bevy_ecs::prelude::{Entity, ResMut, Resource};
+use bevy_ecs::prelude::{Entity, Query, ResMut, Resource};
 use bevy_math::Vec2;
 use bevy_transform::components::GlobalTransform;
-use plurimus_core::MainWorld;
+use plurimus_core::Extract;
 use ratatui_core::style::{Color, Style};
 
 use crate::layers::RenderLayers;
@@ -64,19 +64,31 @@ pub(crate) struct ExtractedPixelBlock {
     pub(crate) layers: RenderLayers,
 }
 
+type Placed<'w, 's, T> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static T,
+        &'static GlobalTransform,
+        Option<&'static RenderLayers>,
+    ),
+>;
+
 pub(crate) fn extract_views_2d(
-    mut main_world: ResMut<MainWorld>,
+    cameras: Extract<
+        Query<(
+            Entity,
+            &Projection2d,
+            &GlobalTransform,
+            Option<&RenderLayers>,
+            Option<&SubcellMode>,
+        )>,
+    >,
     mut views: ResMut<ExtractedViews2d>,
 ) {
     views.0.clear();
-    let mut cameras = main_world.query::<(
-        Entity,
-        &Projection2d,
-        &GlobalTransform,
-        Option<&RenderLayers>,
-        Option<&SubcellMode>,
-    )>();
-    for (camera, projection, transform, layers, mode) in cameras.iter(&main_world) {
+    for (camera, projection, transform, layers, mode) in &cameras {
         views.0.push(ExtractedView2d {
             camera,
             center: transform.translation().truncate(),
@@ -88,22 +100,23 @@ pub(crate) fn extract_views_2d(
 }
 
 pub(crate) fn extract_sprites_2d(
-    mut main_world: ResMut<MainWorld>,
+    glyphs: Extract<Placed<Glyph>>,
+    glyph_blocks: Extract<Placed<GlyphBlock>>,
+    pixels: Extract<Placed<Pixel>>,
+    pixel_blocks: Extract<Placed<PixelBlock>>,
     mut sprites: ResMut<ExtractedSprites2d>,
 ) {
     sprites.glyphs.clear();
     sprites.pixels.clear();
     sprites.pixel_cells.clear();
-    extract_glyphs(&mut main_world, &mut sprites);
-    extract_glyph_blocks(&mut main_world, &mut sprites);
-    extract_pixels(&mut main_world, &mut sprites);
-    extract_pixel_blocks(&mut main_world, &mut sprites);
+    extract_glyphs(&glyphs, &mut sprites);
+    extract_glyph_blocks(&glyph_blocks, &mut sprites);
+    extract_pixels(&pixels, &mut sprites);
+    extract_pixel_blocks(&pixel_blocks, &mut sprites);
 }
 
-fn extract_glyphs(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut glyphs =
-        main_world.query::<(Entity, &Glyph, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, glyph, transform, layers) in glyphs.iter(main_world) {
+fn extract_glyphs(glyphs: &Placed<Glyph>, sprites: &mut ExtractedSprites2d) {
+    for (entity, glyph, transform, layers) in glyphs {
         let translation = transform.translation();
         sprites.glyphs.push(ExtractedGlyph {
             position: translation.truncate(),
@@ -116,10 +129,8 @@ fn extract_glyphs(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) 
     }
 }
 
-fn extract_glyph_blocks(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut blocks =
-        main_world.query::<(Entity, &GlyphBlock, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, block, transform, layers) in blocks.iter(main_world) {
+fn extract_glyph_blocks(blocks: &Placed<GlyphBlock>, sprites: &mut ExtractedSprites2d) {
+    for (entity, block, transform, layers) in blocks {
         let translation = transform.translation();
         sprites.glyphs.push(ExtractedGlyph {
             position: translation.truncate(),
@@ -132,10 +143,8 @@ fn extract_glyph_blocks(main_world: &mut MainWorld, sprites: &mut ExtractedSprit
     }
 }
 
-fn extract_pixels(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut pixels =
-        main_world.query::<(Entity, &Pixel, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, pixel, transform, layers) in pixels.iter(main_world) {
+fn extract_pixels(pixels: &Placed<Pixel>, sprites: &mut ExtractedSprites2d) {
+    for (entity, pixel, transform, layers) in pixels {
         let translation = transform.translation();
         let start = sprites.pixel_cells.len();
         sprites.pixel_cells.push(Some(pixel.color));
@@ -151,10 +160,8 @@ fn extract_pixels(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) 
     }
 }
 
-fn extract_pixel_blocks(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut blocks =
-        main_world.query::<(Entity, &PixelBlock, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, block, transform, layers) in blocks.iter(main_world) {
+fn extract_pixel_blocks(blocks: &Placed<PixelBlock>, sprites: &mut ExtractedSprites2d) {
+    for (entity, block, transform, layers) in blocks {
         let translation = transform.translation();
         let start = sprites.pixel_cells.len();
         let width = resolve_pixels(block, &mut sprites.pixel_cells);

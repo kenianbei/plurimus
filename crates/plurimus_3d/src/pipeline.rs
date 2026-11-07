@@ -9,8 +9,9 @@
 use bevy_ecs::prelude::{Entity, Local, Query, Res, ResMut, Resource};
 use bevy_ecs::system::SystemParam;
 use bevy_math::UVec2;
+use plurimus_core::Extract;
 use plurimus_core::raster::DepthGrid;
-use plurimus_core::{CameraBuffer, MainWorld, SourceCamera, TerminalSize, camera_buffer_mut};
+use plurimus_core::{CameraBuffer, MainEntity, TerminalSize, camera_buffer_mut};
 use ratatui_core::layout::Rect;
 
 use crate::convert::{Canvas, FrameSources, Scratch3d};
@@ -55,21 +56,23 @@ impl Default for ExtractedFrame3d {
     }
 }
 
-pub(crate) fn extract_3d(mut main_world: ResMut<MainWorld>, mut frames: ResMut<ExtractedFrames3d>) {
+pub(crate) fn extract_3d(
+    cameras: Extract<
+        Query<(
+            Entity,
+            &Strategy3d,
+            &ReadbackFrame,
+            Option<&DepthFrame>,
+            Option<&Aspect3d>,
+            Option<&Supersample>,
+            Option<&EdgeOverlay>,
+            Option<&DepthOcclusion>,
+        )>,
+    >,
+    mut frames: ResMut<ExtractedFrames3d>,
+) {
     let mut count = 0;
-    let mut cameras = main_world.query::<(
-        Entity,
-        &Strategy3d,
-        &ReadbackFrame,
-        Option<&DepthFrame>,
-        Option<&Aspect3d>,
-        Option<&Supersample>,
-        Option<&EdgeOverlay>,
-        Option<&DepthOcclusion>,
-    )>();
-    for (camera, strategy, frame, depth, aspect, supersample, overlay, occlusion) in
-        cameras.iter(&main_world)
-    {
+    for (camera, strategy, frame, depth, aspect, supersample, overlay, occlusion) in &cameras {
         if frame.pixels.is_empty() {
             continue;
         }
@@ -113,7 +116,7 @@ pub(crate) fn reset_frame_depth(size: Res<TerminalSize>, mut depth: ResMut<Frame
 #[derive(SystemParam)]
 pub(crate) struct Rasterize3d<'w, 's> {
     frames: ResMut<'w, ExtractedFrames3d>,
-    cameras: Query<'w, 's, (&'static SourceCamera, &'static mut CameraBuffer)>,
+    cameras: Query<'w, 's, (MainEntity, &'static mut CameraBuffer)>,
     shared_depth: ResMut<'w, FrameDepth>,
     scratch: Local<'s, Scratch3d>,
     reduced: Local<'s, Vec<u8>>,

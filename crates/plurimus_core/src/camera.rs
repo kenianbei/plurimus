@@ -4,17 +4,19 @@
 //! [`TerminalCamera`] places a bevy [`Camera`] in the terminal; the camera's
 //! order, activity and clear colour are the `Camera`'s own fields. Each
 //! frame the render world holds one [`ExtractedCamera`] per active camera,
-//! carrying a [`CameraBuffer`] sized to its resolved viewport and a
-//! [`SourceCamera`] pointing back at the entity it mirrors. Pipelines reach
+//! carrying a [`CameraBuffer`] sized to its resolved viewport and the
+//! [`MainEntity`] it mirrors. Pipelines reach
 //! the buffer they should draw into with [`camera_buffer_mut`], and fall back
 //! to [`DefaultCamera`] when an entity names no camera of its own.
 
 use bevy_camera::{Camera, ClearColorConfig};
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, ResMut, Resource, With};
+use bevy_extract::extract_resource::ExtractResource;
+use bevy_extract::{Extract, MainEntity, TemporaryEntity};
 use ratatui_core::buffer::{Buffer, Cell};
 use ratatui_core::layout::Rect;
 
-use crate::extract::MainWorld;
+use crate::TerminalRenderApp;
 use crate::raster::linear_cell_color;
 use crate::viewport::{Edge, ResolvedViewport};
 
@@ -50,8 +52,10 @@ pub enum TerminalCamera {
     Fill,
 }
 
-/// Render-world copy of an active [`TerminalCamera`].
+/// Render-world copy of an active [`TerminalCamera`], living for one
+/// frame's [`TerminalRender`](crate::TerminalRender).
 #[derive(Component, Debug, Clone, Copy)]
+#[require(TemporaryEntity<TerminalRenderApp>)]
 #[non_exhaustive]
 pub struct ExtractedCamera {
     /// Compositing order, from [`Camera::order`].
@@ -81,25 +85,22 @@ impl ExtractedCamera {
 #[derive(Component, Debug)]
 pub struct CameraBuffer(pub Buffer);
 
-/// The main-world camera entity an extracted camera mirrors.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct SourceCamera(pub Entity);
-
 /// Finds the render-world buffer of the camera mirroring `target`.
 pub fn camera_buffer_mut<'a>(
-    cameras: &'a mut Query<(&SourceCamera, &mut CameraBuffer)>,
+    cameras: &'a mut Query<(MainEntity, &mut CameraBuffer)>,
     target: Entity,
 ) -> Option<bevy_ecs::prelude::Mut<'a, CameraBuffer>> {
     cameras
         .iter_mut()
-        .find(|(source, _)| source.0 == target)
+        .find(|(source, _)| *source == target)
         .map(|(_, buffer)| buffer)
 }
 
 /// Main-world entity of the default camera: the active camera with the
 /// lowest `(order, entity)`. Pipelines target it when no explicit camera
 /// is given. Kept current in the main world and extracted per frame.
-#[derive(Resource, Debug, Clone, Copy, Default)]
+#[derive(Resource, ExtractResource, Debug, Clone, Copy, Default)]
+#[extract_app(TerminalRenderApp)]
 pub struct DefaultCamera(pub Option<Entity>);
 
 pub(crate) fn update_default_camera(
@@ -117,24 +118,17 @@ pub(crate) fn update_default_camera(
 }
 
 pub(crate) fn extract_cameras(
-    mut main_world: ResMut<MainWorld>,
-    existing: Query<Entity, With<ExtractedCamera>>,
+    cameras: Extract<Query<(Entity, &Camera, &ResolvedViewport), With<TerminalCamera>>>,
     mut commands: Commands,
 ) {
-    for entity in &existing {
-        commands.entity(entity).despawn();
-    }
-    commands.insert_resource(*main_world.resource::<DefaultCamera>());
-    let mut cameras =
-        main_world.query_filtered::<(Entity, &Camera, &ResolvedViewport), With<TerminalCamera>>();
-    for (source, camera, resolved) in cameras.iter(&main_world) {
+    for (source, camera, resolved) in &cameras {
         if !camera.is_active {
             continue;
         }
         let viewport = resolved.0;
         commands.spawn((
             ExtractedCamera::new(camera.order, viewport, camera.clear_color),
-            SourceCamera(source),
+            MainEntity::from(source),
             CameraBuffer(camera_buffer(viewport, camera.clear_color)),
         ));
     }
@@ -155,15 +149,47 @@ fn camera_buffer(viewport: Rect, clear_color: ClearColorConfig) -> Buffer {
 mod tests {
     use bevy_app::App;
     use bevy_camera::Camera;
+    use bevy_ecs::prelude::{Entity, Query, ResMut, Resource};
+    use bevy_extract::MainEntity;
     use ratatui_core::layout::Rect;
 
-    use super::{CameraBuffer, DefaultCamera, ExtractedCamera, SourceCamera, TerminalCamera};
-    use crate::{CorePlugin, TerminalRenderApp, TerminalSize};
+    use super::{CameraBuffer, DefaultCamera, ExtractedCamera, TerminalCamera};
+    use crate::{
+        CorePlugin, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems, TerminalSize,
+    };
+
+    // Extracted cameras live for one frame's render, so they are read from
+    // inside it.
+    #[derive(Resource, Default)]
+    struct Seen(Vec<(Entity, Rect, Rect)>);
+
+    fn record(
+        cameras: Query<(MainEntity, &ExtractedCamera, &CameraBuffer)>,
+        mut seen: ResMut<Seen>,
+    ) {
+        seen.0 = cameras
+            .iter()
+            .map(|(source, camera, buffer)| (source, camera.viewport, buffer.0.area))
+            .collect();
+        seen.0
+            .sort_by_key(|(_, viewport, _)| (viewport.x, viewport.y));
+    }
+
+    fn recording_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(CorePlugin);
+        app.sub_app_mut(TerminalRenderApp).init_resource::<Seen>();
+        app.add_terminal_systems(TerminalRenderSystems::Rasterize, record);
+        app
+    }
+
+    fn seen(app: &App) -> &[(Entity, Rect, Rect)] {
+        &app.sub_app(TerminalRenderApp).world().resource::<Seen>().0
+    }
 
     #[test]
     fn extracts_active_cameras_with_clamped_viewports() {
-        let mut app = App::new();
-        app.add_plugins(CorePlugin);
+        let mut app = recording_app();
         app.insert_resource(TerminalSize::new(10, 5));
         app.world_mut().spawn(TerminalCamera::default());
         app.world_mut()
@@ -176,16 +202,14 @@ mod tests {
             },
         ));
 
+        // Two frames: cameras that outlived theirs would be counted twice.
+        app.update();
         app.update();
 
-        let render_world = app.sub_app_mut(TerminalRenderApp).world_mut();
-        let mut query = render_world.query::<(&ExtractedCamera, &CameraBuffer)>();
-        let mut extracted: Vec<(Rect, Rect)> = query
-            .iter(render_world)
-            .map(|(camera, buffer)| (camera.viewport, buffer.0.area))
+        let extracted: Vec<(Rect, Rect)> = seen(&app)
+            .iter()
+            .map(|&(_, viewport, buffer)| (viewport, buffer))
             .collect();
-        extracted.sort_by_key(|(viewport, _)| (viewport.x, viewport.y));
-
         assert_eq!(
             extracted,
             vec![
@@ -216,15 +240,12 @@ mod tests {
 
     #[test]
     fn extracted_cameras_link_back_to_their_source_entity() {
-        let mut app = App::new();
-        app.add_plugins(CorePlugin);
+        let mut app = recording_app();
         let spawned = app.world_mut().spawn(TerminalCamera::default()).id();
 
         app.update();
 
-        let render_world = app.sub_app_mut(TerminalRenderApp).world_mut();
-        let mut query = render_world.query::<&SourceCamera>();
-        let sources: Vec<_> = query.iter(render_world).map(|source| source.0).collect();
+        let sources: Vec<Entity> = seen(&app).iter().map(|&(source, ..)| source).collect();
         assert_eq!(sources, vec![spawned]);
     }
 }

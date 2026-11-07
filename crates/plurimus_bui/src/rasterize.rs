@@ -15,7 +15,7 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::style::{Color, Modifier};
 use plurimus_core::ratatui_core::widgets::Widget;
-use plurimus_core::{CameraBuffer, SourceCamera, camera_buffer_mut};
+use plurimus_core::{CameraBuffer, MainEntity, camera_buffer_mut};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -28,7 +28,7 @@ use super::text::{Seg, line_width, wrap_spans};
 
 pub(crate) fn rasterize_bui(
     nodes: Res<ExtractedBuiNodes>,
-    mut cameras: Query<(&SourceCamera, &mut CameraBuffer)>,
+    mut cameras: Query<(MainEntity, &mut CameraBuffer)>,
 ) {
     for node in &nodes.nodes {
         let Some(mut buffer) = camera_buffer_mut(&mut cameras, node.camera) else {

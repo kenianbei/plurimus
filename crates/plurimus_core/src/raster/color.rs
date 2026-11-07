@@ -7,11 +7,12 @@
 //! `Color::Rgb` values are touched, so a widget that asked for
 //! `Color::Green` still gets the terminal's green at every depth.
 
-use bevy_ecs::prelude::{DetectChangesMut, Res, ResMut, Resource};
+use bevy_ecs::prelude::{Res, ResMut, Resource};
+use bevy_extract::extract_resource::ExtractResource;
 use ratatui_core::style::Color;
 
+use crate::TerminalRenderApp;
 use crate::compositor::FrameBuffer;
-use crate::extract::MainWorld;
 
 const CUBE_LEVELS: [u8; 6] = [0, 95, 135, 175, 215, 255];
 const CUBE_BASE: u8 = 16;
@@ -44,7 +45,8 @@ const ANSI16_PALETTE: [(Color, [u8; 3]); 16] = [
 /// through untouched; the other depths quantize every `Color::Rgb` in
 /// the frame after compositing, before present. A main-world resource,
 /// defaulting to `TrueColor`.
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Resource, ExtractResource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[extract_app(TerminalRenderApp)]
 #[non_exhaustive]
 pub enum ColorDepth {
     /// 24-bit RGB pass-through.
@@ -77,10 +79,6 @@ pub fn downsample(color: Color, depth: ColorDepth) -> Color {
         ColorDepth::Ansi256 => nearest_ansi256([red, green, blue]),
         ColorDepth::Ansi16 => nearest_ansi16([red, green, blue]),
     }
-}
-
-pub(crate) fn extract_color_depth(main_world: Res<MainWorld>, mut depth: ResMut<ColorDepth>) {
-    depth.set_if_neq(*main_world.resource::<ColorDepth>());
 }
 
 pub(crate) fn downsample_frame(mut frame: ResMut<FrameBuffer>, depth: Res<ColorDepth>) {

@@ -18,8 +18,8 @@ use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Commands, ResMut, Resource, With};
-use bevy_ecs::query::QueryState;
+use bevy_ecs::prelude::{Commands, Query, ResMut, Resource, With};
+use bevy_ecs::system::SystemParam;
 use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
@@ -29,7 +29,7 @@ use bevy_ui::{
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{
-    CellSize, ExtractedWidget, MainWorld, ResolvedViewport, UiArea, UiOrder, UiWidget,
+    CellSize, Extract, ExtractedWidget, ResolvedViewport, UiArea, UiOrder, UiWidget,
 };
 
 use super::decorate::{
@@ -79,32 +79,34 @@ pub(crate) struct TextRun {
     pub(crate) content: CellBox,
 }
 
+/// The main world as node extraction reads it: whole, for the per-node
+/// walk, and through the three queries that walk is framed by.
+#[derive(SystemParam)]
+pub(crate) struct MainNodes<'w, 's> {
+    world: Extract<'w, 's, &'static World>,
+    viewports: Extract<'w, 's, Query<'static, 'static, &'static ResolvedViewport>>,
+    parents: Extract<'w, 's, Query<'static, 'static, &'static ChildOf>>,
+    widgets: Extract<'w, 's, Query<'static, 'static, (), With<UiWidget>>>,
+}
+
 pub(crate) fn extract_bui_nodes(
-    mut main_world: ResMut<MainWorld>,
+    main: MainNodes,
     mut out: ResMut<ExtractedBuiNodes>,
     mut commands: Commands,
 ) {
+    let main_world: &World = &main.world;
     out.nodes.clear();
     out.cell = main_world.resource::<CellSize>().vec();
     let cell = out.cell;
-    let viewports: HashMap<Entity, Rect> = {
-        let mut cameras = main_world.query::<(Entity, &ResolvedViewport)>();
-        cameras
-            .iter(&main_world)
-            .map(|(entity, resolved)| (entity, resolved.0))
-            .collect()
-    };
-    let mut parents = main_world.query::<&ChildOf>();
-    let mut widgets = main_world.query_filtered::<(), With<UiWidget>>();
     let stack = main_world.resource::<UiStack>();
     // Keyed by camera too: a frame that is no node makes each child a root
     // of its own, and two roots may name different cameras.
     let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
     for &entity in &stack.uinodes {
-        let Some(node) = convert(&main_world, entity, &viewports, cell) else {
+        let Some(node) = convert(main_world, entity, &main.viewports, cell) else {
             continue;
         };
-        match frame_of(&main_world, entity, (&mut parents, &mut widgets)) {
+        match frame_of(entity, &main.parents, &main.widgets) {
             None => out.nodes.push(node),
             Some(frame) => groups.entry((frame, node.camera)).or_default().push(node),
         }
@@ -123,19 +125,14 @@ pub(crate) fn extract_bui_nodes(
 /// The nearest strict ancestor of `entity` carrying a widget, unless
 /// `entity` carries one itself.
 fn frame_of(
-    world: &World,
     entity: Entity,
-    (parents, widgets): (
-        &mut QueryState<&ChildOf>,
-        &mut QueryState<(), With<UiWidget>>,
-    ),
+    parents: &Query<&ChildOf>,
+    widgets: &Query<(), With<UiWidget>>,
 ) -> Option<Entity> {
-    let widgets = widgets.query(world);
     if widgets.contains(entity) {
         return None;
     }
     parents
-        .query(world)
         .iter_ancestors(entity)
         .find(|&ancestor| widgets.contains(ancestor))
 }
@@ -143,7 +140,7 @@ fn frame_of(
 fn convert(
     world: &World,
     entity: Entity,
-    viewports: &HashMap<Entity, Rect>,
+    viewports: &Query<&ResolvedViewport>,
     cell: Vec2,
 ) -> Option<ExtractedBuiNode> {
     if !world
@@ -154,7 +151,7 @@ fn convert(
     }
     let computed = world.get::<ComputedNode>(entity)?;
     let camera = world.get::<ComputedUiTargetCamera>(entity)?.get()?;
-    let viewport = *viewports.get(&camera)?;
+    let viewport = viewports.get(camera).ok()?.0;
     let transform = world.get::<UiGlobalTransform>(entity)?;
     let (rect, content) = node_boxes(computed, transform, viewport, cell);
     if rect.is_empty() {

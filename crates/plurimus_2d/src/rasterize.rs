@@ -8,7 +8,7 @@
 
 use bevy_ecs::prelude::{Local, Query, Res, ResMut};
 use plurimus_core::raster::{BrailleGrid, HalfblockGrid};
-use plurimus_core::{CameraBuffer, SourceCamera, camera_buffer_mut};
+use plurimus_core::{CameraBuffer, MainEntity, camera_buffer_mut};
 use ratatui_core::buffer::{Buffer, Cell};
 use ratatui_core::style::{Color, Style};
 use unicode_segmentation::UnicodeSegmentation;
@@ -38,7 +38,7 @@ pub(crate) struct SubcellGrids {
 pub(crate) fn rasterize_2d(
     views: Res<ExtractedViews2d>,
     mut sprites: ResMut<ExtractedSprites2d>,
-    mut cameras: Query<(&SourceCamera, &mut CameraBuffer)>,
+    mut cameras: Query<(MainEntity, &mut CameraBuffer)>,
     mut grids: Local<SubcellGrids>,
 ) {
     sprites

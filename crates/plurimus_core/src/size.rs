@@ -7,11 +7,12 @@
 //! app renders at a size with no terminal in sight, which is why it is here
 //! and the message reporting a real terminal's resize is not.
 
-use bevy_ecs::prelude::{DetectChangesMut, Res, ResMut, Resource};
+use bevy_ecs::prelude::Resource;
+use bevy_extract::extract_resource::ExtractResource;
 use bevy_math::Vec2;
 use ratatui_core::layout::Rect;
 
-use crate::extract::MainWorld;
+use crate::TerminalRenderApp;
 
 /// Terminal dimensions in cells.
 ///
@@ -20,7 +21,8 @@ use crate::extract::MainWorld;
 /// [`CameraSystems::SyncSize`](crate::CameraSystems::SyncSize), so an app on
 /// a terminal should treat it as read-only. The default stands in until
 /// something reports otherwise.
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Resource, ExtractResource, Debug, Clone, Copy, PartialEq, Eq)]
+#[extract_app(TerminalRenderApp)]
 #[non_exhaustive]
 pub struct TerminalSize {
     /// Number of columns.
@@ -77,8 +79,4 @@ impl CellSize {
     pub const fn vec(self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
-}
-
-pub(crate) fn extract_size(main_world: Res<MainWorld>, mut size: ResMut<TerminalSize>) {
-    size.set_if_neq(*main_world.resource::<TerminalSize>());
 }

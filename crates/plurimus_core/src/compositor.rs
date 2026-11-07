@@ -10,10 +10,11 @@
 
 use bevy_camera::ClearColorConfig;
 use bevy_ecs::prelude::{Query, Res, ResMut, Resource};
+use bevy_extract::MainEntity;
 use ratatui_core::buffer::{Buffer, Cell};
 use ratatui_core::layout::Rect;
 
-use crate::camera::{CameraBuffer, ExtractedCamera, SourceCamera};
+use crate::camera::{CameraBuffer, ExtractedCamera};
 use crate::size::TerminalSize;
 
 /// The composed full-terminal frame, consumed by the presenter.
@@ -29,12 +30,12 @@ impl Default for FrameBuffer {
 pub(crate) fn composite(
     mut frame: ResMut<FrameBuffer>,
     size: Res<TerminalSize>,
-    cameras: Query<(&ExtractedCamera, &SourceCamera, &CameraBuffer)>,
+    cameras: Query<(&ExtractedCamera, MainEntity, &CameraBuffer)>,
 ) {
     frame.0.resize(size.rect());
     frame.0.reset();
     let mut ordered: Vec<_> = cameras.iter().collect();
-    ordered.sort_by_key(|(camera, source, _)| (camera.order, source.0));
+    ordered.sort_by_key(|(camera, source, _)| (camera.order, *source));
     for (camera, _, buffer) in ordered {
         if buffer.0.area.is_empty() {
             continue;
@@ -71,7 +72,7 @@ mod tests {
 
     use super::composite;
     use crate::{
-        CameraBuffer, CorePlugin, ExtractedCamera, FrameBuffer, SourceCamera, TerminalCamera,
+        CameraBuffer, CorePlugin, ExtractedCamera, FrameBuffer, MainEntity, TerminalCamera,
         TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems, TerminalSize,
     };
 
@@ -204,7 +205,7 @@ mod tests {
         for (source, symbol) in [(high, "h"), (low, "l")] {
             world.spawn((
                 ExtractedCamera::new(0, area, ClearColorConfig::Default),
-                SourceCamera(source),
+                MainEntity::from(source),
                 CameraBuffer(Buffer::filled(area, Cell::new(symbol))),
             ));
         }

@@ -3910,6 +3910,7 @@ dependencies = [
  "bevy_camera",
  "bevy_color",
  "bevy_ecs",
+ "bevy_extract",
  "bevy_math",
  "ratatui-core",
 ]

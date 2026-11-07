@@ -25,7 +25,6 @@
 mod camera;
 mod compositor;
 mod cursor;
-mod extract;
 mod present;
 pub mod raster;
 mod size;
@@ -35,20 +34,19 @@ mod widget;
 
 pub use bevy_app::Propagate;
 pub use bevy_camera;
+pub use bevy_extract;
+pub use bevy_extract::{Extract, ExtractSchedule, MainEntity, MainWorld};
 pub use ratatui_core;
 
-pub use camera::{
-    CameraBuffer, DefaultCamera, ExtractedCamera, SourceCamera, TerminalCamera, camera_buffer_mut,
-};
+pub use camera::{CameraBuffer, DefaultCamera, ExtractedCamera, TerminalCamera, camera_buffer_mut};
 pub use compositor::FrameBuffer;
 pub use cursor::TerminalCursor;
-pub use extract::MainWorld;
 pub use present::{PresenterPlugin, TerminalContext};
 pub use raster::ColorDepth;
 pub use size::{CellSize, TerminalSize};
 pub use sub_app::{
-    CompositeSystems, ExtractSchedule, RasterizeSystems, TerminalRender, TerminalRenderApp,
-    TerminalRenderAppExt, TerminalRenderSystems,
+    CompositeSystems, RasterizeSystems, TerminalRender, TerminalRenderApp, TerminalRenderAppExt,
+    TerminalRenderSystems,
 };
 pub use viewport::{CameraSystems, CameraViewports, Edge, ResolvedViewport};
 pub use widget::placement::{
@@ -89,14 +87,7 @@ impl Plugin for CorePlugin {
             viewport::resolve_camera_viewports.in_set(CameraSystems::ResolveViewports),
         );
         sub_app::install(app);
-        // In the sub-app rather than with the presenter: the extract system
-        // below writes it whether or not anything presents.
-        app.sub_app_mut(TerminalRenderApp)
-            .init_resource::<TerminalCursor>();
-        app.add_extract_systems((
-            widget::raster::extract_widgets,
-            cursor::extract_terminal_cursor,
-        ));
+        app.add_extract_systems(widget::raster::extract_widgets);
         app.add_terminal_systems(
             TerminalRenderSystems::Rasterize,
             widget::raster::rasterize_widgets

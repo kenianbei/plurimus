@@ -12,13 +12,14 @@
 
 use std::sync::Arc;
 
-use bevy_ecs::prelude::{Commands, Component, Entity, Query, Res, ResMut, With, Without};
+use bevy_ecs::prelude::{Commands, Component, Entity, Query, Res, Without};
 use bevy_ecs::schedule::SystemSet;
+use bevy_extract::{Extract, MainEntity, TemporaryEntity};
 
 use super::placement::{ComputedUiCamera, Hidden, UiArea, UiOrder, resolve_area};
 use super::{TerminalWidget, UiWidget};
-use crate::camera::{CameraBuffer, DefaultCamera, SourceCamera, camera_buffer_mut};
-use crate::extract::MainWorld;
+use crate::TerminalRenderApp;
+use crate::camera::{CameraBuffer, DefaultCamera, camera_buffer_mut};
 
 /// Marks a widget whose extraction and rasterization another system owns;
 /// core's own widget pipeline skips it. The owning pipeline spawns its own
@@ -33,14 +34,15 @@ pub struct RasterDeferred;
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct WidgetRasterize;
 
-/// Render-world copy of a widget entity.
+/// Render-world copy of a widget entity, living for one frame's
+/// [`TerminalRender`](crate::TerminalRender).
 ///
-/// `target` is the main-world camera entity; rasterization resolves it via
-/// [`SourceCamera`], because render-world cameras spawn from deferred
-/// commands and do not exist yet during extraction. Deferred-raster
-/// pipelines spawn their own during extraction; every `ExtractedWidget`
-/// entity is despawned at the start of the next extraction.
+/// `target` is the main-world camera entity; rasterization resolves it
+/// through the extracted camera's [`MainEntity`], because render-world
+/// cameras spawn from deferred commands and do not exist yet during
+/// extraction. Deferred-raster pipelines spawn their own during extraction.
 #[derive(Component)]
+#[require(TemporaryEntity<TerminalRenderApp>)]
 #[non_exhaustive]
 pub struct ExtractedWidget {
     /// What to render.
@@ -50,7 +52,7 @@ pub struct ExtractedWidget {
     /// Z-order; higher renders later, on top.
     pub order: i32,
     /// The main-world widget entity, tie-breaking equal orders.
-    pub source: Entity,
+    pub source: MainEntity,
     /// Sub-order among what shares `source`: the widget itself is 0, and
     /// what a pipeline draws over it sorts after it at a higher layer.
     pub layer: u8,
@@ -67,7 +69,7 @@ impl ExtractedWidget {
             widget,
             area,
             order: 0,
-            source,
+            source: MainEntity::from(source),
             layer: 0,
             target: None,
         }
@@ -97,26 +99,26 @@ impl ExtractedWidget {
 }
 
 pub(crate) fn extract_widgets(
-    mut main_world: ResMut<MainWorld>,
-    existing: Query<Entity, With<ExtractedWidget>>,
+    widgets: Extract<
+        Query<
+            (
+                Entity,
+                &UiWidget,
+                &UiArea,
+                Option<&UiOrder>,
+                &ComputedUiCamera,
+            ),
+            (Without<Hidden>, Without<RasterDeferred>),
+        >,
+    >,
     mut commands: Commands,
 ) {
-    for entity in &existing {
-        commands.entity(entity).despawn();
-    }
-    let mut widgets = main_world.query_filtered::<(
-        Entity,
-        &UiWidget,
-        &UiArea,
-        Option<&UiOrder>,
-        &ComputedUiCamera,
-    ), (Without<Hidden>, Without<RasterDeferred>)>();
-    for (source, widget, area, order, camera) in widgets.iter(&main_world) {
+    for (source, widget, area, order, camera) in &widgets {
         commands.spawn(ExtractedWidget {
             widget: widget.content(),
             area: *area,
             order: order.map_or(0, |order| order.0),
-            source,
+            source: MainEntity::from(source),
             layer: 0,
             target: camera.0,
         });
@@ -126,7 +128,7 @@ pub(crate) fn extract_widgets(
 pub(crate) fn rasterize_widgets(
     widgets: Query<&ExtractedWidget>,
     default_camera: Res<DefaultCamera>,
-    mut cameras: Query<(&SourceCamera, &mut CameraBuffer)>,
+    mut cameras: Query<(MainEntity, &mut CameraBuffer)>,
 ) {
     let mut ordered: Vec<&ExtractedWidget> = widgets.iter().collect();
     ordered.sort_by_key(|widget| (widget.order, widget.source, widget.layer));

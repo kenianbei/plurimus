@@ -19,7 +19,7 @@ mod grid;
 pub use average::linear_average;
 pub use blit::{PixelGrid, blit_braille, blit_halfblocks, letterbox};
 pub use braille::BrailleGrid;
+pub(crate) use color::downsample_frame;
 pub use color::{ColorDepth, downsample, linear_cell_color};
-pub(crate) use color::{downsample_frame, extract_color_depth};
 pub use depth::DepthGrid;
 pub use grid::HalfblockGrid;

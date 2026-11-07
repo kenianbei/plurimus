@@ -61,6 +61,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking: the terminal render sub-app is built by `bevy_extract`.**
+  `plurimus_core` depends on `bevy_extract` and re-exports it; its own world
+  swap is gone, and `ExtractSchedule`, `MainWorld`, `MainEntity` and `Extract`
+  at its root are bevy's, so an extract system reads the main world through
+  `Extract<Query<..>>`, whose query state persists across frames, or through
+  `Res<MainWorld>` where it must write. Every extract system in the workspace
+  but the web backend's two now takes `Extract`.
+  - `TerminalRenderSystems` gains `ExtractCommands`, where what extraction
+    spawned and inserted is applied, and `Cleanup`, where the frame's extracted
+    entities are despawned, around the three phases.
+  - `ExtractedCamera` and `ExtractedWidget` require bevy's `TemporaryEntity`, so
+    they live for one frame's `TerminalRender` and a pipeline spawning its own
+    despawns nothing; after `app.update()` the render world holds none.
+  - `TerminalSize`, `ColorDepth`, `TerminalCursor` and `DefaultCamera` are
+    `ExtractResource`s, copied into the render world when the main world's copy
+    changes.
+  - An extracted camera carries bevy's `MainEntity` in place of `SourceCamera`,
+    `camera_buffer_mut` takes `Query<(MainEntity, &mut CameraBuffer)>`, and
+    `ExtractedWidget.source` is a `MainEntity`; `ExtractedWidget::new` still
+    takes the source `Entity`.
 - **Breaking: a terminal camera is a bevy `Camera`.** `plurimus_core` depends on
   `bevy_camera`, and `TerminalCamera` requires `Camera` and is now the placement
   alone - `Full`, `Fixed(rect)`, `Docked { edge, cells }` or `Fill`, resolved
@@ -282,6 +302,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- `plurimus_core::SourceCamera`, for bevy's `MainEntity`.
 - `plurimus_core::Viewport` and `Background`, and `TerminalCamera`'s
   `with_order`, `with_viewport`, `with_active` and `with_background`: the
   placement is the camera itself and the rest is bevy's `Camera`.
