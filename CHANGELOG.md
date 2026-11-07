@@ -169,6 +169,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `InputSystems::Update` is gone; polled `ButtonInput<KeyCode>` and
     `ButtonInput<MouseButton>` are fed by `bevy_input`'s `InputPlugin`, which
     `TermPlugin` installs.
+  - The sink owns the write to `InputCapabilities`: a backend raises what its
+    terminal has proven through `TerminalInput::learn`, and a pump reading the
+    resource beside the sink conflicts with it.
   - A focus loss releases every held key with a `KeyboardFocusLost` beside the
     releases, drops every held button from `ButtonInput<MouseButton>` without
     writing a release, and cancels the captured widget's gesture through bevy's
