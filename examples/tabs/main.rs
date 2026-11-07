@@ -21,7 +21,7 @@ use bevy_ecs::prelude::{
 use bevy_ecs::system::SystemParam;
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::ratatui_core::style::{Color, Style};
-use plurimus::core::{CorePlugin, Edge, TerminalCamera, UiArea, UiHidden, UiWidget};
+use plurimus::core::{CorePlugin, Edge, Hidden, Propagate, TerminalCamera, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::term::{KeyCode, KeyKind, KeyMessage};
 use plurimus::ui::bevy_input_focus::{FocusCause, InputFocus};
@@ -151,7 +151,7 @@ fn spawn_demo(mut commands: Commands) {
             LooksBar,
             TabBarLook::default().with_orientation(TabBarOrientation::Vertical),
             TabBarActiveStyle(Style::new().fg(ACTIVE_FG)),
-            UiHidden,
+            Propagate(Hidden),
             UiArea::Fixed(LOOKS_BAR),
         ))
         .id();
@@ -216,10 +216,10 @@ fn switch_panel(change: On<ValueChange<Entity>>, mut panels: Panels, mut command
     let settings = panel.0 == SETTINGS;
     for looks in &panels.looks {
         if settings {
-            commands.entity(looks).remove::<UiHidden>();
+            commands.entity(looks).remove::<Propagate<Hidden>>();
             panels.focus.set(looks, FocusCause::Navigated);
         } else {
-            commands.entity(looks).insert(UiHidden);
+            commands.entity(looks).insert(Propagate(Hidden));
             panels.focus.set(change.source, FocusCause::Navigated);
         }
     }
@@ -249,7 +249,7 @@ fn apply_look(
 fn swap_focus_on_tab(
     mut keys: MessageReader<KeyMessage>,
     top: Query<Entity, With<TopBar>>,
-    looks: Query<Entity, (With<LooksBar>, Without<UiHidden>)>,
+    looks: Query<Entity, (With<LooksBar>, Without<Hidden>)>,
     mut focus: ResMut<InputFocus>,
 ) {
     for key in keys.read() {

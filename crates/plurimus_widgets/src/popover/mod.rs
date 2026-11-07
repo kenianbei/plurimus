@@ -27,7 +27,7 @@ use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, Without};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 
 use plurimus_core::{
-    CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiCamera, UiOrder, local_area,
+    CameraViewports, ComputedUiCamera, Hidden, Propagate, UiArea, UiCamera, UiOrder, local_area,
 };
 use plurimus_ui::{ComputedWidgetArea, ScrollOffset, screen_cell};
 
@@ -79,11 +79,11 @@ pub enum PopoverAlign {
 }
 
 /// Places the widget against `anchor`'s resolved area every frame,
-/// overwriting its [`UiArea`] and its [`UiCamera`].
+/// overwriting its [`UiArea`] and its `Propagate<UiCamera>`.
 ///
 /// The camera is the anchor's unless [`camera`](Self::camera) names another,
 /// which is what lets a popover follow something it is not parented to. It is
-/// written as a real [`UiCamera`] rather than a resolved value, so a
+/// written as a propagated [`UiCamera`] rather than a resolved value, so a
 /// popover's own children inherit it the way they inherit any camera - parent
 /// them to the popover and nothing else is needed.
 ///
@@ -175,14 +175,19 @@ impl Popover {
 /// needs only the anchor's own and every reader downstream wants it settled
 /// before then - the placement included, which resolves against the viewport
 /// of whichever camera this settled on. Writing the resolved value serves
-/// this frame; writing a real [`UiCamera`] beside it is what reaches the
-/// popover's own children.
+/// this frame; writing a `Propagate<UiCamera>` beside it is what reaches
+/// the popover's own children.
 ///
 /// A popover whose anchor is gone adopts nothing, a camera it named
 /// included: it is placed against that anchor or not at all.
 pub(crate) fn adopt_anchor_cameras(
     anchors: Query<&ComputedUiCamera, Without<Popover>>,
-    mut popovers: Query<(Entity, &Popover, &mut ComputedUiCamera, Option<&UiCamera>)>,
+    mut popovers: Query<(
+        Entity,
+        &Popover,
+        &mut ComputedUiCamera,
+        Option<&Propagate<UiCamera>>,
+    )>,
     mut commands: Commands,
 ) {
     for (entity, popover, mut target, own_camera) in &mut popovers {
@@ -192,9 +197,9 @@ pub(crate) fn adopt_anchor_cameras(
         let drawn_on = popover.camera.or(anchor_camera.0);
         target.set_if_neq(ComputedUiCamera(drawn_on));
         if let Some(camera) = drawn_on
-            && own_camera.map(|own| own.0) != Some(camera)
+            && own_camera.map(|own| own.0.0) != Some(camera)
         {
-            commands.entity(entity).insert(UiCamera(camera));
+            commands.entity(entity).insert(Propagate(UiCamera(camera)));
         }
     }
 }
@@ -207,7 +212,7 @@ pub(crate) fn place_popovers(
         &ComputedUiCamera,
         &mut UiArea,
         &mut ComputedWidgetArea,
-        Has<ComputedHidden>,
+        Has<Hidden>,
     )>,
 ) {
     for (popover, target, mut area, mut computed, hidden) in &mut popovers {

@@ -13,7 +13,7 @@ use plurimus_test::{
 };
 use plurimus_ui::Key;
 use plurimus_ui::bevy_picking::events::PointerClick;
-use plurimus_ui::{FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget, ValueChange};
+use plurimus_ui::{Hidden, Hovered, Pressed, Propagate, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
     Slider, SliderAction, SliderKeys, SliderRange, SliderValue, WidgetsPlugin, slider_self_update,
@@ -109,14 +109,16 @@ fn hidden_widget_ignores_pointer_until_unhidden() {
             UiWidget::new(Paragraph::new("btn")),
             UiArea::Fixed(Rect::new(2, 1, 5, 1)),
             Hovered::default(),
-            UiHidden,
+            Propagate(Hidden),
         ))
         .id();
 
     send_mouse(&mut app, MouseKind::Moved, 3, 1);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(false)));
 
-    app.world_mut().entity_mut(widget).remove::<UiHidden>();
+    app.world_mut()
+        .entity_mut(widget)
+        .remove::<Propagate<Hidden>>();
     app.update();
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(true)));
 }
@@ -179,30 +181,6 @@ fn tab_cycles_focus_through_a_group() {
 
     press_key(&mut app, KeyCode::Tab);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(second));
-}
-
-#[test]
-fn focus_within_tracks_the_ancestor_chain() {
-    let mut app = app();
-    let pane_a = app.world_mut().spawn_empty().id();
-    let pane_b = app.world_mut().spawn_empty().id();
-    let widget_a = app.world_mut().spawn(ChildOf(pane_a)).id();
-    let widget_b = app.world_mut().spawn(ChildOf(pane_b)).id();
-    app.update();
-
-    set_focus(&mut app, widget_a);
-    app.update();
-    assert!(app.world().get::<FocusWithin>(pane_a).is_some());
-    assert!(app.world().get::<FocusWithin>(pane_b).is_none());
-
-    set_focus(&mut app, widget_b);
-    app.update();
-    assert!(app.world().get::<FocusWithin>(pane_a).is_none());
-    assert!(app.world().get::<FocusWithin>(pane_b).is_some());
-
-    app.world_mut().resource_mut::<InputFocus>().clear();
-    app.update();
-    assert!(app.world().get::<FocusWithin>(pane_b).is_none());
 }
 
 #[test]

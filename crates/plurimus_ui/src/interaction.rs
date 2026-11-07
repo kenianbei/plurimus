@@ -11,7 +11,7 @@ use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Commands, Component, Has, Local, Query, With, Without};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{
-    CameraViewports, ComputedHidden, ComputedUiCamera, UiArea, UiOrder, UiWidget, resolve_area,
+    CameraViewports, ComputedUiCamera, Hidden, UiArea, UiOrder, UiWidget, resolve_area,
 };
 
 pub use bevy_picking::hover::Hovered;
@@ -113,7 +113,7 @@ pub(crate) fn compute_widget_areas(
         &UiArea,
         &ComputedUiCamera,
         &mut ComputedWidgetArea,
-        Has<ComputedHidden>,
+        Has<Hidden>,
     )>,
 ) {
     for (area, target, mut computed, hidden) in &mut widgets {

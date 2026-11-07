@@ -93,11 +93,10 @@ and an app's exit hands the page a `plurimus-exit` event to act on.
 Interaction over any entity with an area. It computes widget areas, resolves
 hover with z-order hit testing, and routes pointer press, drag, release, click,
 and wheel events. Focus runs over `bevy_input_focus`, with a directional
-navigation map for arrow-key movement, scrolling through `ScrollArea`,
-`ScrollIntoView` and `ScrollKeys` - a wheel tick and a bound key both arriving
-as one `ScrollBy` - and the modal-overlay primitives menus and popovers are
-built from. A press carries how many have run together on it, so a double-click
-is the second `Click` reporting `2`.
+navigation map for arrow-key movement, scrolling through `ScrollArea` and
+`ScrollIntoView` - a wheel tick arriving as a `ScrollBy` an app's own key
+handler can send too - and the modal-overlay primitives menus and popovers are
+built from.
 
 Keys are bound as data: a `KeyBinding` is a `Key` and the modifiers it must be
 pressed under, and `first_bound` is the scan every bindings component shares, so

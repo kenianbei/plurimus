@@ -93,9 +93,10 @@ pub enum CameraSystems {
     SyncSize,
     /// Resolves every camera's [`ResolvedViewport`]. Runs last.
     ResolveViewports,
-    /// Resolves every widget's
-    /// [`ComputedUiCamera`](crate::ComputedUiCamera) against the hierarchy
-    /// and the default camera. Runs between the two above.
+    /// Propagates [`UiCamera`](crate::UiCamera) and [`Hidden`](crate::Hidden)
+    /// down the hierarchy and resolves every widget's
+    /// [`ComputedUiCamera`](crate::ComputedUiCamera) against the default
+    /// camera. Runs between the two above.
     PropagateCameras,
 }
 

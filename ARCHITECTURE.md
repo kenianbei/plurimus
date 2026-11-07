@@ -91,27 +91,30 @@ seam a pipeline drawing what a widget frames joins at, spawning its own
 `ExtractedWidget` at the widget's source and a higher layer so it sorts directly
 after it. Its `Default` draws nothing, which is what a widget holds before its
 first restyle replaces it, so no widget library needs a blank of its own. Which
-camera a widget draws on, the crates agree on rather than each deriving:
-`ComputedUiCamera` is resolved once a frame in `CameraSystems::PropagateCameras`
-as the widget's own `UiCamera`, else the nearest ancestor's, else the default -
-so a child sits on its parent's camera without being told, and forgetting to say
+camera a widget draws on, the crates agree on rather than each deriving: a
+`Propagate<UiCamera>` names it for an entity and everything beneath, bevy's
+hierarchy propagation lands `UiCamera` on what it reaches with a nearer one
+winning, and `ComputedUiCamera` is resolved once a frame in
+`CameraSystems::PropagateCameras` as that or else the default camera - so a
+child sits on its parent's camera without being told, and forgetting to say
 stops being a silent misplacement. Whether it draws at all is agreed the same
-way: `UiHidden` hides everything beneath it, and `ComputedHidden` marks what it
-reaches, resolved downward from each carrier - once in `PropagateCameras` so
-input routes against it, and again in `Last` so a subtree hidden during the
-frame is not drawn by it. Every reader reads the computed marker, which is what
-lets a popover or a menu be hidden by its root alone. `UiArea` requires it,
-local to what being half of where; `CameraViewports` carries a camera to its
-viewport with the same default fallback, and `local_area` is `resolve_area`'s
-inverse, for a crate holding a screen rect that has to be stored camera-locally.
-`PresenterPlugin<B>` diffs the composed frame and writes changed cells through
-any ratatui-core `Backend`, and applies `TerminalCursor` - the terminal's own
-caret, which a screen reader follows and an input method anchors to - outside
-that diff, because a caret crossing a cell changes no cell's content and the
-diff skips a frame where nothing differs. Drawing moves the terminal's cursor to
-the last cell written, so a frame that draws puts a shown cursor back as well,
-in the same flush. Position and visibility go through `Backend`; the shape is a
-backend's to serve. Re-exports `ratatui_core`.
+way: a `Propagate<Hidden>` hides everything beneath it, and `Hidden` is what the
+propagation marks it with - once in `PropagateCameras` so input routes against
+it, and again in `Last`, where the same propagation runs a second time so a
+subtree hidden during the frame is not drawn by it. Every reader reads the
+landed marker, which is what lets a popover or a menu be hidden by its root
+alone. `UiArea` requires it, local to what being half of where;
+`CameraViewports` carries a camera to its viewport with the same default
+fallback, and `local_area` is `resolve_area`'s inverse, for a crate holding a
+screen rect that has to be stored camera-locally. `PresenterPlugin<B>` diffs the
+composed frame and writes changed cells through any ratatui-core `Backend`, and
+applies `TerminalCursor` - the terminal's own caret, which a screen reader
+follows and an input method anchors to - outside that diff, because a caret
+crossing a cell changes no cell's content and the diff skips a frame where
+nothing differs. Drawing moves the terminal's cursor to the last cell written,
+so a frame that draws puts a shown cursor back as well, in the same flush.
+Position and visibility go through `Backend`; the shape is a backend's to serve.
+Re-exports `ratatui_core`.
 
 ### plurimus_term
 
@@ -311,40 +314,37 @@ by toggling it and switches away from a neighbour's. Taking the union of the
 overlays covering a position is what admits a submenu inside its parent without
 ordering modal roots against each other. Every scroll converges on one event: a
 wheel tick, routed by this crate from the frame's `PointerInput` at its own
-cell, arbitrated by z-order among the `WheelReceptive` widgets under it whose
-`WheelAxes` can still use that axis and which an open overlay admits, with a
-tick outside every open overlay dismissing them instead, and a key bound through
-`ScrollKeys` on whichever widget holds focus both become a `ScrollBy`, which
-whoever stores the scroll consumes - this crate's `ScrollOffset`, a bevy_ui
-node's own position, a text editor's engine viewport - each clamping the step
-against its own extent. `WheelReceptive` requires `Hovered`, which is what makes
-a widget a pick, so a tick over it never also reaches a node it is drawn over.
-`ScrollKeys` is the whole opt-in for the keyboard, carrying the `TabIndex`
-without which nothing can be sent a key, and it is one of the
-`(KeyBinding, Action)` bindings components sharing `first_bound`, the scan this
+cell, arbitrated by z-order among the `WheelReceptive` widgets under it that an
+open overlay admits and that can still use that axis - a `ScrollArea` measured
+against its content at the tick, any other receptive widget taken at its word -
+with a tick outside every open overlay dismissing them instead, becomes a
+`ScrollBy`, which whoever stores the scroll consumes - this crate's
+`ScrollOffset`, a bevy_ui node's own position, a text editor's engine viewport -
+each clamping the step against its own extent; an app's own key handler sends
+the same event. `WheelReceptive` requires `Hovered`, which is what makes a
+widget a pick, so a tick over it never also reaches a node it is drawn over. The
+`(KeyBinding, Action)` bindings components share `first_bound`, the scan this
 crate owns so a widget family written elsewhere states "first match wins" by
-calling it rather than by copying it - eight of them across the workspace, one
-per widget that takes keys. Those that move something - a scroll area, a list
-box, a table, a tab bar, a slider - consume a bound key only when it changes
-something, so an arrow pressed at an edge falls through to directional
-navigation, which ignores repeats so that a held key stops there instead. A
-scroll key measures a `ScrollArea` against its offset, and any other scroll
-consumer only by its `WheelAxes`, whose extent this crate cannot see. A
-`KeyBinding` is a `Key` and the `KeyModifiers` it must be pressed under, and
-`KeyBinding::matches` is the one rule: every modifier but shift exactly, and
-shift exactly for a named key but only when asked for on a character, since a
-shifted symbol carries the bit on some terminals and not others. The modifiers
-it is checked against are polled through `plurimus_term`'s `HeldModifiers`,
-bevy's `KeyboardInput` carrying none of its own. `content_cell` is where a
-pointer cell becomes a content cell for any of it, clamping into the area so a
-captured drag past an edge keeps addressing the nearest one; `screen_cell` is
-the way back, refusing rather than clamping, and it is what places the focused
-widget's `WidgetCursor` on the terminal - a cursor whose cell is `None` names
-none, which is how a widget with nowhere to put its caret says so without
-discarding the shape an app gave it. Both take the scroll offset as the
-`ScrollOffset` a widget may or may not carry, because a widget carrying none is
-scrolled to the origin and that is the crate's rule to state rather than every
-caller's to know; scroll state kept anywhere else is put in one to ask.
+calling it rather than by copying it - seven of them across the workspace, one
+per widget that takes keys. Those that move something - a list box, a table, a
+tab bar, a slider - consume a bound key only when it changes something, so an
+arrow pressed at an edge falls through to directional navigation, which ignores
+repeats so that a held key stops there instead. A `KeyBinding` is a `Key` and
+the `KeyModifiers` it must be pressed under, and `KeyBinding::matches` is the
+one rule: every modifier but shift exactly, and shift exactly for a named key
+but only when asked for on a character, since a shifted symbol carries the bit
+on some terminals and not others. The modifiers it is checked against are polled
+through `plurimus_term`'s `HeldModifiers`, bevy's `KeyboardInput` carrying none
+of its own. `content_cell` is where a pointer cell becomes a content cell for
+any of it, clamping into the area so a captured drag past an edge keeps
+addressing the nearest one; `screen_cell` is the way back, refusing rather than
+clamping, and it is what places the focused widget's `WidgetCursor` on the
+terminal - a cursor whose cell is `None` names none, which is how a widget with
+nowhere to put its caret says so without discarding the shape an app gave it.
+Both take the scroll offset as the `ScrollOffset` a widget may or may not carry,
+because a widget carrying none is scrolled to the origin and that is the crate's
+rule to state rather than every caller's to know; scroll state kept anywhere
+else is put in one to ask.
 
 The interaction vocabulary itself is bevy's: `Hovered` is `bevy_picking`'s,
 `Pressed`, `Checked` and `InteractionDisabled` are `bevy_ui`'s, and `Activate`
@@ -440,13 +440,13 @@ against a different viewport. Both say "nowhere" the same way, with
 `Rect::ZERO`, for a cell scrolled out of its anchor's window, an anchor drawing
 nothing, and a camera with no viewport this frame alike, because attaching to
 something invisible is what a popover has no answer for. `camera` is a field
-rather than a user-set `UiCamera` because placement writes a real `UiCamera`
-itself, to reach the popover's children, and so could not tell an app's from its
-own; the anchor still gates adoption, so a popover with no anchor to be placed
-against takes no camera either. Every side attaches to an outer edge, which is
-why `PopoverSide` has four variants and not five: a box drawn _inside_ its
-anchor has no side to mirror and no edge to align to, and is a child holding a
-`UiArea::Fixed` placed through `local_area`.
+rather than a user-set `Propagate<UiCamera>` because placement writes that
+propagation itself, to reach the popover's children, and so could not tell an
+app's from its own; the anchor still gates adoption, so a popover with no anchor
+to be placed against takes no camera either. Every side attaches to an outer
+edge, which is why `PopoverSide` has four variants and not five: a box drawn
+_inside_ its anchor has no side to mirror and no edge to align to, and is a
+child holding a `UiArea::Fixed` placed through `local_area`.
 
 A `TabBar` is a strip of `TabItem` children and the one tab stop among them: the
 bar carries the `TabIndex` and the `TabBarKeys`, and the items are placed by it,

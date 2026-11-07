@@ -4,29 +4,19 @@
 //! terminal has, so this file supplies both: terminal key messages forward
 //! into `bevy_input`, and a virtual [`PrimaryWindow`] is spawned for focus
 //! dispatch to query where the app opens no window of its own.
-//! [`FocusWithin`] is then maintained on every ancestor of the focused
-//! entity, which is what lets a pane highlight its border while something
-//! inside it holds focus.
 
 use bevy_app::{App, PreStartup, PreUpdate};
-use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::entity::{Entity, EntityHashSet};
-use bevy_ecs::prelude::{ChildOf, Commands, Component, IntoScheduleConfigs, Query, Res, With};
+use bevy_ecs::prelude::{Commands, IntoScheduleConfigs, Query, With};
 use bevy_input::InputPlugin;
 use bevy_input_focus::tab_navigation::TabNavigationPlugin;
 use bevy_input_focus::{
-    InputDispatchPlugin, InputFocus, InputFocusPlugin, InputFocusSystems, dispatch_focused_input,
+    InputDispatchPlugin, InputFocusPlugin, InputFocusSystems, dispatch_focused_input,
 };
 use bevy_picking::PickingSystems;
 use bevy_window::{PrimaryWindow, Window};
 use plurimus_term::{InputSystems, PasteMessage, bevy_compat};
 
 use crate::UiSystems;
-
-/// Present on every ancestor of the focused entity, for focus-within
-/// styling such as pane border highlights.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct FocusWithin;
 
 pub(crate) fn install(app: &mut App) {
     if !app.is_plugin_added::<InputPlugin>() {
@@ -56,38 +46,7 @@ pub(crate) fn install(app: &mut App) {
         PreUpdate,
         dispatch_focused_input::<PasteMessage>.in_set(InputFocusSystems::Dispatch),
     );
-    app.add_systems(
-        PreUpdate,
-        sync_focus_within
-            .after(InputFocusSystems::Dispatch)
-            .after(UiSystems::Route),
-    );
     app.add_systems(PreStartup, spawn_virtual_window);
-}
-
-pub(crate) fn sync_focus_within(
-    focus: Res<InputFocus>,
-    parents: Query<&ChildOf>,
-    marked: Query<Entity, With<FocusWithin>>,
-    mut commands: Commands,
-) {
-    if !focus.is_changed() {
-        return;
-    }
-    let ancestors: EntityHashSet = focus
-        .get()
-        .map(|focused| parents.iter_ancestors(focused).collect())
-        .unwrap_or_default();
-    for entity in &marked {
-        if !ancestors.contains(&entity) {
-            commands.entity(entity).remove::<FocusWithin>();
-        }
-    }
-    for &entity in &ancestors {
-        if !marked.contains(entity) {
-            commands.entity(entity).insert(FocusWithin);
-        }
-    }
 }
 
 // Dispatch queries one PrimaryWindow and Window's presence ends the bubble;

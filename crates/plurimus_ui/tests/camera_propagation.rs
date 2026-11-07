@@ -6,7 +6,8 @@ use bevy_ecs::hierarchy::ChildOf;
 use plurimus_core::bevy_camera::Camera;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{
-    ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, UiArea, UiCamera, UiWidget,
+    ComputedUiCamera, CorePlugin, Propagate, TerminalCamera, TerminalSize, UiArea, UiCamera,
+    UiWidget,
 };
 use plurimus_ui::{ComputedWidgetArea, UiPlugin};
 use ratatui_widgets::paragraph::Paragraph;
@@ -65,7 +66,7 @@ fn a_child_inherits_the_camera_of_its_nearest_titled_ancestor() {
     let mut app = app();
     spawn_camera(&mut app, LEFT, 0);
     let right = spawn_camera(&mut app, RIGHT, 1);
-    let parent = app.world_mut().spawn(UiCamera(right)).id();
+    let parent = app.world_mut().spawn(Propagate(UiCamera(right))).id();
     let child = spawn_widget(&mut app);
     let grandchild = spawn_widget(&mut app);
     app.world_mut().entity_mut(child).insert(ChildOf(parent));
@@ -93,10 +94,13 @@ fn an_explicit_camera_wins_over_an_ancestors() {
     let mut app = app();
     let left = spawn_camera(&mut app, LEFT, 0);
     let right = spawn_camera(&mut app, RIGHT, 1);
-    let parent = app.world_mut().spawn(UiCamera(right)).id();
+    let parent = app.world_mut().spawn(Propagate(UiCamera(right))).id();
     let child = app
         .world_mut()
-        .spawn((UiWidget::new(Paragraph::new("x")), UiCamera(left)))
+        .spawn((
+            UiWidget::new(Paragraph::new("x")),
+            Propagate(UiCamera(left)),
+        ))
         .id();
     app.world_mut().entity_mut(child).insert(ChildOf(parent));
 
@@ -112,17 +116,40 @@ fn a_child_follows_its_parent_to_another_camera() {
     let mut app = app();
     let left = spawn_camera(&mut app, LEFT, 0);
     let right = spawn_camera(&mut app, RIGHT, 1);
-    let parent = app.world_mut().spawn(UiCamera(left)).id();
+    let parent = app.world_mut().spawn(Propagate(UiCamera(left))).id();
     let child = spawn_widget(&mut app);
     app.world_mut().entity_mut(child).insert(ChildOf(parent));
     app.update();
     assert_eq!(camera_of(&app, child), Some(left));
 
-    app.world_mut().entity_mut(parent).insert(UiCamera(right));
+    app.world_mut()
+        .entity_mut(parent)
+        .insert(Propagate(UiCamera(right)));
     app.update();
 
     assert_eq!(camera_of(&app, child), Some(right));
     assert_eq!(area_of(&app, child), RIGHT);
+}
+
+// The propagation takes its output back with the source, and the resolved
+// camera must survive that: a reader holding `&ComputedUiCamera` never
+// sees the entity vanish.
+#[test]
+fn a_child_moved_out_of_a_titled_subtree_falls_back_to_the_default() {
+    let mut app = app();
+    let left = spawn_camera(&mut app, LEFT, 0);
+    let right = spawn_camera(&mut app, RIGHT, 1);
+    let parent = app.world_mut().spawn(Propagate(UiCamera(right))).id();
+    let child = spawn_widget(&mut app);
+    app.world_mut().entity_mut(child).insert(ChildOf(parent));
+    app.update();
+    assert_eq!(camera_of(&app, child), Some(right));
+
+    app.world_mut().entity_mut(child).remove::<ChildOf>();
+    app.update();
+
+    assert_eq!(camera_of(&app, child), Some(left));
+    assert_eq!(area_of(&app, child), LEFT);
 }
 
 #[test]

@@ -12,7 +12,7 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
-use plurimus_ui::{InteractionDisabled, NavigationConfig, UiArea, UiWidget};
+use plurimus_ui::{InteractionDisabled, UiArea, UiWidget};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{WidgetsPlugin, slider};
 
@@ -111,18 +111,6 @@ fn disabled_widget_is_not_a_navigation_target() {
             .get_neighbors(middle)
             .is_none()
     );
-}
-
-#[test]
-fn auto_build_opt_out_leaves_the_map_untouched() {
-    let mut app = app();
-    app.insert_resource(NavigationConfig::default().with_auto_build(false));
-    let left = spawn_focusable(&mut app, Rect::new(2, 1, 6, 1), TabIndex(0));
-    let right = spawn_focusable(&mut app, Rect::new(12, 1, 6, 1), TabIndex(0));
-    app.update();
-
-    assert_eq!(neighbor(&app, left, CompassOctant::East), None);
-    assert_eq!(neighbor(&app, right, CompassOctant::West), None);
 }
 
 #[test]

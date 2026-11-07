@@ -1,12 +1,12 @@
 use bevy_app::App;
 use bevy_color::Color;
-use bevy_ecs::prelude::{Has, Without};
+use bevy_ecs::prelude::Without;
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::bui::ComputedNodeRect;
 use plurimus::core::TerminalSize;
 use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
-use plurimus::ui::bevy_input_focus::InputFocus;
-use plurimus::ui::{ComputedWidgetArea, FocusWithin, UiLabel};
+use plurimus::ui::bevy_input_focus::{InputFocus, IsFocused};
+use plurimus::ui::{ComputedWidgetArea, UiLabel};
 use plurimus::widgets::{MenuButton, Pane, SliderValue, TextInput};
 use plurimus_test::{
     click, composed_frame, press_chord, press_key, press_key_with, send_mouse, set_focus,
@@ -39,12 +39,13 @@ fn focused_label(app: &mut App) -> Option<String> {
 
 fn is_pane_highlighted(app: &mut App, title: &str) -> bool {
     let world = app.world_mut();
-    let mut panes = world.query_filtered::<(&UiLabel, Has<FocusWithin>), With<Pane>>();
-    panes
+    let mut panes = world.query_filtered::<(Entity, &UiLabel), With<Pane>>();
+    let pane = panes
         .iter(world)
-        .find(|(label, _)| label.0.to_string() == title)
-        .map(|(_, focused)| focused)
-        .expect("pane exists")
+        .find(|(_, label)| label.0.to_string() == title)
+        .map(|(pane, _)| pane)
+        .expect("pane exists");
+    world.is_focus_within(pane)
 }
 
 #[test]

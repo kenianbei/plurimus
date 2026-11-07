@@ -16,7 +16,7 @@ mod color;
 mod depth;
 mod grid;
 
-pub use average::LinearColorSum;
+pub use average::linear_average;
 pub use blit::{PixelGrid, blit_braille, blit_halfblocks, letterbox};
 pub use braille::BrailleGrid;
 pub use color::{ColorDepth, downsample, linear_cell_color};

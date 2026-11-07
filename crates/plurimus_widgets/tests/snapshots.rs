@@ -6,7 +6,9 @@ use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::composed_frame;
 use plurimus_ui::tui_scrollview::ScrollbarVisibility;
-use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
+use plurimus_ui::{
+    Hidden, Propagate, ScrollArea, ScrollOffset, UiArea, UiCamera, UiOrder, UiWidget,
+};
 use plurimus_widgets::{Popover, WidgetsPlugin, scrollbar};
 use ratatui_widgets::list::{List, ListState};
 use ratatui_widgets::paragraph::Paragraph;
@@ -77,13 +79,15 @@ fn hidden_widget_skips_render_until_unhidden() {
     app.world_mut().spawn(TerminalCamera::default());
     let widget = app
         .world_mut()
-        .spawn((UiWidget::new(Paragraph::new("shown!")), UiHidden))
+        .spawn((UiWidget::new(Paragraph::new("shown!")), Propagate(Hidden)))
         .id();
 
     app.update();
     insta::assert_snapshot!("hidden_widget", composed_frame(&app));
 
-    app.world_mut().entity_mut(widget).remove::<UiHidden>();
+    app.world_mut()
+        .entity_mut(widget)
+        .remove::<Propagate<Hidden>>();
     app.update();
     insta::assert_snapshot!("unhidden_widget", composed_frame(&app));
 }

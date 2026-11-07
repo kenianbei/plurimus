@@ -30,7 +30,7 @@ use ratatui_widgets::paragraph::Paragraph;
 use crate::popover::Popover;
 use crate::{Activate, Button};
 use plurimus_core::CellSize;
-use plurimus_core::{UiHidden, UiOrder, UiWidget};
+use plurimus_core::{Hidden, Propagate, UiOrder, UiWidget};
 use plurimus_term::bevy_compat::HeldModifiers;
 use plurimus_ui::UiLabel;
 use plurimus_ui::bevy_picking::events::PointerClick;
@@ -127,7 +127,7 @@ pub fn menu_popup(anchor: Entity) -> impl Bundle {
     (
         MenuPopup,
         Popover::new(anchor, Size::ZERO),
-        UiHidden,
+        Propagate(Hidden),
         UiWidget::default(),
     )
 }
@@ -193,7 +193,7 @@ impl MenuAccess<'_, '_> {
         commands
             .entity(popup)
             .insert((MenuOpen, ModalOpen))
-            .remove::<UiHidden>();
+            .remove::<Propagate<Hidden>>();
         let first = self.children.get(popup).ok().and_then(|children| {
             children
                 .iter()
@@ -209,7 +209,7 @@ impl MenuAccess<'_, '_> {
         commands
             .entity(popup)
             .remove::<(MenuOpen, ModalOpen)>()
-            .insert(UiHidden);
+            .insert(Propagate(Hidden));
         // A press that switched menus has already moved focus on.
         let is_focus_inside = focus.get().is_some_and(|focused| {
             focused == popup

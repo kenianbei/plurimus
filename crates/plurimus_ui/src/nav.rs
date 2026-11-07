@@ -11,7 +11,7 @@
 use bevy_app::App;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{ChildOf, Local, On, Query, Ref, Res, ResMut, Resource, With, Without};
+use bevy_ecs::prelude::{ChildOf, Local, On, Query, Ref, Res, ResMut, With, Without};
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
@@ -30,31 +30,6 @@ use crate::interaction::{ComputedDisabled, ComputedWidgetArea};
 // Terminal layouts are gridded: rows and columns must not cross-connect.
 const GRID_MIN_ALIGNMENT: f32 = 0.5;
 
-/// Controls the stock rebuild of the
-/// [`DirectionalNavigationMap`](bevy_input_focus::directional_navigation::DirectionalNavigationMap).
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct NavigationConfig {
-    /// Rebuild the map from widget geometry whenever it changes. Hand-made
-    /// edges survive rebuilds; disable to own the map entirely.
-    pub auto_build: bool,
-}
-
-impl NavigationConfig {
-    /// Sets whether the map is rebuilt from widget geometry.
-    #[must_use]
-    pub const fn with_auto_build(mut self, auto_build: bool) -> Self {
-        self.auto_build = auto_build;
-        self
-    }
-}
-
-impl Default for NavigationConfig {
-    fn default() -> Self {
-        Self { auto_build: true }
-    }
-}
-
 pub(crate) fn install(app: &mut App) {
     if !app.is_plugin_added::<DirectionalNavigationPlugin>() {
         app.add_plugins(DirectionalNavigationPlugin);
@@ -63,7 +38,6 @@ pub(crate) fn install(app: &mut App) {
             ..AutoNavigationConfig::default()
         });
     }
-    app.init_resource::<NavigationConfig>();
     app.add_observer(navigate_on_arrows);
 }
 
@@ -96,20 +70,15 @@ pub(crate) struct AutoEdgeState<'s> {
 }
 
 pub(crate) fn build_navigation_map(
-    config: Res<NavigationConfig>,
     auto: Res<AutoNavigationConfig>,
     focusables: FocusableQuery,
     mut map: ResMut<DirectionalNavigationMap>,
     mut state: AutoEdgeState,
 ) {
-    if !config.auto_build {
-        return;
-    }
     // Adds, removals, and filter flips all change the count; a same-count
     // swap still marks the added area Changed.
     let count = focusables.iter().len();
     let is_stale = count != *state.previous_count
-        || config.is_changed()
         || auto.is_changed()
         || focusables.iter().any(|(_, area)| area.is_changed());
     if !is_stale {

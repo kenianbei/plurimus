@@ -44,9 +44,9 @@ pub(crate) fn size_menu_popups(
     }
 }
 
-// Items carry no camera of their own: they are children of the popup, and
-// the popup holds the UiCamera its anchor gave it, so the hierarchy already
-// says where they draw.
+// Items carry no camera of their own: they are children of the popup, which
+// propagates the camera its anchor gave it, so the hierarchy already says
+// where they draw.
 pub(crate) fn place_menu_items(
     popups: Query<(&UiArea, &ComputedWidgetArea, &Children), (With<MenuPopup>, Without<MenuItem>)>,
     mut items: Query<(&mut UiArea, &mut ComputedWidgetArea), With<MenuItem>>,

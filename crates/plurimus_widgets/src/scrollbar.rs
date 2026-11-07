@@ -21,7 +21,7 @@ use plurimus_core::UiWidget;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, ScrollArea, ScrollOffset, StylistDisabled, UiTheme, apply_offset,
-    max_offset, pointer_cell,
+    pointer_cell,
 };
 use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 
@@ -138,7 +138,7 @@ fn seek(
     let Ok((scroll, target_area, mut offset)) = targets.get_mut(bar.target) else {
         return;
     };
-    let max = max_offset(scroll.content_size, scroll.viewport(target_area.0));
+    let max = scroll.max_offset(target_area.0);
     let sought = if bar.orientation.is_vertical() {
         Position::new(
             offset.0.x,

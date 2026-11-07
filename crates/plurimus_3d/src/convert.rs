@@ -5,11 +5,10 @@
 //! runtime. Halfblock keeps two colors per cell; the ramp strategies trade
 //! color for shape, picking a character by luminance or depth.
 
-use bevy_color::{LinearRgba, Luminance};
+use bevy_color::{ColorToPacked, LinearRgba, Luminance, Mix, Srgba};
 use bevy_math::UVec2;
 use plurimus_core::raster::{
-    BrailleGrid, HalfblockGrid, LinearColorSum, PixelGrid, blit_braille, blit_halfblocks,
-    linear_cell_color,
+    BrailleGrid, HalfblockGrid, PixelGrid, blit_braille, blit_halfblocks, linear_cell_color,
 };
 use ratatui_core::buffer::Buffer;
 use ratatui_core::layout::Rect;
@@ -169,11 +168,10 @@ fn write_ramp_cell(
 }
 
 fn average_linear(a: [u8; 4], b: [u8; 4]) -> LinearRgba {
-    let mut sum = LinearColorSum::default();
-    for [red, green, blue, _] in [a, b] {
-        sum.add([red, green, blue]);
-    }
-    sum.resolve_linear().expect("two samples were added")
+    let [a, b] = [a, b].map(|[red, green, blue, _]| {
+        LinearRgba::from(Srgba::from_u8_array_no_alpha([red, green, blue]))
+    });
+    a.mix(&b, 0.5)
 }
 
 #[cfg(test)]

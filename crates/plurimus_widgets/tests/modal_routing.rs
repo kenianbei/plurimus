@@ -9,7 +9,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{On, ResMut, Resource};
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiHidden, UiWidget};
+use plurimus_core::{CorePlugin, Hidden, Propagate, TerminalCamera, TerminalSize, UiWidget};
 use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{click, press_at, release_at, send_mouse, write_mouse, write_release_at};
 use plurimus_ui::bevy_input_focus::InputFocus;
@@ -219,7 +219,7 @@ fn a_modal_the_pointer_is_outside_admits_nothing() {
     app.world_mut()
         .entity_mut(far)
         .insert((MenuOpen, ModalOpen))
-        .remove::<UiHidden>();
+        .remove::<Propagate<Hidden>>();
     app.update();
     let frame = popup_area(&app, near);
     let stray = spawn_pressable(&mut app, footer_of(frame), Some(far));

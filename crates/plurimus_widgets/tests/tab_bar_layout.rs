@@ -5,7 +5,7 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiHidden, UiOrder};
+use plurimus_core::{CorePlugin, Hidden, Propagate, TerminalCamera, TerminalSize, UiOrder};
 use plurimus_ui::{ComputedWidgetArea, UiArea, UiLabel};
 use plurimus_widgets::{TabBarLook, TabBarOrientation, WidgetsPlugin, tab_bar, tab_item};
 
@@ -120,7 +120,7 @@ fn a_hidden_bar_places_its_items_nowhere() {
     app.update();
     assert_ne!(computed(&app, items[0]), Rect::ZERO);
 
-    app.world_mut().entity_mut(bar).insert(UiHidden);
+    app.world_mut().entity_mut(bar).insert(Propagate(Hidden));
     app.update();
 
     assert_eq!(computed(&app, items[0]), Rect::ZERO);

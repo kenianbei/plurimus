@@ -3,21 +3,25 @@
 //! [`UiArea`] is camera-local - a [`UiArea::Fixed`] rect is offset from the
 //! camera's viewport origin and clipped to it, never a screen rect - and
 //! [`resolve_area`] is what performs that resolution, with [`local_area`]
-//! the way back for a crate holding a screen rect. [`UiCamera`] names the
-//! target camera, [`ComputedUiCamera`] is the one a widget actually draws on
-//! once the hierarchy and the default have had their say, [`UiOrder`] sorts
-//! widgets within a camera, and [`UiHidden`] takes a widget out of both
-//! drawing and interaction. Crates that place their own widgets read
+//! the way back for a crate holding a screen rect. A propagated
+//! [`UiCamera`] names the target camera, [`ComputedUiCamera`] is the one a
+//! widget actually draws on once the default has had its say, [`UiOrder`] sorts
+//! widgets within a camera, and a [`Propagate<Hidden>`](bevy_app::Propagate) takes a subtree out
+//! of both drawing and interaction. Crates that place their own widgets read
 //! [`ComputedUiCamera`] and go through [`resolve_area`] instead of repeating
 //! the rules.
 
+use bevy_app::{
+    App, HierarchyPropagatePlugin, Last, PreUpdate, PropagateSet, propagate_inherited,
+    propagate_output, update_removed_limit, update_source,
+};
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::entity::EntityHashSet;
-use bevy_ecs::hierarchy::{ChildOf, Children};
-use bevy_ecs::prelude::{Commands, Component, Entity, Local, Query, Res, With};
+use bevy_ecs::hierarchy::ChildOf;
+use bevy_ecs::prelude::{Component, Entity, IntoScheduleConfigs, Query, Res};
 use ratatui_core::layout::Rect;
 
 use crate::camera::DefaultCamera;
+use crate::viewport::CameraSystems;
 
 /// Where a widget renders, in camera-local cells.
 ///
@@ -45,61 +49,71 @@ impl UiOrder {
     pub const OVERLAY: Self = Self(i32::MAX / 2);
 }
 
-/// Hides the widget and everything beneath it through `ChildOf`: none of
-/// it is rendered or interactive while present. What is hidden by an
-/// ancestor carries [`ComputedHidden`], which is what readers read.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct UiHidden;
-
-/// Present on every entity hidden by its own [`UiHidden`] or an
-/// ancestor's.
+/// Present on every entity a [`Propagate<Hidden>`](bevy_app::Propagate) reaches - the entity
+/// carrying it and everything beneath through `ChildOf`: none of it is
+/// rendered or interactive while present.
 ///
+/// Hide a subtree by putting `Propagate(Hidden)` on its root and show it by
+/// removing that; bevy's propagation lands this marker and takes it back.
 /// Resolved twice a frame - in
 /// [`CameraSystems::PropagateCameras`](crate::CameraSystems::PropagateCameras),
 /// so input routes against it, and in `Last`, so a subtree hidden during the
-/// frame is not drawn by it. Read it rather than write it: the resolver
-/// removes it from whatever no [`UiHidden`] reaches.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct ComputedHidden;
+/// frame is not drawn by it. Read it rather than write it.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hidden;
 
-pub(crate) fn propagate_hidden(
-    roots: Query<Entity, With<UiHidden>>,
-    children: Query<&Children>,
-    marked: Query<Entity, With<ComputedHidden>>,
-    mut reached: Local<EntityHashSet>,
-    mut commands: Commands,
-) {
-    reached.clear();
-    for root in &roots {
-        reached.insert(root);
-        reached.extend(children.iter_descendants(root));
-    }
-    for entity in &marked {
-        if !reached.remove(&entity) {
-            commands.entity(entity).try_remove::<ComputedHidden>();
-        }
-    }
-    for entity in reached.drain() {
-        commands.entity(entity).try_insert(ComputedHidden);
-    }
+pub(crate) fn install(app: &mut App) {
+    app.add_plugins((
+        HierarchyPropagatePlugin::<Hidden>::new(PreUpdate),
+        HierarchyPropagatePlugin::<UiCamera>::new(PreUpdate),
+    ));
+    app.configure_sets(
+        PreUpdate,
+        (
+            PropagateSet::<Hidden>::default(),
+            PropagateSet::<UiCamera>::default(),
+        )
+            .in_set(CameraSystems::PropagateCameras),
+    );
+    app.add_systems(
+        PreUpdate,
+        resolve_ui_cameras
+            .in_set(CameraSystems::PropagateCameras)
+            .after(PropagateSet::<UiCamera>::default()),
+    );
+    app.add_systems(
+        Last,
+        (
+            update_source::<Hidden, (), ChildOf>,
+            update_removed_limit::<Hidden, (), ChildOf>,
+            propagate_inherited::<Hidden, (), ChildOf>,
+            propagate_output::<Hidden, ()>,
+        )
+            .chain()
+            .in_set(PropagateSet::<Hidden>::default()),
+    );
 }
 
-/// Explicit target camera (main-world entity). Absent: the active camera
-/// with the lowest order.
+/// The camera an entity draws on, named by a
+/// [`Propagate<UiCamera>`](bevy_app::Propagate) on it or on an ancestor:
+/// bevy's propagation lands this on the entity carrying the `Propagate` and
+/// on everything beneath it through `ChildOf`, a nearer `Propagate` winning
+/// over a farther one, and takes it back when the `Propagate` goes. Absent,
+/// the entity draws on the active camera with the lowest order; see
+/// [`ComputedUiCamera`] for the resolved answer.
+///
+/// A bare `UiCamera` on an entity nothing propagates to is read as its own,
+/// which is all a leaf needs; one under a `Propagate<UiCamera>` ancestor is
+/// overwritten by it.
 ///
 /// Overlay widgets over world-pipeline content need a dedicated camera -
 /// a [`TerminalCamera::Docked`](crate::TerminalCamera::Docked) strip or one
 /// clearing to `ClearColorConfig::None`; see
 /// [`UiWidget`](crate::UiWidget) for why.
-#[derive(Component, Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UiCamera(pub Entity);
 
-/// The camera a widget targets: its explicit [`UiCamera`], else the
-/// default camera.
-///
-/// The leaf rule [`ComputedUiCamera`] applies once an ancestor search has
-/// found whichever [`UiCamera`] governs; a widget reading which camera it
-/// draws on wants that component rather than this.
+/// The camera a widget targets: its [`UiCamera`], else the default camera.
 #[must_use]
 pub fn resolve_camera(
     explicit: Option<&UiCamera>,
@@ -108,36 +122,26 @@ pub fn resolve_camera(
     explicit.map(|camera| camera.0).or(default_camera.0)
 }
 
-/// The camera a widget actually draws on this frame: its own [`UiCamera`],
-/// else the nearest ancestor's through `ChildOf`, else the default camera.
-/// `None` names no camera at all, which is what a widget has while none is
-/// active.
+/// The camera a widget actually draws on this frame: the [`UiCamera`] that
+/// reached it, else the default camera. `None` names no camera at all,
+/// which is what a widget has while none is active.
 ///
-/// Resolved every frame in
+/// Resolved once a frame in
 /// [`CameraSystems::PropagateCameras`](crate::CameraSystems::PropagateCameras),
-/// so a widget follows a parent that changes camera and a child needs no
-/// [`UiCamera`] of its own to sit on its parent's - forgetting one is
-/// otherwise a silent misplacement onto the default camera.
-///
-/// Read it rather than write it: the search reads ancestors' [`UiCamera`]
-/// components, so a widget that must draw somewhere its hierarchy does not
-/// put it - a popover following an anchor it is not parented to - says so
-/// by holding a [`UiCamera`], which is what carries the answer to its own
+/// after the propagation. Read it rather than write it: a widget that must
+/// draw somewhere its hierarchy does not put
+/// it - a popover following an anchor it is not parented to - says so with
+/// a `Propagate<UiCamera>` of its own, which carries the answer to its
 /// children too.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ComputedUiCamera(pub Option<Entity>);
 
-pub(crate) fn propagate_cameras(
+pub(crate) fn resolve_ui_cameras(
     default_camera: Res<DefaultCamera>,
-    explicit: Query<&UiCamera>,
-    parents: Query<&ChildOf>,
-    mut widgets: Query<(Entity, &mut ComputedUiCamera)>,
+    mut rows: Query<(Option<&UiCamera>, &mut ComputedUiCamera)>,
 ) {
-    for (entity, mut computed) in &mut widgets {
-        let named = std::iter::once(entity)
-            .chain(parents.iter_ancestors(entity))
-            .find_map(|entity| explicit.get(entity).ok().map(|camera| camera.0));
-        computed.set_if_neq(ComputedUiCamera(named.or(default_camera.0)));
+    for (named, mut computed) in &mut rows {
+        computed.set_if_neq(ComputedUiCamera(resolve_camera(named, &default_camera)));
     }
 }
 

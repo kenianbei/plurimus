@@ -3,7 +3,7 @@
 use bevy_ecs::prelude::{Commands, Component, Entity, Query, Res, With};
 use plurimus::core::ratatui_core::layout::Constraint;
 use plurimus::core::ratatui_core::style::{Color, Style};
-use plurimus::core::{TerminalSize, UiArea, UiCamera, UiHidden, UiWidget};
+use plurimus::core::{Hidden, Propagate, TerminalSize, UiArea, UiCamera, UiWidget};
 use plurimus::widgets::ratatui_widgets::block::{Block, Padding};
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 
@@ -33,7 +33,7 @@ pub fn spawn_hud(commands: &mut Commands, hud_camera: Entity, overlay: Entity) {
         UiWidget::new(Paragraph::new("")),
         UiCamera(overlay),
         UiArea::Fill,
-        UiHidden,
+        Propagate(Hidden),
     ));
 }
 
@@ -65,10 +65,10 @@ pub fn update_notice(
         return;
     };
     let Some(text) = notice_text(*phase, *size) else {
-        commands.entity(entity).insert(UiHidden);
+        commands.entity(entity).insert(Propagate(Hidden));
         return;
     };
-    commands.entity(entity).remove::<UiHidden>();
+    commands.entity(entity).remove::<Propagate<Hidden>>();
     *area = UiArea::Fixed(size.rect().centered(
         Constraint::Length(NOTICE_WIDTH),
         Constraint::Length(NOTICE_HEIGHT),

@@ -33,6 +33,7 @@ mod sub_app;
 mod viewport;
 mod widget;
 
+pub use bevy_app::Propagate;
 pub use bevy_camera;
 pub use ratatui_core;
 
@@ -51,13 +52,12 @@ pub use sub_app::{
 };
 pub use viewport::{CameraSystems, CameraViewports, Edge, ResolvedViewport};
 pub use widget::placement::{
-    ComputedHidden, ComputedUiCamera, UiArea, UiCamera, UiHidden, UiOrder, local_area,
-    resolve_area, resolve_camera,
+    ComputedUiCamera, Hidden, UiArea, UiCamera, UiOrder, local_area, resolve_area, resolve_camera,
 };
 pub use widget::raster::{ExtractedWidget, RasterDeferred, WidgetRasterize};
 pub use widget::{TerminalWidget, UiWidget};
 
-use bevy_app::{App, Last, Plugin, PreUpdate};
+use bevy_app::{App, Plugin, PreUpdate};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 
 /// Registers the terminal render sub-app and core rendering resources.
@@ -83,15 +83,7 @@ impl Plugin for CorePlugin {
             PreUpdate,
             camera::update_default_camera.in_set(CameraSystems::SyncSize),
         );
-        app.add_systems(
-            PreUpdate,
-            (
-                widget::placement::propagate_cameras,
-                widget::placement::propagate_hidden,
-            )
-                .in_set(CameraSystems::PropagateCameras),
-        );
-        app.add_systems(Last, widget::placement::propagate_hidden);
+        widget::placement::install(app);
         app.add_systems(
             PreUpdate,
             viewport::resolve_camera_viewports.in_set(CameraSystems::ResolveViewports),

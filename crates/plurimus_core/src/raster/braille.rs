@@ -12,7 +12,8 @@ use ratatui_core::layout::Rect;
 use ratatui_core::style::Color;
 use ratatui_core::symbols::braille::BRAILLE;
 
-use super::average::LinearColorSum;
+use super::average::linear_average;
+use super::color::linear_cell_color;
 
 /// A dot grid at 2×4 subcell resolution over a cell area, resolved into
 /// braille glyphs. Coordinates are subcell columns (`sub_x` =
@@ -121,23 +122,21 @@ impl BrailleCell {
 
     fn resolve(&self) -> Option<(u8, Color)> {
         let mut bits = 0;
-        let mut sum = LinearColorSum::default();
         for (bit, dot) in self.dots.iter().enumerate() {
-            let Some(color) = dot else {
-                continue;
-            };
-            bits |= 1 << bit;
-            if let Color::Rgb(red, green, blue) = *color {
-                sum.add([red, green, blue]);
+            if dot.is_some() {
+                bits |= 1 << bit;
             }
         }
         if bits == 0 {
             return None;
         }
-        let color = match sum.resolve_srgb() {
-            Some([red, green, blue]) => Color::Rgb(red, green, blue),
-            None => self.fallback?,
-        };
+        let rgb = self.dots.iter().flatten().filter_map(|color| match *color {
+            Color::Rgb(red, green, blue) => Some([red, green, blue]),
+            _ => None,
+        });
+        let color = linear_average(rgb)
+            .map(linear_cell_color)
+            .or(self.fallback)?;
         Some((bits, color))
     }
 }

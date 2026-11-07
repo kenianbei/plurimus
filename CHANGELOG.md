@@ -142,6 +142,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     the left button alone.
 - `plurimus_ui` re-exports `bevy_picking`; `plurimus_bui` re-exports `bevy_text`
   and `bevy_ui_widgets`.
+- **Breaking: hiding and camera naming run on bevy's hierarchy propagation.**
+  `plurimus_core` installs `bevy_app::HierarchyPropagatePlugin` for both. A
+  subtree is hidden by `Propagate(Hidden)` on its root, which lands `Hidden` on
+  the root and everything beneath it and takes it back when removed; `Hidden` is
+  what every reader reads, in the frame it was hidden, a mid-frame hide
+  included. A camera is named by `Propagate(UiCamera(camera))`, which lands
+  `UiCamera` the same way, a nearer one winning; `ComputedUiCamera` is that or
+  the default camera, resolved once a frame and never removed. A bare `UiCamera`
+  on an entity nothing propagates to still names its own camera, so a leaf spawn
+  needs no change, but a parent that carried its children with a bare `UiCamera`
+  now needs the `Propagate` form. `plurimus_core` re-exports `Propagate`.
+- **A pane asks bevy whether focus is within it.** Its stylist reads
+  `IsFocusedHelper::is_focus_within`; nothing marks ancestors any more.
+- **The wheel router measures a `ScrollArea` at the tick.** Whether a receptive
+  widget can use the ticked axis is read from its `ScrollArea`'s content against
+  its viewport when a tick arrives; a receptive widget without one claims both
+  axes, as the default `WheelAxes` had it. `ScrollArea::max_offset` is that
+  measure, public.
+- **Colour averages are `LinearRgba` arithmetic.** `raster::linear_average`
+  folds sRGB byte samples through `bevy_color` and hands back the linear mean.
 
 ### Removed
 
@@ -157,6 +177,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `PointerCancel`, `PressCount`, `PressPassThrough`, `PointerTargets` and
   `UiSystems::Hover`, and `plurimus_term`'s `MultiClickWindow`: the pointer
   events, the click run and the hit test are `bevy_picking`'s.
+- `plurimus_core::UiHidden` and `ComputedHidden`, now `Propagate<Hidden>` and
+  `Hidden`; `plurimus_core::raster::LinearColorSum`, now `linear_average`; and
+  `plurimus_ui::FocusWithin`, `WheelAxes`, `NavigationConfig`, `ScrollKeys` and
+  `ScrollAction`. A focused `ScrollArea` no longer scrolls from the keyboard by
+  itself: an app binds the keys it wants in a `FocusedInput<KeyboardInput>`
+  observer and triggers `ScrollBy`. The navigation map's rebuild from widget
+  geometry can no longer be switched off; hand-made edges survive it as before.
 
 ### Fixed
 

@@ -21,8 +21,7 @@ use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::widgets::{StatefulWidget, Widget};
 use plurimus_core::{
-    ComputedHidden, ComputedUiCamera, ExtractedWidget, MainWorld, TerminalWidget, UiArea, UiOrder,
-    UiWidget,
+    ComputedUiCamera, ExtractedWidget, Hidden, MainWorld, TerminalWidget, UiArea, UiOrder, UiWidget,
 };
 use tui_scrollview::{ScrollView, ScrollViewState};
 
@@ -137,7 +136,7 @@ pub(crate) fn extract_scrolled_widgets(
         &ScrollArea,
         &ScrollOffset,
         Has<LiveWidget>,
-    ), Without<ComputedHidden>>();
+    ), Without<Hidden>>();
     for (source, widget, area, order, camera, scroll, offset, live) in widgets.iter(&main_world) {
         let view = cache.view_for(&widget.content(), *scroll, !live);
         let window = Arc::new(ScrolledWindow {
