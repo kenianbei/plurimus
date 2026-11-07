@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use bevy_ecs::prelude::{DetectChangesMut, Local, MessageWriter, ResMut};
+use bevy_ecs::prelude::{Local, MessageWriter};
 use bevy_ecs::system::SystemParam;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::Key;
@@ -85,13 +85,11 @@ fn learn_capabilities(batch: &[Event], known: InputCapabilities) -> InputCapabil
 
 pub(crate) fn pump_events(
     mut sinks: EventSinks,
-    mut capabilities: ResMut<InputCapabilities>,
     mut batch: Local<Vec<Event>>,
     mut encoding: Local<RepeatEncoding>,
 ) {
     drain(&mut batch, &mut encoding);
-    // Learned here, so this frame's release and modifier synthesis see it.
-    capabilities.set_if_neq(learn_capabilities(&batch, *capabilities));
+    sinks.input.learn(|known| learn_capabilities(&batch, known));
     forward_batch(&mut batch, &mut sinks, &mut encoding);
 }
 

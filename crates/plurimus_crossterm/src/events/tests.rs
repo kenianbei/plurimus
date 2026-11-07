@@ -7,9 +7,14 @@ use crossterm::event::{
 
 use crossterm::event::Event;
 
+use bevy_ecs::prelude::World;
+use bevy_ecs::system::{IntoSystem, System};
 use plurimus_term::InputCapabilities;
 
-use super::{TerminalPointer, autorepeat_press_at, convert_key, convert_mouse, learn_capabilities};
+use super::{
+    TerminalPointer, autorepeat_press_at, convert_key, convert_mouse, learn_capabilities,
+    pump_events,
+};
 
 fn key_event(code: CtKeyCode, kind: KeyEventKind) -> Event {
     let mut key = KeyEvent::new(code, CtModifiers::NONE);
@@ -243,4 +248,11 @@ fn a_press_proves_nothing_and_nothing_is_unlearned() {
         .with_key_release(true)
         .with_modifier_keys(true);
     assert_eq!(learn_capabilities(&press, known), known);
+}
+
+// The sink reads what the pump learns; bevy refuses the pair at
+// initialization, which no injected test reaches.
+#[test]
+fn the_pump_shares_its_resources_with_the_sink() {
+    IntoSystem::into_system(pump_events).initialize(&mut World::new());
 }

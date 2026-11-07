@@ -8,7 +8,7 @@
 //! ordered [`WindowEvent`] stream.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, Query, Res, Resource, With, World};
+use bevy_ecs::prelude::{Commands, DetectChangesMut, Query, Res, ResMut, Resource, With, World};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Local, Single, SystemParam};
 use bevy_input::ButtonState;
@@ -80,13 +80,20 @@ pub(crate) struct PendingInput {
 pub struct TerminalInput<'w, 's> {
     window: Single<'w, 's, Entity, With<PrimaryWindow>>,
     cell: Res<'w, CellSize>,
-    capabilities: Res<'w, InputCapabilities>,
+    capabilities: ResMut<'w, InputCapabilities>,
     commands: Commands<'w, 's>,
     held: Local<'s, KeyModifiers>,
     last_cell: Local<'s, Option<Position>>,
 }
 
 impl TerminalInput<'_, '_> {
+    /// Records what the terminal has proven it reports - `raise` given what
+    /// is known so far - so the synthesis of this frame's events sees it.
+    pub fn learn(&mut self, raise: impl FnOnce(InputCapabilities) -> InputCapabilities) {
+        let known = *self.capabilities;
+        self.capabilities.set_if_neq(raise(known));
+    }
+
     /// A key event: `key` went down, repeated or came up with `modifiers`
     /// held. A modifier key is reported as its own key, `Key::Shift` and the
     /// like, and lands on the left side.
