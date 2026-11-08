@@ -1,4 +1,4 @@
-//! Grapheme-cluster movement, deletion, and word motion in `EditableText`.
+//! Grapheme-cluster movement, deletion, and word motion in `TextField`.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -8,7 +8,7 @@ use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_term::KeyModifiers;
 use plurimus_test::{press_key, press_key_with, set_focus};
 use plurimus_ui::UiArea;
-use plurimus_widgets::{TextInput, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextInput, WidgetsPlugin, text_field};
 
 const ACCENT: &str = "e\u{301}";
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
@@ -28,7 +28,7 @@ fn app() -> App {
 fn spawn_field(app: &mut App, value: &str) -> Entity {
     let world = app.world_mut();
     let field = world
-        .spawn((editable_text(value), UiArea::Fixed(Rect::new(0, 0, 20, 1))))
+        .spawn((text_field(value), UiArea::Fixed(Rect::new(0, 0, 20, 1))))
         .id();
     set_focus(app, field);
     field

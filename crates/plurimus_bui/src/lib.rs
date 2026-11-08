@@ -22,12 +22,31 @@
 //! content. Colour reaches a cell as RGB and nothing else, so a skin names
 //! the colours it wants rather than a terminal palette entry.
 //!
+//! # Text fields
+//!
+//! Upstream's `TextInput` is the field on both targets. Its own observers
+//! run here unchanged and queue the edits a window's font engine would
+//! apply; this crate applies them to `plurimus_ui`'s `TextInput` engine
+//! instead and writes the value back, so `EditableText::value`, `clear` and
+//! `set_text` mean what they mean on a window. The field draws one row in its
+//! node's `TextColor`, windowed to keep the caret in view, with the caret and
+//! a selection in its `TextCursorStyle`'s colours, as cell backgrounds, or
+//! patched from `UiTheme` where it has none, and the terminal's own caret
+//! sits on it while it holds focus. Copy, cut and paste go through the terminal's
+//! clipboard, and a bracketed paste types into the focused field.
+//! `max_characters` and `visible_width` hold, a cell standing in for a
+//! glyph; `EditableTextFilter` cannot be read outside `bevy_text` and is not
+//! applied, and IME composition never arrives. A native macOS build takes
+//! upstream's command key to be Cmd, which no terminal delivers, so there the
+//! field's select-all and clipboard chords do nothing and a bracketed paste is
+//! how text pastes; plurimus's cell `TextField` binds Ctrl on every host. A
+//! field is one row whatever its `visible_lines`; the terminal's multi-line text widget is
+//! `plurimus_widgets`' `TextEditor`.
+//!
 //! # What stays per target
 //!
 //! A tree shared with a windowed build of the same app keeps these to each
-//! target: a text field, since upstream's `TextInput` needs a font engine -
-//! the terminal places a `plurimus_widgets::EditableText` at the field's
-//! node through `UiArea`; arrow-key navigation, which `plurimus_ui` builds
+//! target: arrow-key navigation, which `plurimus_ui` builds
 //! from widget areas here and nothing builds for nodes on a window; focus
 //! restored when an upstream dialog closes, which neither target does; and
 //! hover on a node beneath a plurimus widget, which the widget blocks.
@@ -35,6 +54,7 @@
 mod camera;
 mod decorate;
 mod extract;
+mod field;
 mod rasterize;
 mod rect;
 mod stack;
@@ -65,7 +85,8 @@ use plurimus_ui::UiPlugin;
 /// Runs `bevy_ui`'s layout and picking against terminal cameras, at
 /// [`CellSize`] pixels per cell; the fontless `bevy_ui_widgets` plugins
 /// that drive nodes are installed by [`UiPlugin`], which this adds when
-/// absent.
+/// absent, and `TextInputPlugin` by this, its edits applied without a font
+/// engine.
 ///
 /// Upstream's constants are window pixels, cells only through [`CellSize`]:
 /// a dialog drag keeps the pointer 16 px inside the window, sixteen cells at
@@ -80,6 +101,7 @@ impl Plugin for BuiPlugin {
         }
         stand_in_for_omitted_plugins(app);
         add_picking(app);
+        field::install(app);
         app.configure_sets(
             PostUpdate,
             (

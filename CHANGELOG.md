@@ -14,7 +14,23 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `bevy_picking`, so bevy's own `Button`, `Checkbox`, `RadioGroup`, `Slider`,
   menus, dialogs and `ScrollArea` work on a node tree unchanged - hover, press,
   click, click-to-focus, Enter and Space, and wheel ticks that scroll one row.
-  `TextInputPlugin` stays out, since it edits through a font engine.
+  - Upstream's `TextInput` is a text field here too, so a tree shared with a
+    window spawns one field for both. Upstream's own observers decide what each
+    key and press means, and the edits they queue apply to plurimus's text
+    engine instead of a font engine, so `EditableText::value`, `clear` and
+    `set_text` answer as on a window. The field draws one row in its
+    `TextColor`, windowed to keep the caret in view, with the caret and
+    selection in its `TextCursorStyle`'s colours where it carries one and
+    `UiTheme`'s otherwise, and the terminal's own caret sits on it while it
+    holds focus. A press or drag lands on the cluster drawn in its cell at any
+    `CellSize`; `max_characters` holds, and `visible_width` and `visible_lines`
+    size the node in cells. Copy, cut and paste use the terminal's clipboard,
+    and a bracketed paste types into the focused field. `EditableTextFilter` is
+    not applied, being unreadable outside `bevy_text`, and the field takes no
+    part in arrow navigation, as no node does. A native macOS build takes
+    upstream's command key to be Cmd, which no terminal delivers, so there the
+    field's select-all and clipboard chords do nothing and only a bracketed
+    paste pastes; the cell `TextField` binds Ctrl everywhere.
   - Widget hits are ordered above node hits and block what is beneath, so a
     plurimus widget drawn over a node takes the press and the hover alone; a
     tick over a widget that does not scroll on the ticked axis reaches no node
@@ -59,12 +75,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   run in the terminal or, with `--desktop`, in a bevy window assembled from the
   granular crates. Each target skins the same tree - cells and box-drawing in
   one, pixels and a card in the other - with a `Display::Grid` ledger of
-  unwrapped, right-justified cells. The field is the one control each target
-  supplies for itself: a plurimus `EditableText` over its node in the terminal,
-  upstream's `TextInput` in the window.
+  unwrapped, right-justified cells. The field is upstream's `TextInput` on both
+  targets, committed on Enter and from the Add button through `EditableText`.
 
 ### Changed
 
+- **Breaking: the single-line text engine is `plurimus_ui`'s, and the cell field
+  is `TextField`.** `TextInput`, `TextInputKeys` and `TextInputAction` move to
+  `plurimus_ui`, which `plurimus_widgets` re-exports, so every host of a
+  single-line field edits through one engine. `TextInput::apply`,
+  `select_word_at`, `copy_selection`, `row` and `char_at_cell` are public, with
+  the `TextRow` renderer and `DrawnRow` it draws, and the `unbound_text`,
+  `cluster_len_before` and `cluster_len_after` rules a multi-line editor shares.
+  `plurimus_widgets`' `EditableText` is renamed `TextField` and `editable_text`
+  is `text_field`, so no plurimus name shadows `bevy_text`'s `EditableText`.
+  `plurimus_term::Clipboard` is the public system parameter every copying widget
+  writes through.
 - **Breaking: the terminal render sub-app is built by `bevy_extract`.**
   `plurimus_core` depends on `bevy_extract` and re-exports it; its own world
   swap is gone, and `ExtractSchedule`, `MainWorld`, `MainEntity` and `Extract`

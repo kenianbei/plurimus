@@ -5,26 +5,22 @@
 
 mod style;
 
-use bevy_app::{App, PostUpdate, Startup, Update};
+use bevy_app::{App, Startup, Update};
 use bevy_color::Color;
-use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{ChildOf, Commands, Entity, IntoScheduleConfigs, On, Query, ResMut, With};
 use bevy_ui::widget::Text;
 use bevy_ui::{
     AngularColorStop, BackgroundColor, BackgroundGradient, BorderColor, BorderRadius, ColorStop,
-    ConicGradient, FlexDirection, Gradient, LinearGradient, Node, UiPosition, UiRect, UiSystems,
+    ConicGradient, FlexDirection, Gradient, LinearGradient, Node, UiPosition, UiRect,
     UiTargetCamera, Val,
 };
-use plurimus::bui::ComputedNodeRect;
+use plurimus::bui::bevy_text::EditableText;
 use plurimus::bui::bevy_ui_widgets::{
     Button, Checkbox, RadioButton, RadioGroup, Slider, SliderRange, SliderStep, SliderValue,
-    TrackClick, checkbox_self_update, radio_self_update, slider_self_update,
+    TextInput, TrackClick, checkbox_self_update, radio_self_update, slider_self_update,
 };
-use plurimus::core::ratatui_core::layout::Rect;
-use plurimus::core::{ResolvedViewport, UiArea, UiCamera, local_area};
 use plurimus::ui::bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus::ui::{Activate, Hovered, UiLabel, ValueChange};
-use plurimus::widgets::{EditableText, editable_text};
 
 use crate::{
     BuiCamera, CHECKBOX_LABEL, DemoState, FIELD_TEXT, RADIO_LABELS, SLIDER_KEY_STEP, SLIDER_START,
@@ -49,7 +45,6 @@ pub(crate) fn add_bui_side(app: &mut App) {
             style::sync_slider_track,
         ),
     );
-    app.add_systems(PostUpdate, sync_field_areas.after(UiSystems::PostLayout));
 }
 
 fn spawn_bui_side(mut commands: Commands, cameras: Query<Entity, With<BuiCamera>>) {
@@ -75,7 +70,7 @@ fn spawn_bui_side(mut commands: Commands, cameras: Query<Entity, With<BuiCamera>
     spawn_slider(&mut commands, root);
     spawn_checkbox(&mut commands, root);
     spawn_radio_group(&mut commands, root);
-    spawn_field(&mut commands, root, camera);
+    spawn_field(&mut commands, root);
     spawn_decor_strip(&mut commands, root);
 }
 
@@ -178,22 +173,18 @@ fn spawn_radio_group(commands: &mut Commands, root: Entity) {
     }
 }
 
-// The field draws itself through the widget pipeline, not through bui, so
-// it needs the target camera and an area for `sync_field_areas` to fill.
-fn spawn_field(commands: &mut Commands, root: Entity, camera: Entity) {
-    commands
-        .spawn((
-            Node {
-                width: Val::Px(22.0),
-                height: Val::Px(1.0),
-                ..Node::default()
-            },
-            editable_text(FIELD_TEXT),
-            UiArea::Fixed(Rect::ZERO),
-            UiCamera(camera),
-            ChildOf(root),
-        ))
-        .insert(TabIndex(FIELD_TAB_INDEX));
+fn spawn_field(commands: &mut Commands, root: Entity) {
+    commands.spawn((
+        Node {
+            width: Val::Px(22.0),
+            height: Val::Px(1.0),
+            ..Node::default()
+        },
+        TextInput,
+        EditableText::new(FIELD_TEXT),
+        TabIndex(FIELD_TAB_INDEX),
+        ChildOf(root),
+    ));
 }
 
 fn spawn_decor_strip(commands: &mut Commands, root: Entity) {
@@ -239,18 +230,4 @@ fn spawn_swatch(commands: &mut Commands, strip: Entity, width: f32, gradient: Gr
         BackgroundGradient(vec![gradient]),
         ChildOf(strip),
     ));
-}
-
-// Layout speaks in screen cells and `UiArea::Fixed` in camera-local ones,
-// so the bridge back to the widget pipeline subtracts the viewport.
-fn sync_field_areas(
-    cameras: Query<&ResolvedViewport, With<BuiCamera>>,
-    mut fields: Query<(&ComputedNodeRect, &mut UiArea), With<EditableText>>,
-) {
-    let Ok(viewport) = cameras.single().map(|resolved| resolved.0) else {
-        return;
-    };
-    for (node, mut area) in &mut fields {
-        area.set_if_neq(UiArea::Fixed(local_area(node.rect, viewport)));
-    }
 }

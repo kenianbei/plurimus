@@ -23,7 +23,7 @@ use bevy_ecs::prelude::{
     Query, Res, ResMut, Resource, With, Without,
 };
 use plurimus::bui::BuiPlugin;
-use plurimus::bui::bevy_ui_widgets::Slider as NodeSlider;
+use plurimus::bui::bevy_ui_widgets::{Slider as NodeSlider, TextInput as NodeTextInput};
 use plurimus::core::bevy_camera::Camera;
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{
@@ -37,7 +37,7 @@ use plurimus::ui::InteractionDisabled;
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
-    Activate, Button, Checkbox, EditableText, ListBox, MenuButton, RadioButton, Slider, TextEditor,
+    Activate, Button, Checkbox, ListBox, MenuButton, RadioButton, Slider, TextEditor, TextField,
     WidgetsPlugin,
 };
 
@@ -205,9 +205,10 @@ type Interactive = (
         With<Checkbox>,
         With<RadioButton>,
         With<ListBox>,
-        With<EditableText>,
+        With<TextField>,
         With<TextEditor>,
         With<NodeSlider>,
+        With<NodeTextInput>,
     )>,
     Without<MenuButton>,
 );

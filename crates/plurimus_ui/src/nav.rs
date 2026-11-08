@@ -43,7 +43,8 @@ pub(crate) fn install(app: &mut App) {
 
 // A negative index is `bevy_input_focus`'s "focusable, but not a stop":
 // the tabs a roving strip is not resting on, which the map leaves out the
-// way Tab does.
+// way Tab does. Upstream's text field is a node that carries an area only to
+// place the terminal's caret, and nodes take no part in arrow navigation.
 type FocusableQuery<'w, 's> = Query<
     'w,
     's,
@@ -52,7 +53,10 @@ type FocusableQuery<'w, 's> = Query<
         Ref<'static, ComputedWidgetArea>,
         Ref<'static, TabIndex>,
     ),
-    Without<ComputedDisabled>,
+    (
+        Without<ComputedDisabled>,
+        Without<bevy_ui_widgets::TextInput>,
+    ),
 >;
 
 const fn is_stop(index: TabIndex) -> bool {

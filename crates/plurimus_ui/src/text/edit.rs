@@ -4,12 +4,13 @@
 //! routes its own keys drives a field it never focuses - a command palette
 //! typing while a list takes the arrows - and keeps the cluster-correct
 //! stepping [`TextInput`] owns instead of reimplementing it over `char`s.
-//! The stock observers in `input` are callers of this like any other.
+//! The stock observers of `plurimus_widgets`' `TextField` and `plurimus_bui`'s
+//! upstream field are callers of this like any other.
 
+use crate::first_bound;
 use bevy_input::ButtonState;
 use bevy_input::keyboard::{Key, KeyboardInput};
-use plurimus_term::KeyModifiers;
-use plurimus_ui::first_bound;
+use plurimus_term::{Clipboard, KeyModifiers};
 
 use super::keys::{TextInputAction, TextInputKeys, unbound_text};
 use super::state::TextInput;
@@ -57,10 +58,11 @@ impl TextInput {
     /// Applies one [`TextInputAction`], reporting whether the field took it:
     /// the dispatcher's actions it leaves.
     ///
-    /// Kept off the public API: rebuilding [`handle`](Self::handle) out of it
-    /// would also need the unbound-character path beside it, which is
-    /// private, so a host given this could not finish the job it implies.
-    pub(crate) fn apply(&mut self, action: TextInputAction) -> bool {
+    /// [`handle`](Self::handle) is this behind a [`TextInputKeys`] scan, with
+    /// [`unbound_text`](super::unbound_text) typing what no binding takes; a
+    /// host translating another edit vocabulary into the field calls it
+    /// directly.
+    pub fn apply(&mut self, action: TextInputAction) -> bool {
         let cursor = self.cursor();
         match action {
             TextInputAction::WordLeft => self.move_to(word_start_backward(self.value(), cursor)),
@@ -115,6 +117,18 @@ impl TextInput {
         }
         self.insert_str(&insertable);
         true
+    }
+
+    /// Offers the selection to `clipboard`, then deletes it when `is_cut`:
+    /// what a field's copy and cut do. With nothing selected nothing is sent,
+    /// since an empty copy would take away what the clipboard held.
+    pub fn copy_selection(&mut self, clipboard: &mut Clipboard, is_cut: bool) {
+        if let Some(selected) = self.selected_text() {
+            clipboard.offer(selected);
+        }
+        if is_cut {
+            self.delete_selection();
+        }
     }
 }
 

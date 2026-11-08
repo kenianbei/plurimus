@@ -1,11 +1,11 @@
 //! The single-line text input widget.
 //!
-//! [`EditableText`] is the component an app spawns; the editing state lives
-//! in [`TextInput`](super::TextInput) beside it and the row is drawn by
-//! `field`. Keys are handled here rather than by an engine, which is what
-//! keeps the field's bindings deliberately aligned with the multi-line
-//! editor's - the same chord moves by word in both - while leaving the field
-//! free of ratatui-textarea entirely.
+//! [`TextField`] is the component an app spawns; the editing state lives
+//! in [`TextInput`] beside it and the row is drawn by [`TextRow`], both
+//! `plurimus_ui`'s. Keys are bound here rather than by ratatui-textarea's
+//! keymap, which is what keeps the field's bindings deliberately aligned with
+//! the multi-line editor's - the same chord moves by word in both - while
+//! leaving the field free of ratatui-textarea entirely.
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
@@ -16,19 +16,15 @@ use bevy_input::ButtonState;
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_input_focus::{FocusLost, FocusedInput, InputFocus};
-use plurimus_term::{PasteMessage, TerminalCursorStyle};
+use plurimus_term::{Clipboard, PasteMessage, TerminalCursorStyle};
 
-use super::field::{TextField, drawn_row, place_caret};
-use super::keys::{TextInputAction, TextInputKeys};
-use super::state::TextInput;
 use crate::ValueChange;
-use crate::clipboard::Clipboard;
 use plurimus_core::UiWidget;
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::HeldModifiers;
 use plurimus_ui::{
-    ComputedDisabled, ComputedWidgetArea, Hovered, StylistDisabled, UiTheme, WidgetCursor,
-    first_bound,
+    ComputedDisabled, ComputedWidgetArea, Hovered, StylistDisabled, TextInput, TextInputAction,
+    TextInputKeys, TextRow, UiTheme, WidgetCursor, first_bound,
 };
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
 
@@ -63,9 +59,9 @@ use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
     TextInputKeys,
     WidgetCursor = WidgetCursor::nowhere().with_style(TerminalCursorStyle::SteadyBar),
 )]
-pub struct EditableText;
+pub struct TextField;
 
-/// Draws an [`EditableText`] as one of this glyph per grapheme cluster, the
+/// Draws a [`TextField`] as one of this glyph per grapheme cluster, the
 /// way a password field is drawn.
 ///
 /// Only the drawn row is masked: [`TextInput`], [`ValueChange<String>`] and
@@ -74,7 +70,7 @@ pub struct EditableText;
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TextMask(pub char);
 
-/// An [`EditableText`] was submitted with Enter, carrying the value at that
+/// A [`TextField`] was submitted with Enter, carrying the value at that
 /// moment.
 ///
 /// The final [`ValueChange<String>`] fires beside it, and again whenever the
@@ -99,9 +95,9 @@ impl Submit {
 }
 
 /// Spawn bundle for a single-line text field.
-pub fn editable_text(value: impl Into<String>) -> impl Bundle {
+pub fn text_field(value: impl Into<String>) -> impl Bundle {
     (
-        EditableText,
+        TextField,
         TextInput::new(value),
         TabIndex(0),
         UiWidget::default(),
@@ -113,7 +109,7 @@ pub(crate) fn text_input_key(
     held: HeldModifiers,
     mut fields: Query<
         (&mut TextInput, &TextInputKeys, Has<TextMask>),
-        (With<EditableText>, Without<ComputedDisabled>),
+        (With<TextField>, Without<ComputedDisabled>),
     >,
     mut clipboard: Clipboard,
     mut commands: Commands,
@@ -167,14 +163,8 @@ fn apply_clipboard(
         }
         return;
     }
-    if is_masked {
-        return;
-    }
-    if let Some(selected) = text.selected_text() {
-        clipboard.offer(selected);
-    }
-    if action == TextInputAction::Cut {
-        text.delete_selection();
+    if !is_masked {
+        text.copy_selection(clipboard, action == TextInputAction::Cut);
     }
 }
 
@@ -188,7 +178,7 @@ fn emit(field: Entity, text: &TextInput, is_final: bool, commands: &mut Commands
 
 pub(crate) fn text_input_paste(
     mut input: On<FocusedInput<PasteMessage>>,
-    mut fields: Query<&mut TextInput, (With<EditableText>, Without<ComputedDisabled>)>,
+    mut fields: Query<&mut TextInput, (With<TextField>, Without<ComputedDisabled>)>,
     mut commands: Commands,
 ) {
     let field = input.focused_entity;
@@ -203,7 +193,7 @@ pub(crate) fn text_input_paste(
 
 pub(crate) fn text_input_blur(
     lost: On<FocusLost>,
-    mut fields: Query<&mut TextInput, With<EditableText>>,
+    mut fields: Query<&mut TextInput, With<TextField>>,
     mut commands: Commands,
 ) {
     if let Ok(mut text) = fields.get_mut(lost.entity) {
@@ -225,7 +215,7 @@ pub(crate) fn style_text_inputs(
             &mut UiWidget,
             &mut WidgetCursor,
         ),
-        Stylable<EditableText>,
+        Stylable<TextField>,
     >,
 ) {
     for (state, text, mask, area, mut cache, mut widget, mut widget_cursor) in &mut fields {
@@ -234,24 +224,16 @@ pub(crate) fn style_text_inputs(
         if !cache.redraws(next, theme.is_changed()) {
             continue;
         }
-        let row = drawn_row(text, mask.map(|TextMask(glyph)| *glyph));
-        let caret_column = place_caret(&row.value, row.cursor, width).column;
-        widget_cursor.cell = Some(Position::new(caret_column, 0));
-        // Left out over a selection, as `UiTheme::selection` asks; the
-        // terminal's own cursor still marks the end that moves.
-        let has_caret = next.state().focused && row.selection.is_none();
-        *widget = UiWidget::new(TextField {
-            row,
-            style: next.style(&theme),
-            caret: has_caret.then_some(theme.caret),
-            selection_style: theme.selection,
-        });
+        let row = text.row(mask.map(|TextMask(glyph)| *glyph));
+        widget_cursor.cell = Some(Position::new(row.caret_column(width), 0));
+        let style = next.style(&theme);
+        *widget = UiWidget::new(TextRow::new(row, style, next.state().focused, &theme));
     }
 }
 
 pub(crate) fn release_text_input_caret(
     taken: On<Add<StylistDisabled>>,
-    mut fields: Query<&mut WidgetCursor, With<EditableText>>,
+    mut fields: Query<&mut WidgetCursor, With<TextField>>,
 ) {
     if let Ok(mut widget_cursor) = fields.get_mut(taken.entity) {
         widget_cursor.cell = None;

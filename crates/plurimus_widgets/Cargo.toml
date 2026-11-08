@@ -21,7 +21,6 @@ plurimus_term = { workspace = true }
 plurimus_ui = { workspace = true }
 ratatui-textarea = { workspace = true }
 ratatui-widgets = { workspace = true }
-unicode-segmentation = { workspace = true }
 
 [dev-dependencies]
 bevy_math = { workspace = true }

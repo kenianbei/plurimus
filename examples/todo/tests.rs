@@ -1,9 +1,9 @@
 use bevy_ecs::prelude::Entity;
 use bevy_ui::Checked;
 use plurimus::bui::ComputedNodeRect;
+use plurimus::bui::bevy_text::EditableText;
 use plurimus::core::TerminalSize;
 use plurimus::term::bevy_input::keyboard::KeyCode;
-use plurimus::widgets::TextInput;
 use plurimus_test::{character, click, composed_frame, press_key, set_focus};
 
 use super::*;
@@ -49,6 +49,14 @@ fn rows(app: &mut App) -> usize {
 fn click_center(app: &mut App, entity: Entity) {
     let rect = app.world().get::<ComputedNodeRect>(entity).unwrap().rect;
     click(app, rect.x + rect.width / 2, rect.y + rect.height / 2);
+}
+
+fn field_value(app: &App, field: Entity) -> String {
+    app.world()
+        .get::<EditableText>(field)
+        .unwrap()
+        .value()
+        .to_string()
 }
 
 fn focused(app: &App) -> Option<Entity> {
@@ -110,7 +118,7 @@ fn typing_into_the_field_and_enter_adds_a_todo() {
     let frame = composed_frame(&app);
     assert!(frame.contains("[ ] milk"), "{frame}");
     assert!(frame.contains("#4"), "{frame}");
-    assert_eq!(app.world().get::<TextInput>(field).unwrap().value(), "");
+    assert_eq!(field_value(&app, field), "");
 }
 
 #[test]
@@ -127,7 +135,7 @@ fn the_add_button_submits_the_field() {
 
     assert_eq!(rows(&mut app), 4);
     assert!(composed_frame(&app).contains("[ ] eggs"));
-    assert_eq!(app.world().get::<TextInput>(field).unwrap().value(), "");
+    assert_eq!(field_value(&app, field), "");
 }
 
 #[test]

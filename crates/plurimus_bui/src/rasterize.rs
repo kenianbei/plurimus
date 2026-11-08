@@ -3,7 +3,7 @@
 //! Nodes under no widget paint in the ui pass ahead of every widget; the
 //! nodes a widget frames paint as its [`FramedNodes`], in the widget sort
 //! directly after it. Each node paints in the order extraction settled -
-//! shadow, background, border, then text - and each layer is clipped to the
+//! shadow, background, border, then text or a field's row - and each layer is clipped to the
 //! node's inherited clip before a cell is touched, so nothing outside a
 //! scroll container is ever written.
 
@@ -22,7 +22,7 @@ use unicode_width::UnicodeWidthStr;
 use plurimus_core::raster::linear_cell_color;
 
 use super::decorate::{ResolvedGradient, RoundedCorners, dim_toward, sample_gradients};
-use super::extract::{BorderSides, ExtractedBuiNode, ExtractedBuiNodes, TextRun};
+use super::extract::{BorderSides, ExtractedBuiNode, ExtractedBuiNodes, FieldRun, TextRun};
 use super::rect::CellBox;
 use super::text::{Seg, line_width, wrap_spans};
 
@@ -94,6 +94,36 @@ fn paint(node: &ExtractedBuiNode, buffer: &mut Buffer, cell: Vec2) {
     }
     if let Some(text) = &node.text {
         draw_text(buffer, bounds, text);
+    }
+    if let Some(field) = &node.field {
+        draw_field(buffer, bounds, field);
+    }
+}
+
+// Rendered whole into a row of its own, seeded with what the node painted
+// beneath it, and copied back inside the bounds: a clipped field keeps the
+// window its caret placed rather than re-windowing to the part left visible.
+fn draw_field(buffer: &mut Buffer, bounds: Rect, field: &FieldRun) {
+    let content = field.content;
+    let visible = content.clamped(bounds);
+    if visible.is_empty() || i32::from(visible.top()) != content.top {
+        return;
+    }
+    let mut row = Buffer::empty(Rect::new(0, 0, content.width(), 1));
+    let columns = || {
+        (visible.left()..visible.right()).map(|x| {
+            (
+                Position::new(x, visible.top()),
+                (i32::from(x) - content.left) as u16,
+            )
+        })
+    };
+    for (at, column) in columns() {
+        row[(column, 0)] = buffer[at].clone();
+    }
+    field.row.render(row.area, &mut row);
+    for (at, column) in columns() {
+        buffer[at] = row[(column, 0)].clone();
     }
 }
 
@@ -249,7 +279,7 @@ fn draw_text(buffer: &mut Buffer, bounds: Rect, text: &TextRun) {
     if visible.is_empty() {
         return;
     }
-    let width = (content.right - content.left) as usize;
+    let width = usize::from(content.width());
     let limit = text.text.is_wrapping.then_some(width);
     let lines = wrap_spans(&text.text.spans, limit);
     let hidden_rows = (i32::from(visible.top()) - content.top) as usize;

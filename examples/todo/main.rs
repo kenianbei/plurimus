@@ -7,10 +7,10 @@
 //! and box-drawing in the terminal, pixels, a card and pills in the window.
 //! Buttons and checkboxes are bevy's own, picked by `bevy_picking` through
 //! the terminal's mouse or the window's; the ledger is a `Display::Grid` of
-//! unwrapped cells with right-justified ids; and the field is the one control
-//! each target supplies for itself - a plurimus `EditableText` placed over
-//! its node in the terminal, where upstream's `TextInput` has no font engine
-//! to edit through, and that `TextInput` itself in the window. Tab moves
+//! unwrapped cells with right-justified ids; and the field is upstream's
+//! `TextInput`, edited by a font engine in the window and by plurimus's text
+//! engine in the terminal, read and cleared through `EditableText` on both.
+//! Tab moves
 //! focus, Enter or Space activates, the mouse hovers and clicks. In
 //! the terminal Esc unfocuses and `q` with nothing focused or ctrl-c quits;
 //! in the window Esc quits.
@@ -41,7 +41,6 @@ use plurimus::term::HeldModifiers;
 use plurimus::term::bevy_input::ButtonState;
 use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus::ui::bevy_input_focus::InputFocus;
-use plurimus::widgets::WidgetsPlugin;
 
 use model::{Filter, Todos};
 
@@ -80,17 +79,11 @@ fn add_shared(app: &mut App) {
 
 fn add_terminal(app: &mut App) {
     add_shared(app);
-    app.add_plugins((BuiPlugin, WidgetsPlugin))
+    app.add_plugins(BuiPlugin)
         .add_observer(skin::shape)
         .add_systems(Startup, spawn_camera)
         .add_systems(Update, quit_on_key)
-        .add_systems(
-            PostUpdate,
-            (
-                skin::paint.before(UiSystems::Content),
-                skin::place_field.after(UiSystems::PostLayout),
-            ),
-        );
+        .add_systems(PostUpdate, skin::paint.before(UiSystems::Content));
 }
 
 fn spawn_camera(mut commands: Commands) {

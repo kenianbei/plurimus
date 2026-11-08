@@ -146,7 +146,12 @@ fn resolved_spans(
 
 // Alpha zero draws nothing, as on desktop: the rasterizer skips a hidden
 // cluster rather than asking the terminal to conceal it.
-fn cell_style(font: &TextFont, color: Color, is_struck: bool, is_underlined: bool) -> Style {
+pub(crate) fn cell_style(
+    font: &TextFont,
+    color: Color,
+    is_struck: bool,
+    is_underlined: bool,
+) -> Style {
     let mut modifiers = Modifier::empty();
     modifiers.set(Modifier::BOLD, font.weight.0 >= FontWeight::SEMIBOLD.0);
     modifiers.set(Modifier::ITALIC, !matches!(font.style, FontStyle::Normal));

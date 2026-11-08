@@ -1,12 +1,10 @@
 //! What a key does to a [`TextInput`], as data rather than a closed match.
 
+use crate::KeyBinding;
 use bevy_input::keyboard::Key;
 use plurimus_term::KeyModifiers;
-use plurimus_ui::KeyBinding;
 
 use bevy_ecs::prelude::Component;
-
-use super::editor_keys::{ctrl, ctrl_char};
 
 /// One editing step a [`TextInputKeys`] binding asks a
 /// [`TextInput`](super::TextInput) for.
@@ -84,17 +82,17 @@ pub enum TextInputAction {
     Paste,
 }
 
-/// An [`EditableText`](super::EditableText)'s key bindings, scanned in order
-/// so the first match wins.
+/// A [`TextInput`](super::TextInput)'s key bindings for
+/// [`handle`](super::TextInput::handle), scanned in order so the first match
+/// wins.
 ///
 /// Replace it to remap: two keys may share an action by appearing twice, and
 /// a key bound to nothing inserts itself if it is an unchorded character and
 /// propagates otherwise. Defaults to the arrows and `Home`/`End`, `Ctrl` with
 /// the arrows for word motion, each selecting with `Shift`; `Alt` with
 /// `Backspace`/`Delete` for word deletion; `Ctrl` with `a` to select all and
-/// `c`, `x` and `v` for the clipboard - as
-/// [`TextEditorKeys`](super::TextEditorKeys) binds them - and `Enter` to
-/// submit. [`CancelSelection`](TextInputAction::CancelSelection) is left
+/// `c`, `x` and `v` for the clipboard - as `plurimus_widgets`'
+/// `TextEditorKeys` binds them - and `Enter` to submit. [`CancelSelection`](TextInputAction::CancelSelection) is left
 /// unbound, so `Escape` still reaches whatever holds the field.
 #[derive(Component, Debug, Clone)]
 pub struct TextInputKeys(pub Vec<(KeyBinding, TextInputAction)>);
@@ -160,12 +158,14 @@ impl Default for TextInputKeys {
     }
 }
 
-/// What an unbound key types into either text widget, which is nothing
-/// unless it is an unchorded character.
+/// What a key no binding takes types into a text widget, which is nothing
+/// unless it is an unchorded character - the one rule a single-line field and
+/// a multi-line editor share, so a chord never types into either.
 ///
 /// Shift is not a chord: the kitty protocol reports a shifted letter with
 /// the bit set, so blocking it would stop capitals.
-pub(super) fn unbound_text(key: &Key, held: KeyModifiers) -> Option<&str> {
+#[must_use]
+pub fn unbound_text(key: &Key, held: KeyModifiers) -> Option<&str> {
     if held.ctrl || held.alt || held.super_key || held.hyper || held.meta {
         return None;
     }
@@ -174,4 +174,12 @@ pub(super) fn unbound_text(key: &Key, held: KeyModifiers) -> Option<&str> {
         Key::Space => Some(" "),
         _ => None,
     }
+}
+
+const fn ctrl(key: Key) -> KeyBinding {
+    KeyBinding::new(key).with_ctrl()
+}
+
+fn ctrl_char(character: &str) -> KeyBinding {
+    ctrl(Key::Character(character.into()))
 }

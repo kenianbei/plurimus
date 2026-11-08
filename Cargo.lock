@@ -3978,6 +3978,7 @@ dependencies = [
  "plurimus_test",
  "ratatui-widgets",
  "tui-scrollview",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -4014,7 +4015,6 @@ dependencies = [
  "plurimus_ui",
  "ratatui-textarea",
  "ratatui-widgets",
- "unicode-segmentation",
 ]
 
 [[package]]

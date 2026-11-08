@@ -3,12 +3,13 @@ use bevy_color::Color;
 use bevy_ecs::prelude::Without;
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::bui::ComputedNodeRect;
+use plurimus::bui::bevy_text::EditableText;
 use plurimus::core::TerminalSize;
 use plurimus::term::bevy_input::keyboard::Key;
 use plurimus::term::{InputCapabilities, KeyModifiers};
 use plurimus::ui::bevy_input_focus::{InputFocus, IsFocused};
 use plurimus::ui::{ComputedWidgetArea, UiLabel};
-use plurimus::widgets::{MenuButton, Pane, RadioGroup, SliderValue, TextInput};
+use plurimus::widgets::{MenuButton, Pane, RadioGroup, SliderValue};
 use plurimus_test::{
     character, click, composed_frame, press_key, press_key_with, scroll_at, set_focus,
 };
@@ -235,16 +236,16 @@ fn clicking_a_bui_node_activates_the_widget_behind_it() {
 #[test]
 fn typing_edits_the_bui_side_field() {
     let mut app = headless_app();
-    let field = single::<(With<EditableText>, With<Node>)>(&mut app);
-    click_center(&mut app, field);
+    let field = single::<(With<NodeTextInput>, With<Node>)>(&mut app);
+    click_node_center(&mut app, field);
     press_key(&mut app, character('?'));
 
     let value = app
         .world()
-        .get::<TextInput>(field)
+        .get::<EditableText>(field)
         .unwrap()
         .value()
-        .to_owned();
+        .to_string();
     assert_eq!(value, format!("{FIELD_TEXT}?"));
 }
 

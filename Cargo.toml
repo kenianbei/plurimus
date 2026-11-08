@@ -214,7 +214,7 @@ test = true
 
 [[example]]
 name = "todo"
-required-features = ["widgets", "bevy-ui"]
+required-features = ["bevy-ui"]
 test = true
 
 [[example]]

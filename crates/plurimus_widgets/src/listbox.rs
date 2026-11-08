@@ -23,12 +23,12 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_term::HeldModifiers;
 
-use crate::clipboard::Clipboard;
 use crate::rows::{
     ActiveDescendant, ContentDirty, ListItemText, copied_text, point_cursor, row_height,
 };
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
+use plurimus_term::Clipboard;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};

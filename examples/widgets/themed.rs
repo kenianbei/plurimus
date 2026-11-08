@@ -28,9 +28,8 @@ use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
     Activate, ControlOrientation, ListBoxSelectionMarker, ListBoxStripe, ListItemText, SliderStep,
     SliderValue, TextEditor, TextInput, TextMask, button, checkbox, checkbox_self_update,
-    editable_text, list_item, listbox, listbox_update_selection, menu_button, menu_item,
-    menu_popup, pane, radio, radio_group, radio_self_update, scrollbar, slider, slider_self_update,
-    text_editor,
+    list_item, listbox, listbox_update_selection, menu_button, menu_item, menu_popup, pane, radio,
+    radio_group, radio_self_update, scrollbar, slider, slider_self_update, text_editor, text_field,
 };
 
 use crate::{
@@ -306,7 +305,7 @@ fn spawn_listbox(commands: &mut Commands, parent: Entity) {
 fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
     commands
         .spawn((
-            editable_text(FIELD_TEXT),
+            text_field(FIELD_TEXT),
             UiArea::Fixed(TEXT_FIELD),
             Stretched::Inset(TEXT_FIELD),
             ChildOf(parent),
@@ -314,7 +313,7 @@ fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
         .insert(TabIndex(FIELD_TAB_INDEX));
     commands
         .spawn((
-            editable_text(FIELD_TEXT),
+            text_field(FIELD_TEXT),
             TextMask(MASK),
             UiArea::Fixed(MASKED_FIELD),
             Stretched::Inset(MASKED_FIELD),

@@ -1,4 +1,4 @@
-//! Cluster-correct rendering and cursor highlighting for `EditableText`.
+//! Cluster-correct rendering and cursor highlighting for `TextField`.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -10,7 +10,7 @@ use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{UiArea, UiTheme};
-use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, text_field};
 
 const ACCENT: &str = "e\u{301}";
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
@@ -27,10 +27,7 @@ fn app() -> App {
 fn spawn_field(app: &mut App, value: &str) -> Entity {
     let world = app.world_mut();
     let field = world
-        .spawn((
-            editable_text(value),
-            UiArea::Fixed(Rect::new(0, 0, WIDTH, 1)),
-        ))
+        .spawn((text_field(value), UiArea::Fixed(Rect::new(0, 0, WIDTH, 1))))
         .id();
     set_focus(app, field);
     field

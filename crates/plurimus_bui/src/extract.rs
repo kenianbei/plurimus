@@ -31,10 +31,12 @@ use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{
     CellSize, Extract, ExtractedWidget, ResolvedViewport, UiArea, UiOrder, UiWidget,
 };
+use plurimus_ui::TextRow;
 
 use super::decorate::{
     Decoration, ValBasis, offset_and_inflate, resolve_gradients, resolve_shadows, rounded_corners,
 };
+use super::field::FieldRow;
 use super::rasterize::FramedNodes;
 use super::rect::{CellBox, clip_cells, node_boxes};
 use super::text::ResolvedText;
@@ -57,6 +59,7 @@ pub(crate) struct ExtractedBuiNode {
     pub(crate) border: Option<BorderSides>,
     pub(crate) outline: Option<OutlineRing>,
     pub(crate) text: Option<TextRun>,
+    pub(crate) field: Option<FieldRun>,
     pub(crate) decoration: Decoration,
 }
 
@@ -72,6 +75,12 @@ pub(crate) struct BorderSides {
 pub(crate) struct OutlineRing {
     pub(crate) rect: CellBox,
     pub(crate) color: CellColor,
+}
+
+/// A text field's row, drawn at the top of its node's content box.
+pub(crate) struct FieldRun {
+    pub(crate) row: TextRow,
+    pub(crate) content: CellBox,
 }
 
 pub(crate) struct TextRun {
@@ -186,6 +195,10 @@ fn convert(
         border,
         outline: outline_ring(world, entity, computed, frame),
         text: text_run(world, entity, content),
+        field: world
+            .get::<FieldRow>(entity)
+            .and_then(|drawn| drawn.0.clone())
+            .map(|row| FieldRun { row, content }),
         decoration,
     })
 }

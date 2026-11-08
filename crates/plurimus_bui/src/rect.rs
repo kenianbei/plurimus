@@ -22,7 +22,8 @@ use plurimus_core::{CellSize, ResolvedViewport};
 /// Zero until the first layout pass, when no target camera resolves, or when
 /// the node lies wholly outside the viewport. Unlike
 /// [`ComputedWidgetArea`](plurimus_ui::ComputedWidgetArea), which the bridge
-/// maintains only for interactive nodes, every laid-out node carries one.
+/// writes only on upstream's text field, to place its caret, every laid-out
+/// node carries one.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ComputedNodeRect {
@@ -48,6 +49,11 @@ pub(crate) struct CellBox {
 impl CellBox {
     pub(crate) const fn is_empty(self) -> bool {
         self.right <= self.left || self.bottom <= self.top
+    }
+
+    /// Columns from the left edge to the right, none for an inverted box.
+    pub(crate) fn width(self) -> u16 {
+        u16::try_from(self.right - self.left).unwrap_or(0)
     }
 
     /// The part of the box inside `area`, or [`Rect::ZERO`] when none is.

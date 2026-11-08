@@ -13,7 +13,7 @@ use plurimus_test::{
 };
 use plurimus_ui::{KeyBinding, UiArea, ValueChange};
 use plurimus_widgets::{
-    Submit, TextInput, TextInputAction, TextInputKeys, WidgetsPlugin, editable_text,
+    Submit, TextInput, TextInputAction, TextInputKeys, WidgetsPlugin, text_field,
 };
 
 #[derive(Resource, Default)]
@@ -41,7 +41,7 @@ fn app() -> App {
 fn spawn_field(app: &mut App, value: &str) -> Entity {
     let world = app.world_mut();
     let field = world
-        .spawn((editable_text(value), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
+        .spawn((text_field(value), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
         .id();
     set_focus(app, field);
     field
@@ -212,7 +212,7 @@ fn paste_without_focus_is_dropped() {
     let mut app = app();
     let field = app
         .world_mut()
-        .spawn((editable_text(""), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
+        .spawn((text_field(""), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
         .id();
 
     send_paste(&mut app, "hi");

@@ -13,7 +13,6 @@
 
 mod button;
 mod checkbox;
-mod clipboard;
 mod listbox;
 mod listbox_style;
 mod menu;
@@ -62,8 +61,8 @@ pub use table::{
     table_row,
 };
 pub use text::{
-    EditableText, Submit, TextChanged, TextEditor, TextEditorAction, TextEditorKeys, TextInput,
-    TextInputAction, TextInputKeys, TextMask, editable_text, text_editor,
+    Submit, TextChanged, TextEditor, TextEditorAction, TextEditorKeys, TextField, TextInput,
+    TextInputAction, TextInputKeys, TextMask, text_editor, text_field,
 };
 
 pub(crate) use button::style_buttons;

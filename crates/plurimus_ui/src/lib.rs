@@ -33,6 +33,7 @@ mod pointer;
 mod scroll;
 mod scrolled;
 mod stylist;
+mod text;
 mod theme;
 
 pub use bevy_input_focus;
@@ -59,6 +60,10 @@ pub use scrolled::LiveWidget;
 pub use stylist::{
     LabeledQuery, StateQuery, Stylable, StylistCache, UiLabel, decorate, hashed_bits, observed,
     restyle,
+};
+pub use text::{
+    DrawnRow, TextInput, TextInputAction, TextInputKeys, TextRow, cluster_len_after,
+    cluster_len_before, unbound_text,
 };
 pub use theme::{InteractionState, StylistDisabled, UiStyle, UiTheme};
 
@@ -107,7 +112,8 @@ pub enum UiSystems {
 /// none to report.
 ///
 /// Installs `bevy_ui_widgets`' observers too, all but `TextInputPlugin`,
-/// which edits through a font engine, and `PointerFocusPlugin`, since a
+/// whose field is a node that `plurimus_bui`'s `BuiPlugin` adds it for, and
+/// `PointerFocusPlugin`, since a
 /// press already moves focus here and a second writer would race it - so
 /// upstream's `Button`, `Checkbox` and `RadioGroup` work on a cell widget
 /// as on a node.
@@ -201,8 +207,8 @@ fn add_schedule(app: &mut App) {
             (nav::build_navigation_map, scroll::route_wheel).in_set(UiSystems::Route),
         ),
     );
-    // In PostUpdate so it sees a caret moved anywhere this frame -
-    // a key handler in focus dispatch, a stylist in Update - and still
-    // before the sub-app extracts it.
-    app.add_systems(bevy_app::PostUpdate, cursor::sync_terminal_cursor);
+    // In Last so it sees a caret moved anywhere this frame - a key handler
+    // in focus dispatch, a stylist in Update, a node field placed after
+    // layout - and still before the sub-app extracts it.
+    app.add_systems(Last, cursor::sync_terminal_cursor);
 }

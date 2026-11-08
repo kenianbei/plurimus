@@ -16,6 +16,7 @@
 //! cell grid does not: `plurimus_core` drives any ratatui `Backend`,
 //! terminal or otherwise, and never depends on this crate.
 
+mod clipboard;
 mod cursor;
 mod input;
 mod keyboard;
@@ -24,6 +25,7 @@ mod request;
 mod resize;
 mod synthesis;
 
+pub use clipboard::Clipboard;
 pub use cursor::TerminalCursorStyle;
 
 pub use bevy_input;

@@ -15,7 +15,7 @@ use plurimus_test::{
     set_focus, write_press_at_with,
 };
 use plurimus_ui::{InteractionDisabled, UiArea, ValueChange};
-use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, text_field};
 
 const WIDTH: u16 = 12;
 
@@ -63,7 +63,7 @@ fn spawn_field(app: &mut App, value: &str) -> Entity {
     let field = app
         .world_mut()
         .spawn((
-            editable_text(value),
+            text_field(value),
             UiArea::Fixed(Rect::new(0, 0, WIDTH, 1)),
             ChildOf(form),
         ))

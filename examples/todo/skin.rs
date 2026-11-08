@@ -1,26 +1,18 @@
 //! The terminal skin: a bordered card of plain text, state shown the way a
 //! terminal shows it - reversed colours for focus, bold, strikethrough,
-//! `[x]`. It answers `Part` with sizes and looks, and supplies the one
-//! control the tree leaves to each target: the field, a plurimus
-//! `EditableText` placed over its node, which the Add button submits.
+//! `[x]`. It answers `Part` with sizes and looks.
 
 use bevy_color::Color;
-use bevy_ecs::prelude::{
-    Add, Commands, DetectChangesMut, Entity, Has, On, Query, Res, ResMut, With,
-};
+use bevy_ecs::prelude::{Add, Commands, Entity, Has, On, Query, Res};
 use bevy_ui::widget::Text;
 use bevy_ui::{
     BackgroundColor, BorderColor, BorderRadius, Checked, GridTrack, Node, Pressed, UiRect, Val,
 };
-use plurimus::bui::ComputedNodeRect;
 use plurimus::bui::bevy_text::{FontStyle, FontWeight, Strikethrough, TextColor, TextFont};
-use plurimus::core::ratatui_core::layout::Rect;
-use plurimus::core::{ResolvedViewport, TerminalCamera, UiArea, local_area};
+use plurimus::ui::Hovered;
 use plurimus::ui::bevy_input_focus::InputFocus;
-use plurimus::ui::{Activate, Hovered};
-use plurimus::widgets::{EditableText, Submit, TextInput, editable_text};
 
-use crate::model::{Done, Part, Todos};
+use crate::model::{Done, Part};
 use crate::{State, toggle, write};
 
 const CARD_WIDTH: f32 = 56.0;
@@ -33,13 +25,13 @@ const MUTED: Color = Color::srgb(0.5, 0.5, 0.5);
 const DONE: Color = Color::srgb(0.4, 0.8, 0.4);
 const DANGER: Color = Color::srgb(0.9, 0.3, 0.3);
 const INK: Color = Color::srgb(0.08, 0.08, 0.1);
+const WELL: Color = Color::srgb(0.16, 0.16, 0.2);
 
 const fn cells(count: f32) -> Val {
     Val::Px(count)
 }
 
-/// Sizes and borders per part, and the field's terminal widget. Runs once
-/// per node, when its `Part` lands.
+/// Sizes and borders per part. Runs once per node, when its `Part` lands.
 pub(crate) fn shape(
     add: On<Add<Part>>,
     mut nodes: Query<(&Part, &mut Node)>,
@@ -63,12 +55,6 @@ pub(crate) fn shape(
         Part::Field => {
             node.height = cells(1.0);
             node.margin = UiRect::right(cells(2.0));
-            entity
-                .insert((editable_text(""), UiArea::Fixed(Rect::ZERO)))
-                .observe(submit_field);
-        }
-        Part::AddButton => {
-            entity.observe(add_from_field);
         }
         Part::List => {
             node.min_height = cells(1.0);
@@ -91,39 +77,6 @@ const fn is_interactive(part: Part) -> bool {
         part,
         Part::AddButton | Part::Check | Part::Delete | Part::Filter(_) | Part::Clear
     )
-}
-
-fn submit_field(submit: On<Submit>, mut todos: ResMut<Todos>, mut commands: Commands) {
-    commit(submit.entity, &submit.value, &mut todos, &mut commands);
-}
-
-fn add_from_field(
-    _: On<Activate>,
-    fields: Query<(Entity, &TextInput), With<EditableText>>,
-    mut todos: ResMut<Todos>,
-    mut commands: Commands,
-) {
-    for (field, input) in &fields {
-        commit(field, input.value(), &mut todos, &mut commands);
-    }
-}
-
-fn commit(field: Entity, value: &str, todos: &mut Todos, commands: &mut Commands) {
-    todos.add(value);
-    commands.entity(field).insert(TextInput::new(""));
-}
-
-/// Keeps the field widget on its node, wherever layout puts it.
-pub(crate) fn place_field(
-    cameras: Query<&ResolvedViewport, With<TerminalCamera>>,
-    mut fields: Query<(&ComputedNodeRect, &mut UiArea), With<EditableText>>,
-) {
-    let Ok(viewport) = cameras.single().map(|resolved| resolved.0) else {
-        return;
-    };
-    for (node, mut area) in &mut fields {
-        area.set_if_neq(UiArea::Fixed(local_area(node.rect, viewport)));
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -234,6 +187,10 @@ const fn interactive(base: Look, state: State) -> Look {
 const fn look(part: Part, state: State) -> Option<Look> {
     Some(match part {
         Part::Title => Look::plain(ACCENT).bold(),
+        Part::Field => Look {
+            bg: WELL,
+            ..Look::plain(TEXT)
+        },
         Part::AddButton => interactive(Look::plain(TEXT), state),
         Part::Check => {
             let base = Look::plain(if state.is_checked { DONE } else { TEXT });

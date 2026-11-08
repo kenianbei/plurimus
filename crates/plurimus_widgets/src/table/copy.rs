@@ -10,8 +10,8 @@ use plurimus_ui::{Checked, first_bound};
 use super::geometry::BodyRow;
 use super::input::Interactive;
 use super::{ActiveColumn, TableAction, TableKeys, TableMultiSelect, TableRow, TableSelection};
-use crate::clipboard::Clipboard;
 use crate::rows::{ActiveDescendant, copied_text};
+use plurimus_term::Clipboard;
 
 type Copyable<'a> = (
     &'a Children,
