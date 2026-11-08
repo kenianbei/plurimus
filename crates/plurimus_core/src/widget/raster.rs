@@ -132,8 +132,9 @@ pub(crate) fn rasterize_widgets(
 ) {
     let mut ordered: Vec<&ExtractedWidget> = widgets.iter().collect();
     ordered.sort_by_key(|widget| (widget.order, widget.source, widget.layer));
+    let fallback = default_camera.0.map(MainEntity::from);
     for extracted in ordered {
-        let Some(target) = extracted.target.or(default_camera.0.map(MainEntity::from)) else {
+        let Some(target) = extracted.target.or(fallback) else {
             continue;
         };
         let Some(mut buffer) = camera_buffer_mut(&mut cameras, target) else {

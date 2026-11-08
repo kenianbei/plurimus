@@ -32,21 +32,20 @@ pub(crate) fn fit_cell_projection(cell: Res<CellSize>, mut cameras: Query<Fitted
         };
         let density = strategy.pixels_per_cell().as_vec2();
         let pixel_aspect = (cell.x / density.x) / (cell.y / density.y);
-        let mut fitted = projection.clone();
-        fitted.update(size.x * pixel_aspect, size.y);
+        // Past change detection, or `camera_system` would see a changed
+        // projection and refit it to the image next frame.
+        let projection = projection.bypass_change_detection();
+        projection.update(size.x * pixel_aspect, size.y);
         let clip = match &camera.sub_camera_view {
-            Some(sub_view) => fitted.get_clip_from_view_for_sub(sub_view),
-            None => fitted.get_clip_from_view(),
+            Some(sub_view) => projection.get_clip_from_view_for_sub(sub_view),
+            None => projection.get_clip_from_view(),
         };
         if clip == camera.computed.clip_from_view {
             continue;
         }
         // `update_frusta` recomputes only for a changed projection, which the
-        // bypass below hides from it.
-        *frustum = fitted.compute_frustum(transform);
-        // Past change detection, or `camera_system` would see a changed
-        // projection and refit it to the image next frame.
-        *projection.bypass_change_detection() = fitted;
+        // bypass hides from it.
+        *frustum = projection.compute_frustum(transform);
         camera.bypass_change_detection().computed.clip_from_view = clip;
     }
 }
