@@ -23,6 +23,7 @@
 //! primitive - a [`UiWidget`] placed by [`UiArea`] and drawn in the ui pass.
 
 mod camera;
+mod camera_sync;
 mod compositor;
 mod cursor;
 mod present;
