@@ -133,6 +133,21 @@ fn upstreams_keys_move_select_and_delete() {
     assert_eq!(value(&app, field), "one ");
 }
 
+#[test]
+fn up_and_down_reach_the_row_edges_as_on_a_window() {
+    let mut app = app();
+    let field = field(&mut app, 10.0, "abcde");
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowUp);
+    assert_eq!(engine(&app, field).cursor(), 0);
+    press_key_with(
+        &mut app,
+        Key::ArrowDown,
+        KeyModifiers::default().with_shift(true),
+    );
+    assert_eq!(engine(&app, field).selection(), Some(0..5));
+}
+
 #[derive(Resource, Default)]
 struct Seen(Vec<Key>);
 

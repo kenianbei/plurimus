@@ -154,10 +154,12 @@ fn edit_action(edit: &TextEdit) -> Option<TextInputAction> {
         TextEdit::WordRight(shift) => either(shift, Action::WordRight, Action::SelectWordRight),
         TextEdit::TextStart(shift)
         | TextEdit::HardLineStart(shift)
-        | TextEdit::LineStart(shift) => either(shift, Action::Home, Action::SelectHome),
-        TextEdit::TextEnd(shift) | TextEdit::HardLineEnd(shift) | TextEdit::LineEnd(shift) => {
-            either(shift, Action::End, Action::SelectEnd)
-        }
+        | TextEdit::LineStart(shift)
+        | TextEdit::Up(shift) => either(shift, Action::Home, Action::SelectHome),
+        TextEdit::TextEnd(shift)
+        | TextEdit::HardLineEnd(shift)
+        | TextEdit::LineEnd(shift)
+        | TextEdit::Down(shift) => either(shift, Action::End, Action::SelectEnd),
         TextEdit::Backspace => Some(Action::Backspace),
         TextEdit::BackspaceWord => Some(Action::WordBackspace),
         TextEdit::Delete => Some(Action::Delete),
@@ -179,8 +181,7 @@ struct HostEdit {
 }
 
 impl HostEdit {
-    // Vertical motion, scrolling and composition have nothing to act on in
-    // one row.
+    // Scrolling and composition have nothing to act on in one row.
     fn apply(self, engine: &mut TextInput, edit: TextEdit, clipboard: &mut Clipboard) {
         match edit {
             TextEdit::SelectAllIfCollapsed if engine.selection().is_none() => engine.select_all(),
