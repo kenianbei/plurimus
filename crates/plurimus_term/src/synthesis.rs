@@ -264,8 +264,7 @@ mod tests {
             .collect()
     }
 
-    // Ctrl held past the timeout while Right repeats: on a terminal sending
-    // modifiers as bits the sink wrote the Ctrl press and is the one to end it.
+    // Ctrl held past the timeout while Right repeats.
     #[test]
     fn a_synthesized_modifier_is_never_expired() {
         let held = [Key::Control, Key::ArrowRight];
