@@ -199,6 +199,9 @@ fn add_schedule(app: &mut App) {
                 .in_set(UiSystems::Areas),
             interaction::propagate_disabled.in_set(UiSystems::Areas),
             pointer::pick_widgets.in_set(PickingSystems::Backend),
+            pointer::confine_hits
+                .after(PickingSystems::Backend)
+                .before(PickingSystems::Hover),
             // After picking's input, before the hover pass releases the
             // capture it reads.
             pointer::cancel_gestures

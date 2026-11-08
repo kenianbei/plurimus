@@ -11,7 +11,7 @@
 
 use bevy_camera::Camera;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageCursor;
+use bevy_ecs::message::{MessageCursor, MessageMutator};
 use bevy_ecs::prelude::{
     ChildOf, Commands, Component, Has, Local, MessageReader, MessageWriter, Messages, On, Query,
     Res, ResMut, Resource, With, Without,
@@ -219,9 +219,7 @@ impl Picking<'_, '_> {
         let mut picks: Vec<_> = self
             .targets
             .iter()
-            .filter(|(entity, area, target, ..)| {
-                target.0 == Some(camera) && area.0.contains(at) && self.modal.admits(at, *entity)
-            })
+            .filter(|(_, area, target, ..)| target.0 == Some(camera) && area.0.contains(at))
             .map(|(entity, area, _, order)| (z_order_key(entity, order, area.0), entity))
             .collect();
         picks.sort_unstable_by_key(|(key, _)| core::cmp::Reverse(*key));
@@ -236,14 +234,9 @@ impl Picking<'_, '_> {
 /// The picking backend: the widgets under the pointer, per camera, and the
 /// barrier alone outside every open overlay.
 pub(crate) fn pick_widgets(picking: Picking, mut hits: MessageWriter<PointerHits>) {
-    let Some(position) = picking
-        .pointers
-        .iter()
-        .find_map(|location| location.location().map(|location| location.position))
-    else {
+    let Some(at) = mouse_cell(&picking.pointers, *picking.cell) else {
         return;
     };
-    let at = cell_of(position, *picking.cell);
     if picking.modal.dismisses(at) {
         if let Some(outside) = picking.outside(at) {
             hits.write(outside);
@@ -263,6 +256,35 @@ pub(crate) fn pick_widgets(picking: Picking, mut hits: MessageWriter<PointerHits
             ));
         }
     }
+}
+
+/// Inside an open overlay, drops every backend's picks outside its subtree -
+/// `bevy_ui`'s nodes and the window as much as this crate's widgets - so what
+/// stacks above the overlay without belonging to it is covered too.
+pub(crate) fn confine_hits(
+    pointers: Query<&PointerLocation, With<PointerId>>,
+    cell: Res<CellSize>,
+    modal: ModalGuard,
+    mut hits: MessageMutator<PointerHits>,
+) {
+    let at = mouse_cell(&pointers, *cell);
+    for pointer_hits in hits.read() {
+        if let Some(at) = at {
+            pointer_hits
+                .picks
+                .retain(|(entity, _)| modal.admits(at, *entity));
+        }
+    }
+}
+
+fn mouse_cell(
+    pointers: &Query<&PointerLocation, With<PointerId>>,
+    cell: CellSize,
+) -> Option<Position> {
+    pointers
+        .iter()
+        .find_map(|location| location.location().map(|location| location.position))
+        .map(|position| cell_of(position, cell))
 }
 
 fn hit(camera: Entity, depth: f32, at: Position) -> HitData {

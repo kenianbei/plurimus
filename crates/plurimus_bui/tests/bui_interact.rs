@@ -183,6 +183,55 @@ fn a_press_inside_an_open_overlay_reaches_only_its_own_nodes() {
     assert_eq!(activations(&app), &[own], "beneath {beneath:?} is covered");
 }
 
+/// A root spawned after an open overlay stacks above it on `bevy_ui`'s own
+/// order, as a toast or a status bar would; inside the overlay's rect it is
+/// still covered.
+#[test]
+fn a_node_stacked_above_an_open_overlay_is_covered_inside_it() {
+    let mut app = app();
+    app.world_mut().spawn((
+        full_screen(),
+        ModalOpen,
+        UiWidget::default(),
+        UiArea::Fixed(Rect::new(0, 0, 20, 6)),
+    ));
+    let toast = app
+        .world_mut()
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            ..full_screen()
+        })
+        .id();
+    let above = button(&mut app, toast);
+    settle(&mut app);
+
+    click(&mut app, 2, 0);
+
+    assert_eq!(activations(&app), &[] as &[Entity], "{above:?} is outside");
+}
+
+/// A press on nothing inside a dialog reaches nothing, the window included,
+/// so focus stays where the dialog put it.
+#[test]
+fn a_press_on_an_empty_cell_inside_an_open_overlay_keeps_focus() {
+    let mut app = app();
+    let overlay = app
+        .world_mut()
+        .spawn((
+            ModalOpen,
+            UiWidget::default(),
+            UiArea::Fixed(Rect::new(0, 0, 10, 3)),
+        ))
+        .id();
+    let field = app.world_mut().spawn((TabIndex(0), ChildOf(overlay))).id();
+    settle(&mut app);
+    set_focus(&mut app, field);
+
+    click(&mut app, 2, 1);
+
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(field));
+}
+
 #[test]
 fn a_pickable_ignore_node_falls_through() {
     let mut app = app();
