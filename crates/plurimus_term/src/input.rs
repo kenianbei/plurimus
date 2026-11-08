@@ -159,8 +159,12 @@ impl TerminalInput<'_, '_> {
         self.queue(WindowEvent::MouseWheel(wheel), modifiers);
     }
 
-    /// The terminal gained or lost focus.
+    /// The terminal gained or lost focus. A loss first releases the modifier
+    /// keys the sink wrote, being their one writer.
     pub fn focus(&mut self, focused: bool) {
+        if !focused {
+            self.sync_modifiers(KeyModifiers::none());
+        }
         let focused = WindowFocused {
             window: *self.window,
             focused,
@@ -283,10 +287,10 @@ mod tests {
     use bevy_ecs::entity::Entity;
     use bevy_ecs::message::Messages;
     use bevy_ecs::prelude::{IntoScheduleConfigs, With};
-    use bevy_ecs::system::Single;
-    use bevy_input::ButtonState;
+    use bevy_ecs::system::{Local, Single};
     use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
     use bevy_input::mouse::{MouseButton, MouseButtonInput};
+    use bevy_input::{ButtonInput, ButtonState};
     use bevy_window::{CursorMoved, PrimaryWindow, WindowEvent};
     use plurimus_core::ratatui_core::layout::Position;
 
@@ -379,6 +383,49 @@ mod tests {
         kitty.add_systems(First, pump_shifted_tab.in_set(InputSystems::Pump));
         kitty.update();
         assert_eq!(written::<KeyboardInput>(&mut kitty).len(), 1);
+    }
+
+    fn pump_shift_across_a_focus_loss(mut input: TerminalInput, mut frame: Local<u8>) {
+        let shift = KeyModifiers::none().with_shift(true);
+        match *frame {
+            0 => input.key(Key::Tab, ButtonState::Pressed, false, shift),
+            1 => input.focus(false),
+            2 => {
+                input.focus(true);
+                input.key(Key::Tab, ButtonState::Pressed, false, shift);
+            }
+            _ => {}
+        }
+        *frame += 1;
+    }
+
+    fn shift_keys(app: &mut App) -> Vec<ButtonState> {
+        written::<KeyboardInput>(app)
+            .into_iter()
+            .filter(|input| input.key_code == KeyCode::ShiftLeft)
+            .map(|input| input.state)
+            .collect()
+    }
+
+    #[test]
+    fn a_focus_loss_releases_a_synthesized_modifier_through_the_sink() {
+        let mut app = app(false);
+        app.add_systems(
+            First,
+            pump_shift_across_a_focus_loss.in_set(InputSystems::Pump),
+        );
+        app.update();
+        assert_eq!(shift_keys(&mut app), [ButtonState::Pressed]);
+        app.update();
+        assert_eq!(shift_keys(&mut app), [ButtonState::Released]);
+        app.update();
+        assert_eq!(
+            shift_keys(&mut app),
+            [ButtonState::Pressed],
+            "the next shifted key presses shift again"
+        );
+        let keys = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(keys.pressed(KeyCode::ShiftLeft));
     }
 
     #[test]

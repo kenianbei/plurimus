@@ -25,6 +25,7 @@ use bevy_time::{Real, Time};
 use bevy_window::WindowFocused;
 
 use crate::InputCapabilities;
+use crate::keyboard::is_modifier_code;
 
 /// Every key the crate believes is down - the press that put it there, timed
 /// from its last press or repeat.
@@ -45,18 +46,24 @@ impl Default for ReleaseTimeout {
     }
 }
 
-/// Records what is held, on every tier.
-///
-/// Takes no [`InputCapabilities`], deliberately: a terminal that reports its
-/// own releases still reports nothing while unfocused, so there is no tier on
+/// Records what is held, on every tier: a terminal that reports its own
+/// releases still reports nothing while unfocused, so there is no tier on
 /// which [`release_keys_on_focus_loss`] can do without this.
+///
+/// [`InputCapabilities`] decides only what is skipped. Where the terminal
+/// sends modifiers as bits, the sink writes their keys and is the one to
+/// release them, so neither expiry nor a focus loss may see one.
 pub(crate) fn record_held_keys(
     mut keys: MessageReader<KeyboardInput>,
     time: Res<Time<Real>>,
+    capabilities: Res<InputCapabilities>,
     mut held: ResMut<HeldKeys>,
 ) {
     let now = time.elapsed();
     for input in keys.read() {
+        if !capabilities.modifier_keys && is_modifier_code(input.key_code) {
+            continue;
+        }
         match input.state {
             ButtonState::Pressed => {
                 held.0.insert(input.key_code, (input.clone(), now));
@@ -161,10 +168,10 @@ mod tests {
     use bevy_window::WindowFocused;
 
     use super::{
-        HeldKeys, ReleaseTimeout, expire_held, record_held_keys, release_buttons_on_focus_loss,
-        release_keys_on_focus_loss,
+        HeldKeys, ReleaseTimeout, expire_held, expire_held_keys, record_held_keys,
+        release_buttons_on_focus_loss, release_keys_on_focus_loss,
     };
-    use crate::physical_code;
+    use crate::{InputCapabilities, physical_code};
 
     fn press(key: Key) -> KeyboardInput {
         KeyboardInput {
@@ -232,10 +239,40 @@ mod tests {
         world.init_resource::<Messages<KeyboardFocusLost>>();
         world.init_resource::<Messages<WindowFocused>>();
         world.init_resource::<HeldKeys>();
+        world.init_resource::<InputCapabilities>();
         world.init_resource::<ButtonInput<MouseButton>>();
         world.insert_resource(ReleaseTimeout(Duration::ZERO));
         world.insert_resource(Time::<Real>::default());
         world
+    }
+
+    fn expired_after(modifier_keys: bool, pressed: &[Key]) -> Vec<KeyCode> {
+        let mut world = world();
+        world.insert_resource(InputCapabilities::default().with_modifier_keys(modifier_keys));
+        let record = world.register_system(record_held_keys);
+        let expire = world.register_system(expire_held_keys);
+        for key in pressed {
+            world.write_message(press(key.clone()));
+        }
+        world.run_system(record).unwrap();
+        world.resource_mut::<Messages<KeyboardInput>>().clear();
+        world.run_system(expire).unwrap();
+        world
+            .resource_mut::<Messages<KeyboardInput>>()
+            .drain()
+            .map(|input| input.key_code)
+            .collect()
+    }
+
+    // Ctrl held past the timeout while Right repeats: on a terminal sending
+    // modifiers as bits the sink wrote the Ctrl press and is the one to end it.
+    #[test]
+    fn a_synthesized_modifier_is_never_expired() {
+        let held = [Key::Control, Key::ArrowRight];
+        assert_eq!(expired_after(false, &held), [KeyCode::ArrowRight]);
+        let mut kitty = expired_after(true, &held);
+        kitty.sort();
+        assert_eq!(kitty, [KeyCode::ControlLeft, KeyCode::ArrowRight]);
     }
 
     // The gesture a raw-byte probe caught: hold `w`, press shift, release

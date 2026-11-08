@@ -192,6 +192,14 @@ impl HeldModifiers<'_> {
     }
 }
 
+/// Whether `code` is either side of a modifier in the table
+/// [`modifier_transitions`] writes from.
+pub(crate) fn is_modifier_code(code: KeyCode) -> bool {
+    MODIFIERS
+        .iter()
+        .any(|modifier| modifier.left == code || modifier.right == code)
+}
+
 /// The modifier key presses and releases that take `was` to `current`, each
 /// naming the left key since the bits carry no side.
 ///
