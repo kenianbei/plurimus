@@ -34,10 +34,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Widget hits are ordered above node hits and block what is beneath, so a
     plurimus widget drawn over a node takes the press and the hover alone; a
     tick over a widget that does not scroll on the ticked axis reaches no node
-    beneath it. While a plurimus overlay is open, only the nodes of its own
-    subtree are picked inside it - an overlay built of nodes works, and one
-    drawn over nodes covers them - and nothing is picked outside it, where a
-    press or a tick dismisses it.
+    beneath it. While a plurimus overlay is open, only its own subtree is picked
+    inside it, whichever backend reports the hit - an overlay built of nodes
+    works, one drawn over nodes covers them, and a node stacked above it, a
+    later root or a higher `GlobalZIndex`, is covered too - and nothing is
+    picked outside it, where a press or a tick dismisses it.
   - A dialog dragged by its `DialogDragHandle` stays on the terminal, since
     upstream keeps the dragging pointer 16 px inside the window and the window
     now has the terminal's size. That margin is sixteen cells at the one-pixel
@@ -189,7 +190,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     widget runs with the first, and a press on another widget starts over.
   - A press on a widget with no `TabIndex` at or above it clears focus, as a
     press on nothing does; `PressFocusDisabled` and an open overlay's root keep
-    it, as before.
+    it, as before, and a press on nothing inside an open overlay reaches
+    nothing, so focus stays where the overlay put it.
   - A disabled widget is still picked, so it blocks what is beneath and is
     hovered while it does; no gesture starts on it. A widget that should be
     transparent to the pointer carries bevy's `Pickable::IGNORE`, which replaces
@@ -304,7 +306,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `PointerModifiers`, now `plurimus_term`'s too, keeps the ones the terminal
     sent with the frame's button press. On a terminal that sends modifiers only
     as bits, the sink writes the modifier key presses and releases they imply,
-    so a shift-click holds `ShiftLeft` there as well.
+    so a shift-click holds `ShiftLeft` there as well; only the sink releases
+    them, so a modifier held past the key-release timeout or across a focus loss
+    still modifies the next chord.
   - The pointer sits at the cell's centre in `CellSize` pixels; a `CursorMoved`
     is written only when the cell changes, and a wheel notch is one cell in
     pixels, so a `bevy_ui` node scrolls one row or column per notch. A press or

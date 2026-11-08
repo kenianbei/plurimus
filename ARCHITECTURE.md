@@ -186,11 +186,14 @@ the keys - no button release is written, because `bevy_picking` would complete a
 click nobody made from one, where `plurimus_ui` cancels the gesture instead.
 Both key paths drain the one registry, which is why recording into it is a
 system of its own rather than the first half of the timeout's: what is held has
-to be known on every tier, and only the expiry is a capability's to turn off. A
-synthetic release carries no modifiers and names the key as held, which is what
-a terminal does too - an event reports the state it leaves behind. A click count
-is the other fact no terminal reports, and it lives in `bevy_picking`, bounded
-by `PickingSettings::multi_click_interval`.
+to be known on every tier, and only the expiry is a capability's to turn off.
+The one thing it does not record is a modifier key the sink synthesized from
+bits: the sink alone releases that, on the first event without the bit or, on a
+focus loss, ahead of the focus message, so neither path can release a modifier
+the sink still believes held. A synthetic release carries no modifiers and names
+the key as held, which is what a terminal does too - an event reports the state
+it leaves behind. A click count is the other fact no terminal reports, and it
+lives in `bevy_picking`, bounded by `PickingSettings::multi_click_interval`.
 
 Outbound it defines `TerminalRequest`, the one-shot side effects an app asks of
 whichever backend is installed - copy to a clipboard selection, set the window
@@ -321,28 +324,29 @@ lands on - a part of a widget focuses the widget - stopping at
 `PressFocusDisabled`, whose promise covers what is inside it but an upstream
 `Checkbox`, whose own press handler focuses it and is ordered after nothing, and
 at an open overlay's root, whose opener lies outside it; a walk that finds none,
-or a press on nothing, which window picking reports as a press on the window,
-clears focus as it does on a desktop. Click counts are bevy's, per widget on the
-wall clock within `PickingSettings::multi_click_interval`, so a second press
-anywhere on the same widget runs with the first and a press on another widget
-starts over. What bevy's pointer events do not carry is `plurimus_term`'s
-`PointerModifiers`, the modifiers the terminal reported with the frame's button
-press, which a widget reads beside the event. A focus loss cancels the captured
-gesture: this crate writes the `PointerInput::Cancel` bevy raises for no mouse,
-at the cell the pointer last reached, and since the hover map is emptied for a
-cancelled pointer before its events run - so bevy's own cancel reaches nothing,
-and one landing with a press would swallow the press - it sends the
-`PointerCancel` to the captured widget itself, or with nothing captured to every
-pressed widget, clearing its `Pressed`, and holds a cancel that shares a frame
-with a press or a release back to the frame's end, where it lands ahead of what
-the press held back. It installs focus via `bevy_input_focus` and pins the
-dispatch into that sequence - after `bevy_input`'s own update and between
-`Areas` and `PickingSystems::Hover` - so a focused-input observer reads this
-frame's areas and settled key state rather than whatever the schedule happened
-to resolve; work that must see what one did is ordered after the dispatch, which
-is what `plurimus_widgets` does with `WidgetSystems::Layout`, itself before the
-backend so the rows and items it places are hit-tested in the frame they move.
-It also builds the directional navigation map from the widget areas of every
+or a press on nothing while no overlay is open, which window picking reports as
+a press on the window, clears focus as it does on a desktop. Click counts are
+bevy's, per widget on the wall clock within
+`PickingSettings::multi_click_interval`, so a second press anywhere on the same
+widget runs with the first and a press on another widget starts over. What
+bevy's pointer events do not carry is `plurimus_term`'s `PointerModifiers`, the
+modifiers the terminal reported with the frame's button press, which a widget
+reads beside the event. A focus loss cancels the captured gesture: this crate
+writes the `PointerInput::Cancel` bevy raises for no mouse, at the cell the
+pointer last reached, and since the hover map is emptied for a cancelled pointer
+before its events run - so bevy's own cancel reaches nothing, and one landing
+with a press would swallow the press - it sends the `PointerCancel` to the
+captured widget itself, or with nothing captured to every pressed widget,
+clearing its `Pressed`, and holds a cancel that shares a frame with a press or a
+release back to the frame's end, where it lands ahead of what the press held
+back. It installs focus via `bevy_input_focus` and pins the dispatch into that
+sequence - after `bevy_input`'s own update and between `Areas` and
+`PickingSystems::Hover` - so a focused-input observer reads this frame's areas
+and settled key state rather than whatever the schedule happened to resolve;
+work that must see what one did is ordered after the dispatch, which is what
+`plurimus_widgets` does with `WidgetSystems::Layout`, itself before the backend
+so the rows and items it places are hit-tested in the frame they move. It also
+builds the directional navigation map from the widget areas of every
 non-negative `TabIndex`, so a roving strip is one arrow target, as it is one Tab
 stop - all but upstream's text field, a node whose area is there only to place
 its caret, nodes taking no part in arrow navigation - and provides scrolling
@@ -350,15 +354,17 @@ its caret, nodes taking no part in arrow navigation - and provides scrolling
 scrolled content, plus the generic modal-overlay primitives (`ModalOpen`,
 `ModalDismiss`) an app builds its own overlays from. What "inside a modal" means
 is the overlay's own rect, for the pointer and the wheel alike: a position an
-open overlay covers admits that overlay's subtree and nothing else, so an
-overlay confines input rather than depending on every child of it being marked,
-and outside every open overlay the one thing picked is a barrier entity above
-everything, whose press dismisses them and beneath which nothing is reached -
-nodes included, since the barrier blocks bevy_ui's picks as a widget does. A
-press on a `ModalityToggle` is where geometry cannot answer, since an opener
-sits outside the overlay it closes: an enabled toggle is picked in the barrier's
-place and dismisses only the overlays it does not own, those rooted beneath it,
-so an opener closes its own overlay by toggling it and switches away from a
+open overlay covers admits that overlay's subtree and nothing else, whichever
+backend picked it - this crate filters every backend's hits, bevy_ui's nodes and
+the window included, before bevy builds its hover map - so an overlay confines
+input rather than depending on every child of it being marked, and outside every
+open overlay the one thing picked is a barrier entity above everything, whose
+press dismisses them and beneath which nothing is reached - nodes included,
+since the barrier blocks bevy_ui's picks as a widget does. A press on a
+`ModalityToggle` is where geometry cannot answer, since an opener sits outside
+the overlay it closes: an enabled toggle is picked in the barrier's place and
+dismisses only the overlays it does not own, those rooted beneath it, so an
+opener closes its own overlay by toggling it and switches away from a
 neighbour's. Taking the union of the overlays covering a position is what admits
 a submenu inside its parent without ordering modal roots against each other.
 Every scroll converges on one event: a wheel tick, routed by this crate from the
@@ -693,9 +699,10 @@ overlay confines nodes as it confines widgets: inside it only its own subtree is
 picked, so an overlay built of nodes works and one drawn over nodes covers them,
 and outside it the barrier is the one pick, so nothing is reached and a press
 dismisses. Window picking stays on, so a press on no node and no widget is a
-press on the window and clears focus as it does on a desktop. A tree shared with
-a windowed build keeps arrow-key navigation to each target, which nothing builds
-for nodes.
+press on the window and clears focus as it does on a desktop - when no overlay
+is open; inside one the window's hit is confined away like any other and focus
+stays. A tree shared with a windowed build keeps arrow-key navigation to each
+target, which nothing builds for nodes.
 
 ### plurimus_2d
 
