@@ -145,9 +145,12 @@ pub fn send_focus(app: &mut App, focused: bool) {
     app.update();
 }
 
-fn write_button(app: &mut App, state: ButtonState, x: u16, y: u16, modifiers: KeyModifiers) {
-    let button = Report::Button(MouseButton::Left, state, Position::new(x, y));
-    report(app, button, modifiers);
+fn write_button(app: &mut App, button: MouseButton, state: ButtonState, at: Position) {
+    report(
+        app,
+        Report::Button(button, state, at),
+        KeyModifiers::default(),
+    );
 }
 
 /// Queues a pointer move to `(x, y)`, a button held or not.
@@ -168,7 +171,8 @@ pub fn move_to(app: &mut App, x: u16, y: u16) {
 /// Queues a left press at `(x, y)` carrying `modifiers`, placing the
 /// pointer there first as a terminal's click does.
 pub fn write_press_at_with(app: &mut App, x: u16, y: u16, modifiers: KeyModifiers) {
-    write_button(app, ButtonState::Pressed, x, y, modifiers);
+    let press = Report::Button(MouseButton::Left, ButtonState::Pressed, Position::new(x, y));
+    report(app, press, modifiers);
 }
 
 /// Queues a left press at `(x, y)`, placing the pointer there first.
@@ -183,28 +187,50 @@ pub fn send_press_at(app: &mut App, x: u16, y: u16) {
     app.update();
 }
 
-/// Moves to `(x, y)` and presses left there, ticking after each so hover
-/// resolves before the press lands.
-pub fn press_at(app: &mut App, x: u16, y: u16) {
+/// Moves to `(x, y)` and presses `button` there, ticking after each so
+/// hover resolves before the press lands.
+pub fn press_button_at(app: &mut App, button: MouseButton, x: u16, y: u16) {
     move_to(app, x, y);
-    send_press_at(app, x, y);
+    write_button(app, button, ButtonState::Pressed, Position::new(x, y));
+    app.update();
+}
+
+/// Moves to `(x, y)` and presses left there, as [`press_button_at`].
+pub fn press_at(app: &mut App, x: u16, y: u16) {
+    press_button_at(app, MouseButton::Left, x, y);
 }
 
 /// Queues a left release at `(x, y)`.
 pub fn write_release_at(app: &mut App, x: u16, y: u16) {
-    write_button(app, ButtonState::Released, x, y, KeyModifiers::default());
+    write_button(
+        app,
+        MouseButton::Left,
+        ButtonState::Released,
+        Position::new(x, y),
+    );
+}
+
+/// Releases `button` at `(x, y)`, then ticks the app.
+pub fn release_button_at(app: &mut App, button: MouseButton, x: u16, y: u16) {
+    write_button(app, button, ButtonState::Released, Position::new(x, y));
+    app.update();
 }
 
 /// Releases left at `(x, y)`, then ticks the app.
 pub fn release_at(app: &mut App, x: u16, y: u16) {
-    write_release_at(app, x, y);
-    app.update();
+    release_button_at(app, MouseButton::Left, x, y);
 }
 
-/// A full left click at `(x, y)`: [`press_at`], then [`release_at`].
+/// A full click of `button` at `(x, y)`: [`press_button_at`], then
+/// [`release_button_at`].
+pub fn click_button(app: &mut App, button: MouseButton, x: u16, y: u16) {
+    press_button_at(app, button, x, y);
+    release_button_at(app, button, x, y);
+}
+
+/// A full left click at `(x, y)`, as [`click_button`].
 pub fn click(app: &mut App, x: u16, y: u16) {
-    press_at(app, x, y);
-    release_at(app, x, y);
+    click_button(app, MouseButton::Left, x, y);
 }
 
 /// Queues `rows` wheel notches at `(x, y)`, positive scrolling down.

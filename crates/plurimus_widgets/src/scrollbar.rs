@@ -21,6 +21,7 @@ use plurimus_ui::bevy_ui_widgets::ControlOrientation;
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, ScrollArea, ScrollOffset, StylistDisabled, UiTheme, apply_offset,
     pointer_cell,
@@ -79,6 +80,9 @@ pub(crate) fn scrollbar_press(
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok(bar) = bars.get(event.entity) else {
         return;
     };
@@ -98,6 +102,9 @@ pub(crate) fn scrollbar_drag(
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok(bar) = bars.get(event.entity) else {
         return;
     };
@@ -119,6 +126,9 @@ pub(crate) fn scrollbar_release(
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok(bar) = bars.get(event.entity) else {
         return;
     };

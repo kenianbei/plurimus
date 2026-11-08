@@ -7,9 +7,10 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_term::MouseButton;
 use plurimus_test::{
-    move_to, press_at, press_key, release_at, send_focus, send_press_at, write_move_to,
-    write_press_at,
+    click_button, move_to, press_at, press_key, release_at, send_focus, send_press_at,
+    write_move_to, write_press_at,
 };
 use plurimus_ui::Key;
 use plurimus_ui::bevy_picking::events::PointerClick;
@@ -211,4 +212,16 @@ fn a_drag_cut_off_by_a_focus_loss_commits_where_it_reached() {
 
 fn value(app: &App, slider: Entity) -> f32 {
     app.world().get::<SliderValue>(slider).unwrap().0
+}
+
+#[test]
+fn a_secondary_click_neither_seeks_nor_presses_a_slider() {
+    let mut app = app();
+    app.world_mut().spawn(TerminalCamera::default());
+    let slider = spawn_slider(&mut app);
+
+    click_button(&mut app, MouseButton::Right, 9, 0);
+
+    assert!(app.world().get::<Pressed>(slider).is_none());
+    assert!((value(&app, slider) - 50.0).abs() < f32::EPSILON);
 }

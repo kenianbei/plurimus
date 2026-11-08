@@ -197,8 +197,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Outside every open overlay the one thing picked is a barrier, so a press or
     a tick there dismisses the overlays and reaches nothing - a node beneath
     included - and an enabled `ModalityToggle` is picked in its place.
-  - A right or middle press is a press, as it is on a node; the old router took
-    the left button alone.
+  - Any button's press focuses what it lands on and dismisses an open overlay,
+    as on a desktop, where the old router took the left button alone. Only the
+    primary button starts a gesture or drives a plurimus widget - a slider,
+    scrollbar, list box, table or text field - so a right click seeks, selects
+    and moves no caret; upstream's `Button`, `Checkbox`, `RadioButton`, `Tab`
+    and `MenuItem` answer any button, as on a node.
 - `plurimus_ui` re-exports `bevy_picking` and `bevy_ui_widgets`; `plurimus_bui`
   re-exports `bevy_text` and `bevy_ui_widgets`.
 - **Breaking: buttons, checkboxes and radio groups are `bevy_ui_widgets`' own.**

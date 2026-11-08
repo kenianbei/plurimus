@@ -21,6 +21,7 @@ use super::{
 use crate::rows::{ActiveDescendant, point_cursor};
 use plurimus_core::CellSize;
 use plurimus_ui::bevy_picking::events::PointerClick;
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::{
     ComputedDisabled, ComputedWidgetArea, ScrollIntoView, ValueChange, click_cell, content_cell,
     first_bound,
@@ -209,6 +210,9 @@ pub(crate) fn table_click(
     rows: Rows,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let table = event.entity;
     let Ok((children, columns, selection, placement, active, mut column)) = tables.get_mut(table)
     else {

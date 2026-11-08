@@ -32,6 +32,7 @@ use plurimus_term::Clipboard;
 use plurimus_ui::StylistCache;
 use plurimus_ui::UiLabel;
 use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::bevy_ui_widgets::{ListBox, ListBoxMultiSelect, ListItem, SetSelected};
 use plurimus_ui::{
     ComputedDisabled, ComputedWidgetArea, Hovered, KeyBinding, Selected, click_cell, first_bound,
@@ -210,7 +211,7 @@ pub(crate) fn listbox_press(
     lists: ListPointer,
     mut commands: Commands,
 ) {
-    if !lists.lists.contains(event.entity) {
+    if event.button != PointerButton::Primary || !lists.lists.contains(event.entity) {
         return;
     }
     event.propagate(false);
@@ -228,7 +229,7 @@ pub(crate) fn listbox_drag(
     lists: ListPointer,
     mut commands: Commands,
 ) {
-    if !lists.lists.contains(event.entity) {
+    if event.button != PointerButton::Primary || !lists.lists.contains(event.entity) {
         return;
     }
     event.propagate(false);
@@ -254,6 +255,9 @@ pub(crate) fn listbox_click(
     lists: ListPointer,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let list = event.entity;
     let Ok((area, ..)) = lists.lists.get(list) else {
         return;

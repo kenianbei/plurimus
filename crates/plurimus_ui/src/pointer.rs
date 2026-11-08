@@ -23,7 +23,9 @@ use bevy_math::{Vec2, Vec3};
 use bevy_picking::backend::{HitData, PointerHits};
 use bevy_picking::events::{Pointer, PointerCancel, PointerClick, PointerPress, PointerRelease};
 use bevy_picking::hover::PointerCaptureMap;
-use bevy_picking::pointer::{Location, PointerAction, PointerId, PointerInput, PointerLocation};
+use bevy_picking::pointer::{
+    Location, PointerAction, PointerButton, PointerId, PointerInput, PointerLocation,
+};
 use bevy_ui_widgets::{Button, Checkbox, MenuItem, RadioButton, Tab};
 use bevy_window::{Window, WindowFocused};
 use plurimus_core::ratatui_core::layout::Position;
@@ -284,10 +286,10 @@ type Uncaptured = (
     Without<Tab>,
 );
 
-/// A press on a widget captures the pointer to it for the gesture, so a
-/// drag past its edge still ends on it, and marks it [`Pressed`]. A
+/// A primary press on a widget captures the pointer to it for the gesture,
+/// so a drag past its edge still ends on it, and marks it [`Pressed`]. A
 /// disabled widget blocks what is beneath, since it is a hit, and emits
-/// nothing further: its press goes no higher.
+/// nothing further whatever the button: its press goes no higher.
 pub(crate) fn capture_press(
     mut press: On<PointerPress>,
     widgets: Query<Has<ComputedDisabled>, (With<ComputedWidgetArea>, Uncaptured)>,
@@ -302,6 +304,9 @@ pub(crate) fn capture_press(
     };
     if disabled {
         press.propagate(false);
+        return;
+    }
+    if press.button != PointerButton::Primary {
         return;
     }
     capture.capture(press.pointer.id, press.entity, press.hit.clone());

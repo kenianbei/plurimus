@@ -9,10 +9,10 @@ use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{InputCapabilities, KeyModifiers, LastCopied};
+use plurimus_term::{InputCapabilities, KeyModifiers, LastCopied, MouseButton};
 use plurimus_test::{
-    character, click, clipboard_writes, move_to, press_at, press_key, press_key_with, release_at,
-    set_focus, write_press_at_with,
+    character, click, clipboard_writes, move_to, press_at, press_button_at, press_key,
+    press_key_with, release_at, release_button_at, set_focus, write_press_at_with,
 };
 use plurimus_ui::{InteractionDisabled, UiArea, ValueChange};
 use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, text_field};
@@ -355,4 +355,18 @@ fn a_disabled_field_ignores_the_pointer() {
     click(&mut app, 0, 0);
 
     assert_eq!(text(&app, field).cursor(), 5);
+}
+
+#[test]
+fn a_secondary_drag_moves_no_caret_and_selects_nothing() {
+    let mut app = app();
+    let field = spawn_field(&mut app, "hello world");
+    let before = text(&app, field).cursor();
+
+    press_button_at(&mut app, MouseButton::Right, 0, 0);
+    drag_to(&mut app, 5);
+    release_button_at(&mut app, MouseButton::Right, 5, 0);
+
+    assert_eq!(text(&app, field).cursor(), before);
+    assert_eq!(text(&app, field).selection(), None);
 }

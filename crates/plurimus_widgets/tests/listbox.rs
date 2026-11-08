@@ -8,9 +8,10 @@ use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
 use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_term::MouseButton;
 use plurimus_test::{
-    click, move_to, press_at, press_key, release_at, repeat_key, scroll_at, send_press_at,
-    set_focus,
+    click, click_button, move_to, press_at, press_key, release_at, repeat_key, scroll_at,
+    send_press_at, set_focus,
 };
 use plurimus_ui::{
     InteractionDisabled, ScrollArea, ScrollOffset, Selected, UiArea, UiOrder, ValueChange,
@@ -528,4 +529,17 @@ fn a_tall_row_is_revealed_whole() {
         Position::new(0, 1),
         "the whole row was revealed, not just its first line"
     );
+}
+
+#[test]
+fn a_secondary_click_moves_no_cursor_and_selects_nothing() {
+    let mut app = app();
+    let (container, _) = spawn_listbox(&mut app);
+    app.update();
+    let before = active(&app, container);
+
+    click_button(&mut app, MouseButton::Right, 2, 1);
+
+    assert_eq!(active(&app, container), before);
+    assert_eq!(app.world().resource::<Selections>().0, []);
 }

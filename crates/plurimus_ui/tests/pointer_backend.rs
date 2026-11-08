@@ -8,11 +8,14 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiOrder};
+use plurimus_term::MouseButton;
 use plurimus_test::{
-    click, move_to, scroll_at, send_focus, send_press_at, set_focus, write_press_at,
-    write_release_at,
+    click, move_to, press_button_at, scroll_at, send_focus, send_press_at, set_focus,
+    write_press_at, write_release_at,
 };
 use plurimus_ui::bevy_picking::events::{PointerCancel, PointerPress};
+use plurimus_ui::bevy_picking::hover::PointerCaptureMap;
+use plurimus_ui::bevy_picking::pointer::PointerId;
 use plurimus_ui::{
     ComputedWidgetArea, Hovered, ModalDismiss, ModalOpen, Pressed, UiArea, UiPlugin,
 };
@@ -151,4 +154,34 @@ fn losing_focus_mid_drag_cancels_the_gesture() {
 
     assert!(!app.world().entity(target).contains::<Pressed>());
     assert_eq!(app.world().resource::<Seen>().cancels, [target]);
+}
+
+#[test]
+fn a_secondary_press_focuses_without_starting_a_gesture() {
+    let mut app = app();
+    let widget = spawn_target(&mut app, AREA);
+    app.world_mut().entity_mut(widget).insert(TabIndex(0));
+    app.update();
+
+    press_button_at(&mut app, MouseButton::Right, CELL.x, CELL.y);
+
+    assert_eq!(focused(&app), Some(widget));
+    assert!(!app.world().entity(widget).contains::<Pressed>());
+    let capture = app.world().resource::<PointerCaptureMap>();
+    assert!(!capture.is_captured(&PointerId::Mouse));
+}
+
+#[test]
+fn a_secondary_press_outside_an_open_overlay_dismisses_it() {
+    let mut app = app();
+    let overlay = spawn_target(&mut app, NEIGHBOUR);
+    app.world_mut().entity_mut(overlay).insert(ModalOpen);
+    app.add_observer(|dismiss: On<ModalDismiss>, mut commands: Commands| {
+        commands.entity(dismiss.entity).remove::<ModalOpen>();
+    });
+    app.update();
+
+    press_button_at(&mut app, MouseButton::Right, NOWHERE.x, NOWHERE.y);
+
+    assert!(!app.world().entity(overlay).contains::<ModalOpen>());
 }

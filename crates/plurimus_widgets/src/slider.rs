@@ -28,6 +28,7 @@ use super::ValueChange;
 use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
 use plurimus_ui::bevy_picking::events::{PointerCancel, PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::bevy_ui_widgets::{Slider, SliderRange, SliderValue};
 use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, Hovered, UiTheme, pointer_cell};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, hashed_bits, observed};
@@ -71,6 +72,9 @@ pub(crate) fn slider_press(
     sliders: SliderQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok(slider) = sliders.get(event.entity) else {
         return;
     };
@@ -85,6 +89,9 @@ pub(crate) fn slider_drag(
     sliders: SliderQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok(slider) = sliders.get(event.entity) else {
         return;
     };
@@ -101,6 +108,9 @@ pub(crate) fn slider_release(
     sliders: SliderQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok(slider) = sliders.get(event.entity) else {
         return;
     };

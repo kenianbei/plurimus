@@ -294,17 +294,17 @@ mouse pointer from the window events `plurimus_term`'s sink writes, and orders
 the terminal's input ahead of its reading so a pump never lags it a frame; a
 cell is a pointer at its centre in `CellSize` pixels, and the batch a press ends
 is the sink's rule, so what follows a press lands a frame later against the
-state the press left. A press on a widget captures the pointer to it through
-`PointerCaptureMap`, so its drag and release reach it wherever the pointer goes,
-and marks it `Pressed` - all but the widgets `bevy_ui_widgets`' own observers
-drive, which `UiPlugin` installs (every fontless plugin, and the `UiScale` three
-of them read): a `Button`, `Checkbox`, `RadioButton`, `Tab` or `MenuItem`
-presses, releases and clicks by bevy's hover map, as a node does, so a release
-off one lands off it. `click_cell` is how a widget tells a click that ended on
-it from one that did not, and `pointer_cell` reads the cell under any pointer
-event, both from the event's live position rather than its hit, which under
-capture is the press's. What a press may do is a two-marker vocabulary beside
-bevy's `Pickable`: an `InteractionDisabled` widget is inert rather than
+state the press left. A primary press on a widget captures the pointer to it
+through `PointerCaptureMap`, so its drag and release reach it wherever the
+pointer goes, and marks it `Pressed` - all but the widgets `bevy_ui_widgets`'
+own observers drive, which `UiPlugin` installs (every fontless plugin, and the
+`UiScale` three of them read): a `Button`, `Checkbox`, `RadioButton`, `Tab` or
+`MenuItem` presses, releases and clicks by bevy's hover map, as a node does, so
+a release off one lands off it. `click_cell` is how a widget tells a click that
+ended on it from one that did not, and `pointer_cell` reads the cell under any
+pointer event, both from the event's live position rather than its hit, which
+under capture is the press's. What a press may do is a two-marker vocabulary
+beside bevy's `Pickable`: an `InteractionDisabled` widget is inert rather than
 invisible - it is still a hit, so it blocks what is beneath, but no gesture
 starts on it and its press goes no higher - while wheel ticks still fall through
 it, consuming being the wheel router's own opt-in; `Pickable::IGNORE` is

@@ -6,6 +6,7 @@ use plurimus_core::CellSize;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_term::PointerModifiers;
 use plurimus_ui::bevy_picking::events::{PointerDrag, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, TextInput, content_cell, pointer_cell};
 
 use super::input::{TextField, TextMask};
@@ -27,6 +28,9 @@ pub(crate) fn text_input_press(
     modifiers: Res<PointerModifiers>,
     mut fields: Pointed,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok((mut text, mask, area)) = fields.get_mut(event.entity) else {
         return;
     };
@@ -53,6 +57,9 @@ pub(crate) fn text_input_drag(
     cell: Res<CellSize>,
     mut fields: Pointed,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
     let Ok((mut text, mask, area)) = fields.get_mut(event.entity) else {
         return;
     };
