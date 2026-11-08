@@ -109,9 +109,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `ExtractResource`s, copied into the render world when the main world's copy
     changes.
   - An extracted camera carries bevy's `MainEntity` in place of `SourceCamera`,
-    `camera_buffer_mut` takes `Query<(MainEntity, &mut CameraBuffer)>`, and
-    `ExtractedWidget.source` is a `MainEntity`; `ExtractedWidget::new` still
-    takes the source `Entity`.
+    `camera_buffer_mut` takes `Query<(MainEntity, &mut CameraBuffer)>` and its
+    target as a `MainEntity`, and `ExtractedWidget.source` and `.target` are
+    `MainEntity`s; `ExtractedWidget::new` and `with_target` still take an
+    `Entity`, and `with_target` is no longer `const`.
 - **Breaking: a terminal camera is a bevy `Camera`.** `plurimus_core` depends on
   `bevy_camera`, and `TerminalCamera` requires `Camera` and is now the placement
   alone - `Full`, `Fixed(rect)`, `Docked { edge, cells }` or `Fill`, resolved
@@ -133,6 +134,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   has a subscriber for; a projected one, such as a 2d camera, is sized by
   bevy_render as well, against the virtual window, which has the terminal's
   size, so the two agree.
+- **Breaking: 3d takes the cell's shape from `CellSize`.** `Aspect3d` fits its
+  ratio in `CellSize`'s cell, and `Plugin3d` refits each 3d camera's projection
+  after bevy_render sizes it, to the physical shape of its pixels, so a scene is
+  undistorted whatever cell the app names. At `CellSize { x: 1.0, y: 2.0 }`, the
+  shape the renderer assumed before, nothing changes; an app drawing 3d sets it
+  as a 2d app does, since core's one-by-one default now renders square cells.
 - **Breaking: a 2d view is bevy's `Camera2d`.** `plurimus_2d` draws for every
   terminal camera carrying `Camera2d`, projected through its
   `OrthographicProjection` by `Camera::world_to_viewport`: the camera's

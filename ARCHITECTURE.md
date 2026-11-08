@@ -725,11 +725,15 @@ The GPU readback pipeline, and the only crate that pulls in bevy_render.
 renders to an image, `ReadbackFrame` carries the pixels back, and a `Strategy3d`
 converts them to cells - halfblock colors, luminance ramps (ASCII, blocks,
 braille, shading), depth ramps. Depth readback feeds `DepthOcclusion` for
-cross-camera occlusion and `EdgeOverlay` for outline characters. The render
-stack stops before materials: the app adds its own material system (`PbrPlugin`)
-and asset loading such as `bevy_gltf`. Having no surface, the stack can take no
-WebGL2 adapter, so on wasm it renders through WebGPU and a browser has to offer
-one.
+cross-camera occlusion and `EdgeOverlay` for outline characters. The cell's
+shape is `CellSize`'s, as in 2d: `Aspect3d` letterboxes in it, and since
+bevy_render fits a 3d camera's projection to its image, whose pixels are square
+only at the 1:2 cell every strategy's density assumes, `Plugin3d` refits it
+afterwards to the pixels' physical shape, so a scene is undistorted at any cell.
+The render stack stops before materials: the app adds its own material system
+(`PbrPlugin`) and asset loading such as `bevy_gltf`. Having no surface, the
+stack can take no WebGL2 adapter, so on wasm it renders through WebGPU and a
+browser has to offer one.
 
 ### plurimus_test
 
