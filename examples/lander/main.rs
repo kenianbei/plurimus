@@ -18,7 +18,7 @@ use bevy_gltf::GltfPlugin;
 use bevy_gltf::extensions::GltfExtensionHandlers;
 use bevy_pbr::PbrPlugin;
 use bevy_world_serialization::WorldSerializationPlugin;
-use plurimus::core::CorePlugin;
+use plurimus::core::{CellSize, CorePlugin};
 use plurimus::render3d::{Plugin3d, Render3dPlugins};
 use plurimus::widgets::WidgetsPlugin;
 
@@ -31,6 +31,8 @@ const ASSET_ROOT: &str = "assets";
 fn main() -> AppExit {
     let mut app = App::new();
     app.add_plugins(CorePlugin);
+    // A terminal cell is about twice as tall as it is wide.
+    app.insert_resource(CellSize { x: 1.0, y: 2.0 });
     add_backend(&mut app);
     app.add_plugins((
         WidgetsPlugin,
