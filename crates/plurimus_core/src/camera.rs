@@ -88,11 +88,11 @@ pub struct CameraBuffer(pub Buffer);
 /// Finds the render-world buffer of the camera mirroring `target`.
 pub fn camera_buffer_mut<'a>(
     cameras: &'a mut Query<(MainEntity, &mut CameraBuffer)>,
-    target: Entity,
+    target: MainEntity,
 ) -> Option<bevy_ecs::prelude::Mut<'a, CameraBuffer>> {
     cameras
         .iter_mut()
-        .find(|(source, _)| *source == target)
+        .find(|(source, _)| *source == target.id())
         .map(|(_, buffer)| buffer)
 }
 

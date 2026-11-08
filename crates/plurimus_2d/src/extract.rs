@@ -13,7 +13,7 @@ use bevy_camera::{Camera, Camera2d};
 use bevy_ecs::prelude::{Entity, Query, Res, ResMut, Resource, With};
 use bevy_math::{Vec2, Vec3};
 use bevy_transform::components::GlobalTransform;
-use plurimus_core::{CellSize, Extract};
+use plurimus_core::{CellSize, Extract, MainEntity};
 use ratatui_core::style::{Color, Style};
 
 use crate::projection::SubcellMode;
@@ -25,7 +25,7 @@ pub(crate) struct ExtractedViews2d(pub(crate) Vec<ExtractedView2d>);
 
 /// A 2d camera's main-world entity and what projecting through it needs.
 pub(crate) struct ExtractedView2d {
-    pub(crate) entity: Entity,
+    pub(crate) entity: MainEntity,
     pub(crate) camera: Camera,
     pub(crate) transform: GlobalTransform,
     pub(crate) cell: Vec2,
@@ -47,7 +47,7 @@ pub(crate) struct ExtractedSprites2d {
 /// as a single-row block.
 pub(crate) struct ExtractedGlyph {
     pub(crate) position: Vec3,
-    pub(crate) entity: Entity,
+    pub(crate) entity: MainEntity,
     pub(crate) rows: Vec<String>,
     pub(crate) style: Style,
     pub(crate) layers: RenderLayers,
@@ -57,7 +57,7 @@ pub(crate) struct ExtractedGlyph {
 /// a 1×1 block.
 pub(crate) struct ExtractedPixelBlock {
     pub(crate) position: Vec3,
-    pub(crate) entity: Entity,
+    pub(crate) entity: MainEntity,
     pub(crate) width: usize,
     pub(crate) height: usize,
     pub(crate) cells: Range<usize>,
@@ -94,7 +94,7 @@ pub(crate) fn extract_views_2d(
     views.0.clear();
     for (entity, camera, transform, layers, mode) in &cameras {
         views.0.push(ExtractedView2d {
-            entity,
+            entity: MainEntity::from(entity),
             camera: camera.clone(),
             transform: *transform,
             cell: cell.vec(),
@@ -124,7 +124,7 @@ fn extract_glyphs(glyphs: &Placed<Glyph>, sprites: &mut ExtractedSprites2d) {
     for (entity, glyph, transform, layers) in glyphs {
         sprites.glyphs.push(ExtractedGlyph {
             position: transform.translation(),
-            entity,
+            entity: MainEntity::from(entity),
             rows: vec![glyph.symbol.clone()],
             style: glyph.style,
             layers: layers.cloned().unwrap_or_default(),
@@ -136,7 +136,7 @@ fn extract_glyph_blocks(blocks: &Placed<GlyphBlock>, sprites: &mut ExtractedSpri
     for (entity, block, transform, layers) in blocks {
         sprites.glyphs.push(ExtractedGlyph {
             position: transform.translation(),
-            entity,
+            entity: MainEntity::from(entity),
             rows: block.rows.clone(),
             style: block.style,
             layers: layers.cloned().unwrap_or_default(),
@@ -150,7 +150,7 @@ fn extract_pixels(pixels: &Placed<Pixel>, sprites: &mut ExtractedSprites2d) {
         sprites.pixel_cells.push(Some(pixel.color));
         sprites.pixels.push(ExtractedPixelBlock {
             position: transform.translation(),
-            entity,
+            entity: MainEntity::from(entity),
             width: 1,
             height: 1,
             cells: start..sprites.pixel_cells.len(),
@@ -165,7 +165,7 @@ fn extract_pixel_blocks(blocks: &Placed<PixelBlock>, sprites: &mut ExtractedSpri
         let width = resolve_pixels(block, &mut sprites.pixel_cells);
         sprites.pixels.push(ExtractedPixelBlock {
             position: transform.translation(),
-            entity,
+            entity: MainEntity::from(entity),
             width,
             height: block.rows.len(),
             cells: start..sprites.pixel_cells.len(),

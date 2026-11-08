@@ -29,7 +29,7 @@ use bevy_ui::{
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{
-    CellSize, Extract, ExtractedWidget, ResolvedViewport, UiArea, UiOrder, UiWidget,
+    CellSize, Extract, ExtractedWidget, MainEntity, ResolvedViewport, UiArea, UiOrder, UiWidget,
 };
 use plurimus_ui::TextRow;
 
@@ -52,7 +52,7 @@ pub(crate) struct ExtractedBuiNodes {
 }
 
 pub(crate) struct ExtractedBuiNode {
-    pub(crate) camera: Entity,
+    pub(crate) camera: MainEntity,
     pub(crate) rect: CellBox,
     pub(crate) clip: Option<Rect>,
     pub(crate) background: Option<CellColor>,
@@ -110,7 +110,7 @@ pub(crate) fn extract_bui_nodes(
     let stack = main_world.resource::<UiStack>();
     // Keyed by camera too: a frame that is no node makes each child a root
     // of its own, and two roots may name different cameras.
-    let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
+    let mut groups: HashMap<(Entity, MainEntity), Vec<ExtractedBuiNode>> = HashMap::new();
     for &entity in &stack.uinodes {
         let Some(node) = convert(main_world, entity, &main.viewports, cell) else {
             continue;
@@ -125,7 +125,7 @@ pub(crate) fn extract_bui_nodes(
         commands.spawn(
             ExtractedWidget::new(Arc::new(FramedNodes { nodes, cell }), UiArea::Fill, frame)
                 .with_order(order)
-                .with_target(Some(camera))
+                .with_target(Some(camera.id()))
                 .with_layer(FRAMED_LAYER),
         );
     }
@@ -188,7 +188,7 @@ fn convert(
         !decoration.border_gradients.is_empty(),
     );
     Some(ExtractedBuiNode {
-        camera,
+        camera: MainEntity::from(camera),
         rect,
         clip,
         background,

@@ -27,7 +27,7 @@ use crate::target::{Aspect3d, ReadbackFrame, Supersample};
 pub(crate) struct ExtractedFrames3d(pub(crate) Vec<ExtractedFrame3d>);
 
 pub(crate) struct ExtractedFrame3d {
-    pub(crate) camera: Entity,
+    pub(crate) camera: MainEntity,
     pub(crate) strategy: Strategy3d,
     pub(crate) pixels: Vec<u8>,
     pub(crate) size: UVec2,
@@ -42,7 +42,7 @@ pub(crate) struct ExtractedFrame3d {
 impl Default for ExtractedFrame3d {
     fn default() -> Self {
         Self {
-            camera: Entity::PLACEHOLDER,
+            camera: MainEntity::from(Entity::PLACEHOLDER),
             strategy: Strategy3d::default(),
             pixels: Vec::new(),
             size: UVec2::ZERO,
@@ -80,7 +80,7 @@ pub(crate) fn extract_3d(
             frames.0.push(ExtractedFrame3d::default());
         }
         let slot = &mut frames.0[count];
-        slot.camera = camera;
+        slot.camera = MainEntity::from(camera);
         slot.strategy = *strategy;
         slot.size = frame.size;
         slot.letterboxed = aspect.is_some();

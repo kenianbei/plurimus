@@ -57,7 +57,7 @@ pub struct ExtractedWidget {
     /// what a pipeline draws over it sorts after it at a higher layer.
     pub layer: u8,
     /// Main-world target camera; `None` falls back to the default camera.
-    pub target: Option<Entity>,
+    pub target: Option<MainEntity>,
 }
 
 impl ExtractedWidget {
@@ -92,8 +92,8 @@ impl ExtractedWidget {
     /// Sets the main-world camera to render on; `None` is the default
     /// camera.
     #[must_use]
-    pub const fn with_target(mut self, target: Option<Entity>) -> Self {
-        self.target = target;
+    pub fn with_target(mut self, target: Option<Entity>) -> Self {
+        self.target = target.map(MainEntity::from);
         self
     }
 }
@@ -120,7 +120,7 @@ pub(crate) fn extract_widgets(
             order: order.map_or(0, |order| order.0),
             source: MainEntity::from(source),
             layer: 0,
-            target: camera.0,
+            target: camera.0.map(MainEntity::from),
         });
     }
 }
@@ -133,7 +133,7 @@ pub(crate) fn rasterize_widgets(
     let mut ordered: Vec<&ExtractedWidget> = widgets.iter().collect();
     ordered.sort_by_key(|widget| (widget.order, widget.source, widget.layer));
     for extracted in ordered {
-        let Some(target) = extracted.target.or(default_camera.0) else {
+        let Some(target) = extracted.target.or(default_camera.0.map(MainEntity::from)) else {
             continue;
         };
         let Some(mut buffer) = camera_buffer_mut(&mut cameras, target) else {
