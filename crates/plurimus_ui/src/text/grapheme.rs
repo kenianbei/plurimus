@@ -15,7 +15,8 @@ use unicode_segmentation::UnicodeSegmentation;
 /// Scalars in the grapheme cluster ending at `position`, or 0 at the start
 /// of the value. A `position` inside a cluster yields the distance back to
 /// that cluster's start.
-pub(crate) fn cluster_len_before(value: &str, position: usize) -> usize {
+#[must_use]
+pub fn cluster_len_before(value: &str, position: usize) -> usize {
     cluster_spans(value)
         .find(|(start, len)| position > *start && position <= start + len)
         .map_or(0, |(start, _)| position - start)
@@ -24,7 +25,8 @@ pub(crate) fn cluster_len_before(value: &str, position: usize) -> usize {
 /// Scalars in the grapheme cluster starting at `position`, or 0 at the end
 /// of the value. A `position` inside a cluster yields the distance forward
 /// to that cluster's end.
-pub(crate) fn cluster_len_after(value: &str, position: usize) -> usize {
+#[must_use]
+pub fn cluster_len_after(value: &str, position: usize) -> usize {
     cluster_spans(value)
         .find(|(start, len)| position >= *start && position < start + len)
         .map_or(0, |(start, len)| start + len - position)

@@ -3,16 +3,18 @@
 //!
 //! The [`FrameBuffer`] is resized to the terminal and cleared each frame, then
 //! camera buffers merge into it in camera order, so a higher-order camera
-//! lands on top. How a camera merges depends on its [`Background`]: a
-//! [`Background::Transparent`] camera copies only the cells it actually drew
-//! and leaves lower cameras showing through, while the others merge wholesale
-//! and their untouched cells overwrite whatever was beneath.
+//! lands on top. How a camera merges depends on its clear colour: a camera
+//! clearing to [`ClearColorConfig::None`] copies only the cells it actually
+//! drew and leaves lower cameras showing through, while the others merge
+//! wholesale and their untouched cells overwrite whatever was beneath.
 
+use bevy_camera::ClearColorConfig;
 use bevy_ecs::prelude::{Query, Res, ResMut, Resource};
+use bevy_extract::MainEntity;
 use ratatui_core::buffer::{Buffer, Cell};
 use ratatui_core::layout::Rect;
 
-use crate::camera::{Background, CameraBuffer, ExtractedCamera, SourceCamera};
+use crate::camera::{CameraBuffer, ExtractedCamera};
 use crate::size::TerminalSize;
 
 /// The composed full-terminal frame, consumed by the presenter.
@@ -28,19 +30,19 @@ impl Default for FrameBuffer {
 pub(crate) fn composite(
     mut frame: ResMut<FrameBuffer>,
     size: Res<TerminalSize>,
-    cameras: Query<(&ExtractedCamera, &SourceCamera, &CameraBuffer)>,
+    cameras: Query<(&ExtractedCamera, MainEntity, &CameraBuffer)>,
 ) {
     frame.0.resize(size.rect());
     frame.0.reset();
     let mut ordered: Vec<_> = cameras.iter().collect();
-    ordered.sort_by_key(|(camera, source, _)| (camera.order, source.0));
+    ordered.sort_by_key(|(camera, source, _)| (camera.order, *source));
     for (camera, _, buffer) in ordered {
         if buffer.0.area.is_empty() {
             continue;
         }
-        match camera.background {
-            Background::Transparent => merge_transparent(&mut frame.0, &buffer.0),
-            Background::TerminalDefault | Background::Clear(_) => frame.0.merge(&buffer.0),
+        match camera.clear_color {
+            ClearColorConfig::None => merge_transparent(&mut frame.0, &buffer.0),
+            ClearColorConfig::Default | ClearColorConfig::Custom(_) => frame.0.merge(&buffer.0),
         }
     }
 }
@@ -61,6 +63,7 @@ fn merge_transparent(frame: &mut Buffer, layer: &Buffer) {
 #[cfg(test)]
 mod tests {
     use bevy_app::App;
+    use bevy_camera::{Camera, ClearColorConfig};
     use bevy_ecs::prelude::{Query, World};
     use bevy_ecs::system::RunSystemOnce;
     use ratatui_core::buffer::{Buffer, Cell};
@@ -69,10 +72,17 @@ mod tests {
 
     use super::composite;
     use crate::{
-        Background, CameraBuffer, CorePlugin, ExtractedCamera, FrameBuffer, SourceCamera,
-        TerminalCamera, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
-        TerminalSize, Viewport,
+        CameraBuffer, CorePlugin, ExtractedCamera, FrameBuffer, MainEntity, TerminalCamera,
+        TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems, TerminalSize,
     };
+
+    fn above(clear_color: ClearColorConfig) -> Camera {
+        Camera {
+            order: 1,
+            clear_color,
+            ..Camera::default()
+        }
+    }
 
     fn paint(mut cameras: Query<(&ExtractedCamera, &mut CameraBuffer)>) {
         for (camera, mut buffer) in &mut cameras {
@@ -91,11 +101,8 @@ mod tests {
         app.add_plugins(CorePlugin);
         app.insert_resource(TerminalSize::new(4, 1));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(
-            TerminalCamera::default()
-                .with_order(1)
-                .with_background(Background::Transparent),
-        );
+        app.world_mut()
+            .spawn((TerminalCamera::default(), above(ClearColorConfig::None)));
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_partial);
 
         app.update();
@@ -112,7 +119,7 @@ mod tests {
 
     fn paint_partial(mut cameras: Query<(&ExtractedCamera, &mut CameraBuffer)>) {
         for (camera, mut buffer) in &mut cameras {
-            if camera.background == Background::Transparent {
+            if matches!(camera.clear_color, ClearColorConfig::None) {
                 buffer.0.set_string(2, 0, "B", Style::new());
             } else {
                 let area = buffer.0.area;
@@ -130,12 +137,12 @@ mod tests {
         app.add_plugins(CorePlugin);
         app.insert_resource(TerminalSize::new(4, 1));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(
-            TerminalCamera::default()
-                .with_order(1)
-                .with_viewport(Viewport::Fixed(Rect::new(2, 0, 2, 1)))
-                .with_background(Background::Clear(Color::Blue)),
-        );
+        app.world_mut().spawn((
+            TerminalCamera::Fixed(Rect::new(2, 0, 2, 1)),
+            above(ClearColorConfig::Custom(bevy_color::Color::srgb_u8(
+                0, 0, 255,
+            ))),
+        ));
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint_base_only);
 
         app.update();
@@ -147,7 +154,7 @@ mod tests {
         assert_eq!(frame.0.cell((0, 0)).unwrap().symbol(), "A");
         let cleared = frame.0.cell((2, 0)).unwrap();
         assert_eq!(cleared.symbol(), " ");
-        assert_eq!(cleared.bg, Color::Blue);
+        assert_eq!(cleared.bg, Color::Rgb(0, 0, 255));
     }
 
     fn paint_base_only(mut cameras: Query<(&ExtractedCamera, &mut CameraBuffer)>) {
@@ -168,11 +175,10 @@ mod tests {
         app.add_plugins(CorePlugin);
         app.insert_resource(TerminalSize::new(4, 1));
         app.world_mut().spawn(TerminalCamera::default());
-        app.world_mut().spawn(
-            TerminalCamera::default()
-                .with_order(1)
-                .with_viewport(Viewport::Fixed(Rect::new(2, 0, 2, 1))),
-        );
+        app.world_mut().spawn((
+            TerminalCamera::Fixed(Rect::new(2, 0, 2, 1)),
+            above(ClearColorConfig::Default),
+        ));
         app.add_terminal_systems(TerminalRenderSystems::Rasterize, paint);
 
         app.update();
@@ -198,8 +204,8 @@ mod tests {
         let (low, high) = (first.min(second), first.max(second));
         for (source, symbol) in [(high, "h"), (low, "l")] {
             world.spawn((
-                ExtractedCamera::new(0, area, Background::TerminalDefault),
-                SourceCamera(source),
+                ExtractedCamera::new(0, area, ClearColorConfig::Default),
+                MainEntity::from(source),
                 CameraBuffer(Buffer::filled(area, Cell::new(symbol))),
             ));
         }

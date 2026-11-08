@@ -5,31 +5,54 @@ use bevy_ecs::prelude::ChildOf;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, Edge, TerminalCamera, TerminalSize};
 use plurimus_test::composed_frame;
-use plurimus_ui::{Checked, UiArea};
+use plurimus_ui::UiArea;
 use plurimus_widgets::ratatui_widgets::borders::BorderType;
-use plurimus_widgets::{TabBarLook, TabBarOrientation, WidgetsPlugin, tab_bar, tab_item};
+use plurimus_widgets::{
+    ControlOrientation, SelectedTab, TabBarLook, TabList, WidgetsPlugin, tab_bar, tab_item,
+};
 
 fn render(cols: u16, rows: u16, look: TabBarLook) -> String {
+    render_along(ControlOrientation::Horizontal, (cols, rows), look)
+}
+
+fn render_vertical(cols: u16, rows: u16, look: TabBarLook) -> String {
+    render_along(ControlOrientation::Vertical, (cols, rows), look)
+}
+
+// The second tab is selected through the list, which upstream mirrors onto
+// the tab in `PostUpdate`, so the frame after shows it.
+fn render_along(
+    orientation: ControlOrientation,
+    (cols, rows): (u16, u16),
+    look: TabBarLook,
+) -> String {
     let mut app = App::new();
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(cols, rows));
     app.world_mut().spawn(TerminalCamera::default());
+    let list = TabList {
+        orientation,
+        ..TabList::default()
+    };
     let bar = app
         .world_mut()
-        .spawn((tab_bar(), look, UiArea::Fixed(Rect::new(0, 0, cols, rows))))
+        .spawn((
+            tab_bar(),
+            list,
+            look,
+            UiArea::Fixed(Rect::new(0, 0, cols, rows)),
+        ))
         .id();
-    for (index, label) in ["Diary", "Plan", "Foods"].into_iter().enumerate() {
-        let item = app.world_mut().spawn((tab_item(label), ChildOf(bar))).id();
-        if index == 1 {
-            app.world_mut().entity_mut(item).insert(Checked);
-        }
-    }
+    let items: Vec<_> = ["Diary", "Plan", "Foods"]
+        .into_iter()
+        .map(|label| app.world_mut().spawn((tab_item(label), ChildOf(bar))).id())
+        .collect();
+    app.world_mut()
+        .entity_mut(bar)
+        .insert(SelectedTab(Some(items[1])));
+    app.update();
     app.update();
     composed_frame(&app)
-}
-
-fn vertical() -> TabBarLook {
-    TabBarLook::default().with_orientation(TabBarOrientation::Vertical)
 }
 
 #[test]
@@ -106,39 +129,39 @@ fn quadrant_borders_cannot_join() {
 
 #[test]
 fn vertical_plain() {
-    insta::assert_snapshot!(render(9, 3, vertical()));
+    insta::assert_snapshot!(render_vertical(9, 3, TabBarLook::default()));
 }
 
 #[test]
 fn vertical_divided() {
-    insta::assert_snapshot!(render(
+    insta::assert_snapshot!(render_vertical(
         9,
         5,
-        vertical().with_divider(Some("─────────".into()))
+        TabBarLook::default().with_divider(Some("─────────".into()))
     ));
 }
 
 #[test]
 fn vertical_boxed() {
-    insta::assert_snapshot!(render(
+    insta::assert_snapshot!(render_vertical(
         9,
         9,
-        vertical().with_border(Some(BorderType::Plain))
+        TabBarLook::default().with_border(Some(BorderType::Plain))
     ));
 }
 
 #[test]
 fn vertical_joined_right() {
-    let look = vertical()
+    let look = TabBarLook::default()
         .with_border(Some(BorderType::Plain))
         .with_joined(Some(Edge::Right));
-    insta::assert_snapshot!(render(9, 11, look));
+    insta::assert_snapshot!(render_vertical(9, 11, look));
 }
 
 #[test]
 fn vertical_joined_left() {
-    let look = vertical()
+    let look = TabBarLook::default()
         .with_border(Some(BorderType::Rounded))
         .with_joined(Some(Edge::Left));
-    insta::assert_snapshot!(render(9, 11, look));
+    insta::assert_snapshot!(render_vertical(9, 11, look));
 }

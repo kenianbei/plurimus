@@ -7,8 +7,7 @@ use bevy_ecs::prelude::{ChildOf, On, Resource};
 use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::{Constraint, Position, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
-use plurimus_test::{click, press_key, repeat_key, set_focus};
+use plurimus_test::{character, click, press_key, repeat_key, set_focus};
 use plurimus_ui::{Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, ValueChange};
 use plurimus_widgets::ActiveDescendant;
 use plurimus_widgets::{
@@ -78,19 +77,19 @@ fn column(app: &App, table: Entity) -> Option<usize> {
 fn the_arrows_walk_the_body_rows() {
     let (mut app, table, rows) = app(TableSelection::Row);
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         cursor(&app, table),
         Some(rows[0]),
         "the first press lands on the first row"
     );
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         cursor(&app, table),
         Some(rows[1]),
         "and the next moves down"
     );
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(cursor(&app, table), Some(rows[0]), "and up again");
 }
 
@@ -98,13 +97,13 @@ fn the_arrows_walk_the_body_rows() {
 fn home_and_end_jump_to_the_ends_of_the_body() {
     let (mut app, table, rows) = app(TableSelection::Row);
 
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
     assert_eq!(
         cursor(&app, table),
         Some(rows[2]),
         "End is the last body row, not the footer"
     );
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     assert_eq!(
         cursor(&app, table),
         Some(rows[0]),
@@ -116,14 +115,14 @@ fn home_and_end_jump_to_the_ends_of_the_body() {
 fn a_page_key_moves_by_the_visible_body_height() {
     let (mut app, table, rows) = app(TableSelection::Row);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::PageDown);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::PageDown);
     assert_eq!(
         cursor(&app, table),
         Some(rows[2]),
         "four body rows fit in six, so a page clamps to the last row"
     );
-    press_key(&mut app, KeyCode::PageUp);
+    press_key(&mut app, Key::PageUp);
     assert_eq!(cursor(&app, table), Some(rows[0]), "and back to the first");
 }
 
@@ -135,13 +134,13 @@ fn the_bindings_are_the_apps_to_replace() {
         (Key::Character("k".into()).into(), TableAction::RowPrev),
     ]));
 
-    press_key(&mut app, KeyCode::Char('j'));
-    press_key(&mut app, KeyCode::Char('j'));
+    press_key(&mut app, character('j'));
+    press_key(&mut app, character('j'));
     assert_eq!(cursor(&app, table), Some(rows[1]), "j walks down");
-    press_key(&mut app, KeyCode::Char('k'));
+    press_key(&mut app, character('k'));
     assert_eq!(cursor(&app, table), Some(rows[0]), "k walks up");
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         cursor(&app, table),
         Some(rows[0]),
@@ -153,8 +152,8 @@ fn the_bindings_are_the_apps_to_replace() {
 fn enter_selects_the_cursor_row() {
     let (mut app, _, rows) = app(TableSelection::Row);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
 
     let selected = &app.world().resource::<Selected>().0;
     assert_eq!(
@@ -171,15 +170,15 @@ fn enter_selects_the_cursor_row() {
 fn column_mode_walks_columns_and_reports_no_row() {
     let (mut app, table, _) = app(TableSelection::Column);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(
         column(&app, table),
         Some(0),
         "the first press lands on the first column"
     );
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(column(&app, table), Some(1), "and the next moves right");
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
 
     let selected = &app.world().resource::<Selected>().0;
     assert_eq!(
@@ -196,9 +195,9 @@ fn column_mode_walks_columns_and_reports_no_row() {
 fn cell_mode_reports_both_coordinates() {
     let (mut app, _, rows) = app(TableSelection::Cell);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::ArrowRight);
+    press_key(&mut app, Key::Enter);
 
     let selected = &app.world().resource::<Selected>().0;
     assert_eq!(
@@ -215,7 +214,7 @@ fn cell_mode_reports_both_coordinates() {
 fn a_row_mode_table_ignores_the_column_keys() {
     let (mut app, table, _) = app(TableSelection::Row);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(
         column(&app, table),
         None,
@@ -325,7 +324,7 @@ fn a_disabled_table_takes_neither_keys_nor_clicks() {
         .entity_mut(table)
         .insert(InteractionDisabled);
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     click(&mut app, 2, 2);
 
     assert_eq!(cursor(&app, table), None, "no cursor moved");
@@ -413,23 +412,23 @@ fn the_hit_test_agrees_with_where_the_cells_rendered() {
     }
 }
 
-// Autorepeat moves a cursor but must not re-select, which is the rule
-// `is_fresh_press` already applies to every other widget.
+// Autorepeat moves a cursor but must not re-select, the rule every
+// activation follows.
 #[test]
 fn a_held_key_repeats_movement_but_not_selection() {
     let (mut app, table, rows) = app(TableSelection::Row);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     let selections = app.world().resource::<Selected>().0.len();
 
-    repeat_key(&mut app, KeyCode::Enter);
+    repeat_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Selected>().0.len(),
         selections,
         "a repeated Enter selects nothing further"
     );
 
-    repeat_key(&mut app, KeyCode::Down);
+    repeat_key(&mut app, Key::ArrowDown);
     assert_eq!(
         cursor(&app, table),
         Some(rows[1]),

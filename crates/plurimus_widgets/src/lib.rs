@@ -11,10 +11,8 @@
 //! keeps the behaviour; one that wants different behaviour handles the events
 //! itself and keeps the look.
 
-mod activate;
 mod button;
 mod checkbox;
-mod clipboard;
 mod listbox;
 mod listbox_style;
 mod menu;
@@ -32,35 +30,30 @@ mod text;
 
 pub use bevy_input::keyboard::Key;
 pub use bevy_input_focus;
-pub use plurimus_ui::ValueChange;
+pub use plurimus_ui::bevy_ui_widgets::{
+    ActiveDescendant, Button, Checkbox, ControlOrientation, ListBox, ListBoxMultiSelect, ListItem,
+    MenuAction, MenuButton, MenuEvent, MenuFocusState, MenuItem, MenuLayout, MenuPopup,
+    RadioButton, RadioGroup, ReselectListRow, SelectedTab, SetSelected, SetSliderValue, Slider,
+    SliderPrecision, SliderRange, SliderStep, SliderValue, SliderValueChange, Tab, TabActivation,
+    TabList, TrackClick, checkbox_self_update, listbox_update_selection, radio_self_update,
+    slider_self_update, tablist_self_update,
+};
+pub use plurimus_ui::{Activate, ValueChange};
 pub use ratatui_textarea;
 pub use ratatui_widgets;
 
-pub use activate::{Activate, ActivateKeys};
-pub use button::{Button, button};
-pub use checkbox::{Checkbox, checkbox};
-pub use listbox::{
-    ListBox, ListBoxAccess, ListBoxAction, ListBoxCursor, ListBoxKeys, ListBoxMultiSelect,
-    ListBoxSelectionMarker, ListBoxStripe, ListItem, list_item, listbox,
-};
-pub use menu::{
-    MenuAction, MenuButton, MenuItem, MenuKeys, MenuOpen, MenuPopup, menu_button, menu_item,
-    menu_popup,
-};
+pub use button::button;
+pub use checkbox::checkbox;
+pub use listbox::{ListBoxCursor, ListBoxSelectionMarker, ListBoxStripe, list_item, listbox};
+pub use menu::{menu_button, menu_item, menu_popup};
 pub use pane::{Pane, pane};
 pub use popover::{Popover, PopoverAlign, PopoverSide};
-pub use radio::{RadioButton, RadioGroup, radio};
-pub use rows::{ActiveDescendant, ListItemText, ListItemTrailing, Marked};
+pub use radio::{radio, radio_group};
+pub use rows::{ListItemText, ListItemTrailing, Marked};
 pub use scrollbar::{Scrollbar, scrollbar};
-pub use self_update::{
-    checkbox_self_update, listbox_self_update, radio_self_update, slider_self_update,
-    tab_bar_self_update, table_self_update,
-};
-pub use slider::{Slider, SliderAction, SliderKeys, SliderRange, SliderStep, SliderValue, slider};
-pub use tabbar::{
-    TabBar, TabBarAction, TabBarActiveStyle, TabBarKeys, TabBarLook, TabBarOrientation, TabItem,
-    tab_bar, tab_item,
-};
+pub use self_update::table_self_update;
+pub use slider::slider;
+pub use tabbar::{TabBar, TabBarActiveStyle, TabBarLook, tab_bar, tab_item};
 pub use table::{
     ActiveColumn, Table, TableAction, TableCheckedStyle, TableColumns, TableCursor, TableFooter,
     TableGeometry, TableHeader, TableHeaderClick, TableKeys, TableLayout, TableMultiSelect,
@@ -68,33 +61,28 @@ pub use table::{
     table_row,
 };
 pub use text::{
-    EditableText, Submit, TextChanged, TextEditor, TextEditorAction, TextEditorKeys, TextInput,
-    TextInputAction, TextInputKeys, TextMask, editable_text, text_editor,
+    Submit, TextChanged, TextEditor, TextEditorAction, TextEditorKeys, TextField, TextInput,
+    TextInputAction, TextInputKeys, TextMask, text_editor, text_field,
 };
 
-pub(crate) use activate::{widget_click, widget_key};
 pub(crate) use button::style_buttons;
 pub(crate) use checkbox::style_checkboxes;
 pub(crate) use listbox::{
-    listbox_click, listbox_copy, listbox_drag, listbox_key, listbox_press, reveal_listbox_cursor,
+    listbox_click, listbox_copy, listbox_drag, listbox_press, reveal_listbox_cursor,
 };
 pub(crate) use listbox_style::{mark_list_content, style_listboxes};
-pub(crate) use menu::{
-    menu_button_activate, menu_dismiss, menu_item_click, menu_key, style_menu_items,
-    style_menu_popups,
-};
+pub(crate) use menu::{drive_menu_popups, style_menu_items, style_menu_popups};
 pub(crate) use menu_layout::{place_menu_items, size_menu_popups};
 pub(crate) use pane::style_panes;
-pub(crate) use popover::{adopt_anchor_cameras, place_popovers};
+pub(crate) use popover::{
+    adopt_anchor_cameras, contain_popover_click, contain_popover_press, place_popovers,
+};
 pub(crate) use radio::style_radios;
 pub(crate) use rows::{mark_dirty_content, repair_active_descendants, sync_row_scroll};
 pub(crate) use scrollbar::{scrollbar_drag, scrollbar_press, scrollbar_release, style_scrollbars};
-pub(crate) use slider::{
-    slider_cancel, slider_drag, slider_key, slider_press, slider_release, style_sliders,
-};
+pub(crate) use slider::{slider_cancel, slider_drag, slider_press, slider_release, style_sliders};
 pub(crate) use tabbar::{
     TabBarSelfChanged, TabItemsChanged, place_tab_items, style_tab_bars, style_tab_items,
-    tab_bar_key, tab_item_click,
 };
 pub(crate) use table::{
     TableBodyRow, mark_table_content, reveal_table_cursor, style_tables, table_click, table_copy,
@@ -112,6 +100,7 @@ use bevy_ecs::schedule::SystemSet;
 use bevy_input_focus::InputFocusSystems;
 
 use plurimus_core::CameraSystems;
+use plurimus_ui::bevy_picking::PickingSystems;
 use plurimus_ui::{UiPlugin, UiSystems};
 
 // Shared track convention: first cell is 0.0, last is 1.0, outside clamps.
@@ -131,7 +120,7 @@ pub enum WidgetSystems {
     /// for the containers drawn from row children, the reveal that keeps a
     /// cursor visible, popup sizing, and popover and menu row placement.
     /// Runs after [`UiSystems::Areas`] and focus dispatch, before
-    /// [`UiSystems::Hover`] - so a cursor written later in the frame is
+    /// `PickingSystems::Backend` - so a cursor written later in the frame is
     /// revealed on the next one.
     Layout,
     /// `Update`: the stock stylists rebuilding each widget's [`UiWidget`](plurimus_core::UiWidget).
@@ -164,7 +153,7 @@ fn add_layout_systems(app: &mut App) {
         WidgetSystems::Layout
             .after(UiSystems::Areas)
             .after(InputFocusSystems::Dispatch)
-            .before(UiSystems::Hover),
+            .before(PickingSystems::Backend),
     );
     app.add_systems(
         PreUpdate,
@@ -180,7 +169,7 @@ fn add_layout_systems(app: &mut App) {
                 place_popovers,
                 place_menu_items,
                 place_tab_items,
-                mark_dirty_content::<TabBar, TabItem, TabItemsChanged, TabBarSelfChanged>,
+                mark_dirty_content::<TabBar, Tab, TabItemsChanged, TabBarSelfChanged>,
             )
                 .chain()
                 .in_set(WidgetSystems::Layout),
@@ -228,26 +217,22 @@ fn add_stylists(app: &mut App) {
 }
 
 fn add_observers(app: &mut App) {
-    app.add_observer(widget_click);
-    app.add_observer(widget_key);
+    app.add_observer(contain_popover_press);
+    app.add_observer(contain_popover_click);
     app.add_observer(slider_press);
     app.add_observer(slider_drag);
     app.add_observer(slider_release);
     app.add_observer(slider_cancel);
-    app.add_observer(slider_key);
     app.add_observer(scrollbar_press);
     app.add_observer(scrollbar_drag);
     app.add_observer(scrollbar_release);
     app.add_observer(listbox_press);
     app.add_observer(listbox_drag);
     app.add_observer(listbox_click);
-    app.add_observer(listbox_key);
     app.add_observer(listbox_copy);
     app.add_observer(table_click);
     app.add_observer(table_key);
     app.add_observer(table_copy);
-    app.add_observer(tab_bar_key);
-    app.add_observer(tab_item_click);
     app.add_observer(text_input_key);
     app.add_observer(text_input_paste);
     app.add_observer(text_input_blur);
@@ -257,8 +242,5 @@ fn add_observers(app: &mut App) {
     app.add_observer(text_editor_key);
     app.add_observer(text_editor_paste);
     app.add_observer(text_editor_scrolled);
-    app.add_observer(menu_button_activate);
-    app.add_observer(menu_item_click);
-    app.add_observer(menu_key);
-    app.add_observer(menu_dismiss);
+    app.add_observer(drive_menu_popups);
 }

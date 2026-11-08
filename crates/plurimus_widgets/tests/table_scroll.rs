@@ -4,10 +4,10 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect, Size};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseKind};
-use plurimus_test::{click, composed_frame, press_key, send_mouse, set_focus};
+use plurimus_test::{click, composed_frame, press_key, scroll_at, set_focus};
 use plurimus_ui::{ScrollArea, ScrollOffset, UiArea};
 use plurimus_widgets::{
     ActiveColumn, ActiveDescendant, TableCursor, TableSelection, WidgetsPlugin, table,
@@ -107,8 +107,8 @@ fn scrolling_moves_the_header_out_of_view() {
         "the header is on top before anything scrolls"
     );
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
+    scroll_at(&mut app, 5, 3, 1);
+    scroll_at(&mut app, 5, 3, 1);
 
     let frame = composed_frame(&app);
     let first = frame.lines().next().expect("a first line");
@@ -123,7 +123,7 @@ fn the_cursor_stays_in_view_as_it_walks_past_the_bottom() {
     let (mut app, table, rows) = app();
 
     for _ in 0..BODY {
-        press_key(&mut app, KeyCode::Down);
+        press_key(&mut app, Key::ArrowDown);
     }
 
     assert_eq!(
@@ -144,8 +144,8 @@ fn the_cursor_stays_in_view_as_it_walks_past_the_bottom() {
 #[test]
 fn a_click_after_scrolling_picks_the_row_under_the_pointer() {
     let (mut app, table, rows) = app();
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
+    scroll_at(&mut app, 5, 3, 1);
+    scroll_at(&mut app, 5, 3, 1);
     assert_eq!(offset(&app, table), 2, "two rows are scrolled off");
 
     click(&mut app, 2, 0);
@@ -160,10 +160,10 @@ fn a_click_after_scrolling_picks_the_row_under_the_pointer() {
 #[test]
 fn a_click_past_the_last_row_of_a_scrolled_table_selects_nothing() {
     let (mut app, table, _) = app();
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
+    scroll_at(&mut app, 5, 3, 1);
+    scroll_at(&mut app, 5, 3, 1);
+    scroll_at(&mut app, 5, 3, 1);
+    scroll_at(&mut app, 5, 3, 1);
 
     // Content lines 4..10 are showing: rows 3..8 then the footer.
     click(&mut app, 2, 5);
@@ -204,8 +204,8 @@ fn an_unscrolled_table_ignores_a_click_on_the_footer_over_a_long_body() {
 #[test]
 fn a_scrolled_table_selects_a_row_past_the_unscrolled_bands() {
     let (mut app, table, rows) = app();
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
-    send_mouse(&mut app, MouseKind::ScrollDown, 5, 3);
+    scroll_at(&mut app, 5, 3, 1);
+    scroll_at(&mut app, 5, 3, 1);
 
     click(&mut app, 2, 4);
 

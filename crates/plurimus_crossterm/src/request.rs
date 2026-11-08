@@ -19,7 +19,7 @@ use crossterm::clipboard::{ClipboardSelection, ClipboardType, CopyToClipboard};
 use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
 use crossterm::terminal::SetTitle;
-use plurimus_core::{MainWorld, TerminalContext};
+use plurimus_core::{Extract, TerminalContext};
 use plurimus_term::{ClipboardTarget, TerminalCursorStyle, TerminalRequest};
 use ratatui_crossterm::CrosstermBackend;
 
@@ -44,12 +44,12 @@ pub(crate) struct PreviousCursorStyle(TerminalCursorStyle);
 /// Reads through a cursor of its own, so any other reader of the stream
 /// still sees every request.
 pub(crate) fn write_terminal_requests<W: Write + Send + Sync + 'static>(
-    main_world: Res<MainWorld>,
+    requests: Extract<Res<Messages<TerminalRequest>>>,
     mut cursor: Local<MessageCursor<TerminalRequest>>,
     mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
     clipboard: Res<ClipboardEnabled>,
 ) -> BevyResult {
-    let requests = cursor.read(main_world.resource::<Messages<TerminalRequest>>());
+    let requests = cursor.read(&requests);
     // The backend is itself a `Write` forwarding to the terminal writer,
     // which is the stable way in; `writer_mut` is behind ratatui's unstable
     // `backend-writer` feature.
@@ -92,11 +92,11 @@ fn serve<'a>(
 /// Position and visibility are the presenter's; only the shape needs a
 /// crossterm-specific sequence, and a terminal is free to ignore it.
 pub(crate) fn write_cursor_style<W: Write + Send + Sync + 'static>(
-    main_world: Res<MainWorld>,
+    wanted: Extract<Res<TerminalCursorStyle>>,
     mut context: ResMut<TerminalContext<CrosstermBackend<W>>>,
     mut previous: ResMut<PreviousCursorStyle>,
 ) -> BevyResult {
-    let wanted = *main_world.resource::<TerminalCursorStyle>();
+    let wanted = **wanted;
     if previous.0 == wanted {
         return Ok(());
     }

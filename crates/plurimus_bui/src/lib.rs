@@ -8,10 +8,10 @@
 //! installed.
 //!
 //! Computed nodes rasterize beneath every widget and are picked by
-//! `bevy_picking` through `bevy_ui`'s own backend, fed from the terminal's
-//! mouse, so the upstream `bevy_ui_widgets` run on them unchanged - all but
-//! `TextInputPlugin`, which edits through `bevy_text` and so has nothing to
-//! draw with here.
+//! `bevy_picking` through `bevy_ui`'s own backend, on the mouse pointer the
+//! terminal backend reports to `bevy_picking`, so the upstream
+//! `bevy_ui_widgets` run on them unchanged - all but `TextInputPlugin`,
+//! which edits through `bevy_text` and so has nothing to draw with here.
 //!
 //! # What a cell cannot show
 //!
@@ -22,60 +22,76 @@
 //! content. Colour reaches a cell as RGB and nothing else, so a skin names
 //! the colours it wants rather than a terminal palette entry.
 //!
+//! # Text fields
+//!
+//! Upstream's `TextInput` is the field on both targets. Its own observers
+//! run here unchanged and queue the edits a window's font engine would
+//! apply; this crate applies them to `plurimus_ui`'s `TextInput` engine
+//! instead and writes the value back, so `EditableText::value`, `clear` and
+//! `set_text` mean what they mean on a window. The field draws one row in its
+//! node's `TextColor`, windowed to keep the caret in view, with the caret and
+//! a selection in its `TextCursorStyle`'s colours, as cell backgrounds, or
+//! patched from `UiTheme` where it has none, and the terminal's own caret
+//! sits on it while it holds focus. Copy, cut and paste go through the terminal's
+//! clipboard, and a bracketed paste types into the focused field.
+//! `max_characters` and `visible_width` hold, a cell standing in for a
+//! glyph; `EditableTextFilter` cannot be read outside `bevy_text` and is not
+//! applied, and IME composition never arrives. A native macOS build takes
+//! upstream's command key to be Cmd, which no terminal delivers, so there the
+//! field's select-all and clipboard chords do nothing and a bracketed paste is
+//! how text pastes; plurimus's cell `TextField` binds Ctrl on every host. A
+//! field is one row whatever its `visible_lines`; the terminal's multi-line text widget is
+//! `plurimus_widgets`' `TextEditor`.
+//!
 //! # What stays per target
 //!
 //! A tree shared with a windowed build of the same app keeps these to each
-//! target: a text field, since upstream's `TextInput` needs a font engine -
-//! the terminal places a `plurimus_widgets::EditableText` at the field's
-//! node through `UiArea`; arrow-key navigation, which `plurimus_ui` builds
+//! target: arrow-key navigation, which `plurimus_ui` builds
 //! from widget areas here and nothing builds for nodes on a window; focus
 //! restored when an upstream dialog closes, which neither target does; and
-//! hover on a node beneath a plurimus widget, which the pick gate withholds.
+//! hover on a node beneath a plurimus widget, which the widget blocks.
 
 mod camera;
 mod decorate;
 mod extract;
-mod picking;
+mod field;
 mod rasterize;
 mod rect;
 mod stack;
 mod text;
 mod visibility;
 
-pub use bevy_picking;
 pub use bevy_text;
 pub use bevy_ui_widgets;
-pub use rect::{CellSize, ComputedNodeRect};
+pub use rect::ComputedNodeRect;
 
-use bevy_app::{
-    App, HierarchyPropagatePlugin, Plugin, PluginGroup, PostUpdate, PreUpdate, PropagateSet,
-    Startup,
-};
+use bevy_app::{App, HierarchyPropagatePlugin, Plugin, PostUpdate, PropagateSet};
 use bevy_camera::visibility::VisibilitySystems;
 use bevy_ecs::prelude::{
     DetectChanges, DetectChangesMut, IntoScheduleConfigs, Query, Ref, Res, ResMut,
 };
-use bevy_input::mouse::MouseScrollPixelsPerLine;
-use bevy_input_focus::pointer_focus::PointerFocusPlugin;
-use bevy_picking::{InteractionPlugin, PickingPlugin, PickingSettings, PickingSystems};
 use bevy_text::{EmSize, RemSize};
-use bevy_ui::picking_backend::{UiPickingPlugin, ui_picking};
+use bevy_ui::picking_backend::UiPickingPlugin;
 use bevy_ui::ui_surface::UiSurface;
 use bevy_ui::update::{propagate_ui_target_cameras, update_clipping_system};
 use bevy_ui::{
-    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiScale, UiStack, UiSystems,
-    ui_layout_system,
+    ComputedUiRenderTargetInfo, ComputedUiTargetCamera, Node, UiStack, UiSystems, ui_layout_system,
 };
-use bevy_ui_widgets::{ButtonPlugin, TextInputPlugin, UiWidgetsPlugins};
 use plurimus_core::{
-    RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
+    CellSize, RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
-use plurimus_term::InputSystems;
-use plurimus_ui::{UiPlugin, UiSystems as PuiSystems};
+use plurimus_ui::UiPlugin;
 
 /// Runs `bevy_ui`'s layout and picking against terminal cameras, at
-/// [`CellSize`] pixels per cell, with the fontless `bevy_ui_widgets` plugins
-/// installed.
+/// [`CellSize`] pixels per cell; the fontless `bevy_ui_widgets` plugins
+/// that drive nodes are installed by [`UiPlugin`], which this adds when
+/// absent, and `TextInputPlugin` by this, its edits applied without a font
+/// engine.
+///
+/// Upstream's constants are window pixels, cells only through [`CellSize`]:
+/// a dialog drag keeps the pointer 16 px inside the window, sixteen cells at
+/// the one-pixel default, so a terminal under 32 cells in an axis cannot
+/// drag a dialog along it. An app dragging dialogs names its cell.
 pub struct BuiPlugin;
 
 impl Plugin for BuiPlugin {
@@ -85,7 +101,7 @@ impl Plugin for BuiPlugin {
         }
         stand_in_for_omitted_plugins(app);
         add_picking(app);
-        add_upstream_widgets(app);
+        field::install(app);
         app.configure_sets(
             PostUpdate,
             (
@@ -102,7 +118,7 @@ impl Plugin for BuiPlugin {
         app.add_systems(
             PostUpdate,
             (
-                (camera::sync_bui_cameras, propagate_ui_target_cameras)
+                (camera::sync_default_ui_camera, propagate_ui_target_cameras)
                     .chain()
                     .in_set(UiSystems::Prepare),
                 // Upstream readers of `InheritedVisibility`, such as a
@@ -132,57 +148,17 @@ impl Plugin for BuiPlugin {
     }
 }
 
-// Window picking is off: a press on no node is `plurimus_ui`'s to route,
-// and a window hit would clear the focus it left alone.
+// `plurimus_ui` installs picking, its pointer and upstream's widget
+// observers; bevy_ui's backend is the one piece nodes add.
 fn add_picking(app: &mut App) {
-    if !app.is_plugin_added::<PickingPlugin>() {
-        app.add_plugins((PickingPlugin, InteractionPlugin));
-    }
-    if !app.is_plugin_added::<PointerFocusPlugin>() {
-        app.add_plugins(PointerFocusPlugin);
-    }
     if !app.is_plugin_added::<UiPickingPlugin>() {
         app.add_plugins(UiPickingPlugin);
-    }
-    app.world_mut()
-        .resource_mut::<PickingSettings>()
-        .is_window_picking_enabled = false;
-    // Both stacks write `Hovered`: `bevy_picking` clears it on every
-    // carrier it does not hover, which is every plurimus widget, so
-    // `plurimus_ui` writes last.
-    app.configure_sets(PreUpdate, PuiSystems::Hover.after(PickingSystems::Hover));
-    app.add_systems(Startup, picking::spawn_pointer);
-    app.add_systems(
-        PreUpdate,
-        (
-            picking::feed_pointer
-                .after(InputSystems::Update)
-                .before(PickingSystems::ProcessInput),
-            picking::gate_hits
-                .in_set(PickingSystems::Backend)
-                .after(ui_picking)
-                .after(PuiSystems::Areas),
-        ),
-    );
-}
-
-fn add_upstream_widgets(app: &mut App) {
-    app.init_resource::<MouseScrollPixelsPerLine>();
-    if !app.is_plugin_added::<ButtonPlugin>() {
-        app.add_plugins(
-            UiWidgetsPlugins
-                .build()
-                .disable::<TextInputPlugin>()
-                .disable::<PointerFocusPlugin>(),
-        );
     }
 }
 
 fn stand_in_for_omitted_plugins(app: &mut App) {
     app.init_resource::<UiSurface>();
-    app.init_resource::<UiScale>();
     app.init_resource::<UiStack>();
-    app.init_resource::<CellSize>();
     app.init_resource::<RemSize>();
     app.init_resource::<bevy_text::FontCx>();
 }

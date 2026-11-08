@@ -7,10 +7,12 @@
 //! app renders at a size with no terminal in sight, which is why it is here
 //! and the message reporting a real terminal's resize is not.
 
-use bevy_ecs::prelude::{DetectChangesMut, Res, ResMut, Resource};
+use bevy_ecs::prelude::Resource;
+use bevy_extract::extract_resource::ExtractResource;
+use bevy_math::{UVec2, Vec2};
 use ratatui_core::layout::Rect;
 
-use crate::extract::MainWorld;
+use crate::TerminalRenderApp;
 
 /// Terminal dimensions in cells.
 ///
@@ -19,7 +21,8 @@ use crate::extract::MainWorld;
 /// [`CameraSystems::SyncSize`](crate::CameraSystems::SyncSize), so an app on
 /// a terminal should treat it as read-only. The default stands in until
 /// something reports otherwise.
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Resource, ExtractResource, Debug, Clone, Copy, PartialEq, Eq)]
+#[extract_app(TerminalRenderApp)]
 #[non_exhaustive]
 pub struct TerminalSize {
     /// Number of columns.
@@ -48,6 +51,40 @@ impl Default for TerminalSize {
     }
 }
 
-pub(crate) fn extract_size(main_world: Res<MainWorld>, mut size: ResMut<TerminalSize>) {
-    size.set_if_neq(*main_world.resource::<TerminalSize>());
+/// Pixels per terminal cell, per axis: the one place bevy's pixels and the
+/// terminal's cells meet.
+///
+/// A terminal camera's bevy `Camera` reports its viewport and target in these
+/// pixels, so `bevy_ui` layout, picking and anything else reasoning in a
+/// window's units sees a tree sized for a window - `8 x 16` puts a 560 px
+/// card in 70 columns and a 16 px control in one row - laid out the same
+/// here. The default is one pixel per cell.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub struct CellSize {
+    /// Pixels per column.
+    pub x: f32,
+    /// Pixels per row.
+    pub y: f32,
+}
+
+impl Default for CellSize {
+    fn default() -> Self {
+        Self { x: 1.0, y: 1.0 }
+    }
+}
+
+impl CellSize {
+    /// The cell as a vector, for scaling cell coordinates to pixels.
+    #[must_use]
+    pub const fn vec(self) -> Vec2 {
+        Vec2::new(self.x, self.y)
+    }
+
+    /// `x` by `y` cells in whole pixels, truncated: the one formula every
+    /// pixel size a terminal camera or window reports is taken from, so a
+    /// camera's target and the window it stands in agree exactly.
+    #[must_use]
+    pub fn pixels(self, x: u16, y: u16) -> UVec2 {
+        (Vec2::new(f32::from(x), f32::from(y)) * self.vec()).as_uvec2()
+    }
 }

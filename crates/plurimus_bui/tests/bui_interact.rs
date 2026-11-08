@@ -3,17 +3,17 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_ui::{FlexDirection, Node, PositionType, UiRect, Val};
 use plurimus_bui::BuiPlugin;
-use plurimus_bui::bevy_picking::Pickable;
 use plurimus_bui::bevy_ui_widgets::Button;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_key, release_at, send_mouse, set_focus};
-use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen, UiLabel};
+use plurimus_test::{click, move_to, press_key, release_at, send_press_at, set_focus};
+use plurimus_ui::bevy_picking::Pickable;
+use plurimus_ui::{Activate, Hovered, InteractionDisabled, ModalOpen};
 use plurimus_widgets::WidgetsPlugin;
 
 #[derive(Resource, Default)]
@@ -87,10 +87,10 @@ fn a_node_button_activates_by_click_and_enter() {
     let button = button(&mut app, root);
     settle(&mut app);
 
-    send_mouse(&mut app, MouseKind::Moved, 2, 1);
+    move_to(&mut app, 2, 1);
     assert_eq!(app.world().get::<Hovered>(button), Some(&Hovered(true)));
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 1);
+    send_press_at(&mut app, 2, 1);
     assert_eq!(
         app.world().resource::<InputFocus>().get(),
         Some(button),
@@ -100,7 +100,7 @@ fn a_node_button_activates_by_click_and_enter() {
     assert_eq!(activations(&app), [button]);
 
     set_focus(&mut app, button);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(activations(&app), [button, button]);
 }
 
@@ -112,9 +112,7 @@ fn a_plurimus_widget_over_a_node_takes_the_click() {
     let widget = app
         .world_mut()
         .spawn((
-            plurimus_widgets::Button,
-            UiLabel("over".into()),
-            UiWidget::default(),
+            plurimus_widgets::button("over"),
             UiArea::Fixed(Rect::new(0, 0, 20, 3)),
         ))
         .id();
@@ -185,6 +183,55 @@ fn a_press_inside_an_open_overlay_reaches_only_its_own_nodes() {
     assert_eq!(activations(&app), &[own], "beneath {beneath:?} is covered");
 }
 
+/// A root spawned after an open overlay stacks above it on `bevy_ui`'s own
+/// order, as a toast or a status bar would; inside the overlay's rect it is
+/// still covered.
+#[test]
+fn a_node_stacked_above_an_open_overlay_is_covered_inside_it() {
+    let mut app = app();
+    app.world_mut().spawn((
+        full_screen(),
+        ModalOpen,
+        UiWidget::default(),
+        UiArea::Fixed(Rect::new(0, 0, 20, 6)),
+    ));
+    let toast = app
+        .world_mut()
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            ..full_screen()
+        })
+        .id();
+    let above = button(&mut app, toast);
+    settle(&mut app);
+
+    click(&mut app, 2, 0);
+
+    assert_eq!(activations(&app), &[] as &[Entity], "{above:?} is outside");
+}
+
+/// A press on nothing inside a dialog reaches nothing, the window included,
+/// so focus stays where the dialog put it.
+#[test]
+fn a_press_on_an_empty_cell_inside_an_open_overlay_keeps_focus() {
+    let mut app = app();
+    let overlay = app
+        .world_mut()
+        .spawn((
+            ModalOpen,
+            UiWidget::default(),
+            UiArea::Fixed(Rect::new(0, 0, 10, 3)),
+        ))
+        .id();
+    let field = app.world_mut().spawn((TabIndex(0), ChildOf(overlay))).id();
+    settle(&mut app);
+    set_focus(&mut app, field);
+
+    click(&mut app, 2, 1);
+
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(field));
+}
+
 #[test]
 fn a_pickable_ignore_node_falls_through() {
     let mut app = app();
@@ -244,4 +291,26 @@ fn a_disabled_node_absorbs_the_press() {
     click(&mut app, 2, 0);
 
     assert_eq!(activations(&app), &[] as &[Entity]);
+}
+
+// Window picking stays on: a press on no node is a press on the window,
+// which clears focus as it does on a desktop.
+#[test]
+fn a_press_on_no_node_clears_focus() {
+    let mut app = app();
+    let root = app
+        .world_mut()
+        .spawn(Node {
+            width: Val::Px(8.0),
+            height: Val::Px(1.0),
+            ..Node::default()
+        })
+        .id();
+    let node = button(&mut app, root);
+    settle(&mut app);
+    set_focus(&mut app, node);
+
+    click(&mut app, 15, 4);
+
+    assert_eq!(app.world().resource::<InputFocus>().get(), None);
 }

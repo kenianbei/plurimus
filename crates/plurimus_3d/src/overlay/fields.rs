@@ -4,7 +4,7 @@ use core::ops::Range;
 
 use bevy_color::Luminance;
 use bevy_math::UVec2;
-use plurimus_core::raster::LinearColorSum;
+use plurimus_core::raster::linear_average;
 use ratatui_core::layout::Rect;
 
 use super::EdgeSource;
@@ -39,19 +39,15 @@ impl EdgeFields {
 /// pixel block; transparent pixels count as black.
 fn cell_luminances(pixels: &[u8], size: UVec2, dest: Rect) -> Vec<f32> {
     field(dest, size, |columns, rows| {
-        let mut sum = LinearColorSum::default();
-        for y in rows {
-            for x in columns.clone() {
-                let [red, green, blue, alpha] = pixel_at(pixels, size, x, y);
-                sum.add(if alpha == 0 {
-                    [0; 3]
-                } else {
-                    [red, green, blue]
-                });
-            }
-        }
-        sum.resolve_linear()
-            .map_or(0.0, |linear| linear.luminance())
+        let rgb = rows.flat_map(|y| {
+            columns
+                .clone()
+                .map(move |x| match pixel_at(pixels, size, x, y) {
+                    [.., 0] => [0; 3],
+                    [red, green, blue, _] => [red, green, blue],
+                })
+        });
+        linear_average(rgb).map_or(0.0, |linear| linear.luminance())
     })
 }
 

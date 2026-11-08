@@ -4,14 +4,14 @@ use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Has, On, Query};
 use bevy_input::keyboard::KeyboardInput;
 use bevy_input_focus::FocusedInput;
-use plurimus_term::bevy_compat::HeldModifiers;
+use plurimus_term::HeldModifiers;
 use plurimus_ui::{Checked, first_bound};
 
 use super::geometry::BodyRow;
 use super::input::Interactive;
 use super::{ActiveColumn, TableAction, TableKeys, TableMultiSelect, TableRow, TableSelection};
-use crate::clipboard::Clipboard;
 use crate::rows::{ActiveDescendant, copied_text};
+use plurimus_term::Clipboard;
 
 type Copyable<'a> = (
     &'a Children,

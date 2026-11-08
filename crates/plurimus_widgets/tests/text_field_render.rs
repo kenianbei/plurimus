@@ -1,16 +1,16 @@
-//! Cluster-correct rendering and cursor highlighting for `EditableText`.
+//! Cluster-correct rendering and cursor highlighting for `TextField`.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
 use plurimus_core::{CorePlugin, FrameBuffer, TerminalCamera, TerminalRenderApp, TerminalSize};
-use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::{UiArea, UiTheme};
-use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextInput, TextMask, WidgetsPlugin, text_field};
 
 const ACCENT: &str = "e\u{301}";
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
@@ -27,10 +27,7 @@ fn app() -> App {
 fn spawn_field(app: &mut App, value: &str) -> Entity {
     let world = app.world_mut();
     let field = world
-        .spawn((
-            editable_text(value),
-            UiArea::Fixed(Rect::new(0, 0, WIDTH, 1)),
-        ))
+        .spawn((text_field(value), UiArea::Fixed(Rect::new(0, 0, WIDTH, 1))))
         .id();
     set_focus(app, field);
     field
@@ -68,7 +65,7 @@ fn reversed_columns(buffer: &Buffer) -> Vec<u16> {
 fn a_combining_cluster_renders_into_one_cell() {
     let mut app = app();
     spawn_field(&mut app, ACCENT);
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     let buffer = frame(&mut app);
     assert_eq!(symbols(&buffer)[0], ACCENT, "the accent must survive");
 }
@@ -77,7 +74,7 @@ fn a_combining_cluster_renders_into_one_cell() {
 fn a_zwj_sequence_renders_as_one_symbol() {
     let mut app = app();
     spawn_field(&mut app, FAMILY);
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     let buffer = frame(&mut app);
     let cells = symbols(&buffer);
     assert_eq!(cells[0], FAMILY, "the whole sequence is one symbol");
@@ -89,7 +86,7 @@ fn a_zwj_sequence_renders_as_one_symbol() {
 fn the_cursor_spans_a_wide_cluster() {
     let mut app = app();
     spawn_field(&mut app, FAMILY);
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     let buffer = frame(&mut app);
     assert_eq!(reversed_columns(&buffer), vec![0, 1]);
 }
@@ -98,7 +95,7 @@ fn the_cursor_spans_a_wide_cluster() {
 fn the_cursor_is_one_cell_on_a_narrow_cluster() {
     let mut app = app();
     spawn_field(&mut app, "ab");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     let buffer = frame(&mut app);
     assert_eq!(reversed_columns(&buffer), vec![0]);
 }
@@ -118,7 +115,7 @@ fn a_field_narrower_than_its_cursor_cluster_clips_the_caret() {
     app.world_mut()
         .entity_mut(field)
         .insert(UiArea::Fixed(Rect::new(0, 0, 1, 1)));
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     let buffer = frame(&mut app);
     assert_eq!(reversed_columns(&buffer), vec![0]);
 }
@@ -129,7 +126,7 @@ fn a_field_narrower_than_its_cursor_cluster_clips_the_caret() {
 fn only_a_focused_field_draws_its_caret() {
     let mut app = app();
     spawn_field(&mut app, "ab");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     assert_eq!(reversed_columns(&frame(&mut app)), vec![0]);
 
     app.world_mut().resource_mut::<InputFocus>().clear();
@@ -143,7 +140,7 @@ fn only_a_focused_field_draws_its_caret() {
 fn the_theme_styles_the_caret() {
     let mut app = app();
     spawn_field(&mut app, "ab");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
 
     app.insert_resource(UiTheme::new().with_caret(Style::new().fg(Color::Red)));
     let buffer = frame(&mut app);
@@ -180,8 +177,8 @@ fn a_mask_draws_one_glyph_per_cluster() {
 fn a_masked_caret_lands_on_its_cluster() {
     let mut app = app();
     spawn_masked(&mut app, &format!("a{ACCENT}{FAMILY}b"), MASK);
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(reversed_columns(&frame(&mut app)), vec![2]);
 }
 

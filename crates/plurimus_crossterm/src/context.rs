@@ -134,7 +134,7 @@ fn queue_input_modes<W: Write>(
         queue!(writer, EnableBracketedPaste)?;
     }
     // Unconditional: mode 1004 reports nothing about the user and costs
-    // nothing, and `FocusMessage` is public API that never fires without it.
+    // nothing, and a focus loss is what releases every held key.
     queue!(writer, EnableFocusChange)?;
     Ok(())
 }
@@ -265,7 +265,7 @@ mod tests {
     fn focus_reporting_is_enabled_whatever_else_is_asked_for() {
         assert!(
             queued(false, false, false).contains("\x1b[?1004h"),
-            "PasteMessage's sibling FocusMessage never fires without it"
+            "a focus loss is never reported without it"
         );
         assert!(queued(true, true, true).contains("\x1b[?1004h"));
     }

@@ -11,7 +11,7 @@ use bevy_pbr::{MeshMaterial3d, StandardMaterial};
 use bevy_shape::Sphere;
 use bevy_transform::components::Transform;
 use bevy_world_serialization::WorldAssetRoot;
-use plurimus::core::{TerminalCamera, Viewport};
+use plurimus::core::TerminalCamera;
 use plurimus::render3d::{DepthReadback, Strategy3d};
 
 use crate::game::{Lander, PAD_CENTER_X, START_POSITION};
@@ -84,7 +84,7 @@ fn spawn_camera(commands: &mut Commands) {
             fov: CAMERA_FOV_DEGREES.to_radians(),
             ..PerspectiveProjection::default()
         }),
-        TerminalCamera::default().with_viewport(Viewport::Fill),
+        TerminalCamera::Fill,
         Strategy3d::default(),
         // Feeds the depth-sourced edge overlay modes.
         DepthReadback,

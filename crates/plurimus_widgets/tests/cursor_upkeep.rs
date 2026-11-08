@@ -47,9 +47,7 @@ fn offset(app: &App, container: Entity) -> u16 {
 fn set_active(app: &mut App, container: Entity, row: Option<Entity>) {
     app.world_mut()
         .entity_mut(container)
-        .get_mut::<ActiveDescendant>()
-        .expect("the container keeps its cursor")
-        .0 = row;
+        .insert(ActiveDescendant(row));
 }
 
 // Filtering a list is despawning its rows and spawning new ones, which

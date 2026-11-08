@@ -23,22 +23,21 @@ use bevy_ecs::prelude::{
     Query, Res, ResMut, Resource, With, Without,
 };
 use plurimus::bui::BuiPlugin;
-use plurimus::bui::bevy_ui_widgets::{
-    Button as NodeButton, Checkbox as NodeCheckbox, RadioButton as NodeRadioButton,
-    Slider as NodeSlider,
-};
+use plurimus::bui::bevy_ui_widgets::{Slider as NodeSlider, TextInput as NodeTextInput};
+use plurimus::core::bevy_camera::Camera;
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{
     CameraSystems, CorePlugin, ResolvedViewport, TerminalCamera, TerminalSize, UiArea, UiWidget,
-    Viewport,
 };
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::HeldModifiers;
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus::ui::InteractionDisabled;
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus::widgets::{
-    Activate, Button, Checkbox, EditableText, ListBox, MenuButton, RadioButton, Slider, TextEditor,
+    Activate, Button, Checkbox, ListBox, MenuButton, RadioButton, Slider, TextEditor, TextField,
     WidgetsPlugin,
 };
 
@@ -115,14 +114,13 @@ fn add_demo(app: &mut App) {
 }
 
 fn spawn_cameras(mut commands: Commands) {
+    commands.spawn((TerminalCamera::Fixed(Rect::ZERO), ThemedCamera));
     commands.spawn((
-        TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::ZERO)),
-        ThemedCamera,
-    ));
-    commands.spawn((
-        TerminalCamera::default()
-            .with_order(1)
-            .with_viewport(Viewport::Fixed(Rect::ZERO)),
+        TerminalCamera::Fixed(Rect::ZERO),
+        Camera {
+            order: 1,
+            ..Camera::default()
+        },
         BuiCamera,
     ));
 }
@@ -143,14 +141,12 @@ fn resize_cameras(
 ) {
     let split = size.cols / 2;
     for (mut camera, is_bui) in &mut cameras {
-        let viewport = Viewport::Fixed(if is_bui {
+        let placement = TerminalCamera::Fixed(if is_bui {
             Rect::new(split, 0, size.cols.saturating_sub(split), size.rows)
         } else {
             Rect::new(0, 0, split, size.rows)
         });
-        if camera.viewport != viewport {
-            camera.viewport = viewport;
-        }
+        camera.set_if_neq(placement);
     }
 }
 
@@ -209,12 +205,10 @@ type Interactive = (
         With<Checkbox>,
         With<RadioButton>,
         With<ListBox>,
-        With<EditableText>,
+        With<TextField>,
         With<TextEditor>,
-        With<NodeButton>,
         With<NodeSlider>,
-        With<NodeCheckbox>,
-        With<NodeRadioButton>,
+        With<NodeTextInput>,
     )>,
     Without<MenuButton>,
 );
@@ -238,21 +232,22 @@ pub(crate) fn toggle_disabled(
 // The text widgets consume plain keys, so `q` only quits while nothing
 // holds focus.
 fn quit_on_key(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
+    held: HeldModifiers,
     mut focus: ResMut<InputFocus>,
     mut exit: MessageWriter<AppExit>,
 ) {
     for key in keys.read() {
-        if key.kind != KeyKind::Press {
+        if key.state != ButtonState::Pressed || key.repeat {
             continue;
         }
-        if key.modifiers.ctrl && key.code == KeyCode::Char('c') {
+        if held.get().ctrl && key.logical_key == Key::Character("c".into()) {
             exit.write(AppExit::Success);
             continue;
         }
-        match key.code {
-            KeyCode::Esc => focus.clear(),
-            KeyCode::Char('q') if focus.get().is_none() => {
+        match &key.logical_key {
+            Key::Escape => focus.clear(),
+            Key::Character(c) if c == "q" && focus.get().is_none() => {
                 exit.write(AppExit::Success);
             }
             _ => {}

@@ -8,18 +8,19 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, Res, ResMut, Resource};
-use bevy_input::ButtonInput;
-use bevy_input::keyboard::KeyCode as BevyKeyCode;
+use bevy_ecs::system::RunSystemOnce;
+use bevy_input::keyboard::{Key, KeyCode};
+use bevy_input::{ButtonInput, ButtonState};
 use plurimus::core::ratatui_core::layout::{Constraint, Rect};
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus::term::{InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, PasteMessage};
+use plurimus::term::{InputCapabilities, KeyModifiers, PasteMessage, TerminalInput};
 use plurimus::ui::UiArea;
 use plurimus::ui::bevy_input_focus::FocusedInput;
 use plurimus::widgets::{
-    ActiveDescendant, TableSelection, WidgetsPlugin, button, list_item, listbox, table,
-    table_footer, table_header, table_row,
+    ActiveDescendant, TableSelection, WidgetsPlugin, button, table, table_footer, table_header,
+    table_row,
 };
-use plurimus_test::{press_key, send_focus, send_paste, set_focus, write_key};
+use plurimus_test::{character, press_key, send_focus, send_paste, set_focus, write_key};
 
 const AREA: Rect = Rect::new(0, 0, 20, 6);
 
@@ -44,8 +45,8 @@ struct ShiftAtPaste(Option<bool>);
 // regardless - an accident of the schedule, not a promise.
 //
 // The legacy tier is what forces key and paste into one frame:
-// `forward_keyboard` synthesizes the modifier press from the message's own
-// bitfield, so it cannot arrive a frame early.
+// the sink synthesizes the modifier press from the key's own bitfield, so
+// it cannot arrive a frame early.
 #[test]
 fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
     let mut app = app();
@@ -58,19 +59,24 @@ fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
         .id();
     app.world_mut().entity_mut(target).observe(
         |_: On<FocusedInput<PasteMessage>>,
-         keys: Res<ButtonInput<BevyKeyCode>>,
+         keys: Res<ButtonInput<KeyCode>>,
          mut seen: ResMut<ShiftAtPaste>| {
-            seen.0 = Some(keys.pressed(BevyKeyCode::ShiftLeft));
+            seen.0 = Some(keys.pressed(KeyCode::ShiftLeft));
         },
     );
     set_focus(&mut app, target);
     app.update();
 
-    app.world_mut().write_message(KeyMessage::new(
-        KeyCode::Char('a'),
-        KeyModifiers::default().with_shift(true),
-        KeyKind::Press,
-    ));
+    app.world_mut()
+        .run_system_once(|mut input: TerminalInput| {
+            input.key(
+                character('a'),
+                ButtonState::Pressed,
+                false,
+                KeyModifiers::default().with_shift(true),
+            );
+        })
+        .unwrap();
     send_paste(&mut app, "x");
 
     assert_eq!(
@@ -86,12 +92,12 @@ fn a_dispatch_plurimus_adds_itself_reads_settled_key_state() {
 #[test]
 fn a_focus_loss_releases_the_forwarded_key_in_the_same_frame() {
     let mut app = app();
-    write_key(&mut app, KeyCode::Char('w'));
+    write_key(&mut app, character('w'));
     app.update();
     let is_held = |app: &App| {
         app.world()
-            .resource::<ButtonInput<BevyKeyCode>>()
-            .pressed(BevyKeyCode::KeyW)
+            .resource::<ButtonInput<KeyCode>>()
+            .pressed(KeyCode::KeyW)
     };
     assert!(is_held(&app));
 
@@ -101,32 +107,6 @@ fn a_focus_loss_releases_the_forwarded_key_in_the_same_frame() {
         !is_held(&app),
         "forwarding ran before the synthetic release was written, so bevy's \
          key state holds the key a frame longer than plurimus's own"
-    );
-}
-
-#[test]
-fn a_first_frame_page_moves_a_full_listbox_page() {
-    let mut app = app();
-    let world = app.world_mut();
-    let container = world.spawn((listbox(), UiArea::Fixed(AREA))).id();
-    let items: Vec<Entity> = (0..8)
-        .map(|index| {
-            world
-                .spawn((list_item(format!("item {index}")), ChildOf(container)))
-                .id()
-        })
-        .collect();
-    world
-        .entity_mut(container)
-        .insert(ActiveDescendant(Some(items[0])));
-    set_focus(&mut app, container);
-
-    press_key(&mut app, KeyCode::PageDown);
-
-    assert_eq!(
-        active(&app, container),
-        Some(items[6]),
-        "six rows are visible on the first frame too, so a page is six rows"
     );
 }
 
@@ -158,7 +138,7 @@ fn a_first_frame_page_moves_a_full_table_page() {
         .insert(ActiveDescendant(Some(rows[0])));
     set_focus(&mut app, container);
 
-    press_key(&mut app, KeyCode::PageDown);
+    press_key(&mut app, Key::PageDown);
 
     assert_eq!(
         active(&app, container),

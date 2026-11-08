@@ -1,8 +1,9 @@
 //! Pixel sampling shared by the converters: indexing, cell-to-source
 //! mapping, and supersample reduction.
 
+use bevy_color::{ColorToPacked, Srgba};
 use bevy_math::UVec2;
-use plurimus_core::raster::LinearColorSum;
+use plurimus_core::raster::linear_average;
 use ratatui_core::layout::Rect;
 
 pub(crate) const CHANNELS: usize = 4;
@@ -80,19 +81,14 @@ pub(crate) fn box_reduce(pixels: &[u8], size: UVec2, factor: u32, out: &mut Vec<
 }
 
 fn reduce_block(pixels: &[u8], size: UVec2, factor: u32, block: UVec2) -> [u8; 4] {
-    let mut sum = LinearColorSum::default();
-    for y in block.y * factor..(block.y + 1) * factor {
-        for x in block.x * factor..(block.x + 1) * factor {
-            let [red, green, blue, alpha] = pixel_at(pixels, size, x as usize, y as usize);
-            if alpha != 0 {
-                sum.add([red, green, blue]);
-            }
-        }
-    }
-    match sum.resolve_srgb() {
-        Some([red, green, blue]) => [red, green, blue, u8::MAX],
-        None => [0; CHANNELS],
-    }
+    let rows = block.y * factor..(block.y + 1) * factor;
+    let opaque = rows.flat_map(|y| {
+        (block.x * factor..(block.x + 1) * factor)
+            .map(move |x| pixel_at(pixels, size, x as usize, y as usize))
+            .filter(|&[.., alpha]| alpha != 0)
+            .map(|[red, green, blue, _]| [red, green, blue])
+    });
+    linear_average(opaque).map_or([0; CHANNELS], |linear| Srgba::from(linear).to_u8_array())
 }
 
 #[cfg(test)]

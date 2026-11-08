@@ -10,9 +10,10 @@
 
 use bevy_app::App;
 use bevy_input::ButtonInput;
+use bevy_input::keyboard::KeyCode;
 use plurimus::core::CorePlugin;
-use plurimus::term::{KeyCode, MouseButton, MouseKind, TermPlugin};
-use plurimus_test::{send_focus, send_mouse, write_focus, write_key, write_mouse};
+use plurimus::term::{MouseButton, TermPlugin};
+use plurimus_test::{character, send_focus, send_press_at, write_focus, write_key, write_press_at};
 
 fn app() -> App {
     let mut app = App::new();
@@ -27,13 +28,13 @@ fn is_held(app: &App, code: KeyCode) -> bool {
 #[test]
 fn losing_focus_ends_a_hold_the_terminal_never_will() {
     let mut app = app();
-    write_key(&mut app, KeyCode::Char('w'));
+    write_key(&mut app, character('w'));
     app.update();
-    assert!(is_held(&app, KeyCode::Char('w')));
+    assert!(is_held(&app, KeyCode::KeyW));
 
     send_focus(&mut app, false);
     assert!(
-        !is_held(&app, KeyCode::Char('w')),
+        !is_held(&app, KeyCode::KeyW),
         "the key is still down after the terminal stopped reporting it"
     );
 }
@@ -44,11 +45,11 @@ fn losing_focus_ends_a_hold_the_terminal_never_will() {
 #[test]
 fn a_key_pressed_in_the_losing_frame_does_not_survive_it() {
     let mut app = app();
-    write_key(&mut app, KeyCode::Char('w'));
+    write_key(&mut app, character('w'));
     write_focus(&mut app, false);
     app.update();
 
-    assert!(!is_held(&app, KeyCode::Char('w')));
+    assert!(!is_held(&app, KeyCode::KeyW));
 }
 
 fn is_button_held(app: &App) -> bool {
@@ -60,7 +61,7 @@ fn is_button_held(app: &App) -> bool {
 #[test]
 fn losing_focus_ends_a_button_hold_too() {
     let mut app = app();
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    send_press_at(&mut app, 2, 2);
     assert!(is_button_held(&app));
 
     send_focus(&mut app, false);
@@ -70,7 +71,7 @@ fn losing_focus_ends_a_button_hold_too() {
 #[test]
 fn a_button_pressed_in_the_losing_frame_does_not_survive_it() {
     let mut app = app();
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 2);
+    write_press_at(&mut app, 2, 2);
     write_focus(&mut app, false);
     app.update();
 

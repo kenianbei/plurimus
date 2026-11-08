@@ -1,9 +1,10 @@
 //! Scrollable widget content.
 //!
-//! A [`ScrollArea`] describes content larger than the rect it is drawn in;
-//! [`ScrollOffset`] is where that content currently sits, and [`WheelAxes`]
-//! tells the router which directions a widget can actually consume so a tick
-//! it cannot use passes to whatever is beneath. Scrolled widgets are drawn
+//! A [`ScrollArea`] describes content larger than the rect it is drawn in,
+//! [`ScrollOffset`] is where that content currently sits, and the wheel
+//! router sends a tick to the topmost [`WheelReceptive`] widget under it that
+//! can use that axis, so a tick a widget cannot use passes to whatever is
+//! beneath. Scrolled widgets are drawn
 //! through tui-scrollview rather than into the camera buffer directly, which
 //! is why they carry [`RasterDeferred`] and are rasterized by `scrolled`
 //! instead of core's widget pass.
@@ -11,18 +12,19 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
-use bevy_ecs::prelude::{Commands, Component, EntityEvent, Mut, On, Query, With, Without};
-use bevy_ecs::system::SystemParam;
+use bevy_ecs::prelude::{
+    Commands, Component, EntityEvent, MessageReader, Mut, On, Query, Res, With, Without,
+};
 use bevy_ecs::world::DeferredWorld;
-use plurimus_core::RasterDeferred;
+use bevy_picking::pointer::PointerInput;
+use plurimus_core::CellSize;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_term::{MouseKind, MouseMessage};
+use plurimus_core::{RasterDeferred, UiOrder};
 use tui_scrollview::ScrollbarVisibility;
 
-use crate::interaction::{
-    AreaTargetQuery, ComputedDisabled, ComputedWidgetArea, ValueChange, topmost_at,
-};
+use crate::interaction::{ComputedDisabled, ComputedWidgetArea, Hovered, ValueChange, z_order_key};
 use crate::modal::ModalGuard;
+use crate::pointer::{cell_of, scroll_step};
 
 /// Declares a widget entity's content to be `content_size` cells,
 /// windowed into the resolved area at render time by its
@@ -102,10 +104,16 @@ impl ScrollArea {
         }
     }
 
+    /// The farthest offset the content allows when drawn at `area`.
+    #[must_use]
+    pub const fn max_offset(&self, area: Rect) -> Position {
+        max_offset(self.content_size, self.viewport(area))
+    }
+
     /// Where `step` moves `offset` in this area drawn at `area`, clamped
     /// to the content's extent.
     pub(crate) fn stepped(self, area: Rect, offset: Position, step: (i32, i32)) -> Position {
-        let max = max_offset(self.content_size, self.viewport(area));
+        let max = self.max_offset(area);
         Position::new(
             stepped_offset(offset.x, step.0, max.x),
             stepped_offset(offset.y, step.1, max.y),
@@ -151,61 +159,17 @@ pub struct ScrollIntoView {
 /// receptive widget beneath.
 ///
 /// Wheel arbitration only: a scroll addressed to a widget by any other
-/// route reaches it without consulting this.
+/// route reaches it without consulting this. Requires [`Hovered`], which
+/// is what makes the widget a pick, so a tick over it never also reaches
+/// a node it is drawn over.
 #[derive(Component, Debug, Clone, Copy, Default)]
-#[require(WheelAxes)]
+#[require(Hovered)]
 pub struct WheelReceptive;
-
-/// Wheel axes a [`WheelReceptive`] widget can currently consume. The
-/// router skips a widget that cannot move on the ticked axis, so the tick
-/// falls through to the next candidate beneath it.
-///
-/// Axis-granular, not direction-granular: a widget scrolled to its bottom
-/// still claims the vertical axis, so the target does not flicker as the
-/// offset moves. Defaults to both, which is what a widget the router
-/// cannot measure - a `TextEditor` scrolling its own
-/// viewport - should keep.
-///
-/// A focused [`ScrollKeys`](crate::ScrollKeys) carrier that is not a
-/// [`ScrollArea`] reads it too, passing on a key for an axis it rules out.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct WheelAxes {
-    /// Consumes horizontal ticks.
-    pub horizontal: bool,
-    /// Consumes vertical ticks.
-    pub vertical: bool,
-}
-
-impl WheelAxes {
-    /// The axes a widget can consume, both `false` claiming nothing.
-    #[must_use]
-    pub const fn new(horizontal: bool, vertical: bool) -> Self {
-        Self {
-            horizontal,
-            vertical,
-        }
-    }
-
-    pub(crate) const fn consumes(self, (columns, rows): (i32, i32)) -> bool {
-        (columns != 0 && self.horizontal) || (rows != 0 && self.vertical)
-    }
-}
-
-impl Default for WheelAxes {
-    fn default() -> Self {
-        Self {
-            horizontal: true,
-            vertical: true,
-        }
-    }
-}
 
 /// A scroll of `step` cells, delivered to one widget.
 ///
-/// Produced by a wheel tick over the widget and by a key bound through
-/// [`ScrollKeys`](crate::ScrollKeys); an app triggers it directly to
-/// scroll a widget from anywhere else.
+/// Produced by a wheel tick over the widget; an app triggers it directly to
+/// scroll a widget from anywhere else, a key handler included.
 ///
 /// The step is what the producer asked for, not what the content allows:
 /// a consumer clamps against its own extent, so a step past the end is a
@@ -230,77 +194,71 @@ impl ScrollBy {
 // Disabled still means fall-through here, unlike the press: consuming a
 // tick is this router's own opt-in, and a disabled widget consuming
 // nothing is the same as an axis it cannot scroll.
-type WheelTargetQuery<'w, 's> =
-    AreaTargetQuery<'w, 's, (With<WheelReceptive>, Without<ComputedDisabled>)>;
+type WheelTargetQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static ComputedWidgetArea,
+        Option<&'static UiOrder>,
+        Option<&'static ScrollArea>,
+    ),
+    (With<WheelReceptive>, Without<ComputedDisabled>),
+>;
 
-/// Everything a wheel tick routes against beside the modal state.
-#[derive(SystemParam)]
-pub(crate) struct WheelRouting<'w, 's> {
-    targets: WheelTargetQuery<'w, 's>,
-    axes: Query<'w, 's, &'static WheelAxes>,
-}
-
-impl WheelRouting<'_, '_> {
-    /// The topmost receptive widget at `position` that can move by `step`
-    /// and the open modals admit.
-    pub(crate) fn target(
-        &self,
-        position: Position,
-        step: (i32, i32),
-        modal: &ModalGuard,
-    ) -> Option<Entity> {
-        let consumes = |entity| {
-            self.axes.get(entity).is_ok_and(|axes| axes.consumes(step))
-                && modal.admits(position, entity)
-        };
-        topmost_at(position, &self.targets, consumes)
-    }
-
-    /// Whether a receptive widget the open modals admit is at `position`,
-    /// whatever it can move by.
-    pub(crate) fn covers(&self, position: Position, modal: &ModalGuard) -> bool {
-        topmost_at(position, &self.targets, |entity| {
-            modal.admits(position, entity)
-        })
-        .is_some()
-    }
-}
-
-// A step of the pointer router's batch, so a tick behind a modal flip waits
-// with the rest; true when it dismissed, deferring what follows likewise.
-pub(crate) fn route_tick(
-    message: MouseMessage,
-    wheel: &WheelRouting,
+/// The topmost receptive widget at `position` that can move by `step` and
+/// the open modals admit.
+fn wheel_target(
+    targets: &WheelTargetQuery,
+    position: Position,
+    step: (i32, i32),
     modal: &ModalGuard,
-    commands: &mut Commands,
-) -> bool {
-    let Some(step) = wheel_step(message.kind) else {
-        return false;
-    };
-    let position = message.position;
-    if modal.dismisses(position) {
-        modal.dismiss_all(commands);
-        return true;
-    }
-    // Letting a covered tick through would scroll what the overlay is
-    // drawn on top of.
-    if let Some(entity) = wheel.target(position, step, modal) {
-        commands.trigger(ScrollBy { entity, step });
-    }
-    false
+) -> Option<Entity> {
+    targets
+        .iter()
+        .filter(|(entity, area, _, scroll)| {
+            area.0.contains(position)
+                && consumes(*scroll, area.0, step)
+                && modal.admits(position, *entity)
+        })
+        .max_by_key(|(entity, area, order, _)| z_order_key(*entity, *order, area.0))
+        .map(|(entity, ..)| entity)
 }
 
-// Only a widget's own extents tell the router which ticks it can use;
-// TextEditor keeps the default, scrolling its viewport itself.
-pub(crate) fn sync_scroll_area_axes(
-    mut areas: Query<(&ScrollArea, &ComputedWidgetArea, &mut WheelAxes)>,
+// Axis-granular, not direction-granular: a widget scrolled to its bottom
+// still claims the vertical axis, so the target does not flicker as the
+// offset moves. A receptive widget the router cannot measure - a text editor
+// scrolling its own viewport - claims both.
+const fn consumes(scroll: Option<&ScrollArea>, area: Rect, (columns, rows): (i32, i32)) -> bool {
+    let Some(scroll) = scroll else {
+        return true;
+    };
+    let max = scroll.max_offset(area);
+    (columns != 0 && max.x > 0) || (rows != 0 && max.y > 0)
+}
+
+/// Every tick of the frame, at its own cell: the topmost receptive widget
+/// that can move by it and the open overlays admit is sent a [`ScrollBy`],
+/// and a tick outside every open overlay dismisses them.
+pub(crate) fn route_wheel(
+    mut inputs: MessageReader<PointerInput>,
+    cell: Res<CellSize>,
+    targets: WheelTargetQuery,
+    modal: ModalGuard,
+    mut commands: Commands,
 ) {
-    for (scroll, computed, mut axes) in &mut areas {
-        let max = max_offset(scroll.content_size, scroll.viewport(computed.0));
-        axes.set_if_neq(WheelAxes {
-            horizontal: max.x > 0,
-            vertical: max.y > 0,
-        });
+    for input in inputs.read() {
+        let Some(step) = scroll_step(input.action) else {
+            continue;
+        };
+        let position = cell_of(input.location.position, *cell);
+        if modal.dismisses(position) {
+            modal.dismiss_all(&mut commands);
+            continue;
+        }
+        if let Some(entity) = wheel_target(&targets, position, step, &modal) {
+            commands.trigger(ScrollBy { entity, step });
+        }
     }
 }
 
@@ -343,7 +301,7 @@ pub(crate) fn scroll_into_view(
         return;
     };
     let viewport = scroll.viewport(computed.0);
-    let max = max_offset(scroll.content_size, viewport);
+    let max = scroll.max_offset(computed.0);
     let revealed = Position::new(
         reveal_axis(
             offset.0.x,
@@ -361,16 +319,6 @@ pub(crate) fn scroll_into_view(
         .min(max.y),
     );
     apply_offset(event.entity, revealed, &mut offset, &mut commands);
-}
-
-const fn wheel_step(kind: MouseKind) -> Option<(i32, i32)> {
-    match kind {
-        MouseKind::ScrollUp => Some((0, -1)),
-        MouseKind::ScrollDown => Some((0, 1)),
-        MouseKind::ScrollLeft => Some((-1, 0)),
-        MouseKind::ScrollRight => Some((1, 0)),
-        _ => None,
-    }
 }
 
 /// Writes `position` into the entity's [`ScrollOffset`], emitting

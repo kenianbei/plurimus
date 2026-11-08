@@ -1,7 +1,5 @@
 //! The windowed target: bevy's own window, renderer and picking, assembled
-//! from the granular crates, and a skin over the shared tree and model. The
-//! field is upstream's `TextInput`, which has a font engine to edit through
-//! here.
+//! from the granular crates, and a skin over the shared tree and model.
 
 use bevy_a11y::AccessibilityPlugin;
 use bevy_app::{
@@ -14,19 +12,17 @@ use bevy_core_pipeline::CorePipelinePlugin;
 use bevy_diagnostic::FrameCountPlugin;
 use bevy_ecs::prelude::{
     Add, ChildOf, Commands, Component, DetectChangesMut, Entity, Has, IntoScheduleConfigs,
-    MessageWriter, On, Query, Res, ResMut, With,
+    MessageWriter, On, Query, Res, With,
 };
 use bevy_ecs::system::EntityCommands;
 use bevy_image::ImagePlugin;
-use bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
-use bevy_input::{ButtonInput, ButtonState, InputPlugin};
+use bevy_input::keyboard::KeyCode;
+use bevy_input::{ButtonInput, InputPlugin};
 use bevy_log::LogPlugin;
 use bevy_mesh::MeshPlugin;
 use bevy_render::RenderPlugin;
 use bevy_sprite_render::SpriteRenderPlugin;
-use bevy_text::{
-    EditableText, FontSize, Strikethrough, TextColor, TextCursorStyle, TextFont, TextPlugin,
-};
+use bevy_text::{FontSize, Strikethrough, TextColor, TextCursorStyle, TextFont, TextPlugin};
 use bevy_time::TimePlugin;
 use bevy_transform::TransformPlugin;
 use bevy_ui::widget::Text;
@@ -37,15 +33,13 @@ use bevy_ui::{
 use bevy_ui_render::UiRenderPlugin;
 use bevy_window::{Window, WindowPlugin};
 use bevy_winit::WinitPlugin;
-use plurimus::bui::bevy_picking::DefaultPickingPlugins;
-use plurimus::bui::bevy_picking::hover::Hovered;
-use plurimus::bui::bevy_ui_widgets::{Activate, TextInput, UiWidgetsPlugins};
-use plurimus::ui::bevy_input_focus::tab_navigation::{TabIndex, TabNavigationPlugin};
-use plurimus::ui::bevy_input_focus::{
-    FocusedInput, InputDispatchPlugin, InputFocus, InputFocusPlugin,
-};
+use plurimus::bui::bevy_ui_widgets::UiWidgetsPlugins;
+use plurimus::ui::Hovered;
+use plurimus::ui::bevy_input_focus::tab_navigation::TabNavigationPlugin;
+use plurimus::ui::bevy_input_focus::{InputDispatchPlugin, InputFocus, InputFocusPlugin};
+use plurimus::ui::bevy_picking::DefaultPickingPlugins;
 
-use crate::model::{Done, Part, Todos};
+use crate::model::{Done, Part};
 use crate::{State, add_shared, toggle, write};
 
 const BACKDROP: Color = Color::srgb(0.051, 0.059, 0.078);
@@ -216,7 +210,7 @@ fn shape_control(part: Part, node: &mut Node, entity: &mut EntityCommands) {
         Part::AddButton => {
             node.padding = UiRect::axes(px(22.0), px(CONTROL_PAD));
             node.border_radius = BorderRadius::all(px(10.0));
-            entity.insert(font(15.0)).observe(add_from_field);
+            entity.insert(font(15.0));
         }
         Part::Check => {
             node.width = px(CHECK_SIZE);
@@ -246,9 +240,7 @@ fn shape_field(node: &mut Node, entity: &mut EntityCommands) {
     node.border = UiRect::all(px(1.0));
     node.border_radius = BorderRadius::all(px(10.0));
     node.align_items = AlignItems::Center;
-    entity
-        .insert((TabIndex(0), TextInput, font(BODY), caret()))
-        .observe(submit_field);
+    entity.insert((font(BODY), caret()));
 }
 
 fn caret() -> TextCursorStyle {
@@ -264,40 +256,6 @@ const fn is_interactive(part: Part) -> bool {
         part,
         Part::Field | Part::AddButton | Part::Check | Part::Delete | Part::Filter(_) | Part::Clear
     )
-}
-
-// Upstream's `TextInput` leaves Enter to propagate, so the field's own
-// observer is what commits it.
-fn submit_field(
-    mut input: On<FocusedInput<KeyboardInput>>,
-    mut fields: Query<&mut EditableText>,
-    mut todos: ResMut<Todos>,
-) {
-    let key = &input.event().input;
-    if key.state != ButtonState::Pressed || key.logical_key != Key::Enter {
-        return;
-    }
-    if let Ok(mut field) = fields.get_mut(input.event().focused_entity) {
-        commit(&mut field, &mut todos);
-        input.propagate(false);
-    }
-}
-
-fn add_from_field(
-    _: On<Activate>,
-    mut fields: Query<(&Part, &mut EditableText)>,
-    mut todos: ResMut<Todos>,
-) {
-    for (part, mut field) in &mut fields {
-        if *part == Part::Field {
-            commit(&mut field, &mut todos);
-        }
-    }
-}
-
-fn commit(field: &mut EditableText, todos: &mut Todos) {
-    todos.add(&field.value().to_string());
-    field.clear();
 }
 
 fn quit_on_escape(keys: Res<ButtonInput<KeyCode>>, mut exit: MessageWriter<AppExit>) {

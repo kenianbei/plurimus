@@ -7,15 +7,25 @@
 //! [`GlyphBlock`]) or as subcell pixels ([`Pixel`], [`PixelBlock`]), and the
 //! camera's [`SubcellMode`] decides whether those pixels resolve at halfblock
 //! or braille resolution.
+//!
+//! A 2d view is a terminal camera carrying bevy's [`Camera2d`], projected
+//! through its [`OrthographicProjection`](bevy_camera::OrthographicProjection):
+//! the camera's translation is the view's centre, world space is Y-up, and
+//! `scale` is world units per pixel. A cell is [`CellSize`] pixels, so an app
+//! drawing 2d sets `CellSize { x: 1.0, y: 2.0 }` for a world unit to be a
+//! column wide and half a row tall - a square drawn square on a terminal's
+//! tall cells. [`RenderLayers`] is bevy's mask, an absent one being layer 0.
+//!
+//! [`Camera2d`]: bevy_camera::Camera2d
+//! [`CellSize`]: plurimus_core::CellSize
 
 mod extract;
-mod layers;
 mod projection;
 mod rasterize;
 mod sprite;
 
-pub use layers::RenderLayers;
-pub use projection::{Projection2d, SubcellMode};
+pub use bevy_camera::visibility::RenderLayers;
+pub use projection::SubcellMode;
 pub use sprite::{Glyph, GlyphBlock, Pixel, PixelBlock};
 
 use bevy_app::{App, Plugin};
@@ -25,7 +35,8 @@ use plurimus_core::{
     RasterizeSystems, TerminalRenderApp, TerminalRenderAppExt, TerminalRenderSystems,
 };
 
-/// Rasterizes 2d entities into terminal camera buffers.
+/// Rasterizes 2d entities into terminal camera buffers, for every terminal
+/// camera carrying [`Camera2d`](bevy_camera::Camera2d).
 ///
 /// Requires [`plurimus_core::CorePlugin`] to be added first.
 pub struct Plugin2d;

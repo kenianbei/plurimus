@@ -1,35 +1,31 @@
-//! The push button: the simplest widget, and the one whose component other
-//! widgets compose to inherit activation.
+//! The push button, `bevy_ui_widgets`' own [`Button`] drawn in cells.
 //!
-//! [`Button`] carries no state of its own - it is a marker that makes an
-//! entity a target of the activation path in [`crate::activate`], which is
-//! why `menu_button()` requires it alongside [`crate::MenuButton`].
+//! Upstream's observers activate it - a click that ends on it, or Enter or
+//! space while it holds focus - so this file is its constructor and its
+//! stylist. `menu_button()` composes the same [`Button`] to inherit that.
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::prelude::{Component, Res};
+use bevy_ecs::prelude::Res;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::text::Line;
+use plurimus_ui::bevy_ui_widgets::Button;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::activate::ActivateKeys;
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
 use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
-/// A push button. Emits [`Activate`](crate::Activate) on a click or a key
-/// in its [`ActivateKeys`].
-#[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ActivateKeys)]
-pub struct Button;
-
-/// Spawn bundle for a standard button.
+/// Spawn bundle for a standard button: a tab stop emitting
+/// [`Activate`](crate::Activate).
 pub fn button(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         Button,
+        Hovered::default(),
+        StylistCache::default(),
         UiLabel(label.into()),
         TabIndex(0),
         UiWidget::default(),

@@ -13,6 +13,7 @@ rust-version.workspace = true
 
 [dependencies]
 bevy_app = { workspace = true }
+bevy_camera = { workspace = true }
 bevy_ecs = { workspace = true }
 bevy_input = { workspace = true }
 bevy_input_focus = { workspace = true }
@@ -25,6 +26,7 @@ bevy_window = { workspace = true }
 plurimus_core = { workspace = true }
 plurimus_term = { workspace = true }
 tui-scrollview = { workspace = true }
+unicode-segmentation = { workspace = true }
 
 [dev-dependencies]
 insta = "1"

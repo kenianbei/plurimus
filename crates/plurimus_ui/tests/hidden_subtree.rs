@@ -1,12 +1,12 @@
-//! `UiHidden` hides the subtree beneath it: drawing, scrolled content and
-//! hit-testing all read `ComputedHidden`.
+//! `Propagate(Hidden)` hides the subtree beneath it: drawing, scrolled
+//! content and hit-testing all read `Hidden`.
 
 use bevy_app::{App, Update};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
 use bevy_ecs::prelude::Commands;
 use plurimus_core::ratatui_core::layout::{Rect, Size};
-use plurimus_core::{ComputedHidden, CorePlugin, TerminalCamera, TerminalSize, UiHidden};
+use plurimus_core::{CorePlugin, Hidden, Propagate, TerminalCamera, TerminalSize};
 use plurimus_test::composed_frame;
 use plurimus_ui::tui_scrollview::ScrollbarVisibility;
 use plurimus_ui::{ComputedWidgetArea, ScrollArea, UiArea, UiPlugin, UiWidget};
@@ -55,20 +55,22 @@ fn area_of(app: &App, entity: Entity) -> Rect {
 fn a_hidden_parent_hides_its_whole_subtree_until_shown() {
     let mut app = app();
     let (parent, scrolled) = spawn_family(&mut app);
-    app.world_mut().entity_mut(parent).insert(UiHidden);
+    app.world_mut().entity_mut(parent).insert(Propagate(Hidden));
 
     app.update();
 
     assert_eq!(composed_frame(&app), "    ");
     assert_eq!(area_of(&app, scrolled), Rect::ZERO);
-    assert!(app.world().get::<ComputedHidden>(scrolled).is_some());
+    assert!(app.world().get::<Hidden>(scrolled).is_some());
 
-    app.world_mut().entity_mut(parent).remove::<UiHidden>();
+    app.world_mut()
+        .entity_mut(parent)
+        .remove::<Propagate<Hidden>>();
     app.update();
 
     assert_eq!(composed_frame(&app), "abcd");
     assert_eq!(area_of(&app, scrolled), RIGHT);
-    assert!(app.world().get::<ComputedHidden>(scrolled).is_none());
+    assert!(app.world().get::<Hidden>(scrolled).is_none());
 }
 
 // Hiding happens in observers and systems long after the frame's first
@@ -81,7 +83,7 @@ fn a_subtree_hidden_mid_frame_is_not_drawn_by_that_frame() {
     assert_eq!(composed_frame(&app), "abcd");
 
     app.add_systems(Update, move |mut commands: Commands| {
-        commands.entity(parent).insert(UiHidden);
+        commands.entity(parent).insert(Propagate(Hidden));
     });
     app.update();
 

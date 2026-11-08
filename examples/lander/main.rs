@@ -18,7 +18,7 @@ use bevy_gltf::GltfPlugin;
 use bevy_gltf::extensions::GltfExtensionHandlers;
 use bevy_pbr::PbrPlugin;
 use bevy_world_serialization::WorldSerializationPlugin;
-use plurimus::core::CorePlugin;
+use plurimus::core::{CellSize, CorePlugin};
 use plurimus::render3d::{Plugin3d, Render3dPlugins};
 use plurimus::widgets::WidgetsPlugin;
 
@@ -31,6 +31,8 @@ const ASSET_ROOT: &str = "assets";
 fn main() -> AppExit {
     let mut app = App::new();
     app.add_plugins(CorePlugin);
+    // A terminal cell is about twice as tall as it is wide.
+    app.insert_resource(CellSize { x: 1.0, y: 2.0 });
     add_backend(&mut app);
     app.add_plugins((
         WidgetsPlugin,
@@ -87,13 +89,12 @@ mod tests {
     use bevy_math::Vec2;
     use bevy_time::TimeUpdateStrategy;
     use bevy_transform::components::Transform;
-    use plurimus::core::ratatui_core::style::Color;
-    use plurimus::core::{Background, TerminalCamera, TerminalSize, Viewport};
+    use plurimus::core::bevy_camera::{Camera, ClearColorConfig};
+    use plurimus::core::{TerminalCamera, TerminalSize};
     use plurimus::render3d::{EdgeOverlay, RAMP_ASCII, RAMP_SHADING, Strategy3d};
-    use plurimus::term::KeyCode;
     use plurimus::ui::ComputedWidgetArea;
     use plurimus::widgets::Button;
-    use plurimus_test::{click, composed_styled_frame, write_key};
+    use plurimus_test::{character, click, composed_styled_frame, write_key};
 
     use super::game::{
         FUEL_START, Fuel, GROUND_CLEARANCE, Lander, PAD_CENTER_X, Phase, START_POSITION, add_game,
@@ -142,11 +143,13 @@ mod tests {
     #[test]
     fn panel_renders_uncamouflaged_over_the_scene() {
         let mut app = headless_app();
-        app.world_mut().spawn(
-            TerminalCamera::default()
-                .with_viewport(Viewport::Fill)
-                .with_background(Background::Clear(Color::Rgb(43, 44, 47))),
-        );
+        app.world_mut().spawn((
+            TerminalCamera::Fill,
+            Camera {
+                clear_color: ClearColorConfig::Custom(bevy_color::Color::srgb_u8(43, 44, 47)),
+                ..Camera::default()
+            },
+        ));
 
         app.update();
         app.update();
@@ -186,7 +189,7 @@ mod tests {
     #[test]
     fn thrust_burns_fuel_and_pushes_up() {
         let mut app = headless_app();
-        write_key(&mut app, KeyCode::Char('w'));
+        write_key(&mut app, character('w'));
 
         app.update();
 
@@ -257,7 +260,7 @@ mod tests {
         }
         assert_ne!(*app.world().resource::<Phase>(), Phase::Flying);
 
-        write_key(&mut app, KeyCode::Char('r'));
+        write_key(&mut app, character('r'));
         app.update();
 
         assert_eq!(*app.world().resource::<Phase>(), Phase::Flying);
@@ -289,7 +292,7 @@ mod tests {
 
         let mut seen = Vec::new();
         for _ in 0..4 {
-            write_key(&mut app, KeyCode::Char('t'));
+            write_key(&mut app, character('t'));
             app.update();
             seen.push(*app.world().entity(camera).get::<Strategy3d>().unwrap());
         }
@@ -309,7 +312,7 @@ mod tests {
 
         let mut seen = Vec::new();
         for _ in 0..4 {
-            write_key(&mut app, KeyCode::Char('e'));
+            write_key(&mut app, character('e'));
             app.update();
             seen.push(
                 app.world()

@@ -26,7 +26,7 @@ use plurimus_core::ratatui_core::style::{Modifier, Style};
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::extract::cell_color;
-use super::rect::CellSize;
+use plurimus_core::CellSize;
 
 /// A `Text` root's spans as cell styles, kept from the last change to any
 /// of them so neither measurement nor extraction walks the spans again.
@@ -146,7 +146,12 @@ fn resolved_spans(
 
 // Alpha zero draws nothing, as on desktop: the rasterizer skips a hidden
 // cluster rather than asking the terminal to conceal it.
-fn cell_style(font: &TextFont, color: Color, is_struck: bool, is_underlined: bool) -> Style {
+pub(crate) fn cell_style(
+    font: &TextFont,
+    color: Color,
+    is_struck: bool,
+    is_underlined: bool,
+) -> Style {
     let mut modifiers = Modifier::empty();
     modifiers.set(Modifier::BOLD, font.weight.0 >= FontWeight::SEMIBOLD.0);
     modifiers.set(Modifier::ITALIC, !matches!(font.style, FontStyle::Normal));

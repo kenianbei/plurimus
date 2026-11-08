@@ -1,16 +1,15 @@
-//! The two tab bar stylists: the bar's chrome, and each item's label.
+//! The two tab bar stylists: the bar's chrome, and each tab's label.
 //!
-//! An item never holds focus and never learns the bar's look on its own,
-//! so its stylist reads both off the parent and hashes the bar's focus into
-//! its cache - the one term `observed` cannot see. The bar redraws on
-//! `ContentDirty`, which a moved item or a changed look marks, the way a
-//! list or a table hears about its rows.
+//! A tab never learns the bar's look on its own, so its stylist reads it off
+//! the parent; its selection is upstream's `Selected`, mirrored from the
+//! list. The bar redraws on `ContentDirty`, which a moved tab or a changed
+//! look marks, the way a list or a table hears about its rows.
 
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::{ChildOf, Children};
 use bevy_ecs::prelude::{Changed, Has, Or, Query, Res, With};
-use bevy_input_focus::InputFocus;
+use bevy_input_focus::{InputFocus, IsFocused, IsFocusedHelper};
 use plurimus_core::Edge;
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::Rect;
@@ -21,22 +20,23 @@ use ratatui_widgets::block::{Block, Padding};
 use ratatui_widgets::paragraph::Paragraph;
 
 use super::boxed::{Boxed, Joint};
-use super::{TabBar, TabBarActiveStyle, TabBarLook, TabBarOrientation, TabItem};
+use super::{TabBar, TabBarActiveStyle, TabBarLook};
 use crate::rows::ContentDirty;
 use plurimus_core::UiWidget;
-use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, UiLabel, UiStyle, UiTheme};
-use plurimus_ui::{InteractionState, StateQuery, Stylable, StylistCache, hashed_bits, observed};
+use plurimus_ui::bevy_ui_widgets::{ControlOrientation, Tab, TabList};
+use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, Selected, UiLabel, UiStyle, UiTheme};
+use plurimus_ui::{Hovered, InteractionState, Pressed, Stylable, StylistCache, observed};
 
 pub(crate) type TabItemsChanged = Changed<ComputedWidgetArea>;
 
-pub(crate) type TabBarSelfChanged = Or<(Changed<Children>, Changed<TabBarLook>)>;
+pub(crate) type TabBarSelfChanged = Or<(Changed<Children>, Changed<TabBarLook>, Changed<TabList>)>;
 
 type Bars<'w, 's> = Query<
     'w,
     's,
     (
         Entity,
-        &'static TabBarLook,
+        (&'static TabBarLook, &'static TabList),
         Has<ComputedDisabled>,
         Option<&'static UiStyle>,
         &'static ComputedWidgetArea,
@@ -48,18 +48,21 @@ type Bars<'w, 's> = Query<
     Stylable<TabBar>,
 >;
 
-type ItemRects<'w, 's> = Query<'w, 's, &'static ComputedWidgetArea, With<TabItem>>;
+type ItemRects<'w, 's> = Query<'w, 's, &'static ComputedWidgetArea, With<Tab>>;
 
+// Focus sits on a tab, so the bar is focused while focus is within it.
 pub(crate) fn style_tab_bars(
     theme: Res<UiTheme>,
-    focus: Res<InputFocus>,
+    focus: IsFocusedHelper,
     mut bars: Bars,
     items: ItemRects,
 ) {
-    for (bar, look, disabled, over, area, children, content, mut cache, mut widget) in &mut bars {
+    for (bar, (look, list), disabled, over, area, children, content, mut cache, mut widget) in
+        &mut bars
+    {
         let state = InteractionState::default()
             .with_disabled(disabled)
-            .with_focused(focus.get() == Some(bar));
+            .with_focused(focus.is_focus_within(bar));
         let next = StylistCache::new(state, over);
         if !cache.redraws(next, theme.is_changed() || content.is_changed()) {
             continue;
@@ -70,31 +73,33 @@ pub(crate) fn style_tab_bars(
                 .filter_map(|&child| items.get(child).ok())
                 .map(|rect| rect.0)
                 .collect();
-            gaps(look, &placed)
+            gaps(look, list.orientation, &placed)
         });
         *widget = UiWidget::new(Chrome {
             style: next.resting_style(&theme),
             divider: look.divider.clone(),
             gaps,
-            baseline: look.joint().map(|joint| baseline(look, area.0, joint)),
+            baseline: look
+                .joint(list.orientation)
+                .map(|joint| baseline(look, area.0, joint)),
         });
     }
 }
 
-fn gaps(look: &TabBarLook, placed: &[Rect]) -> Vec<Rect> {
+fn gaps(look: &TabBarLook, orientation: ControlOrientation, placed: &[Rect]) -> Vec<Rect> {
     placed
         .windows(2)
         .filter(|pair| !pair[0].is_empty() && !pair[1].is_empty())
         .map(|pair| {
             let (from, to) = (pair[0], pair[1]);
-            match look.orientation {
-                TabBarOrientation::Horizontal => Rect::new(
+            match orientation {
+                ControlOrientation::Horizontal => Rect::new(
                     from.right(),
                     from.y.saturating_add(look.frame()),
                     to.x.saturating_sub(from.right()),
                     1,
                 ),
-                TabBarOrientation::Vertical => Rect::new(
+                ControlOrientation::Vertical => Rect::new(
                     from.x,
                     from.bottom(),
                     from.width,
@@ -155,17 +160,33 @@ type Items<'w, 's> = Query<
     'w,
     's,
     (
-        StateQuery<'static>,
+        // `StateQuery` with `Selected`, upstream's mirror of the list's
+        // choice, where it reads `Checked`.
+        (
+            Entity,
+            &'static Hovered,
+            Has<Pressed>,
+            Has<ComputedDisabled>,
+            Has<Selected>,
+            Option<&'static UiStyle>,
+        ),
         Ref<'static, UiLabel>,
         &'static ChildOf,
         &'static mut StylistCache,
         &'static mut UiWidget,
     ),
-    Stylable<TabItem>,
+    Stylable<Tab>,
 >;
 
-type ParentBars<'w, 's> =
-    Query<'w, 's, (Ref<'static, TabBarLook>, Ref<'static, TabBarActiveStyle>), With<TabBar>>;
+type ParentBars<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Ref<'static, TabBarLook>,
+        Ref<'static, TabList>,
+        Ref<'static, TabBarActiveStyle>,
+    ),
+>;
 
 pub(crate) fn style_tab_items(
     theme: Res<UiTheme>,
@@ -173,50 +194,48 @@ pub(crate) fn style_tab_items(
     mut items: Items,
     bars: ParentBars,
 ) {
-    for (state @ (.., over), label, parent, mut cache, mut widget) in &mut items {
-        let Ok((look, active)) = bars.get(parent.parent()) else {
+    for (state @ (.., selected, over), label, parent, mut cache, mut widget) in &mut items {
+        let Ok((look, list, active)) = bars.get(parent.parent()) else {
             continue;
         };
-        let bar_focused = focus.get() == Some(parent.parent());
-        let next = observed(state, &focus, hashed_bits(bar_focused));
-        let dirty =
-            theme.is_changed() || label.is_changed() || look.is_changed() || active.is_changed();
+        let next = observed(state, &focus, 0);
+        let dirty = theme.is_changed()
+            || label.is_changed()
+            || look.is_changed()
+            || list.is_changed()
+            || active.is_changed();
         if !cache.redraws(next, dirty) {
             continue;
         }
-        let style = item_style(next, bar_focused, active.0, over, &theme);
-        *widget = item_widget(&look, &label.0, style, next.checked());
+        let style = item_style(next, active.0, over, &theme);
+        *widget = item_widget(&look, list.orientation, &label.0, style, selected);
     }
 }
 
-// The active item is focused while its bar is, and carries the bar's
-// active style beneath its own override; every other item is what the
-// theme says it is.
-fn item_style(
-    next: StylistCache,
-    bar_focused: bool,
-    active: Style,
-    over: Option<&UiStyle>,
-    theme: &UiTheme,
-) -> Style {
+fn item_style(next: StylistCache, active: Style, over: Option<&UiStyle>, theme: &UiTheme) -> Style {
     if !next.checked() {
         return next.style(theme);
     }
-    let driven = next.with_focused(next.state().focused || bar_focused);
     theme
-        .resolve(driven.state())
+        .resolve(next.state())
         .patch(active)
         .patch(over.map_or_else(Style::default, |over| over.0))
 }
 
-fn item_widget(look: &TabBarLook, label: &Line<'static>, style: Style, active: bool) -> UiWidget {
+fn item_widget(
+    look: &TabBarLook,
+    orientation: ControlOrientation,
+    label: &Line<'static>,
+    style: Style,
+    active: bool,
+) -> UiWidget {
     match look.border {
         Some(border) => UiWidget::new(Boxed {
             label: label.clone().style(style),
             border,
             padding: look.padding,
             style,
-            joint: look.joint(),
+            joint: look.joint(orientation),
             active,
         }),
         None => UiWidget::new(

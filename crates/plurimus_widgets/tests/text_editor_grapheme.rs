@@ -2,10 +2,11 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key, set_focus};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{character, press_key, press_key_with, set_focus};
 use plurimus_ui::UiArea;
 use plurimus_widgets::{TextEditor, WidgetsPlugin, text_editor};
 use ratatui_textarea::DataCursor;
@@ -51,10 +52,10 @@ fn left_crosses_a_whole_cluster() {
     for cluster in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let editor = spawn_editor(&mut app, &format!("a{cluster}b"));
-        press_key(&mut app, KeyCode::End);
-        press_key(&mut app, KeyCode::Left);
-        press_key(&mut app, KeyCode::Left);
-        press_key(&mut app, KeyCode::Delete);
+        press_key(&mut app, Key::End);
+        press_key(&mut app, Key::ArrowLeft);
+        press_key(&mut app, Key::ArrowLeft);
+        press_key(&mut app, Key::Delete);
         assert_eq!(lines(&app, editor), ["ab"], "left crosses {cluster:?}");
     }
 }
@@ -64,10 +65,10 @@ fn right_crosses_a_whole_cluster() {
     for cluster in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let editor = spawn_editor(&mut app, &format!("a{cluster}b"));
-        press_key(&mut app, KeyCode::Home);
-        press_key(&mut app, KeyCode::Right);
-        press_key(&mut app, KeyCode::Right);
-        press_key(&mut app, KeyCode::Backspace);
+        press_key(&mut app, Key::Home);
+        press_key(&mut app, Key::ArrowRight);
+        press_key(&mut app, Key::ArrowRight);
+        press_key(&mut app, Key::Backspace);
         assert_eq!(lines(&app, editor), ["ab"], "right crosses {cluster:?}");
     }
 }
@@ -77,8 +78,8 @@ fn backspace_removes_a_whole_cluster() {
     for cluster in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let editor = spawn_editor(&mut app, &format!("a{cluster}"));
-        press_key(&mut app, KeyCode::End);
-        press_key(&mut app, KeyCode::Backspace);
+        press_key(&mut app, Key::End);
+        press_key(&mut app, Key::Backspace);
         assert_eq!(lines(&app, editor), ["a"], "backspace removes {cluster:?}");
     }
 }
@@ -88,8 +89,8 @@ fn delete_removes_a_whole_cluster() {
     for cluster in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let editor = spawn_editor(&mut app, &format!("{cluster}b"));
-        press_key(&mut app, KeyCode::Home);
-        press_key(&mut app, KeyCode::Delete);
+        press_key(&mut app, Key::Home);
+        press_key(&mut app, Key::Delete);
         assert_eq!(lines(&app, editor), ["b"], "delete removes {cluster:?}");
     }
 }
@@ -99,10 +100,14 @@ fn undoing_a_deleted_cluster_restores_it_whole() {
     for cluster in [ACCENT, FAMILY, FLAG] {
         let mut app = app();
         let editor = spawn_editor(&mut app, &format!("a{cluster}b"));
-        press_key(&mut app, KeyCode::End);
-        press_key(&mut app, KeyCode::Left);
-        press_key(&mut app, KeyCode::Backspace);
-        press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('z'));
+        press_key(&mut app, Key::End);
+        press_key(&mut app, Key::ArrowLeft);
+        press_key(&mut app, Key::Backspace);
+        press_key_with(
+            &mut app,
+            character('z'),
+            KeyModifiers::none().with_ctrl(true),
+        );
         assert_eq!(
             lines(&app, editor),
             [format!("a{cluster}b")],
@@ -115,9 +120,9 @@ fn undoing_a_deleted_cluster_restores_it_whole() {
 fn left_still_wraps_to_the_previous_line() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab\ncd");
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Left);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::ArrowLeft);
     assert_eq!(cursor(&app, editor), (0, 2), "column 0 wraps up a line");
 }
 
@@ -125,9 +130,9 @@ fn left_still_wraps_to_the_previous_line() {
 fn backspace_still_joins_lines() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "ab\ncd");
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Backspace);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::Backspace);
     assert_eq!(lines(&app, editor), ["abcd"], "column 0 joins the lines");
 }
 
@@ -137,11 +142,15 @@ fn backspace_still_joins_lines() {
 fn backspace_over_a_selection_deletes_only_the_selection() {
     let mut app = app();
     let editor = spawn_editor(&mut app, &format!("ab{FAMILY}cd"));
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Right);
-    press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Right);
-    press_key(&mut app, KeyCode::Backspace);
+    press_key(&mut app, Key::Home);
+    press_key(&mut app, Key::ArrowRight);
+    press_key(&mut app, Key::ArrowRight);
+    press_key_with(
+        &mut app,
+        Key::ArrowRight,
+        KeyModifiers::none().with_shift(true),
+    );
+    press_key(&mut app, Key::Backspace);
     assert_eq!(lines(&app, editor), ["abcd"], "only the selection goes");
 }
 
@@ -149,13 +158,17 @@ fn backspace_over_a_selection_deletes_only_the_selection() {
 fn word_motion_still_reaches_the_engine() {
     let mut app = app();
     let editor = spawn_editor(&mut app, "fn foo(a)");
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     // Pins widgets/word.rs against the engine it mirrors: if textarea's
     // rules move, this list stops matching word.rs's unit test.
     let expected = [3, 6, 7, 8, 9];
     let mut stops = Vec::new();
     for _ in 0..expected.len() {
-        press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Right);
+        press_key_with(
+            &mut app,
+            Key::ArrowRight,
+            KeyModifiers::none().with_ctrl(true),
+        );
         stops.push(cursor(&app, editor).1);
     }
     assert_eq!(stops, expected);

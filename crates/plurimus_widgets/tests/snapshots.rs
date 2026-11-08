@@ -1,12 +1,15 @@
 //! Snapshot tests over composed frames.
 
 use bevy_app::App;
+use plurimus_core::bevy_camera::Camera;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, Viewport};
+use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::composed_frame;
 use plurimus_ui::tui_scrollview::ScrollbarVisibility;
-use plurimus_ui::{ScrollArea, ScrollOffset, UiArea, UiCamera, UiHidden, UiOrder, UiWidget};
-use plurimus_widgets::{Popover, WidgetsPlugin, scrollbar};
+use plurimus_ui::{
+    Hidden, Propagate, ScrollArea, ScrollOffset, UiArea, UiCamera, UiOrder, UiWidget,
+};
+use plurimus_widgets::{ControlOrientation, Popover, WidgetsPlugin, scrollbar};
 use ratatui_widgets::list::{List, ListState};
 use ratatui_widgets::paragraph::Paragraph;
 use ratatui_widgets::scrollbar::{Scrollbar, ScrollbarOrientation, ScrollbarState};
@@ -50,14 +53,16 @@ fn z_order_beats_spawn_order() {
 fn widgets_target_cameras_explicitly_or_by_default() {
     let mut app = app(8, 1);
     app.world_mut()
-        .spawn(TerminalCamera::default().with_viewport(Viewport::Fixed(Rect::new(0, 0, 4, 1))));
+        .spawn(TerminalCamera::Fixed(Rect::new(0, 0, 4, 1)));
     let right = app
         .world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(1)
-                .with_viewport(Viewport::Fixed(Rect::new(4, 0, 4, 1))),
-        )
+        .spawn((
+            TerminalCamera::Fixed(Rect::new(4, 0, 4, 1)),
+            Camera {
+                order: 1,
+                ..Camera::default()
+            },
+        ))
         .id();
     app.world_mut().spawn(UiWidget::new(Paragraph::new("main")));
     app.world_mut()
@@ -74,13 +79,15 @@ fn hidden_widget_skips_render_until_unhidden() {
     app.world_mut().spawn(TerminalCamera::default());
     let widget = app
         .world_mut()
-        .spawn((UiWidget::new(Paragraph::new("shown!")), UiHidden))
+        .spawn((UiWidget::new(Paragraph::new("shown!")), Propagate(Hidden)))
         .id();
 
     app.update();
     insta::assert_snapshot!("hidden_widget", composed_frame(&app));
 
-    app.world_mut().entity_mut(widget).remove::<UiHidden>();
+    app.world_mut()
+        .entity_mut(widget)
+        .remove::<Propagate<Hidden>>();
     app.update();
     insta::assert_snapshot!("unhidden_widget", composed_frame(&app));
 }
@@ -189,7 +196,7 @@ fn scrollbar_entity_tracks_target() {
         ))
         .id();
     app.world_mut().spawn((
-        scrollbar(target, ScrollbarOrientation::VerticalRight),
+        scrollbar(target, ControlOrientation::Vertical),
         UiArea::Fixed(Rect::new(6, 0, 1, 4)),
     ));
 
@@ -218,7 +225,13 @@ fn widget_on_inactive_camera_is_skipped() {
     app.world_mut().spawn(TerminalCamera::default());
     let inactive = app
         .world_mut()
-        .spawn(TerminalCamera::default().with_active(false))
+        .spawn((
+            TerminalCamera::default(),
+            Camera {
+                is_active: false,
+                ..Camera::default()
+            },
+        ))
         .id();
     app.world_mut()
         .spawn((UiWidget::new(Paragraph::new("gone")), UiCamera(inactive)));

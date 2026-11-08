@@ -11,8 +11,9 @@ use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Query, With, Without};
 use plurimus_core::ratatui_core::layout::Rect;
 
-use super::{TabBar, TabBarLook, TabBarOrientation, TabItem};
+use super::{TabBar, TabBarLook};
 use plurimus_core::{CameraViewports, ComputedUiCamera, UiArea, UiOrder, local_area};
+use plurimus_ui::bevy_ui_widgets::{ControlOrientation, Tab, TabList};
 use plurimus_ui::{ComputedWidgetArea, UiLabel};
 
 /// The cell a divider takes between two items.
@@ -24,11 +25,11 @@ type Bars<'w, 's> = Query<
     (
         Ref<'static, ComputedWidgetArea>,
         &'static ComputedUiCamera,
-        Ref<'static, TabBarLook>,
+        (Ref<'static, TabBarLook>, Ref<'static, TabList>),
         Option<Ref<'static, UiOrder>>,
         Ref<'static, Children>,
     ),
-    (With<TabBar>, Without<TabItem>),
+    (With<TabBar>, Without<Tab>),
 >;
 
 type Items<'w, 's> = Query<
@@ -40,20 +41,21 @@ type Items<'w, 's> = Query<
         &'static mut ComputedWidgetArea,
         &'static mut UiOrder,
     ),
-    With<TabItem>,
+    With<Tab>,
 >;
 
 // Items draw one order above the bar, whatever the app gave it, so the
 // chrome never covers a label. A hidden bar's area is already zero, which
 // places its items nowhere.
 pub(crate) fn place_tab_items(cameras: CameraViewports, bars: Bars, mut items: Items) {
-    for (bar_area, camera, look, order, children) in &bars {
+    for (bar_area, camera, (look, list), order, children) in &bars {
         let relabelled = children
             .iter()
             .filter_map(|&child| items.get(child).ok())
             .any(|(label, ..)| label.is_changed());
         let moved = bar_area.is_changed()
             || look.is_changed()
+            || list.is_changed()
             || children.is_changed()
             || order.as_ref().is_some_and(Ref::is_changed);
         if !moved && !relabelled {
@@ -66,7 +68,7 @@ pub(crate) fn place_tab_items(cameras: CameraViewports, bars: Bars, mut items: I
             .filter_map(|&child| items.get(child).ok())
             .map(|(label, ..)| u16::try_from(label.0.width()).unwrap_or(u16::MAX))
             .collect();
-        let mut rects = item_rects(&look, bar_area.0, &widths).into_iter();
+        let mut rects = item_rects(&look, list.orientation, bar_area.0, &widths).into_iter();
         for &child in &*children {
             let Ok((_, mut area, mut computed, mut item_order)) = items.get_mut(child) else {
                 continue;
@@ -80,10 +82,15 @@ pub(crate) fn place_tab_items(cameras: CameraViewports, bars: Bars, mut items: I
     }
 }
 
-/// Where each item of a bar drawn at `bar` lands on screen, one rect per
-/// label width in order. An item that does not fit whole is
+/// Where each item of a bar drawn at `bar` running along `orientation` lands
+/// on screen, one rect per label width in order. An item that does not fit whole is
 /// [`Rect::ZERO`], and so is every item after it.
-pub(crate) fn item_rects(look: &TabBarLook, bar: Rect, widths: &[u16]) -> Vec<Rect> {
+pub(crate) fn item_rects(
+    look: &TabBarLook,
+    orientation: ControlOrientation,
+    bar: Rect,
+    widths: &[u16],
+) -> Vec<Rect> {
     let gap = if look.divider.is_some() {
         DIVIDER_CELLS
     } else {
@@ -94,13 +101,13 @@ pub(crate) fn item_rects(look: &TabBarLook, bar: Rect, widths: &[u16]) -> Vec<Re
     widths
         .iter()
         .map(|&width| {
-            let (rect, advance) = match look.orientation {
-                TabBarOrientation::Horizontal => {
+            let (rect, advance) = match orientation {
+                ControlOrientation::Horizontal => {
                     let width = width.saturating_add(2 * (look.padding + look.frame()));
                     let rect = Rect::new(bar.x.saturating_add(cursor), bar.y, width, thickness);
                     (rect, width)
                 }
-                TabBarOrientation::Vertical => {
+                ControlOrientation::Vertical => {
                     let rect = Rect::new(bar.x, bar.y.saturating_add(cursor), bar.width, thickness);
                     (rect, thickness)
                 }
@@ -120,36 +127,53 @@ mod tests {
     use super::*;
     use ratatui_widgets::borders::BorderType;
 
+    const HORIZONTAL: ControlOrientation = ControlOrientation::Horizontal;
+
     #[test]
     fn horizontal_items_follow_each_other_padded() {
-        let rects = item_rects(&TabBarLook::default(), Rect::new(2, 1, 20, 1), &[3, 4]);
+        let rects = item_rects(
+            &TabBarLook::default(),
+            HORIZONTAL,
+            Rect::new(2, 1, 20, 1),
+            &[3, 4],
+        );
         assert_eq!(rects, [Rect::new(2, 1, 5, 1), Rect::new(7, 1, 6, 1)]);
     }
 
     #[test]
     fn divider_leaves_a_cell_between_items() {
         let look = TabBarLook::default().with_divider(Some("|".into()));
-        let rects = item_rects(&look, Rect::new(0, 0, 20, 1), &[3, 3]);
+        let rects = item_rects(&look, HORIZONTAL, Rect::new(0, 0, 20, 1), &[3, 3]);
         assert_eq!(rects, [Rect::new(0, 0, 5, 1), Rect::new(6, 0, 5, 1)]);
     }
 
     #[test]
     fn border_makes_items_three_thick_and_wider() {
         let look = TabBarLook::default().with_border(Some(BorderType::Plain));
-        let rects = item_rects(&look, Rect::new(0, 0, 20, 3), &[3]);
+        let rects = item_rects(&look, HORIZONTAL, Rect::new(0, 0, 20, 3), &[3]);
         assert_eq!(rects, [Rect::new(0, 0, 7, 3)]);
     }
 
     #[test]
     fn vertical_items_stack_at_the_bar_width() {
-        let look = TabBarLook::default().with_orientation(TabBarOrientation::Vertical);
-        let rects = item_rects(&look, Rect::new(1, 1, 10, 5), &[3, 8]);
+        let look = TabBarLook::default();
+        let rects = item_rects(
+            &look,
+            ControlOrientation::Vertical,
+            Rect::new(1, 1, 10, 5),
+            &[3, 8],
+        );
         assert_eq!(rects, [Rect::new(1, 1, 10, 1), Rect::new(1, 2, 10, 1)]);
     }
 
     #[test]
     fn an_item_past_the_bar_is_nowhere_and_so_are_the_rest() {
-        let rects = item_rects(&TabBarLook::default(), Rect::new(0, 0, 8, 1), &[2, 2, 2]);
+        let rects = item_rects(
+            &TabBarLook::default(),
+            HORIZONTAL,
+            Rect::new(0, 0, 8, 1),
+            &[2, 2, 2],
+        );
         assert_eq!(
             rects,
             [Rect::new(0, 0, 4, 1), Rect::new(4, 0, 4, 1), Rect::ZERO]
@@ -160,7 +184,7 @@ mod tests {
     fn a_bar_too_thin_for_boxes_draws_none() {
         let look = TabBarLook::default().with_border(Some(BorderType::Plain));
         assert_eq!(
-            item_rects(&look, Rect::new(0, 0, 20, 1), &[3]),
+            item_rects(&look, HORIZONTAL, Rect::new(0, 0, 20, 1), &[3]),
             [Rect::ZERO]
         );
     }

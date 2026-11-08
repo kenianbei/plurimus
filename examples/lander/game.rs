@@ -6,7 +6,9 @@ use bevy_math::Vec2;
 use bevy_time::Time;
 use bevy_transform::components::Transform;
 use plurimus::render3d::{EdgeOverlay, EdgeSource, LuminanceRamp, RAMP_SHADING, Strategy3d};
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::HeldModifiers;
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 
 const GRAVITY: f32 = 3.0;
 const IMPULSE_UP: f32 = 1.4;
@@ -60,7 +62,7 @@ pub fn add_game(app: &mut App) {
     app.insert_resource(Fuel(FUEL_START));
     app.init_resource::<Phase>();
     app.add_systems(FixedUpdate, fall_and_touch_down);
-    app.add_systems(Update, (handle_keys, handle_render_keys));
+    app.add_systems(Update, (quit_on_key, handle_keys, handle_render_keys));
     crate::hud::add_hud(app);
 }
 
@@ -107,42 +109,52 @@ fn touchdown_phase(lander: &Lander, x: f32) -> Phase {
     }
 }
 
-fn handle_keys(
-    mut keys: MessageReader<KeyMessage>,
-    mut phase: ResMut<Phase>,
-    mut fuel: ResMut<Fuel>,
-    mut landers: Query<(&mut Lander, &mut Transform)>,
+fn quit_on_key(
+    mut keys: MessageReader<KeyboardInput>,
+    held: HeldModifiers,
     mut exit: MessageWriter<AppExit>,
 ) {
     for key in keys.read() {
-        if key.kind == KeyKind::Release {
-            continue;
-        }
-        let ctrl_c = key.modifiers.ctrl && key.code == KeyCode::Char('c');
-        if key.code == KeyCode::Char('q') || ctrl_c {
+        let ctrl_c = held.get().ctrl && key.logical_key == Key::Character("c".into());
+        if key.state == ButtonState::Pressed
+            && (key.logical_key == Key::Character("q".into()) || ctrl_c)
+        {
             exit.write(AppExit::Success);
+        }
+    }
+}
+
+fn handle_keys(
+    mut keys: MessageReader<KeyboardInput>,
+    mut phase: ResMut<Phase>,
+    mut fuel: ResMut<Fuel>,
+    mut landers: Query<(&mut Lander, &mut Transform)>,
+) {
+    for key in keys.read() {
+        if key.state == ButtonState::Released {
             continue;
         }
-        match key.code {
-            KeyCode::Char('r') => reset(&mut phase, &mut fuel, &mut landers),
-            code => burn(code, &mut fuel, &mut landers, *phase),
+        if key.logical_key == Key::Character("r".into()) {
+            reset(&mut phase, &mut fuel, &mut landers);
+        } else {
+            burn(&key.logical_key, &mut fuel, &mut landers, *phase);
         }
     }
 }
 
 fn handle_render_keys(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
     mut cameras: Query<(Entity, &mut Strategy3d, Option<&EdgeOverlay>)>,
     mut commands: Commands,
 ) {
     for key in keys.read() {
-        if key.kind == KeyKind::Release {
+        if key.state == ButtonState::Released {
             continue;
         }
-        match key.code {
-            KeyCode::Char('t') => cycle_strategies(&mut cameras),
-            KeyCode::Char('e') => cycle_edges(&cameras, &mut commands),
-            _ => {}
+        if key.logical_key == Key::Character("t".into()) {
+            cycle_strategies(&mut cameras);
+        } else if key.logical_key == Key::Character("e".into()) {
+            cycle_edges(&cameras, &mut commands);
         }
     }
 }
@@ -194,15 +206,22 @@ const fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
 }
 
 fn burn(
-    code: KeyCode,
+    key: &Key,
     fuel: &mut Fuel,
     landers: &mut Query<(&mut Lander, &mut Transform)>,
     phase: Phase,
 ) {
-    let impulse = match code {
-        KeyCode::Char('w' | ' ') | KeyCode::Up => Vec2::new(0.0, IMPULSE_UP),
-        KeyCode::Char('a') | KeyCode::Left => Vec2::new(-IMPULSE_SIDE, 0.0),
-        KeyCode::Char('d') | KeyCode::Right => Vec2::new(IMPULSE_SIDE, 0.0),
+    let typed = match key {
+        Key::Character(c) => c.as_str(),
+        Key::ArrowUp => "w",
+        Key::ArrowLeft => "a",
+        Key::ArrowRight => "d",
+        _ => return,
+    };
+    let impulse = match typed {
+        "w" | " " => Vec2::new(0.0, IMPULSE_UP),
+        "a" => Vec2::new(-IMPULSE_SIDE, 0.0),
+        "d" => Vec2::new(IMPULSE_SIDE, 0.0),
         _ => return,
     };
     if phase != Phase::Flying || fuel.0 <= 0.0 {

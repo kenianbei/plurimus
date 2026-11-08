@@ -1,36 +1,36 @@
-//! The checkbox: a toggle whose checked state lives outside the widget.
+//! The checkbox, `bevy_ui_widgets`' own [`Checkbox`] drawn in cells.
 //!
-//! Activation emits [`ValueChange<bool>`](plurimus_ui::ValueChange) carrying
-//! the negation of the current [`Checked`](plurimus_ui::Checked) state rather
-//! than applying it, so an app can veto or transform the toggle. Attach
-//! [`checkbox_self_update`](crate::checkbox_self_update) for the uncontrolled
-//! behavior.
+//! Upstream's observers emit [`ValueChange<bool>`](plurimus_ui::ValueChange)
+//! carrying the negation of the current [`Checked`](plurimus_ui::Checked)
+//! state rather than applying it, so an app can veto or transform the
+//! toggle. Attach [`checkbox_self_update`](crate::checkbox_self_update) for
+//! the uncontrolled behavior.
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::DetectChanges;
-use bevy_ecs::prelude::{Component, Res};
+use bevy_ecs::prelude::Res;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::text::Line;
+use plurimus_ui::bevy_ui_widgets::Checkbox;
 use ratatui_widgets::paragraph::Paragraph;
 
-use crate::activate::ActivateKeys;
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
 use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
 
-/// A toggle. Emits [`ValueChange<bool>`](plurimus_ui::ValueChange); attach
-/// [`checkbox_self_update`](crate::checkbox_self_update) for uncontrolled
-/// behavior.
-#[derive(Component, Debug, Clone, Copy)]
-#[require(Hovered, StylistCache, ActivateKeys)]
-pub struct Checkbox;
-
-/// Spawn bundle for a standard checkbox.
+/// Spawn bundle for a standard checkbox: a tab stop emitting
+/// [`ValueChange<bool>`](plurimus_ui::ValueChange).
+///
+/// A press on it focuses it whatever
+/// [`PressFocusDisabled`](plurimus_ui::PressFocusDisabled) says, since
+/// upstream's own press handler sets focus.
 pub fn checkbox(label: impl Into<Line<'static>>) -> impl Bundle {
     (
         Checkbox,
+        Hovered::default(),
+        StylistCache::default(),
         UiLabel(label.into()),
         TabIndex(0),
         UiWidget::default(),

@@ -1,5 +1,5 @@
-//! How a tab bar's items are styled: the active one with and without the
-//! bar's focus, overrides and exemptions, and nothing on an idle frame.
+//! How a tab bar's tabs are styled: the selected one with and without
+//! focus, overrides and exemptions, and nothing on an idle frame.
 
 use std::sync::Arc;
 
@@ -8,11 +8,14 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::ChildOf;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
+use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{composed_styled_frame, set_focus, widget_content};
-use plurimus_ui::{Checked, InteractionDisabled, StylistDisabled, UiArea, UiStyle};
+use plurimus_ui::{InteractionDisabled, StylistDisabled, UiArea, UiLabel, UiStyle};
 use plurimus_widgets::ratatui_widgets::borders::BorderType;
-use plurimus_widgets::{TabBarActiveStyle, TabBarLook, WidgetsPlugin, tab_bar, tab_item};
+use plurimus_widgets::{
+    SelectedTab, TabBarActiveStyle, TabBarLook, WidgetsPlugin, tab_bar, tab_item,
+};
 
 fn app() -> App {
     let mut app = App::new();
@@ -36,18 +39,27 @@ fn spawn_bar(app: &mut App) -> Bar {
         .iter()
         .map(|label| app.world_mut().spawn((tab_item(*label), ChildOf(bar))).id())
         .collect();
-    app.world_mut().entity_mut(items[1]).insert(Checked);
+    select(app, bar, items[1]);
     Bar { bar, items }
 }
 
+// Upstream mirrors the list's choice onto its tabs in `PostUpdate`, so the
+// tab is `Selected` after this frame and drawn so on the next.
+fn select(app: &mut App, bar: Entity, tab: Entity) {
+    app.world_mut()
+        .entity_mut(bar)
+        .insert(SelectedTab(Some(tab)));
+    app.update();
+}
+
 #[test]
-fn active_item_reads_without_focus_and_gains_focus_with_the_bar() {
+fn active_item_reads_without_focus_and_gains_focus_when_focused() {
     let mut app = app();
     let bar = spawn_bar(&mut app);
     app.update();
     insta::assert_snapshot!("tab_bar_active_unfocused", composed_styled_frame(&app));
 
-    set_focus(&mut app, bar.bar);
+    set_focus(&mut app, bar.items[1]);
     app.update();
     insta::assert_snapshot!("tab_bar_active_focused", composed_styled_frame(&app));
 }
@@ -85,12 +97,13 @@ fn an_exempted_item_keeps_what_it_holds() {
     let bar = spawn_bar(&mut app);
     app.world_mut()
         .entity_mut(bar.items[0])
-        .insert(StylistDisabled);
+        .insert((StylistDisabled, UiLabel(Line::from("Other"))));
     app.update();
 
     assert_eq!(
         composed_styled_frame(&app).lines().next(),
-        Some("        Plan        ")
+        Some(" Diary  Plan        "),
+        "the relabel is not drawn: the tab keeps the look it was exempted with"
     );
 }
 
@@ -121,8 +134,7 @@ fn moving_the_active_item_repaints_both_items() {
         widget_content(&app, bar.items[1]),
     );
 
-    app.world_mut().entity_mut(bar.items[1]).remove::<Checked>();
-    app.world_mut().entity_mut(bar.items[0]).insert(Checked);
+    select(&mut app, bar.bar, bar.items[0]);
     app.update();
 
     assert!(!Arc::ptr_eq(&before.0, &widget_content(&app, bar.items[0])));
@@ -139,8 +151,7 @@ fn moving_the_active_item_leaves_the_bar_alone() {
     app.update();
     let before = widget_content(&app, bar.bar);
 
-    app.world_mut().entity_mut(bar.items[1]).remove::<Checked>();
-    app.world_mut().entity_mut(bar.items[0]).insert(Checked);
+    select(&mut app, bar.bar, bar.items[0]);
     app.update();
 
     assert!(Arc::ptr_eq(&before, &widget_content(&app, bar.bar)));

@@ -1,14 +1,14 @@
-//! The terminal's own cursor placed on a focused `EditableText`'s caret.
+//! The terminal's own cursor placed on a focused `TextField`'s caret.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalCursor, TerminalSize};
-use plurimus_term::{KeyCode, TerminalCursorStyle};
-use plurimus_test::{press_key, set_focus};
+use plurimus_term::TerminalCursorStyle;
+use plurimus_test::{character, press_key, set_focus};
 use plurimus_ui::{StylistDisabled, UiArea, WidgetCursor};
-use plurimus_widgets::{TextMask, WidgetsPlugin, editable_text};
+use plurimus_widgets::{TextMask, WidgetsPlugin, text_field};
 
 const ROW: Rect = Rect::new(2, 1, 6, 1);
 
@@ -23,7 +23,7 @@ fn app() -> App {
 fn spawn_focused(app: &mut App, value: &str) -> Entity {
     let field = app
         .world_mut()
-        .spawn((editable_text(value), UiArea::Fixed(ROW)))
+        .spawn((text_field(value), UiArea::Fixed(ROW)))
         .id();
     set_focus(app, field);
     field
@@ -114,7 +114,7 @@ fn a_shape_the_app_set_survives_an_edit() {
         .entity_mut(field)
         .insert(WidgetCursor::nowhere().with_style(TerminalCursorStyle::SteadyUnderline));
 
-    press_key(&mut app, KeyCode::Char('c'));
+    press_key(&mut app, character('c'));
 
     assert_eq!(cursor(&mut app), Some(Position::new(ROW.x + 3, ROW.y)));
     assert_eq!(

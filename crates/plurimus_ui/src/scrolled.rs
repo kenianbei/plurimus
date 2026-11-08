@@ -16,13 +16,12 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use bevy_ecs::prelude::{Commands, Component, Entity, Has, ResMut, Resource, Without};
+use bevy_ecs::prelude::{Commands, Component, Entity, Has, Query, ResMut, Resource, Without};
 use plurimus_core::ratatui_core::buffer::Buffer;
 use plurimus_core::ratatui_core::layout::{Position, Rect};
 use plurimus_core::ratatui_core::widgets::{StatefulWidget, Widget};
 use plurimus_core::{
-    ComputedHidden, ComputedUiCamera, ExtractedWidget, MainWorld, TerminalWidget, UiArea, UiOrder,
-    UiWidget,
+    ComputedUiCamera, Extract, ExtractedWidget, Hidden, TerminalWidget, UiArea, UiOrder, UiWidget,
 };
 use tui_scrollview::{ScrollView, ScrollViewState};
 
@@ -124,21 +123,25 @@ impl Widget for &ScrolledWindow {
 }
 
 pub(crate) fn extract_scrolled_widgets(
-    mut main_world: ResMut<MainWorld>,
+    widgets: Extract<
+        Query<
+            (
+                Entity,
+                &UiWidget,
+                &UiArea,
+                Option<&UiOrder>,
+                &ComputedUiCamera,
+                &ScrollArea,
+                &ScrollOffset,
+                Has<LiveWidget>,
+            ),
+            Without<Hidden>,
+        >,
+    >,
     mut cache: ResMut<ScrolledContentCache>,
     mut commands: Commands,
 ) {
-    let mut widgets = main_world.query_filtered::<(
-        Entity,
-        &UiWidget,
-        &UiArea,
-        Option<&UiOrder>,
-        &ComputedUiCamera,
-        &ScrollArea,
-        &ScrollOffset,
-        Has<LiveWidget>,
-    ), Without<ComputedHidden>>();
-    for (source, widget, area, order, camera, scroll, offset, live) in widgets.iter(&main_world) {
+    for (source, widget, area, order, camera, scroll, offset, live) in &widgets {
         let view = cache.view_for(&widget.content(), *scroll, !live);
         let window = Arc::new(ScrolledWindow {
             view,

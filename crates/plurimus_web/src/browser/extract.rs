@@ -1,14 +1,14 @@
 //! Render-world systems that reach back into the main world or the page.
 
+use bevy_clipboard::Clipboard;
 use bevy_ecs::message::{MessageCursor, Messages};
-use bevy_ecs::prelude::{Local, Res, ResMut};
+use bevy_ecs::prelude::{Local, ResMut};
 use plurimus_core::ratatui_core::backend::Backend;
 use plurimus_core::{MainWorld, TerminalContext, TerminalSize};
 use plurimus_term::{ClipboardTarget, TerminalRequest, TerminalResized};
-use wasm_bindgen_futures::JsFuture;
 
 use super::backend::WebBackend;
-use super::{document, warn, window};
+use super::{document, warn};
 
 /// Follows the canvas's size into the grid and the grid into
 /// `TerminalSize`, during extraction so the app sees a resize before it
@@ -48,32 +48,31 @@ pub(crate) fn sync_size(
 
 /// Serves what an app asks of the page. Reads through a cursor of its own,
 /// so any other reader of the stream still sees every request.
+///
+/// A copy goes through `bevy_clipboard`, which reports a browser refusing
+/// the write - outside a secure context, without a recent user gesture - and
+/// treats it as not fatal.
 pub(crate) fn serve_requests(
-    main_world: Res<MainWorld>,
+    mut main_world: ResMut<MainWorld>,
     mut cursor: Local<MessageCursor<TerminalRequest>>,
 ) {
-    let requests = main_world.resource::<Messages<TerminalRequest>>();
-    for request in cursor.read(requests) {
-        match request {
-            TerminalRequest::CopyToClipboard {
-                content,
-                destination: ClipboardTarget::Clipboard,
-            } => copy(content),
-            TerminalRequest::SetTitle(title) => document().set_title(title),
-            _ => {}
-        }
-    }
-}
-
-/// Browsers reject a clipboard write outside a secure context or without a
-/// recent user gesture; that is reported, not fatal.
-fn copy(content: &str) {
-    let written = window().navigator().clipboard().write_text(content);
-    wasm_bindgen_futures::spawn_local(async move {
-        if let Err(error) = JsFuture::from(written).await {
-            warn(&format!(
-                "plurimus_web: the clipboard refused a copy: {error:?}"
-            ));
+    main_world.resource_scope::<Messages<TerminalRequest>, _>(|world, requests| {
+        for request in cursor.read(&requests) {
+            match request {
+                TerminalRequest::CopyToClipboard {
+                    content,
+                    destination: ClipboardTarget::Clipboard,
+                } => {
+                    if let Err(error) = world.resource_mut::<Clipboard>().set_text(content.as_str())
+                    {
+                        warn(&format!(
+                            "plurimus_web: the clipboard refused a copy: {error}"
+                        ));
+                    }
+                }
+                TerminalRequest::SetTitle(title) => document().set_title(title),
+                _ => {}
+            }
         }
     });
 }

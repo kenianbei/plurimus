@@ -6,9 +6,8 @@ use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::{Color, Style};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{MouseButton, MouseKind};
 use plurimus_test::{
-    composed_styled_frame, set_focus, write_mouse, write_press_at, write_release_at,
+    composed_styled_frame, set_focus, write_move_to, write_press_at, write_release_at,
 };
 use plurimus_ui::{InteractionDisabled, StylistDisabled, UiArea, UiStyle};
 use plurimus_widgets::{
@@ -35,17 +34,17 @@ fn button_states() {
     app.update();
     insta::assert_snapshot!("button_normal", composed_styled_frame(&app));
 
-    write_mouse(&mut app, MouseKind::Moved, 4, 0);
+    write_move_to(&mut app, 4, 0);
     app.update();
     insta::assert_snapshot!("button_hovered", composed_styled_frame(&app));
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 4, 0);
+    write_press_at(&mut app, 4, 0);
     app.update();
     app.update();
     insta::assert_snapshot!("button_pressed", composed_styled_frame(&app));
 
     write_release_at(&mut app, 4, 0);
-    write_mouse(&mut app, MouseKind::Moved, 0, 0);
+    write_move_to(&mut app, 0, 0);
     set_focus(&mut app, button);
     app.update();
     app.update();
@@ -76,7 +75,7 @@ fn checkbox_states() {
     write_press_at(&mut app, 2, 0);
     app.update();
     write_release_at(&mut app, 2, 0);
-    write_mouse(&mut app, MouseKind::Moved, 11, 0);
+    write_move_to(&mut app, 11, 0);
     app.update();
     app.update();
     insta::assert_snapshot!("checkbox_checked", composed_styled_frame(&app));
@@ -124,16 +123,14 @@ fn slider_states() {
     insta::assert_snapshot!("slider_at_0", composed_styled_frame(&app));
 
     app.world_mut()
-        .get_mut::<plurimus_widgets::SliderValue>(track)
-        .unwrap()
-        .0 = 50.0;
+        .entity_mut(track)
+        .insert(plurimus_widgets::SliderValue(50.0));
     app.update();
     insta::assert_snapshot!("slider_at_50", composed_styled_frame(&app));
 
     app.world_mut()
-        .get_mut::<plurimus_widgets::SliderValue>(track)
-        .unwrap()
-        .0 = 100.0;
+        .entity_mut(track)
+        .insert(plurimus_widgets::SliderValue(100.0));
     set_focus(&mut app, track);
     app.update();
     insta::assert_snapshot!("slider_at_100_focused", composed_styled_frame(&app));
@@ -221,7 +218,7 @@ fn a_disabled_stylist_leaves_the_widget_to_the_app() {
     let owned = composed_styled_frame(&app);
 
     set_focus(&mut app, button);
-    write_mouse(&mut app, MouseKind::Moved, 4, 0);
+    write_move_to(&mut app, 4, 0);
     app.update();
     app.update();
 

@@ -1,30 +1,29 @@
 //! The terminal render sub-app: the schedules and system sets every pipeline
 //! registers into.
 //!
-//! The sub-app runs two schedules: [`ExtractSchedule`], the only place
-//! [`MainWorld`](crate::MainWorld) is reachable, and [`TerminalRender`], whose
-//! [`TerminalRenderSystems`] phases chain rasterize into composite into
-//! present. Pipeline crates never reach into the sub-app themselves - they
-//! register through [`TerminalRenderAppExt`], which is what keeps the
-//! sub-app's internals private to this crate.
+//! `bevy_extract`'s [`ExtractPlugin`] builds it: bevy's [`ExtractSchedule`],
+//! the only place [`MainWorld`](bevy_extract::MainWorld) is reachable, then
+//! [`TerminalRender`], whose [`TerminalRenderSystems`] phases apply what
+//! extraction spawned, chain rasterize into composite into present, and
+//! despawn the frame's temporaries. Pipeline crates never reach into the
+//! sub-app themselves - they register through [`TerminalRenderAppExt`], which
+//! is what keeps the sub-app's internals private to this crate.
 
-use bevy_app::{App, AppLabel, SubApp};
+use bevy_app::{App, AppLabel};
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule, ScheduleLabel, SystemSet};
 use bevy_ecs::system::ScheduleSystem;
+use bevy_extract::extract_resource::ExtractResourcePlugin;
+use bevy_extract::{ExtractPlugin, ExtractSchedule};
 use ratatui_core::backend::Backend;
 
+use crate::camera::{self, DefaultCamera};
 use crate::compositor::{self, FrameBuffer};
 use crate::present::TerminalContext;
-use crate::{camera, extract, raster, size};
+use crate::{ColorDepth, TerminalCursor, TerminalSize, raster};
 
 /// Label of the terminal render sub-app.
-#[derive(AppLabel, Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(AppLabel, Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct TerminalRenderApp;
-
-/// Schedule with access to [`crate::MainWorld`], run before
-/// [`TerminalRender`] each frame.
-#[derive(ScheduleLabel, Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct ExtractSchedule;
 
 /// Update schedule of the terminal render sub-app.
 #[derive(ScheduleLabel, Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -34,12 +33,16 @@ pub struct TerminalRender;
 #[derive(SystemSet, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TerminalRenderSystems {
+    /// What the [`ExtractSchedule`] spawned and inserted is applied.
+    ExtractCommands,
     /// Pipelines write cells into camera buffers.
     Rasterize,
     /// The composed frame is built; see [`CompositeSystems`] for its passes.
     Composite,
     /// The composed frame goes to the terminal.
     Present,
+    /// The frame's extracted entities are despawned.
+    Cleanup,
 }
 
 /// Ordered pipeline passes within [`TerminalRenderSystems::Rasterize`]:
@@ -130,28 +133,54 @@ impl TerminalRenderAppExt for App {
 }
 
 pub(crate) fn install(app: &mut App) {
-    app.insert_resource(extract::ScratchMainWorld::default());
-    let mut sub_app = SubApp::new();
+    app.add_plugins(ExtractPlugin::<TerminalRenderApp>::new(
+        |_, _| {},
+        terminal_render_schedule,
+        TerminalRender.intern(),
+        TerminalRenderSystems::ExtractCommands.intern(),
+        TerminalRenderSystems::Cleanup.intern(),
+    ));
+    let sub_app = app.sub_app_mut(TerminalRenderApp);
     sub_app.update_schedule = Some(TerminalRender.intern());
-    sub_app.add_schedule(Schedule::new(ExtractSchedule));
-    sub_app.add_schedule(Schedule::new(TerminalRender));
-    sub_app.configure_sets(
+    sub_app.init_resource::<FrameBuffer>();
+    sub_app.init_resource::<TerminalSize>();
+    sub_app.init_resource::<ColorDepth>();
+    sub_app.init_resource::<DefaultCamera>();
+    sub_app.init_resource::<TerminalCursor>();
+    sub_app.add_systems(ExtractSchedule, camera::extract_cameras);
+    sub_app.add_systems(
         TerminalRender,
         (
+            compositor::composite.in_set(CompositeSystems::Merge),
+            raster::downsample_frame.in_set(CompositeSystems::Downsample),
+        ),
+    );
+    app.add_plugins((
+        ExtractResourcePlugin::<TerminalSize, TerminalRenderApp>::default(),
+        ExtractResourcePlugin::<ColorDepth, TerminalRenderApp>::default(),
+        ExtractResourcePlugin::<DefaultCamera, TerminalRenderApp>::default(),
+        ExtractResourcePlugin::<TerminalCursor, TerminalRenderApp>::default(),
+    ));
+}
+
+fn terminal_render_schedule() -> Schedule {
+    let mut schedule = Schedule::new(TerminalRender);
+    schedule.configure_sets(
+        (
+            TerminalRenderSystems::ExtractCommands,
             TerminalRenderSystems::Rasterize,
             TerminalRenderSystems::Composite,
             TerminalRenderSystems::Present,
+            TerminalRenderSystems::Cleanup,
         )
             .chain(),
     );
-    sub_app.configure_sets(
-        TerminalRender,
+    schedule.configure_sets(
         (RasterizeSystems::World, RasterizeSystems::Ui)
             .chain()
             .in_set(TerminalRenderSystems::Rasterize),
     );
-    sub_app.configure_sets(
-        TerminalRender,
+    schedule.configure_sets(
         (
             CompositeSystems::Merge,
             CompositeSystems::PostProcess,
@@ -160,26 +189,7 @@ pub(crate) fn install(app: &mut App) {
             .chain()
             .in_set(TerminalRenderSystems::Composite),
     );
-    sub_app.init_resource::<FrameBuffer>();
-    sub_app.init_resource::<size::TerminalSize>();
-    sub_app.init_resource::<raster::ColorDepth>();
-    sub_app.add_systems(
-        ExtractSchedule,
-        (
-            size::extract_size,
-            camera::extract_cameras,
-            raster::extract_color_depth,
-        ),
-    );
-    sub_app.add_systems(
-        TerminalRender,
-        (
-            compositor::composite.in_set(CompositeSystems::Merge),
-            raster::downsample_frame.in_set(CompositeSystems::Downsample),
-        ),
-    );
-    sub_app.set_extract(extract::extract);
-    app.insert_sub_app(TerminalRenderApp, sub_app);
+    schedule
 }
 
 #[cfg(test)]

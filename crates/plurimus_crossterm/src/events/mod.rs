@@ -9,23 +9,40 @@
 
 use std::time::Duration;
 
-use bevy_ecs::prelude::{DetectChangesMut, Local, MessageWriter, ResMut};
+use bevy_ecs::prelude::{Local, MessageWriter};
 use bevy_ecs::system::SystemParam;
-use crossterm::event::{self, Event, KeyEvent, KeyEventKind, MouseEvent, MouseEventKind};
+use bevy_input::ButtonState;
+use bevy_input::keyboard::Key;
+use crossterm::event::{self, Event, KeyEvent, KeyEventKind, MouseEventKind};
 
 use plurimus_core::ratatui_core::layout::Position;
 use plurimus_term::{
-    FocusMessage, InputCapabilities, KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey,
-    MouseButton, MouseKind, MouseMessage, PasteMessage, TerminalResized,
+    InputCapabilities, KeyModifiers, MouseButton, PasteMessage, TerminalInput, TerminalResized,
 };
 
 #[derive(SystemParam)]
-pub(crate) struct EventSinks<'w> {
-    keys: MessageWriter<'w, KeyMessage>,
-    mouse: MessageWriter<'w, MouseMessage>,
+pub(crate) struct EventSinks<'w, 's> {
+    input: TerminalInput<'w, 's>,
     paste: MessageWriter<'w, PasteMessage>,
-    focus: MessageWriter<'w, FocusMessage>,
     resize: MessageWriter<'w, TerminalResized>,
+}
+
+/// A mouse report in the sink's terms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TerminalPointer {
+    Button(MouseButton, ButtonState),
+    Moved,
+    /// Wheel notches, `y` up and `x` left positive, as the sink takes them.
+    Wheel(i32, i32),
+}
+
+/// A key event in the contract's terms, before the sink writes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TerminalKey {
+    key: Key,
+    modifiers: KeyModifiers,
+    state: ButtonState,
+    repeat: bool,
 }
 
 /// How long a drain ending on a key release waits for the press that would
@@ -68,13 +85,11 @@ fn learn_capabilities(batch: &[Event], known: InputCapabilities) -> InputCapabil
 
 pub(crate) fn pump_events(
     mut sinks: EventSinks,
-    mut capabilities: ResMut<InputCapabilities>,
     mut batch: Local<Vec<Event>>,
     mut encoding: Local<RepeatEncoding>,
 ) {
     drain(&mut batch, &mut encoding);
-    // Learned here, so this frame's release and modifier synthesis see it.
-    capabilities.set_if_neq(learn_capabilities(&batch, *capabilities));
+    sinks.input.learn(|known| learn_capabilities(&batch, known));
     forward_batch(&mut batch, &mut sinks, &mut encoding);
 }
 
@@ -157,46 +172,57 @@ fn autorepeat_press_at(events: &[Event]) -> Option<usize> {
 fn forward_event(terminal_event: &mut Event, sinks: &mut EventSinks) {
     match terminal_event {
         Event::Key(key) => {
-            if let Some(message) = convert_key(*key) {
-                sinks.keys.write(message);
+            if let Some(key) = convert_key(*key) {
+                sinks
+                    .input
+                    .key(key.key, key.state, key.repeat, key.modifiers);
             }
         }
         Event::Mouse(mouse) => {
-            sinks.mouse.write(convert_mouse(*mouse));
+            let at = Position::new(mouse.column, mouse.row);
+            let modifiers = convert_modifiers(mouse.modifiers);
+            match convert_mouse(mouse.kind) {
+                TerminalPointer::Button(button, state) => {
+                    sinks.input.button(button, state, at, modifiers);
+                }
+                TerminalPointer::Moved => sinks.input.moved(at, modifiers),
+                TerminalPointer::Wheel(x, y) => sinks.input.wheel(at, x, y, modifiers),
+            }
         }
         // Taken rather than cloned: a paste is unbounded, and the batch is
         // cleared before it is read again.
         Event::Paste(text) => {
             sinks.paste.write(PasteMessage(std::mem::take(text)));
         }
-        Event::FocusGained => {
-            sinks.focus.write(FocusMessage::new(true));
-        }
-        Event::FocusLost => {
-            sinks.focus.write(FocusMessage::new(false));
-        }
+        Event::FocusGained => sinks.input.focus(true),
+        Event::FocusLost => sinks.input.focus(false),
         Event::Resize(cols, rows) => {
             sinks.resize.write(TerminalResized::new(*cols, *rows));
         }
     }
 }
 
-fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
+fn convert_key(key: KeyEvent) -> Option<TerminalKey> {
     // Terminals report shift-tab as its own key, and not every one sets
     // the shift bit alongside it; the contract carries it as a modified
     // Tab so consumers need only one key to reason about.
     let is_back_tab = key.code == event::KeyCode::BackTab;
-    let code = convert_code(key.code)?;
+    let logical = convert_code(key.code)?;
     let modifiers = convert_modifiers(key.modifiers);
-    Some(KeyMessage::new(
-        code,
-        if is_back_tab || is_shifted_letter(code) {
+    Some(TerminalKey {
+        modifiers: if is_back_tab || is_shifted_letter(&logical) {
             modifiers.with_shift(true)
         } else {
             modifiers
         },
-        convert_kind(key.kind),
-    ))
+        key: logical,
+        state: if key.kind == KeyEventKind::Release {
+            ButtonState::Released
+        } else {
+            ButtonState::Pressed
+        },
+        repeat: key.kind == KeyEventKind::Repeat,
+    })
 }
 
 /// Whether `code` is a letter that shift produced.
@@ -209,65 +235,66 @@ fn convert_key(key: KeyEvent) -> Option<KeyMessage> {
 /// it came from.
 ///
 /// Uppercase in the same sense crossterm's own legacy path uses, so the two
-/// tiers agree beyond ASCII as well - and in the same sense
-/// [`KeyCode::held_as`] folds by, which is what lets a hold shifted midway
-/// still be released by the press it ends.
-const fn is_shifted_letter(code: KeyCode) -> bool {
-    matches!(code, KeyCode::Char(c) if c.is_uppercase())
+/// tiers agree beyond ASCII as well.
+fn is_shifted_letter(key: &Key) -> bool {
+    matches!(key, Key::Character(text) if text.chars().all(char::is_uppercase))
 }
 
-const fn convert_kind(kind: KeyEventKind) -> KeyKind {
-    match kind {
-        KeyEventKind::Press => KeyKind::Press,
-        KeyEventKind::Repeat => KeyKind::Repeat,
-        KeyEventKind::Release => KeyKind::Release,
-    }
+/// The F keys a terminal can name, `F1` first.
+const FUNCTION_KEYS: [Key; 12] = [
+    Key::F1,
+    Key::F2,
+    Key::F3,
+    Key::F4,
+    Key::F5,
+    Key::F6,
+    Key::F7,
+    Key::F8,
+    Key::F9,
+    Key::F10,
+    Key::F11,
+    Key::F12,
+];
+
+fn convert_code(code: event::KeyCode) -> Option<Key> {
+    Some(match code {
+        event::KeyCode::Char(c) => Key::Character(c.encode_utf8(&mut [0; 4]).into()),
+        event::KeyCode::Enter => Key::Enter,
+        event::KeyCode::Esc => Key::Escape,
+        event::KeyCode::Tab | event::KeyCode::BackTab => Key::Tab,
+        event::KeyCode::Backspace => Key::Backspace,
+        event::KeyCode::Delete => Key::Delete,
+        event::KeyCode::Insert => Key::Insert,
+        event::KeyCode::Up => Key::ArrowUp,
+        event::KeyCode::Down => Key::ArrowDown,
+        event::KeyCode::Left => Key::ArrowLeft,
+        event::KeyCode::Right => Key::ArrowRight,
+        event::KeyCode::Home => Key::Home,
+        event::KeyCode::End => Key::End,
+        event::KeyCode::PageUp => Key::PageUp,
+        event::KeyCode::PageDown => Key::PageDown,
+        event::KeyCode::F(n) => FUNCTION_KEYS.get(usize::from(n).checked_sub(1)?)?.clone(),
+        event::KeyCode::CapsLock => Key::CapsLock,
+        event::KeyCode::NumLock => Key::NumLock,
+        event::KeyCode::ScrollLock => Key::ScrollLock,
+        event::KeyCode::Modifier(modifier) => convert_modifier_key(modifier)?,
+        _ => return None,
+    })
 }
 
-const fn convert_code(code: event::KeyCode) -> Option<KeyCode> {
-    match code {
-        event::KeyCode::Char(c) => Some(KeyCode::Char(c)),
-        event::KeyCode::Enter => Some(KeyCode::Enter),
-        event::KeyCode::Esc => Some(KeyCode::Esc),
-        event::KeyCode::Tab | event::KeyCode::BackTab => Some(KeyCode::Tab),
-        event::KeyCode::Backspace => Some(KeyCode::Backspace),
-        event::KeyCode::Delete => Some(KeyCode::Delete),
-        event::KeyCode::Insert => Some(KeyCode::Insert),
-        event::KeyCode::Up => Some(KeyCode::Up),
-        event::KeyCode::Down => Some(KeyCode::Down),
-        event::KeyCode::Left => Some(KeyCode::Left),
-        event::KeyCode::Right => Some(KeyCode::Right),
-        event::KeyCode::Home => Some(KeyCode::Home),
-        event::KeyCode::End => Some(KeyCode::End),
-        event::KeyCode::PageUp => Some(KeyCode::PageUp),
-        event::KeyCode::PageDown => Some(KeyCode::PageDown),
-        event::KeyCode::F(n) => Some(KeyCode::F(n)),
-        event::KeyCode::CapsLock => Some(KeyCode::CapsLock),
-        event::KeyCode::NumLock => Some(KeyCode::NumLock),
-        event::KeyCode::ScrollLock => Some(KeyCode::ScrollLock),
-        event::KeyCode::Modifier(modifier) => convert_modifier_key(modifier),
-        _ => None,
-    }
-}
-
-const fn convert_modifier_key(modifier: event::ModifierKeyCode) -> Option<KeyCode> {
+// The side is dropped: the contract polls modifiers by flag, and a
+// modifier key lands on the left one.
+const fn convert_modifier_key(modifier: event::ModifierKeyCode) -> Option<Key> {
     use event::ModifierKeyCode as Ct;
-    let key = match modifier {
-        Ct::LeftShift => ModifierKey::ShiftLeft,
-        Ct::RightShift => ModifierKey::ShiftRight,
-        Ct::LeftControl => ModifierKey::ControlLeft,
-        Ct::RightControl => ModifierKey::ControlRight,
-        Ct::LeftAlt => ModifierKey::AltLeft,
-        Ct::RightAlt => ModifierKey::AltRight,
-        Ct::LeftSuper => ModifierKey::SuperLeft,
-        Ct::RightSuper => ModifierKey::SuperRight,
-        Ct::LeftHyper => ModifierKey::HyperLeft,
-        Ct::RightHyper => ModifierKey::HyperRight,
-        Ct::LeftMeta => ModifierKey::MetaLeft,
-        Ct::RightMeta => ModifierKey::MetaRight,
+    Some(match modifier {
+        Ct::LeftShift | Ct::RightShift => Key::Shift,
+        Ct::LeftControl | Ct::RightControl => Key::Control,
+        Ct::LeftAlt | Ct::RightAlt => Key::Alt,
+        Ct::LeftSuper | Ct::RightSuper => Key::Super,
+        Ct::LeftHyper | Ct::RightHyper => Key::Hyper,
+        Ct::LeftMeta | Ct::RightMeta => Key::Meta,
         Ct::IsoLevel3Shift | Ct::IsoLevel5Shift => return None,
-    };
-    Some(KeyCode::Modifier(key))
+    })
 }
 
 fn convert_modifiers(modifiers: event::KeyModifiers) -> KeyModifiers {
@@ -280,24 +307,20 @@ fn convert_modifiers(modifiers: event::KeyModifiers) -> KeyModifiers {
         .with_meta(modifiers.contains(event::KeyModifiers::META))
 }
 
-fn convert_mouse(mouse: MouseEvent) -> MouseMessage {
-    MouseMessage::new(
-        convert_mouse_kind(mouse.kind),
-        Position::new(mouse.column, mouse.row),
-        convert_modifiers(mouse.modifiers),
-    )
-}
-
-const fn convert_mouse_kind(kind: MouseEventKind) -> MouseKind {
+// A drag is a move; the button held is `ButtonInput<MouseButton>`'s to know.
+const fn convert_mouse(kind: MouseEventKind) -> TerminalPointer {
     match kind {
-        MouseEventKind::Down(button) => MouseKind::Down(convert_button(button)),
-        MouseEventKind::Up(button) => MouseKind::Up(convert_button(button)),
-        MouseEventKind::Drag(button) => MouseKind::Drag(convert_button(button)),
-        MouseEventKind::Moved => MouseKind::Moved,
-        MouseEventKind::ScrollUp => MouseKind::ScrollUp,
-        MouseEventKind::ScrollDown => MouseKind::ScrollDown,
-        MouseEventKind::ScrollLeft => MouseKind::ScrollLeft,
-        MouseEventKind::ScrollRight => MouseKind::ScrollRight,
+        MouseEventKind::Down(button) => {
+            TerminalPointer::Button(convert_button(button), ButtonState::Pressed)
+        }
+        MouseEventKind::Up(button) => {
+            TerminalPointer::Button(convert_button(button), ButtonState::Released)
+        }
+        MouseEventKind::Drag(_) | MouseEventKind::Moved => TerminalPointer::Moved,
+        MouseEventKind::ScrollUp => TerminalPointer::Wheel(0, 1),
+        MouseEventKind::ScrollDown => TerminalPointer::Wheel(0, -1),
+        MouseEventKind::ScrollLeft => TerminalPointer::Wheel(1, 0),
+        MouseEventKind::ScrollRight => TerminalPointer::Wheel(-1, 0),
     }
 }
 

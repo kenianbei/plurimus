@@ -1,20 +1,22 @@
 //! `ListBox` keyboard navigation and selection flows, fully headless.
 
 use bevy_app::App;
-use bevy_ecs::bundle::Bundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::{Position, Rect, Size};
-use plurimus_core::ratatui_core::text::{Line, Text};
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_at, press_key, release_at, repeat_key, send_mouse, set_focus};
+use plurimus_term::MouseButton;
+use plurimus_test::{
+    click, click_button, move_to, press_at, press_key, release_at, repeat_key, scroll_at,
+    send_press_at, set_focus,
+};
 use plurimus_ui::{
-    Checked, InteractionDisabled, ScrollArea, ScrollOffset, UiArea, UiOrder, ValueChange,
+    InteractionDisabled, ScrollArea, ScrollOffset, Selected, UiArea, UiOrder, ValueChange,
 };
 use plurimus_widgets::{
-    ActiveDescendant, Key, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItem, ListItemText,
-    WidgetsPlugin, button, list_item, listbox, listbox_self_update,
+    ActiveDescendant, ListItem, ReselectListRow, WidgetsPlugin, button, list_item, listbox,
+    listbox_update_selection,
 };
 
 #[derive(Resource, Default)]
@@ -77,114 +79,57 @@ fn keyboard_moves_active_descendant() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(active(&app, container), Some(items[0]));
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(active(&app, container), Some(items[1]));
-    press_key(&mut app, KeyCode::Up);
+    press_key(&mut app, Key::ArrowUp);
     assert_eq!(active(&app, container), Some(items[0]));
-    press_key(&mut app, KeyCode::Up);
-    assert_eq!(active(&app, container), Some(items[0]));
-    press_key(&mut app, KeyCode::End);
-    assert_eq!(active(&app, container), Some(items[2]));
-    press_key(&mut app, KeyCode::Down);
-    assert_eq!(active(&app, container), Some(items[2]));
-    press_key(&mut app, KeyCode::Home);
-    assert_eq!(active(&app, container), Some(items[0]));
-}
-
-#[test]
-fn the_bindings_are_the_apps_to_replace() {
-    let mut app = app();
-    let (container, items) = spawn_listbox(&mut app);
-    app.world_mut()
-        .entity_mut(container)
-        .insert(ListBoxKeys(vec![
-            (Key::Character("j".into()).into(), ListBoxAction::Down),
-            (Key::Character("k".into()).into(), ListBoxAction::Up),
-        ]));
-
-    press_key(&mut app, KeyCode::Char('j'));
-    press_key(&mut app, KeyCode::Char('j'));
-    assert_eq!(active(&app, container), Some(items[1]), "j walks down");
-    press_key(&mut app, KeyCode::Char('k'));
-    assert_eq!(active(&app, container), Some(items[0]), "k walks up");
-
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowUp);
+    assert_eq!(
+        active(&app, container),
+        Some(items[2]),
+        "Up wraps to the last"
+    );
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         active(&app, container),
         Some(items[0]),
-        "and the arrows no longer move a list that unbound them"
+        "and Down to the first"
     );
-}
-
-#[test]
-fn the_first_binding_for_a_key_is_the_one_that_wins() {
-    let mut app = app();
-    let (container, items) = spawn_listbox(&mut app);
-    app.world_mut()
-        .entity_mut(container)
-        .insert(ListBoxKeys(vec![
-            (Key::End.into(), ListBoxAction::Down),
-            (Key::End.into(), ListBoxAction::Last),
-        ]));
-
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
+    assert_eq!(active(&app, container), Some(items[2]));
+    press_key(&mut app, Key::Home);
+    assert_eq!(active(&app, container), Some(items[0]));
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(
         active(&app, container),
         Some(items[1]),
-        "End moved one row down rather than to the last, so the earlier \
-         binding won"
+        "the side arrows move too"
     );
 }
 
+// Upstream's keys answer a press and never a repeat.
 #[test]
-fn a_page_key_moves_by_the_visible_height() {
-    let mut app = app();
-    let (container, items) = spawn_scrolling_listbox(&mut app);
-    app.update();
-
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::PageDown);
-    assert_eq!(
-        active(&app, container),
-        Some(items[3]),
-        "three rows are visible, so a page is three rows down"
-    );
-    press_key(&mut app, KeyCode::PageUp);
-    assert_eq!(active(&app, container), Some(items[0]), "and back again");
-
-    press_key(&mut app, KeyCode::PageUp);
-    assert_eq!(
-        active(&app, container),
-        Some(items[0]),
-        "paging past the first row stops at it"
-    );
-}
-
-// Autorepeat moves a cursor but must not re-select, which is the rule
-// `is_fresh_press` applies to every other widget.
-#[test]
-fn a_held_key_repeats_movement_but_not_selection() {
+fn a_held_key_repeats_nothing() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     let selections = app.world().resource::<Selections>().0.len();
 
-    repeat_key(&mut app, KeyCode::Enter);
+    repeat_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Selections>().0.len(),
         selections,
         "a repeated Enter selects nothing further"
     );
 
-    repeat_key(&mut app, KeyCode::Down);
+    repeat_key(&mut app, Key::ArrowDown);
     assert_eq!(
         active(&app, container),
-        Some(items[1]),
-        "but a repeated arrow still moves the cursor"
+        Some(items[0]),
+        "nor does a repeated arrow move the cursor"
     );
 }
 
@@ -194,12 +139,12 @@ fn a_held_key_repeats_movement_but_not_selection() {
 fn selecting_a_list_with_no_rows_left_reports_nothing() {
     let mut app = app();
     let (_, items) = spawn_listbox(&mut app);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     for item in items {
         app.world_mut().entity_mut(item).remove::<ListItem>();
     }
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
 
     assert!(
         app.world().resource::<Selections>().0.is_empty(),
@@ -207,22 +152,20 @@ fn selecting_a_list_with_no_rows_left_reports_nothing() {
     );
 }
 
+// Upstream checks each row's own flag, which the disabled container writes
+// down onto every row it holds; its arrows still walk the rows.
 #[test]
-fn a_disabled_listbox_takes_no_keys() {
+fn a_disabled_listbox_selects_nothing() {
     let mut app = app();
     let (container, _) = spawn_listbox(&mut app);
     app.world_mut()
         .entity_mut(container)
         .insert(InteractionDisabled);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
 
-    assert_eq!(active(&app, container), None, "no cursor moved");
-    assert!(
-        app.world().resource::<Selections>().0.is_empty(),
-        "and nothing was selected"
-    );
+    assert_eq!(app.world().resource::<Selections>().0, []);
 }
 
 #[test]
@@ -230,58 +173,77 @@ fn enter_selects_the_active_descendant() {
     let mut app = app();
     let (container, items) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(app.world().resource::<Selections>().0, []);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    assert_eq!(
+        active(&app, container),
+        Some(items[0]),
+        "gaining focus gave the list a cursor"
+    );
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     assert_eq!(
         app.world().resource::<Selections>().0,
         [(container, items[1])]
     );
 }
 
+#[derive(Resource, Default)]
+struct Reselections(Vec<Entity>);
+
 #[test]
-fn single_select_self_update_moves_checked() {
+fn enter_on_the_selected_row_reselects_it() {
     let mut app = app();
-    app.add_observer(listbox_self_update);
+    app.add_observer(listbox_update_selection);
+    app.init_resource::<Reselections>();
+    app.add_observer(|on: On<ReselectListRow>, mut log: ResMut<Reselections>| {
+        log.0.push(on.row);
+    });
     let (_, items) = spawn_listbox(&mut app);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    app.update();
-    assert!(app.world().get::<Checked>(items[0]).is_some());
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, Key::Enter);
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    app.update();
-    assert!(app.world().get::<Checked>(items[0]).is_none());
-    assert!(app.world().get::<Checked>(items[1]).is_some());
+    assert_eq!(app.world().resource::<Selections>().0.len(), 1);
+    assert_eq!(app.world().resource::<Reselections>().0, [items[0]]);
 }
 
 #[test]
-fn multi_select_self_update_toggles_checked() {
+fn losing_focus_clears_the_cursor_and_regaining_it_restores_the_selection() {
     let mut app = app();
-    app.add_observer(listbox_self_update);
     let (container, items) = spawn_listbox(&mut app);
-    app.world_mut()
-        .entity_mut(container)
-        .insert(ListBoxMultiSelect);
-
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    app.world_mut().entity_mut(items[2]).insert(Selected);
     app.update();
-    assert!(app.world().get::<Checked>(items[0]).is_some());
-    assert!(app.world().get::<Checked>(items[1]).is_some());
+    press_key(&mut app, Key::ArrowDown);
+    let elsewhere = app.world_mut().spawn(()).id();
 
-    press_key(&mut app, KeyCode::Up);
-    press_key(&mut app, KeyCode::Enter);
+    set_focus(&mut app, elsewhere);
     app.update();
-    assert!(app.world().get::<Checked>(items[0]).is_none());
-    assert!(app.world().get::<Checked>(items[1]).is_some());
+    assert_eq!(active(&app, container), None);
+
+    set_focus(&mut app, container);
+    app.update();
+    assert_eq!(active(&app, container), Some(items[2]));
+}
+
+#[test]
+fn the_stock_updater_moves_selected() {
+    let mut app = app();
+    app.add_observer(listbox_update_selection);
+    let (_, items) = spawn_listbox(&mut app);
+
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
+    app.update();
+    assert!(app.world().get::<Selected>(items[0]).is_some());
+
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
+    app.update();
+    assert!(app.world().get::<Selected>(items[0]).is_none());
+    assert!(app.world().get::<Selected>(items[1]).is_some());
 }
 
 #[test]
@@ -294,12 +256,54 @@ fn click_selects_the_clicked_row() {
     assert_eq!(active(&app, container), Some(items[1]));
     assert_eq!(
         app.world().resource::<Selections>().0,
-        [(container, items[1])]
+        [(container, items[1])],
+        "once - upstream's own row click finds no row at a cell"
     );
 }
 
+#[test]
+fn a_click_on_the_selected_row_reselects_and_on_a_disabled_row_selects_nothing() {
+    let mut app = app();
+    app.init_resource::<Reselections>();
+    app.add_observer(|on: On<ReselectListRow>, mut log: ResMut<Reselections>| {
+        log.0.push(on.row);
+    });
+    let (container, items) = spawn_listbox(&mut app);
+    app.world_mut().entity_mut(items[0]).insert(Selected);
+    app.world_mut()
+        .entity_mut(items[2])
+        .insert(InteractionDisabled);
+
+    click(&mut app, 2, 0);
+    click(&mut app, 2, 2);
+
+    assert_eq!(app.world().resource::<Reselections>().0, [items[0]]);
+    assert_eq!(app.world().resource::<Selections>().0, []);
+    assert_eq!(
+        active(&app, container),
+        Some(items[2]),
+        "a disabled row still takes the cursor"
+    );
+}
+
+// The press writes the cursor before focus arrives, so focusing the list
+// keeps the row the press landed on rather than restoring its first.
+#[test]
+fn a_press_on_an_unfocused_list_puts_the_cursor_where_it_landed() {
+    let mut app = app();
+    let (container, items) = spawn_listbox(&mut app);
+    let elsewhere = app.world_mut().spawn(()).id();
+    set_focus(&mut app, elsewhere);
+    app.update();
+
+    press_at(&mut app, 2, 2);
+    app.update();
+
+    assert_eq!(active(&app, container), Some(items[2]));
+}
+
 // Selecting usually closes what was clicked, and closing on the way down
-// despawns the entity the pointer router is still owed a release for.
+// despawns the entity `bevy_picking` is still owed a release for.
 #[test]
 fn a_press_moves_the_cursor_without_selecting() {
     let mut app = app();
@@ -335,7 +339,7 @@ fn a_held_pointer_drags_the_cursor_with_it() {
     press_at(&mut app, 2, 0);
     assert_eq!(active(&app, container), Some(items[0]));
 
-    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 2, 2);
+    move_to(&mut app, 2, 2);
 
     assert_eq!(active(&app, container), Some(items[2]));
     assert_eq!(app.world().resource::<Selections>().0, []);
@@ -344,18 +348,17 @@ fn a_held_pointer_drags_the_cursor_with_it() {
 #[test]
 fn a_release_below_every_row_selects_nothing() {
     let mut app = app();
-    let (container, _) = spawn_listbox(&mut app);
+    spawn_listbox(&mut app);
 
     click(&mut app, 2, 3);
 
     assert_eq!(app.world().resource::<Selections>().0, []);
-    assert_eq!(active(&app, container), None);
 }
 
 #[test]
 fn press_on_an_overlay_does_not_reach_the_listbox_beneath() {
     let mut app = app();
-    let (container, _) = spawn_listbox(&mut app);
+    let (container, items) = spawn_listbox(&mut app);
     app.world_mut().spawn((
         button("ok"),
         UiArea::Fixed(Rect::new(0, 0, 12, 4)),
@@ -364,7 +367,7 @@ fn press_on_an_overlay_does_not_reach_the_listbox_beneath() {
 
     press_at(&mut app, 2, 1);
 
-    assert_eq!(active(&app, container), None);
+    assert_ne!(active(&app, container), Some(items[1]));
     assert_eq!(app.world().resource::<Selections>().0, []);
 }
 
@@ -374,14 +377,14 @@ fn click_resolves_rows_through_scroll_offset() {
     let (container, items) = spawn_scrolling_listbox(&mut app);
     app.update();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    scroll_at(&mut app, 2, 1, 1);
+    scroll_at(&mut app, 2, 1, 1);
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 2)
     );
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, 0);
+    send_press_at(&mut app, 2, 0);
     assert_eq!(active(&app, container), Some(items[2]));
 }
 
@@ -391,137 +394,29 @@ fn keyboard_keeps_the_active_row_visible() {
     let (container, items) = spawn_scrolling_listbox(&mut app);
     app.update();
 
-    press_key(&mut app, KeyCode::End);
+    press_key(&mut app, Key::End);
     assert_eq!(active(&app, container), Some(items[5]));
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 3)
     );
 
-    press_key(&mut app, KeyCode::Home);
+    press_key(&mut app, Key::Home);
     assert_eq!(
         app.world().get::<ScrollOffset>(container).unwrap().0,
         Position::new(0, 0)
     );
 }
 
-fn spawn_tall_listbox(app: &mut App) -> (Entity, [Entity; 3]) {
-    let world = app.world_mut();
-    let container = world
-        .spawn((
-            listbox(),
-            UiArea::Fixed(Rect::new(0, 0, 12, 4)),
-            ScrollArea::new(Size::new(1, 1)),
-        ))
-        .id();
-    let items = [
-        world.spawn((tall_item("one", 2), ChildOf(container))).id(),
-        world.spawn((tall_item("two", 3), ChildOf(container))).id(),
-        world.spawn((list_item("three"), ChildOf(container))).id(),
-    ];
-    set_focus(app, container);
-    (container, items)
-}
-
-fn tall_item(label: &str, lines: usize) -> impl Bundle {
-    let text = Text::from(vec![Line::from(label.to_owned()); lines]);
-    (list_item(label.to_owned()), ListItemText(text))
-}
-
-fn extent(app: &App, container: Entity) -> u16 {
-    app.world()
-        .get::<ScrollArea>(container)
-        .expect("a scroll area")
-        .content_size
-        .height
-}
-
 #[test]
-fn the_scroll_extent_sums_row_heights() {
+fn a_secondary_click_moves_no_cursor_and_selects_nothing() {
     let mut app = app();
-    let (container, _) = spawn_tall_listbox(&mut app);
+    let (container, _) = spawn_listbox(&mut app);
     app.update();
+    let before = active(&app, container);
 
-    assert_eq!(
-        extent(&app, container),
-        6,
-        "two plus three plus a single-line row"
-    );
-}
+    click_button(&mut app, MouseButton::Right, 2, 1);
 
-#[test]
-fn editing_a_rows_text_resizes_the_extent() {
-    let mut app = app();
-    let (container, items) = spawn_tall_listbox(&mut app);
-    app.update();
-
-    app.world_mut()
-        .entity_mut(items[0])
-        .insert(ListItemText(Text::from(vec![Line::from("one"); 4])));
-    app.update();
-
-    assert_eq!(
-        extent(&app, container),
-        8,
-        "the row grew by two without the children changing"
-    );
-}
-
-// `Changed` never fires for a component that goes, so these reach the extent
-// only through the removal forwarding.
-#[test]
-fn a_row_losing_its_text_or_its_row_resizes_the_extent() {
-    let mut app = app();
-    let (container, items) = spawn_tall_listbox(&mut app);
-    app.update();
-
-    app.world_mut()
-        .entity_mut(items[0])
-        .remove::<ListItemText>();
-    app.update();
-    assert_eq!(extent(&app, container), 5, "the two-line row became one");
-
-    app.world_mut().entity_mut(items[1]).remove::<ListItem>();
-    app.update();
-    assert_eq!(
-        extent(&app, container),
-        2,
-        "the three-line child stopped being a row"
-    );
-}
-
-#[test]
-fn a_click_anywhere_in_a_tall_row_selects_it() {
-    let mut app = app();
-    let (container, items) = spawn_tall_listbox(&mut app);
-    app.update();
-
-    for (line, expected) in [(0, items[0]), (1, items[0]), (2, items[1])] {
-        send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 2, line);
-        assert_eq!(
-            active(&app, container),
-            Some(expected),
-            "the click on line {line} lands in the row that spans it"
-        );
-    }
-}
-
-#[test]
-fn a_tall_row_is_revealed_whole() {
-    let mut app = app();
-    let (container, _) = spawn_tall_listbox(&mut app);
-    app.update();
-
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Down);
-    app.update();
-
-    // The cursor is on the three-line row spanning lines 2 to 4, and the
-    // view is 4 tall: its first line is already visible, so anything that
-    // reveals less than the whole row scrolls nowhere.
-    assert_eq!(
-        app.world().get::<ScrollOffset>(container).unwrap().0,
-        Position::new(0, 1),
-        "the whole row was revealed, not just its first line"
-    );
+    assert_eq!(active(&app, container), before);
+    assert_eq!(app.world().resource::<Selections>().0, []);
 }

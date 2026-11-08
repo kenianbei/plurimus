@@ -5,10 +5,10 @@ use std::rc::Rc;
 
 use bevy_ecs::prelude::{MessageWriter, NonSend, Res};
 use bevy_ecs::system::SystemParam;
+use bevy_input::ButtonState;
+use bevy_input::keyboard::Key;
 use plurimus_core::TerminalSize;
-use plurimus_term::{
-    FocusMessage, KeyCode, KeyKind, KeyMessage, KeyModifiers, MouseKind, MouseMessage, PasteMessage,
-};
+use plurimus_term::{KeyModifiers, MouseButton, PasteMessage, TerminalInput};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 use web_sys::{
@@ -17,14 +17,19 @@ use web_sys::{
 };
 
 use super::warn;
-use crate::keys::key_code;
-use crate::pointer::{WheelResidue, button, cell_at, held_button};
+use crate::keys::key;
+use crate::pointer::{WheelResidue, button, cell_at};
 
 /// An event as a listener saw it, before the grid is consulted.
 enum Pending {
-    Key(KeyMessage),
+    Key {
+        key: Key,
+        state: ButtonState,
+        repeat: bool,
+        modifiers: KeyModifiers,
+    },
     Pointer {
-        kind: MouseKind,
+        kind: PointerKind,
         offset: (f64, f64),
         modifiers: KeyModifiers,
     },
@@ -49,7 +54,7 @@ pub(crate) struct BrowserInput {
 /// how a pointer offset becomes a cell.
 pub(crate) fn listen(
     canvas: &HtmlCanvasElement,
-    passthrough: Vec<(KeyCode, KeyModifiers)>,
+    passthrough: Vec<(Key, KeyModifiers)>,
     cell_css: (f64, f64),
 ) -> BrowserInput {
     let queue = Queue::default();
@@ -94,25 +99,26 @@ fn on(canvas: &HtmlCanvasElement, kind: &str, handler: impl FnMut(Event) + 'stat
 }
 
 /// A press takes the key from the browser unless it passes through.
-fn key_down(queue: &Queue, passthrough: Vec<(KeyCode, KeyModifiers)>) -> impl FnMut(Event) + use<> {
+fn key_down(queue: &Queue, passthrough: Vec<(Key, KeyModifiers)>) -> impl FnMut(Event) + use<> {
     let queue = Rc::clone(queue);
     move |event: Event| {
         let event: KeyboardEvent = event.unchecked_into();
-        let Some(code) = key_code(&event.key(), event.location()) else {
+        let Some(key) = key(&event.key()) else {
             return;
         };
-        let held = key_modifiers(&event);
-        if !passthrough.contains(&(code, held)) {
+        let modifiers = key_modifiers(&event);
+        if !passthrough
+            .iter()
+            .any(|(passed, held)| *passed == key && *held == modifiers)
+        {
             event.prevent_default();
         }
-        let kind = if event.repeat() {
-            KeyKind::Repeat
-        } else {
-            KeyKind::Press
-        };
-        queue
-            .borrow_mut()
-            .push(Pending::Key(KeyMessage::new(code, held, kind)));
+        queue.borrow_mut().push(Pending::Key {
+            key,
+            state: ButtonState::Pressed,
+            repeat: event.repeat(),
+            modifiers,
+        });
     }
 }
 
@@ -120,14 +126,24 @@ fn key_up(queue: &Queue) -> impl FnMut(Event) + use<> {
     let queue = Rc::clone(queue);
     move |event: Event| {
         let event: KeyboardEvent = event.unchecked_into();
-        let Some(code) = key_code(&event.key(), event.location()) else {
+        let Some(key) = key(&event.key()) else {
             return;
         };
-        let held = key_modifiers(&event);
-        queue
-            .borrow_mut()
-            .push(Pending::Key(KeyMessage::new(code, held, KeyKind::Release)));
+        queue.borrow_mut().push(Pending::Key {
+            key,
+            state: ButtonState::Released,
+            repeat: false,
+            modifiers: key_modifiers(&event),
+        });
     }
+}
+
+/// A pointer report in the sink's terms.
+#[derive(Debug, Clone, Copy)]
+enum PointerKind {
+    Button(MouseButton, ButtonState),
+    Moved,
+    Wheel(i32, i32),
 }
 
 /// A press focuses the canvas and captures the pointer, so a drag keeps
@@ -140,7 +156,11 @@ fn pointer_down(queue: &Queue, canvas: &HtmlCanvasElement) -> impl FnMut(Event) 
         let _ = canvas.focus();
         let _ = canvas.set_pointer_capture(event.pointer_id());
         if let Some(pressed) = button(event.button()) {
-            push_pointer(&queue, &event, MouseKind::Down(pressed));
+            push_pointer(
+                &queue,
+                &event,
+                PointerKind::Button(pressed, ButtonState::Pressed),
+            );
         }
     }
 }
@@ -150,7 +170,11 @@ fn pointer_up(queue: &Queue) -> impl FnMut(Event) + use<> {
     move |event: Event| {
         let event: PointerEvent = event.unchecked_into();
         if let Some(released) = button(event.button()) {
-            push_pointer(&queue, &event, MouseKind::Up(released));
+            push_pointer(
+                &queue,
+                &event,
+                PointerKind::Button(released, ButtonState::Released),
+            );
         }
     }
 }
@@ -159,8 +183,7 @@ fn pointer_move(queue: &Queue) -> impl FnMut(Event) + use<> {
     let queue = Rc::clone(queue);
     move |event: Event| {
         let event: PointerEvent = event.unchecked_into();
-        let kind = held_button(event.buttons()).map_or(MouseKind::Moved, MouseKind::Drag);
-        push_pointer(&queue, &event, kind);
+        push_pointer(&queue, &event, PointerKind::Moved);
     }
 }
 
@@ -170,9 +193,12 @@ fn wheel(queue: &Queue) -> impl FnMut(Event) + use<> {
     move |event: Event| {
         event.prevent_default();
         let event: WheelEvent = event.unchecked_into();
-        let notches = residue.notches((event.delta_x(), event.delta_y()), event.delta_mode());
-        for kind in notches {
-            push_pointer(&queue, &event, kind);
+        let (x, y) = residue.notches((event.delta_x(), event.delta_y()), event.delta_mode());
+        for _ in 0..y.unsigned_abs() {
+            push_pointer(&queue, &event, PointerKind::Wheel(0, y.signum()));
+        }
+        for _ in 0..x.unsigned_abs() {
+            push_pointer(&queue, &event, PointerKind::Wheel(x.signum(), 0));
         }
     }
 }
@@ -196,7 +222,7 @@ fn focus(queue: &Queue, gained: bool) -> impl FnMut(Event) + use<> {
     move |_| queue.borrow_mut().push(Pending::Focus(gained))
 }
 
-fn push_pointer(queue: &Queue, event: &MouseEvent, kind: MouseKind) {
+fn push_pointer(queue: &Queue, event: &MouseEvent, kind: PointerKind) {
     let modifiers = pointer_modifiers(event);
     queue.borrow_mut().push(Pending::Pointer {
         kind,
@@ -226,11 +252,9 @@ fn pointer_modifiers(event: &MouseEvent) -> KeyModifiers {
 }
 
 #[derive(SystemParam)]
-pub(crate) struct InputSinks<'w> {
-    keys: MessageWriter<'w, KeyMessage>,
-    mouse: MessageWriter<'w, MouseMessage>,
+pub(crate) struct InputSinks<'w, 's> {
+    input: TerminalInput<'w, 's>,
     paste: MessageWriter<'w, PasteMessage>,
-    focus: MessageWriter<'w, FocusMessage>,
 }
 
 /// Writes what the listeners queued since the last frame, in the order it
@@ -242,26 +266,32 @@ pub(crate) fn pump_browser_events(
 ) {
     for pending in input.queue.borrow_mut().drain(..) {
         match pending {
-            Pending::Key(message) => {
-                sinks.keys.write(message);
-            }
+            Pending::Key {
+                key,
+                state,
+                repeat,
+                modifiers,
+            } => sinks.input.key(key, state, repeat, modifiers),
             Pending::Pointer {
                 kind,
                 offset,
                 modifiers,
             } => {
-                if let Some(position) = cell_at(offset, input.cell_css, (size.cols, size.rows)) {
-                    sinks
-                        .mouse
-                        .write(MouseMessage::new(kind, position, modifiers));
+                let Some(at) = cell_at(offset, input.cell_css, (size.cols, size.rows)) else {
+                    continue;
+                };
+                match kind {
+                    PointerKind::Button(button, state) => {
+                        sinks.input.button(button, state, at, modifiers);
+                    }
+                    PointerKind::Moved => sinks.input.moved(at, modifiers),
+                    PointerKind::Wheel(x, y) => sinks.input.wheel(at, x, y, modifiers),
                 }
             }
             Pending::Paste(text) => {
                 sinks.paste.write(PasteMessage(text));
             }
-            Pending::Focus(gained) => {
-                sinks.focus.write(FocusMessage::new(gained));
-            }
+            Pending::Focus(focused) => sinks.input.focus(focused),
         }
     }
 }

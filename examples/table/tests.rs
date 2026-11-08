@@ -1,8 +1,7 @@
 use plurimus::core::TerminalSize;
-use plurimus::term::MouseKind;
 use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::widgets::ActiveDescendant;
-use plurimus_test::{click, composed_frame, press_key, send_mouse};
+use plurimus_test::{character, click, composed_frame, press_key, scroll_at};
 
 use super::*;
 
@@ -84,7 +83,7 @@ fn the_footer_arrives_at_the_bottom_of_the_scroll() {
     );
 
     for _ in 0..4 {
-        send_mouse(&mut app, MouseKind::ScrollDown, 20, 5);
+        scroll_at(&mut app, 20, 5, 1);
     }
 
     let frame = composed_frame(&app);
@@ -163,22 +162,22 @@ fn sorting_reorders_the_body_and_leaves_the_bands_alone() {
 fn the_vim_keys_walk_the_rows_beside_the_arrows() {
     let mut app = headless_app();
 
-    press_key(&mut app, KeyCode::Char('j'));
-    press_key(&mut app, KeyCode::Char('j'));
+    press_key(&mut app, character('j'));
+    press_key(&mut app, character('j'));
     assert_eq!(
         cursor_name(&mut app).as_deref(),
         Some("wayland"),
         "j moves down the body"
     );
 
-    press_key(&mut app, KeyCode::Char('k'));
+    press_key(&mut app, character('k'));
     assert_eq!(
         cursor_name(&mut app).as_deref(),
         Some("systemd"),
         "and k moves back up"
     );
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(
         cursor_name(&mut app).as_deref(),
         Some("wayland"),
@@ -190,8 +189,8 @@ fn the_vim_keys_walk_the_rows_beside_the_arrows() {
 fn selecting_a_row_reports_it() {
     let mut app = headless_app();
 
-    press_key(&mut app, KeyCode::Char('j'));
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, character('j'));
+    press_key(&mut app, Key::Enter);
     app.update();
 
     assert_eq!(
@@ -209,8 +208,8 @@ fn selecting_a_row_reports_it() {
 fn the_wheel_scrolls_the_body_under_the_header() {
     let mut app = headless_app();
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 20, 5);
-    send_mouse(&mut app, MouseKind::ScrollDown, 20, 5);
+    scroll_at(&mut app, 20, 5, 1);
+    scroll_at(&mut app, 20, 5, 1);
 
     let frame = composed_frame(&app);
     assert!(

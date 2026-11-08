@@ -9,21 +9,40 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **Upstream `bevy_ui_widgets` run on `bevy_ui` nodes.** `BuiPlugin` installs
-  `bevy_picking`, bevy_ui's picking backend, `PointerFocusPlugin` and the
-  fontless `bevy_ui_widgets` plugins, and feeds the pointer from the terminal's
-  mouse, so bevy's own `Button`, `Checkbox`, `RadioGroup`, `Slider`, menus,
-  dialogs and `ScrollArea` work on a node tree unchanged - hover, press, click,
-  click-to-focus, Enter and Space, and wheel ticks that scroll one row.
-  `TextInputPlugin` stays out, since it edits through a font engine.
-  - A node pick is dropped where a plurimus widget would take the press or the
-    tick, so widgets drawn over nodes take the pointer alone; a tick over a
-    widget that takes presses alone, or cannot move on the ticked axis, falls to
-    the node beneath, as a wheel over a button reaches the scroll area around it
-    in a window. While a plurimus overlay is open, only the nodes of its own
-    subtree are picked inside it - an overlay built of nodes works, and one
-    drawn over nodes covers them - and nothing is picked outside it, where a
-    press dismisses it. `plurimus_ui::PointerTargets` is that question, for any
-    other pointer stack.
+  bevy_ui's picking backend beside the fontless `bevy_ui_widgets` plugins
+  `UiPlugin` installs, on the mouse pointer the terminal reports to
+  `bevy_picking`, so bevy's own `Button`, `Checkbox`, `RadioGroup`, `Slider`,
+  menus, dialogs and `ScrollArea` work on a node tree unchanged - hover, press,
+  click, click-to-focus, Enter and Space, and wheel ticks that scroll one row.
+  - Upstream's `TextInput` is a text field here too, so a tree shared with a
+    window spawns one field for both. Upstream's own observers decide what each
+    key and press means, and the edits they queue apply to plurimus's text
+    engine instead of a font engine, so `EditableText::value`, `clear` and
+    `set_text` answer as on a window. The field draws one row in its
+    `TextColor`, windowed to keep the caret in view, with the caret and
+    selection in its `TextCursorStyle`'s colours where it carries one and
+    `UiTheme`'s otherwise, and the terminal's own caret sits on it while it
+    holds focus. A press or drag lands on the cluster drawn in its cell at any
+    `CellSize`; `max_characters` holds, and `visible_width` and `visible_lines`
+    size the node in cells. Copy, cut and paste use the terminal's clipboard,
+    and a bracketed paste types into the focused field. `EditableTextFilter` is
+    not applied, being unreadable outside `bevy_text`, and the field takes no
+    part in arrow navigation, as no node does. A native macOS build takes
+    upstream's command key to be Cmd, which no terminal delivers, so there the
+    field's select-all and clipboard chords do nothing and only a bracketed
+    paste pastes; the cell `TextField` binds Ctrl everywhere.
+  - Widget hits are ordered above node hits and block what is beneath, so a
+    plurimus widget drawn over a node takes the press and the hover alone; a
+    tick over a widget that does not scroll on the ticked axis reaches no node
+    beneath it. While a plurimus overlay is open, only its own subtree is picked
+    inside it, whichever backend reports the hit - an overlay built of nodes
+    works, one drawn over nodes covers them, and a node stacked above it, a
+    later root or a higher `GlobalZIndex`, is covered too - and nothing is
+    picked outside it, where a press or a tick dismisses it.
+  - A dialog dragged by its `DialogDragHandle` stays on the terminal, since
+    upstream keeps the dragging pointer 16 px inside the window and the window
+    now has the terminal's size. That margin is sixteen cells at the one-pixel
+    `CellSize` default, so an app dragging dialogs names its cell.
   - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
     `ZIndex` and `GlobalZIndex` order both, and a root spawned later stands over
     an earlier one, as in a window.
@@ -48,38 +67,104 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`Visibility` hides a node subtree.** `BuiPlugin` propagates it into
   `InheritedVisibility`, so a hidden node is neither drawn, picked nor reached
   by Tab, and a `Visibility::Visible` child of a hidden parent shows.
-- **`CellSize`**, pixels per cell on each axis, default one by one. A tree sized
-  for a window - `8 x 16` puts a 560 px card in 70 columns and a 16 px control
-  in one row - lays out the same in the terminal once the cell is named; layout,
-  text measurement, decoration, picking and `RemSize` all follow it.
+- **`plurimus_core::CellSize`**, pixels per cell on each axis, default one by
+  one. A tree sized for a window - `8 x 16` puts a 560 px card in 70 columns and
+  a 16 px control in one row - lays out the same in the terminal once the cell
+  is named; the camera mirror, layout, text measurement, decoration, picking,
+  `RemSize`, the 2d projection and the virtual window all follow it.
 - **`examples/todo`**: one `bevy_ui` tree of upstream widgets tagged by `Part`,
   run in the terminal or, with `--desktop`, in a bevy window assembled from the
   granular crates. Each target skins the same tree - cells and box-drawing in
   one, pixels and a card in the other - with a `Display::Grid` ledger of
-  unwrapped, right-justified cells. The field is the one control each target
-  supplies for itself: a plurimus `EditableText` over its node in the terminal,
-  upstream's `TextInput` in the window.
-- **`ListBoxAccess`** moves a `ListBox`'s cursor from outside the list: a
-  `SystemParam` whose `apply(list, action)` runs a `ListBoxAction` motion on a
-  list that holds no focus, as its own bound key would, and answers whether the
-  cursor moved - so a form that caught Up or Down in a field above the list can
-  step the list and pass the key on when it stepped nowhere. The reveal and the
-  cursor highlight follow as they do for a key. `Select` and `Copy` are not
-  motions and answer false; a disabled list refuses.
+  unwrapped, right-justified cells. The field is upstream's `TextInput` on both
+  targets, committed on Enter and from the Add button through `EditableText`.
 
 ### Changed
 
+- **Breaking: the single-line text engine is `plurimus_ui`'s, and the cell field
+  is `TextField`.** `TextInput`, `TextInputKeys` and `TextInputAction` move to
+  `plurimus_ui`, which `plurimus_widgets` re-exports, so every host of a
+  single-line field edits through one engine. `TextInput::apply`,
+  `select_word_at`, `copy_selection`, `row` and `char_at_cell` are public, with
+  the `TextRow` renderer and `DrawnRow` it draws, and the `unbound_text`,
+  `cluster_len_before` and `cluster_len_after` rules a multi-line editor shares.
+  `plurimus_widgets`' `EditableText` is renamed `TextField` and `editable_text`
+  is `text_field`, so no plurimus name shadows `bevy_text`'s `EditableText`.
+  `plurimus_term::Clipboard` is the public system parameter every copying widget
+  writes through.
+- **Breaking: the terminal render sub-app is built by `bevy_extract`.**
+  `plurimus_core` depends on `bevy_extract` and re-exports it; its own world
+  swap is gone, and `ExtractSchedule`, `MainWorld`, `MainEntity` and `Extract`
+  at its root are bevy's, so an extract system reads the main world through
+  `Extract<Query<..>>`, whose query state persists across frames, or through
+  `Res<MainWorld>` where it must write. Every extract system in the workspace
+  but the web backend's two now takes `Extract`.
+  - `TerminalRenderSystems` gains `ExtractCommands`, where what extraction
+    spawned and inserted is applied, and `Cleanup`, where the frame's extracted
+    entities are despawned, around the three phases.
+  - `ExtractedCamera` and `ExtractedWidget` require bevy's `TemporaryEntity`, so
+    they live for one frame's `TerminalRender` and a pipeline spawning its own
+    despawns nothing; after `app.update()` the render world holds none.
+  - `TerminalSize`, `ColorDepth`, `TerminalCursor` and `DefaultCamera` are
+    `ExtractResource`s, copied into the render world when the main world's copy
+    changes.
+  - An extracted camera carries bevy's `MainEntity` in place of `SourceCamera`,
+    `camera_buffer_mut` takes `Query<(MainEntity, &mut CameraBuffer)>` and its
+    target as a `MainEntity`, and `ExtractedWidget.source` and `.target` are
+    `MainEntity`s; `ExtractedWidget::new` and `with_target` still take an
+    `Entity`, and `with_target` is no longer `const`.
+- **Breaking: a terminal camera is a bevy `Camera`.** `plurimus_core` depends on
+  `bevy_camera`, and `TerminalCamera` requires `Camera` and is now the placement
+  alone - `Full`, `Fixed(rect)`, `Docked { edge, cells }` or `Fill`, resolved
+  into `ResolvedViewport` as before. Compositing order, activity and what
+  untouched cells become are `Camera`'s `order`, `is_active` and `clear_color`:
+  `Default` keeps the terminal's own background, `None` lets lower cameras show
+  through, and `Custom(color)` pre-fills the view with that colour, downsampled
+  like every other cell colour, so a clear can no longer name a terminal palette
+  entry. Core mirrors each camera's resolved rect and the terminal size into
+  `Camera.viewport` and its target info in `CellSize` pixels, written only when
+  they change, for every camera that is not a `Camera3d`, and fits a
+  `Projection` the camera carries to that view, setting its `clip_from_view` as
+  bevy_render would. A `Camera3d` is left to bevy_render's own writer, which
+  sizes it from its image. That also fixes a 3d camera in a bridged app
+  receiving a cell-pixel viewport from the bridge that bevy then clamped into
+  the image. `plurimus_core` re-exports `bevy_camera`. In an app with
+  bevy_render installed, a terminal camera that is not also a `Camera3d` logs
+  bevy_render's "no render graph" warning once at spawn, which no terminal build
+  has a subscriber for; a projected one, such as a 2d camera, is sized by
+  bevy_render as well, against the virtual window, which has the terminal's
+  size, so the two agree.
+- **Breaking: 3d takes the cell's shape from `CellSize`.** `Aspect3d` fits its
+  ratio in `CellSize`'s cell, and `Plugin3d` refits each 3d camera's projection
+  after bevy_render sizes it, to the physical shape of its pixels, so a scene is
+  undistorted whatever cell the app names. At `CellSize { x: 1.0, y: 2.0 }`, the
+  shape the renderer assumed before, nothing changes; an app drawing 3d sets it
+  as a 2d app does, since core's one-by-one default now renders square cells.
+- **Breaking: a 2d view is bevy's `Camera2d`.** `plurimus_2d` draws for every
+  terminal camera carrying `Camera2d`, projected through its
+  `OrthographicProjection` by `Camera::world_to_viewport`: the camera's
+  translation is the view's centre, its rotation and scale now shape the view
+  too, and zoom is the projection's `scale` in world units per pixel. A cell is
+  core's `CellSize` in pixels, so an app drawing 2d sets
+  `CellSize { x: 1.0, y: 2.0 }` for a world unit to be a column wide and half a
+  row tall, the shape the old default drew. A sprite beyond the projection's
+  near or far plane, `-1000` to `1000` by default, is not drawn. A change to the
+  projection's `scale` made in `Update` draws from the next frame, since core
+  fits the projection in `PreUpdate`. `RenderLayers` is `bevy_camera`'s, still
+  named `plurimus_2d::RenderLayers`: `Clone` rather than `Copy`, with `usize`
+  layers and `intersects` taking a reference.
 - **Breaking: plurimus speaks bevy's interaction vocabulary.** `plurimus_ui`'s
   `Hovered`, `Pressed`, `Checked`, `InteractionDisabled`, `Activate` and
   `ValueChange` are now bevy's own types, re-exported: `Hovered` from
   `bevy_picking`, the three markers from `bevy_ui`, the two events from
   `bevy_ui_widgets`. Imports keep working; what changes is their shape.
-  - `Pressed` is a unit marker. The click count it carried moves to
-    `PressCount`, inserted and removed beside it.
+  - `Pressed` is a unit marker. The click count it carried is bevy's, on
+    `PointerPress::count` and `PointerClick::count`.
   - `ValueChange { source, value, is_final }` replaces `ValueChange::new` and
     carries bevy's `is_final`, which plurimus widgets set to `true`.
-  - `Hovered` is a component holding a `bool`, written to widgets that carry it
-    as before.
+  - `Hovered` is a component holding a `bool`, written by `bevy_picking` to the
+    topmost widget under the pointer and its ancestors - so a widget must carry
+    it to be picked at all, and `WheelReceptive` requires it.
 - **Breaking: `bevy_ui` nodes interact through `bevy_picking` alone.** The
   bridges that published node rects as plurimus widget areas and wheel targets
   are gone: a node is hovered, pressed, focused and scrolled by bevy's stack,
@@ -93,12 +178,231 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A border with one side draws straight.** A top-only border runs end to end
   and a left-only one the full height; a corner glyph appears only where both of
   its sides are present.
-- `plurimus_bui` re-exports `bevy_picking`, `bevy_text` and `bevy_ui_widgets`.
+- **Breaking: plurimus widgets are picked by `bevy_picking`.** `plurimus_ui` is
+  a picking backend: each frame it reports the widgets under the pointer, per
+  terminal camera, and bevy's hover map, pointer capture, pointer events and
+  click counts replace the crate's own router. A widget observes bevy's
+  `PointerPress`, `PointerDrag`, `PointerRelease`, `PointerClick` and
+  `PointerCancel`, named through `plurimus_ui::bevy_picking`; `pointer_cell`
+  reads the cell under any of them, `click_cell` the cell a click ended on when
+  that is inside the widget, and `PointerModifiers` the modifiers the terminal
+  sent with the frame's mouse input, which bevy's events have no field for. A
+  press captures the pointer to the widget it lands on, so its drag and release
+  reach it wherever the pointer goes; a focus loss sends that widget a
+  `PointerCancel`. `UiPlugin` installs `PickingPlugin`, `InteractionPlugin` and
+  `PointerInputPlugin`; a frame's batch ends at every press and release, so what
+  follows is hit-tested against the state the click left.
+  - Click counts are per widget on the wall clock, within
+    `PickingSettings::multi_click_interval`: a second press anywhere on the same
+    widget runs with the first, and a press on another widget starts over.
+  - A press on a widget with no `TabIndex` at or above it clears focus, as a
+    press on nothing does; `PressFocusDisabled` and an open overlay's root keep
+    it, as before, and a press on nothing inside an open overlay reaches
+    nothing, so focus stays where the overlay put it.
+  - A disabled widget is still picked, so it blocks what is beneath and is
+    hovered while it does; no gesture starts on it. A widget that should be
+    transparent to the pointer carries bevy's `Pickable::IGNORE`, which replaces
+    `PressPassThrough` and removes its hover too.
+  - Outside every open overlay the one thing picked is a barrier, so a press or
+    a tick there dismisses the overlays and reaches nothing - a node beneath
+    included - and an enabled `ModalityToggle` is picked in its place.
+  - Any button's press focuses what it lands on and dismisses an open overlay,
+    as on a desktop, where the old router took the left button alone. Only the
+    primary button starts a gesture or drives a plurimus widget - a slider,
+    scrollbar, list box, table or text field - so a right click seeks, selects
+    and moves no caret; upstream's `Button`, `Checkbox`, `RadioButton`, `Tab`
+    and `MenuItem` answer any button, as on a node.
+- `plurimus_ui` re-exports `bevy_picking` and `bevy_ui_widgets`; `plurimus_bui`
+  re-exports `bevy_text` and `bevy_ui_widgets`.
+- **Breaking: buttons, checkboxes and radio groups are `bevy_ui_widgets`' own.**
+  `plurimus_widgets`' `Button`, `Checkbox`, `RadioButton`, `RadioGroup`,
+  `checkbox_self_update` and `radio_self_update` are upstream's, re-exported,
+  and upstream's observers drive them on a cell widget as on a node: a click
+  that ends on one, or Enter or space while it holds focus. `UiPlugin` installs
+  the fontless upstream plugins and `UiScale`, so a ui-only app has them too.
+  The `button`, `checkbox` and `radio` bundles carry `Hovered` and
+  `StylistCache`, which upstream's markers do not require: a bare marker on a
+  `UiWidget` is neither picked nor styled until the app adds them.
+  - Enter and space are fixed and matched by physical key with no modifier
+    check, so Ctrl+Enter activates as Enter does, and no key is remapped.
+  - The radio group is the tab stop. `radio_group()` spawns it with a `TabIndex`
+    and a widget that draws nothing, to which the app gives a `UiArea` spanning
+    its options; `radio()` is no tab stop. A press on an option checks it and
+    focuses the group, arrows, Home and End move the check and wrap, and the
+    checked option draws focused while the group holds focus. Checking the
+    checked option again emits nothing.
+  - These three are not captured on press: a release off one reaches what is
+    under the pointer, so dragging off and letting go activates nothing, as on a
+    window. A release landing in the same frame as the move off still clicks. A
+    focus loss with nothing captured sends its `PointerCancel` to every pressed
+    widget, so one of these three pressed at the time is released.
+  - Their press, release and click stop at the widget, as upstream's observers
+    stop them.
+  - A checkbox press focuses the checkbox whatever `PressFocusDisabled` says,
+    and a disabled checkbox too, since upstream's handler sets focus itself.
+  - A disabled container writes `InteractionDisabled` onto every descendant,
+    since upstream's observers check the entity alone, and takes back only what
+    it wrote; an app's own flag on an entity already flagged that way goes with
+    its ancestor's.
+  - A press or a click inside a `Popover` goes no higher than it, so a menu
+    parented to its button does not press or activate the button.
+- **Breaking: sliders, list boxes, tab bars and menus are `bevy_ui_widgets`'
+  own.** Their types, keys and models are upstream's, re-exported from
+  `plurimus_widgets`, and the constructors carry what a cell widget is drawn and
+  picked with. What stays plurimus's is the drawing, the placement, and the
+  pointer routing a cell rect needs where upstream's measures a node.
+  - The slider is upstream's `Slider`, `SliderValue`, `SliderRange` and
+    `SliderStep`, with `SetSliderValue`, `SliderPrecision` and
+    `slider_self_update`. The side arrows step and repeat while held, Home and
+    End jump, and a bound arrow at the range's edge is consumed and reports an
+    unchanged final value rather than passing on. The default step is 1. The
+    value components are immutable, so an app inserts a new one. `slider()`
+    takes its bounds in either order; a reversed `SliderRange` inserted by hand
+    warns and panics upstream's way.
+  - The list box is upstream's `ListBox`, `ListItem`, `ListBoxMultiSelect` and
+    `ActiveDescendant`, the cursor the table shares, now immutable and written
+    by insert. Selection is `bevy_ui`'s `Selected`, re-exported from
+    `plurimus_ui`, and `listbox_update_selection` is the stock single-select
+    updater. The arrows wrap, Left and Right move too, there are no page keys,
+    and no key repeats. Enter, space or a click on the selected row sends
+    `ReselectListRow`, and a disabled row takes the cursor and selects nothing.
+    A disabled list's arrows still move its cursor. The list's own Enter repeats
+    propagate to its ancestors. Losing focus clears the cursor, and gaining it
+    restores the selected row or the first. A press or drag still moves the
+    cursor under the pointer, and a click selects through upstream's
+    `SetSelected`. Copy stays, on a fixed Ctrl+c.
+  - The tab bar is upstream's `TabList` and `Tab`. `TabBar` is a marker that
+    requires a `TabList`, so `(tab_bar(), TabList { .. })` changes its
+    orientation or activation, `Manual` by default. Focus sits on a tab with a
+    roving `TabIndex`. The arrows along the bar move it and wrap, Enter or space
+    selects, and `Automatic` selects as focus moves. Selection is the list's
+    `SelectedTab`, mirrored onto its tabs as `Selected` the frame after, and a
+    change is a `ValueChange<Option<Entity>>` on the list that
+    `tablist_self_update` applies. `TabBarLook` loses `orientation`, the layout
+    and joins reading `TabList::orientation`. A press on a tab focuses the tab,
+    so `PressFocusDisabled` goes on the tabs rather than the bar.
+  - Directional navigation leaves a negative `TabIndex` out, as Tab does, so a
+    roving strip is one arrow target at its resting tab.
+  - A menu is upstream's `MenuButton`, `MenuPopup` and `MenuItem`, opened and
+    closed through the bubbling `MenuEvent`. A plurimus observer answers it for
+    a popup holding a `Popover`, so a menu of nodes still answers its own. The
+    button opens on the press, and Up or Left on it opens at the last item. The
+    open popup takes focus onto an item and closes when focus leaves it, so a
+    press outside closes the menu and still acts on what it hit, and a wheel
+    tick outside no longer closes it. Tab cycles the items, Escape refocuses the
+    button, and the keys are fixed. The popup no longer carries `ModalOpen`. It
+    is a pick: a press on its frame keeps focus inside, and a tick over it
+    scrolls nothing beneath.
+  - Tabs and menu items are not captured on press, as buttons are not, so a
+    release off one is no click on it.
+  - `Scrollbar` and `scrollbar()` take `ControlOrientation`; the bar fills the
+    strip it is given.
+- **Breaking: input is bevy's own messages.** A backend reports what its
+  terminal said through `plurimus_term::TerminalInput`, and an app reads bevy's
+  `KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
+  `WindowFocused`, written for the primary window - where the app opened none,
+  the `VirtualWindow` `TermPlugin` spawns, kept at the terminal's size in
+  `CellSize` pixels with a `WindowResized` for each change - as `bevy_winit`
+  would write them, each also in the ordered `WindowEvent` stream.
+  `PasteMessage` and `TerminalResized` stay, having no bevy counterpart.
+  - A key names bevy's `Key` and the `KeyCode` `physical_code` infers from it: a
+    letter or digit is its own key whatever its case, a named key its namesake,
+    a modifier its left side. `KeyboardInput::text` carries a character press.
+    Modifiers are not on the message: `HeldModifiers`, now at `plurimus_term`'s
+    root, polls them from `ButtonInput<KeyCode>` for a key observer, and
+    `PointerModifiers`, now `plurimus_term`'s too, keeps the ones the terminal
+    sent with the frame's button press. On a terminal that sends modifiers only
+    as bits, the sink writes the modifier key presses and releases they imply,
+    so a shift-click holds `ShiftLeft` there as well; only the sink releases
+    them, so a modifier held past the key-release timeout or across a focus loss
+    still modifies the next chord.
+  - The pointer sits at the cell's centre in `CellSize` pixels; a `CursorMoved`
+    is written only when the cell changes, and a wheel notch is one cell in
+    pixels, so a `bevy_ui` node scrolls one row or column per notch. A press or
+    a release still ends the frame's batch for pointer input, now in the sink
+    rather than in `plurimus_ui`, which runs `bevy_picking`'s
+    `PointerInputPlugin` - mouse on, touch off - instead of a feed of its own.
+  - Input runs in `First`: `InputSystems::Pump`, then `Synthesize`, after bevy's
+    clock and message swap and before `bevy_picking` reads the frame's events.
+    `InputSystems::Update` is gone; polled `ButtonInput<KeyCode>` and
+    `ButtonInput<MouseButton>` are fed by `bevy_input`'s `InputPlugin`, which
+    `TermPlugin` installs.
+  - The sink owns the write to `InputCapabilities`: a backend raises what its
+    terminal has proven through `TerminalInput::learn`, and a pump reading the
+    resource beside the sink conflicts with it.
+  - A focus loss releases every held key with a `KeyboardFocusLost` beside the
+    releases, drops every held button from `ButtonInput<MouseButton>` without
+    writing a release, and cancels the captured widget's gesture through bevy's
+    `PointerInput::Cancel`, which `plurimus_ui` writes.
+  - `plurimus_web` copies to the browser clipboard through `bevy_clipboard`.
+  - `plurimus_test`'s key helpers take bevy's `Key`, `character('a')` naming a
+    typed character, and its mouse helpers are named: `move_to`, `press_at`,
+    `release_at`, `click`, `scroll_at`, `scroll_sideways` and `send_press_at`
+    tick, the `write_*` forms queue, and `write_press_at_with` carries
+    modifiers. A chord is `press_key_with`; a drag is a move while a button is
+    held.
+- **Breaking: hiding and camera naming run on bevy's hierarchy propagation.**
+  `plurimus_core` installs `bevy_app::HierarchyPropagatePlugin` for both. A
+  subtree is hidden by `Propagate(Hidden)` on its root, which lands `Hidden` on
+  the root and everything beneath it and takes it back when removed; `Hidden` is
+  what every reader reads, in the frame it was hidden, a mid-frame hide
+  included. A camera is named by `Propagate(UiCamera(camera))`, which lands
+  `UiCamera` the same way, a nearer one winning; `ComputedUiCamera` is that or
+  the default camera, resolved once a frame and never removed. A bare `UiCamera`
+  on an entity nothing propagates to still names its own camera, so a leaf spawn
+  needs no change, but a parent that carried its children with a bare `UiCamera`
+  now needs the `Propagate` form. `plurimus_core` re-exports `Propagate`.
+- **A pane asks bevy whether focus is within it.** Its stylist reads
+  `IsFocusedHelper::is_focus_within`; nothing marks ancestors any more.
+- **The wheel router measures a `ScrollArea` at the tick.** Whether a receptive
+  widget can use the ticked axis is read from its `ScrollArea`'s content against
+  its viewport when a tick arrives; a receptive widget without one claims both
+  axes, as the default `WheelAxes` had it. `ScrollArea::max_offset` is that
+  measure, public.
+- **Colour averages are `LinearRgba` arithmetic.** `raster::linear_average`
+  folds sRGB byte samples through `bevy_color` and hands back the linear mean.
 
 ### Removed
 
+- `plurimus_core::SourceCamera`, for bevy's `MainEntity`.
+- `plurimus_2d::Projection2d`, for bevy's `Camera2d` and
+  `OrthographicProjection`, and plurimus's own 64-layer `RenderLayers`, for
+  `bevy_camera`'s.
+- `plurimus_core::Viewport` and `Background`, and `TerminalCamera`'s
+  `with_order`, `with_viewport`, `with_active` and `with_background`: the
+  placement is the camera itself and the rest is bevy's `Camera`.
+  `ExtractedCamera` carries `clear_color` in place of `background`.
+- `plurimus_bui`'s camera mirror and its own `CellSize`; the bridge keeps only
+  the `IsDefaultUiCamera` toggle and reads core's `CellSize`.
 - The `InheritedVisibility::VISIBLE` stand-in `BuiPlugin` registered for nodes;
   visibility is now computed.
+- `plurimus_ui`'s `Click`, `PointerPress`, `PointerDrag`, `PointerRelease`,
+  `PointerCancel`, `PressCount`, `PressPassThrough`, `PointerTargets` and
+  `UiSystems::Hover`, and `plurimus_term`'s `MultiClickWindow`: the pointer
+  events, the click run and the hit test are `bevy_picking`'s.
+- `plurimus_term`'s `KeyMessage`, `KeyCode`, `KeyKind`, `ModifierKey`,
+  `MouseMessage`, `MouseKind`, `CursorCell`, `FocusMessage`, `bevy_compat`,
+  `InputSystems::Update` and `KeyModifiers::holds`; `plurimus_test`'s
+  `send_mouse`, `write_mouse`, `drag_to` and `press_chord`. Every input type is
+  bevy's, above.
+- `plurimus_core::UiHidden` and `ComputedHidden`, now `Propagate<Hidden>` and
+  `Hidden`; `plurimus_core::raster::LinearColorSum`, now `linear_average`; and
+  `plurimus_ui::FocusWithin`, `WheelAxes`, `NavigationConfig`, `ScrollKeys` and
+  `ScrollAction`. A focused `ScrollArea` no longer scrolls from the keyboard by
+  itself: an app binds the keys it wants in a `FocusedInput<KeyboardInput>`
+  observer and triggers `ScrollBy`. The navigation map's rebuild from widget
+  geometry can no longer be switched off; hand-made edges survive it as before.
+
+- `plurimus_widgets::ActivateKeys`: a button, checkbox or radio answers to
+  upstream's fixed Enter and space.
+- `plurimus_widgets`' `SliderKeys`, `SliderAction`, `ListBoxKeys`,
+  `ListBoxAction`, `TabBarKeys`, `TabBarAction` and `MenuKeys`: those widgets
+  answer to upstream's fixed keys. `TabBarOrientation`, `TabItem` and
+  `TabBarLook::with_orientation`, now `TabList` and `Tab`; `MenuOpen`, now
+  `MenuFocusState`; and the menu's own `MenuAction`, now upstream's, whose
+  variants are its event's. `listbox_self_update` and `tab_bar_self_update`, now
+  `listbox_update_selection` and `tablist_self_update`; a list has no stock
+  multi-select updater.
 
 ### Fixed
 

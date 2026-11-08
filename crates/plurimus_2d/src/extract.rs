@@ -8,25 +8,27 @@
 
 use std::ops::Range;
 
-use bevy_ecs::prelude::{Entity, ResMut, Resource};
-use bevy_math::Vec2;
+use bevy_camera::visibility::RenderLayers;
+use bevy_camera::{Camera, Camera2d};
+use bevy_ecs::prelude::{Entity, Query, Res, ResMut, Resource, With};
+use bevy_math::{Vec2, Vec3};
 use bevy_transform::components::GlobalTransform;
-use plurimus_core::MainWorld;
+use plurimus_core::{CellSize, Extract, MainEntity};
 use ratatui_core::style::{Color, Style};
 
-use crate::layers::RenderLayers;
-use crate::projection::{Projection2d, SubcellMode};
+use crate::projection::SubcellMode;
 use crate::sprite::{Glyph, GlyphBlock, Pixel, PixelBlock};
 
 /// Per-camera 2d views, rebuilt every frame.
 #[derive(Resource, Default)]
 pub(crate) struct ExtractedViews2d(pub(crate) Vec<ExtractedView2d>);
 
-/// The main-world camera entity and its projection state.
+/// A 2d camera's main-world entity and what projecting through it needs.
 pub(crate) struct ExtractedView2d {
-    pub(crate) camera: Entity,
-    pub(crate) center: Vec2,
-    pub(crate) projection: Projection2d,
+    pub(crate) entity: MainEntity,
+    pub(crate) camera: Camera,
+    pub(crate) transform: GlobalTransform,
+    pub(crate) cell: Vec2,
     pub(crate) layers: RenderLayers,
     pub(crate) mode: SubcellMode,
 }
@@ -44,9 +46,8 @@ pub(crate) struct ExtractedSprites2d {
 /// A glyph or glyph block, uniformly block-shaped: a `Glyph` extracts
 /// as a single-row block.
 pub(crate) struct ExtractedGlyph {
-    pub(crate) position: Vec2,
-    pub(crate) z: f32,
-    pub(crate) entity: Entity,
+    pub(crate) position: Vec3,
+    pub(crate) entity: MainEntity,
     pub(crate) rows: Vec<String>,
     pub(crate) style: Style,
     pub(crate) layers: RenderLayers,
@@ -55,117 +56,120 @@ pub(crate) struct ExtractedGlyph {
 /// A pixel or pixel block, uniformly block-shaped: a `Pixel` extracts as
 /// a 1×1 block.
 pub(crate) struct ExtractedPixelBlock {
-    pub(crate) position: Vec2,
-    pub(crate) z: f32,
-    pub(crate) entity: Entity,
+    pub(crate) position: Vec3,
+    pub(crate) entity: MainEntity,
     pub(crate) width: usize,
     pub(crate) height: usize,
     pub(crate) cells: Range<usize>,
     pub(crate) layers: RenderLayers,
 }
 
+type Placed<'w, 's, T> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static T,
+        &'static GlobalTransform,
+        Option<&'static RenderLayers>,
+    ),
+>;
+
 pub(crate) fn extract_views_2d(
-    mut main_world: ResMut<MainWorld>,
+    cameras: Extract<
+        Query<
+            (
+                Entity,
+                &Camera,
+                &GlobalTransform,
+                Option<&RenderLayers>,
+                Option<&SubcellMode>,
+            ),
+            With<Camera2d>,
+        >,
+    >,
+    cell: Extract<Res<CellSize>>,
     mut views: ResMut<ExtractedViews2d>,
 ) {
     views.0.clear();
-    let mut cameras = main_world.query::<(
-        Entity,
-        &Projection2d,
-        &GlobalTransform,
-        Option<&RenderLayers>,
-        Option<&SubcellMode>,
-    )>();
-    for (camera, projection, transform, layers, mode) in cameras.iter(&main_world) {
+    for (entity, camera, transform, layers, mode) in &cameras {
         views.0.push(ExtractedView2d {
-            camera,
-            center: transform.translation().truncate(),
-            projection: *projection,
-            layers: layers.copied().unwrap_or_default(),
+            entity: MainEntity::from(entity),
+            camera: camera.clone(),
+            transform: *transform,
+            cell: cell.vec(),
+            layers: layers.cloned().unwrap_or_default(),
             mode: mode.copied().unwrap_or_default(),
         });
     }
 }
 
 pub(crate) fn extract_sprites_2d(
-    mut main_world: ResMut<MainWorld>,
+    glyphs: Extract<Placed<Glyph>>,
+    glyph_blocks: Extract<Placed<GlyphBlock>>,
+    pixels: Extract<Placed<Pixel>>,
+    pixel_blocks: Extract<Placed<PixelBlock>>,
     mut sprites: ResMut<ExtractedSprites2d>,
 ) {
     sprites.glyphs.clear();
     sprites.pixels.clear();
     sprites.pixel_cells.clear();
-    extract_glyphs(&mut main_world, &mut sprites);
-    extract_glyph_blocks(&mut main_world, &mut sprites);
-    extract_pixels(&mut main_world, &mut sprites);
-    extract_pixel_blocks(&mut main_world, &mut sprites);
+    extract_glyphs(&glyphs, &mut sprites);
+    extract_glyph_blocks(&glyph_blocks, &mut sprites);
+    extract_pixels(&pixels, &mut sprites);
+    extract_pixel_blocks(&pixel_blocks, &mut sprites);
 }
 
-fn extract_glyphs(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut glyphs =
-        main_world.query::<(Entity, &Glyph, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, glyph, transform, layers) in glyphs.iter(main_world) {
-        let translation = transform.translation();
+fn extract_glyphs(glyphs: &Placed<Glyph>, sprites: &mut ExtractedSprites2d) {
+    for (entity, glyph, transform, layers) in glyphs {
         sprites.glyphs.push(ExtractedGlyph {
-            position: translation.truncate(),
-            z: translation.z,
-            entity,
+            position: transform.translation(),
+            entity: MainEntity::from(entity),
             rows: vec![glyph.symbol.clone()],
             style: glyph.style,
-            layers: layers.copied().unwrap_or_default(),
+            layers: layers.cloned().unwrap_or_default(),
         });
     }
 }
 
-fn extract_glyph_blocks(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut blocks =
-        main_world.query::<(Entity, &GlyphBlock, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, block, transform, layers) in blocks.iter(main_world) {
-        let translation = transform.translation();
+fn extract_glyph_blocks(blocks: &Placed<GlyphBlock>, sprites: &mut ExtractedSprites2d) {
+    for (entity, block, transform, layers) in blocks {
         sprites.glyphs.push(ExtractedGlyph {
-            position: translation.truncate(),
-            z: translation.z,
-            entity,
+            position: transform.translation(),
+            entity: MainEntity::from(entity),
             rows: block.rows.clone(),
             style: block.style,
-            layers: layers.copied().unwrap_or_default(),
+            layers: layers.cloned().unwrap_or_default(),
         });
     }
 }
 
-fn extract_pixels(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut pixels =
-        main_world.query::<(Entity, &Pixel, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, pixel, transform, layers) in pixels.iter(main_world) {
-        let translation = transform.translation();
+fn extract_pixels(pixels: &Placed<Pixel>, sprites: &mut ExtractedSprites2d) {
+    for (entity, pixel, transform, layers) in pixels {
         let start = sprites.pixel_cells.len();
         sprites.pixel_cells.push(Some(pixel.color));
         sprites.pixels.push(ExtractedPixelBlock {
-            position: translation.truncate(),
-            z: translation.z,
-            entity,
+            position: transform.translation(),
+            entity: MainEntity::from(entity),
             width: 1,
             height: 1,
             cells: start..sprites.pixel_cells.len(),
-            layers: layers.copied().unwrap_or_default(),
+            layers: layers.cloned().unwrap_or_default(),
         });
     }
 }
 
-fn extract_pixel_blocks(main_world: &mut MainWorld, sprites: &mut ExtractedSprites2d) {
-    let mut blocks =
-        main_world.query::<(Entity, &PixelBlock, &GlobalTransform, Option<&RenderLayers>)>();
-    for (entity, block, transform, layers) in blocks.iter(main_world) {
-        let translation = transform.translation();
+fn extract_pixel_blocks(blocks: &Placed<PixelBlock>, sprites: &mut ExtractedSprites2d) {
+    for (entity, block, transform, layers) in blocks {
         let start = sprites.pixel_cells.len();
         let width = resolve_pixels(block, &mut sprites.pixel_cells);
         sprites.pixels.push(ExtractedPixelBlock {
-            position: translation.truncate(),
-            z: translation.z,
-            entity,
+            position: transform.translation(),
+            entity: MainEntity::from(entity),
             width,
             height: block.rows.len(),
             cells: start..sprites.pixel_cells.len(),
-            layers: layers.copied().unwrap_or_default(),
+            layers: layers.cloned().unwrap_or_default(),
         });
     }
 }

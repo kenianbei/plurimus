@@ -1,35 +1,26 @@
 //! The two text widgets and everything only they use.
 //!
-//! [`EditableText`] is a single-line field owning its value as a plain
+//! [`TextField`] is a single-line field owning its value as a plain
 //! component; [`TextEditor`] is a multi-line box whose text lives in a
 //! ratatui-textarea engine behind a lock. That difference is deliberate - a
 //! form field is read with `entity.get::<TextInput>()`, while an editor
 //! trades that for undo, lines and wrapping - and it is why the two do not
 //! share an implementation.
 //!
-//! `grapheme` and `word` are shared between them so a keybinding stops at
-//! the same place in both; `field` renders the single-line row and
-//! `pointer` maps a press onto it. None of those is reachable from outside
-//! this module. `edit` is the exception: it holds [`TextInput`]'s own key
-//! and paste entry points, which are public so a host that routes its own
-//! keys drives a field without focusing it.
+//! The field's engine, [`TextInput`], is `plurimus_ui`'s, shared with every
+//! other host of a single-line field; this module is the cell widget around
+//! it: `input` its keys, paste, focus and stylist, `pointer` its press and
+//! drag.
 
-mod edit;
 mod editor;
 mod editor_keys;
-mod field;
-mod grapheme;
 mod input;
-mod keys;
 mod pointer;
-mod state;
-mod word;
 
 pub use editor::{TextChanged, TextEditor, text_editor};
 pub use editor_keys::{TextEditorAction, TextEditorKeys};
-pub use input::{EditableText, Submit, TextMask, editable_text};
-pub use keys::{TextInputAction, TextInputKeys};
-pub use state::TextInput;
+pub use input::{Submit, TextField, TextMask, text_field};
+pub use plurimus_ui::{TextInput, TextInputAction, TextInputKeys};
 
 pub(crate) use editor::{
     install_editor_views, text_editor_key, text_editor_paste, text_editor_scrolled,

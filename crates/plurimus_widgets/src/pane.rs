@@ -1,24 +1,22 @@
 //! A bordered container whose border restyles while focus is inside it.
 //!
-//! The pane itself is not focusable; it reacts to
-//! [`FocusWithin`](plurimus_ui::FocusWithin), which `plurimus_ui` maintains on
-//! every ancestor of the focused entity. That is what lets a pane highlight
-//! while a widget nested anywhere inside it holds focus, without the pane
-//! knowing what its children are.
+//! The pane itself is not focusable; it asks `bevy_input_focus` whether
+//! focus sits within it. That is what lets a pane highlight while a widget
+//! nested anywhere inside it holds focus, without the pane knowing what its
+//! children are.
 
 use bevy_ecs::bundle::Bundle;
 use bevy_ecs::change_detection::{DetectChanges, Ref};
-use bevy_ecs::prelude::{Component, Has, Query, Res};
+use bevy_ecs::prelude::{Component, Entity, Query, Res};
+use bevy_input_focus::{IsFocused, IsFocusedHelper};
 use plurimus_core::ratatui_core::text::Line;
 use ratatui_widgets::block::Block;
 
 use plurimus_core::UiWidget;
-use plurimus_ui::UiLabel;
-use plurimus_ui::{FocusWithin, UiStyle, UiTheme};
-use plurimus_ui::{InteractionState, Stylable, StylistCache};
+use plurimus_ui::{InteractionState, Stylable, StylistCache, UiLabel, UiStyle, UiTheme};
 
 /// A bordered region titled by its [`UiLabel`]. Not focusable itself:
-/// "focused" means [`FocusWithin`] - focus sits on a descendant.
+/// "focused" means focus sits on a descendant.
 #[derive(Component, Debug, Clone, Copy)]
 #[require(StylistCache)]
 pub struct Pane;
@@ -31,9 +29,10 @@ pub fn pane(title: impl Into<Line<'static>>) -> impl Bundle {
 
 pub(crate) fn style_panes(
     theme: Res<UiTheme>,
+    focus: IsFocusedHelper,
     mut panes: Query<
         (
-            Has<FocusWithin>,
+            Entity,
             Ref<UiLabel>,
             Option<&UiStyle>,
             &mut StylistCache,
@@ -42,7 +41,8 @@ pub(crate) fn style_panes(
         Stylable<Pane>,
     >,
 ) {
-    for (focused, label, over, mut cache, mut widget) in &mut panes {
+    for (pane, label, over, mut cache, mut widget) in &mut panes {
+        let focused = focus.is_focus_within(pane);
         let next = StylistCache::new(InteractionState::default().with_focused(focused), over);
         if !cache.redraws(next, theme.is_changed() || label.is_changed()) {
             continue;

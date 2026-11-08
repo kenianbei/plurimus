@@ -1,20 +1,22 @@
 use bevy_app::App;
 use bevy_color::Color;
-use bevy_ecs::prelude::{Has, Without};
+use bevy_ecs::prelude::Without;
 use bevy_ui::{BackgroundColor, Node};
 use plurimus::bui::ComputedNodeRect;
+use plurimus::bui::bevy_text::EditableText;
 use plurimus::core::TerminalSize;
-use plurimus::term::{InputCapabilities, KeyModifiers, ModifierKey, MouseKind};
-use plurimus::ui::bevy_input_focus::InputFocus;
-use plurimus::ui::{ComputedWidgetArea, FocusWithin, UiLabel};
-use plurimus::widgets::{MenuButton, Pane, SliderValue, TextInput};
+use plurimus::term::bevy_input::keyboard::Key;
+use plurimus::term::{InputCapabilities, KeyModifiers};
+use plurimus::ui::bevy_input_focus::{InputFocus, IsFocused};
+use plurimus::ui::{ComputedWidgetArea, UiLabel};
+use plurimus::widgets::{MenuButton, Pane, RadioGroup, SliderValue};
 use plurimus_test::{
-    click, composed_frame, press_chord, press_key, press_key_with, send_mouse, set_focus,
+    character, click, composed_frame, press_key, press_key_with, scroll_at, set_focus,
 };
 
 use super::*;
 
-const THEMED_FOCUSABLES: usize = 13;
+const THEMED_FOCUSABLES: usize = 11;
 
 const TEST_SIZE: TerminalSize = TerminalSize::new(100, 32);
 
@@ -30,35 +32,31 @@ fn headless_app() -> App {
     app
 }
 
-fn focused_label(app: &mut App) -> Option<String> {
-    let focused = app.world().resource::<InputFocus>().get()?;
-    app.world()
-        .get::<UiLabel>(focused)
-        .map(|label| label.0.to_string())
-}
-
 fn is_pane_highlighted(app: &mut App, title: &str) -> bool {
     let world = app.world_mut();
-    let mut panes = world.query_filtered::<(&UiLabel, Has<FocusWithin>), With<Pane>>();
-    panes
+    let mut panes = world.query_filtered::<(Entity, &UiLabel), With<Pane>>();
+    let pane = panes
         .iter(world)
-        .find(|(label, _)| label.0.to_string() == title)
-        .map(|(_, focused)| focused)
-        .expect("pane exists")
+        .find(|(_, label)| label.0.to_string() == title)
+        .map(|(pane, _)| pane)
+        .expect("pane exists");
+    world.is_focus_within(pane)
 }
 
+// The radio group keeps its arrows, so the loop is entered from the top:
+// up from the button reaches the group.
 #[test]
 fn wraparound_edge_loops_focus_between_ends() {
     let mut app = headless_app();
-    click(&mut app, 3, 7);
-    assert_eq!(focused_label(&mut app).as_deref(), Some("pop"));
-
-    press_key(&mut app, KeyCode::Down);
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
+    let group = single::<(With<RadioGroup>, Without<Node>)>(&mut app);
+    click_center(&mut app, button);
 
-    press_key(&mut app, KeyCode::Up);
-    assert_eq!(focused_label(&mut app).as_deref(), Some("pop"));
+    press_key(&mut app, Key::ArrowUp);
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(group));
+
+    press_key(&mut app, Key::ArrowUp);
+    assert_eq!(app.world().resource::<DemoState>().themed.radio, "pop");
 }
 
 #[test]
@@ -81,7 +79,7 @@ fn clicking_the_track_seeks_and_arrows_step_the_slider() {
     let sought = themed_slider(&app);
     assert!(sought < SLIDER_START, "{sought}");
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     let stepped = themed_slider(&app);
     assert!(
         (stepped - sought - SLIDER_KEY_STEP).abs() < f32::EPSILON,
@@ -110,8 +108,8 @@ fn menu_opens_over_widgets_and_reset_item_clears_state() {
 fn arrows_move_the_listbox_selection() {
     let mut app = headless_app();
     click(&mut app, 3, 10);
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
 
     let choice = app.world().resource::<DemoState>().themed.choice.clone();
     assert_eq!(choice, "beta");
@@ -122,8 +120,8 @@ fn arrows_move_the_listbox_selection() {
 fn typing_edits_the_single_line_field() {
     let mut app = headless_app();
     click(&mut app, 3, 16);
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::Char('!'));
+    press_key(&mut app, Key::End);
+    press_key(&mut app, character('!'));
 
     let frame = composed_frame(&app);
     assert!(frame.contains(&format!("{FIELD_TEXT}!")), "{frame}");
@@ -133,7 +131,7 @@ fn typing_edits_the_single_line_field() {
 fn typing_edits_the_multi_line_editor() {
     let mut app = headless_app();
     click(&mut app, 3, 18);
-    press_key(&mut app, KeyCode::Char('z'));
+    press_key(&mut app, character('z'));
 
     let frame = composed_frame(&app);
     assert!(frame.contains("za multi-line"), "{frame}");
@@ -146,7 +144,7 @@ fn the_wheel_scrolls_the_log_and_moves_its_scrollbar() {
     assert!(before.contains("03-02: boot"), "{before}");
 
     for _ in 0..4 {
-        send_mouse(&mut app, MouseKind::ScrollDown, 10, 24);
+        scroll_at(&mut app, 10, 24, 1);
     }
 
     // Four lines is two entries, because every entry is two rows tall.
@@ -229,7 +227,7 @@ fn click_node_center(app: &mut App, entity: Entity) {
 #[test]
 fn clicking_a_bui_node_activates_the_widget_behind_it() {
     let mut app = headless_app();
-    let button = single::<With<NodeButton>>(&mut app);
+    let button = single::<(With<Button>, With<Node>)>(&mut app);
     click_node_center(&mut app, button);
 
     assert_eq!(app.world().resource::<DemoState>().bui.presses, 1);
@@ -238,16 +236,16 @@ fn clicking_a_bui_node_activates_the_widget_behind_it() {
 #[test]
 fn typing_edits_the_bui_side_field() {
     let mut app = headless_app();
-    let field = single::<(With<EditableText>, With<Node>)>(&mut app);
-    click_center(&mut app, field);
-    press_key(&mut app, KeyCode::Char('?'));
+    let field = single::<(With<NodeTextInput>, With<Node>)>(&mut app);
+    click_node_center(&mut app, field);
+    press_key(&mut app, character('?'));
 
     let value = app
         .world()
-        .get::<TextInput>(field)
+        .get::<EditableText>(field)
         .unwrap()
         .value()
-        .to_owned();
+        .to_string();
     assert_eq!(value, format!("{FIELD_TEXT}?"));
 }
 
@@ -255,11 +253,11 @@ fn typing_edits_the_bui_side_field() {
 fn tab_walks_from_the_themed_side_to_the_bui_side() {
     let mut app = headless_app();
     let themed_button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    let bui_button = single::<With<NodeButton>>(&mut app);
+    let bui_button = single::<(With<Button>, With<Node>)>(&mut app);
     click_center(&mut app, themed_button);
 
     for _ in 0..THEMED_FOCUSABLES {
-        press_key(&mut app, KeyCode::Tab);
+        press_key(&mut app, Key::Tab);
         if app.world().resource::<InputFocus>().get() == Some(bui_button) {
             return;
         }
@@ -281,7 +279,7 @@ fn typing_d_in_the_editor_leaves_widgets_enabled() {
     let mut app = headless_app();
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     click(&mut app, 3, 18);
-    press_key(&mut app, KeyCode::Char('d'));
+    press_key(&mut app, character('d'));
 
     assert!(app.world().get::<InteractionDisabled>(button).is_none());
     assert!(composed_frame(&app).contains("da multi-line"));
@@ -291,7 +289,7 @@ fn typing_d_in_the_editor_leaves_widgets_enabled() {
 fn the_menu_item_toggles_every_widget_disabled() {
     let mut app = headless_app();
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
-    let bui_button = single::<With<NodeButton>>(&mut app);
+    let bui_button = single::<(With<Button>, With<Node>)>(&mut app);
 
     click(&mut app, 26, 0);
     app.update();
@@ -312,7 +310,7 @@ fn the_menu_item_toggles_every_widget_disabled() {
 #[test]
 fn focus_lifts_the_background_of_bui_widgets() {
     let mut app = headless_app();
-    let checkbox = single::<With<NodeCheckbox>>(&mut app);
+    let checkbox = single::<(With<Checkbox>, With<Node>)>(&mut app);
     assert_eq!(
         app.world().get::<BackgroundColor>(checkbox).unwrap().0,
         Color::NONE
@@ -334,11 +332,11 @@ fn shift_tab_walks_focus_backwards_on_the_kitty_tier() {
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     click_center(&mut app, button);
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     let forward = app.world().resource::<InputFocus>().get();
     assert_ne!(forward, Some(button));
 
-    press_chord(&mut app, ModifierKey::ShiftLeft, KeyCode::Tab);
+    press_key_with(&mut app, Key::Tab, KeyModifiers::none().with_shift(true));
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
 }
 
@@ -349,13 +347,9 @@ fn shift_tab_walks_focus_backwards_on_the_legacy_tier() {
     let button = single::<(With<Button>, Without<MenuButton>, Without<Node>)>(&mut app);
     click_center(&mut app, button);
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert_ne!(app.world().resource::<InputFocus>().get(), Some(button));
 
-    press_key_with(
-        &mut app,
-        KeyCode::Tab,
-        KeyModifiers::default().with_shift(true),
-    );
+    press_key_with(&mut app, Key::Tab, KeyModifiers::default().with_shift(true));
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(button));
 }

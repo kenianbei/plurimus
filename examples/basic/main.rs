@@ -13,7 +13,9 @@ use bevy_ecs::prelude::{
 use plurimus::core::ratatui_core::layout::Rect;
 use plurimus::core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::term::HeldModifiers;
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 
 use widgets::{TILES, TileSpec};
 
@@ -89,10 +91,15 @@ fn animate_tiles(mut tiles: Query<(&Animated, &mut UiWidget)>, mut frames: Local
     }
 }
 
-fn quit_on_q(mut keys: MessageReader<KeyMessage>, mut exit: MessageWriter<AppExit>) {
+fn quit_on_q(
+    mut keys: MessageReader<KeyboardInput>,
+    held: HeldModifiers,
+    mut exit: MessageWriter<AppExit>,
+) {
     for key in keys.read() {
-        let ctrl_c = key.modifiers.ctrl && key.code == KeyCode::Char('c');
-        if key.kind == KeyKind::Press && (key.code == KeyCode::Char('q') || ctrl_c) {
+        let ctrl_c = held.get().ctrl && key.logical_key == Key::Character("c".into());
+        let quit = key.logical_key == Key::Character("q".into()) || ctrl_c;
+        if key.state == ButtonState::Pressed && !key.repeat && quit {
             exit.write(AppExit::Success);
         }
     }

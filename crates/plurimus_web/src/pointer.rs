@@ -1,7 +1,7 @@
 //! Browser pointer and wheel events in cells.
 
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_term::{MouseButton, MouseKind};
+use plurimus_term::MouseButton;
 
 /// Pixels a `WheelEvent` in pixel mode scrolls per wheel notch: what Chrome
 /// and Edge report for one notch of a mouse wheel.
@@ -47,21 +47,6 @@ pub(crate) const fn button(index: i16) -> Option<MouseButton> {
     }
 }
 
-/// The first button held in a `PointerEvent.buttons` mask, which is what
-/// turns a move into a drag.
-pub(crate) fn held_button(buttons: u16) -> Option<MouseButton> {
-    const HELD: [(u16, MouseButton); 5] = [
-        (1, MouseButton::Left),
-        (2, MouseButton::Right),
-        (4, MouseButton::Middle),
-        (8, MouseButton::Back),
-        (16, MouseButton::Forward),
-    ];
-    HELD.iter()
-        .find(|&&(bit, _)| buttons & bit != 0)
-        .map(|&(_, held)| held)
-}
-
 /// Turns wheel deltas into whole notches, carrying the remainder so a
 /// trackpad's many small deltas still add up to scrolling.
 #[derive(Debug, Default)]
@@ -71,49 +56,28 @@ pub(crate) struct WheelResidue {
 }
 
 impl WheelResidue {
-    /// The scroll messages one `WheelEvent` amounts to, in the order a
-    /// terminal would report them: vertical first.
-    pub(crate) fn notches(&mut self, delta: (f64, f64), mode: u32) -> Vec<MouseKind> {
+    /// The whole notches one `WheelEvent` amounts to, `(x, y)` in the
+    /// sink's terms: a browser's positive delta scrolls down and right,
+    /// which is a wheel turned toward the user, so each is negated.
+    pub(crate) fn notches(&mut self, delta: (f64, f64), mode: u32) -> (i32, i32) {
         let per_notch = match mode {
             DELTA_LINE => LINES_PER_NOTCH,
             DELTA_PAGE => 1.0,
             _ => PIXELS_PER_NOTCH,
         };
-        let vertical = take_notches(&mut self.vertical, delta.1 / per_notch);
-        let horizontal = take_notches(&mut self.horizontal, delta.0 / per_notch);
-        let mut kinds = Vec::new();
-        push_notches(
-            &mut kinds,
-            vertical,
-            MouseKind::ScrollDown,
-            MouseKind::ScrollUp,
-        );
-        push_notches(
-            &mut kinds,
-            horizontal,
-            MouseKind::ScrollRight,
-            MouseKind::ScrollLeft,
-        );
-        kinds
+        (
+            -take_notches(&mut self.horizontal, delta.0 / per_notch),
+            -take_notches(&mut self.vertical, delta.1 / per_notch),
+        )
     }
 }
 
-fn take_notches(residue: &mut f64, notches: f64) -> i64 {
+fn take_notches(residue: &mut f64, notches: f64) -> i32 {
     *residue += notches;
     let whole = residue.trunc();
     *residue -= whole;
     let cap = f64::from(MAX_NOTCHES_PER_EVENT);
-    whole.clamp(-cap, cap) as i64
-}
-
-fn push_notches(
-    kinds: &mut Vec<MouseKind>,
-    notches: i64,
-    positive: MouseKind,
-    negative: MouseKind,
-) {
-    let kind = if notches > 0 { positive } else { negative };
-    kinds.extend(std::iter::repeat_n(kind, notches.unsigned_abs() as usize));
+    whole.clamp(-cap, cap) as i32
 }
 
 #[cfg(test)]
@@ -155,48 +119,33 @@ mod tests {
     }
 
     #[test]
-    fn buttons_map_by_dom_index_and_mask() {
+    fn buttons_map_by_dom_index() {
         assert_eq!(button(0), Some(MouseButton::Left));
         assert_eq!(button(2), Some(MouseButton::Right));
         assert_eq!(button(9), None);
-        assert_eq!(held_button(0), None);
-        assert_eq!(held_button(4), Some(MouseButton::Middle));
-        assert_eq!(held_button(1 | 2), Some(MouseButton::Left));
     }
 
     #[test]
     fn a_mouse_wheel_notch_is_one_scroll() {
         let mut residue = WheelResidue::default();
-        assert_eq!(
-            residue.notches((0.0, 100.0), DELTA_PIXEL),
-            vec![MouseKind::ScrollDown]
-        );
-        assert_eq!(
-            residue.notches((0.0, -3.0), DELTA_LINE),
-            vec![MouseKind::ScrollUp]
-        );
-        assert_eq!(
-            residue.notches((-100.0, 0.0), DELTA_PIXEL),
-            vec![MouseKind::ScrollLeft]
-        );
+        assert_eq!(residue.notches((0.0, 100.0), DELTA_PIXEL), (0, -1));
+        assert_eq!(residue.notches((0.0, -3.0), DELTA_LINE), (0, 1));
+        assert_eq!(residue.notches((-100.0, 0.0), DELTA_PIXEL), (1, 0));
     }
 
     #[test]
     fn trackpad_deltas_accumulate_into_notches() {
         let mut residue = WheelResidue::default();
         for _ in 0..3 {
-            assert_eq!(residue.notches((0.0, 30.0), DELTA_PIXEL), []);
+            assert_eq!(residue.notches((0.0, 30.0), DELTA_PIXEL), (0, 0));
         }
-        assert_eq!(
-            residue.notches((0.0, 30.0), DELTA_PIXEL),
-            vec![MouseKind::ScrollDown]
-        );
+        assert_eq!(residue.notches((0.0, 30.0), DELTA_PIXEL), (0, -1));
     }
 
     #[test]
     fn a_flung_wheel_is_capped() {
         let mut residue = WheelResidue::default();
-        let kinds = residue.notches((0.0, 100_000.0), DELTA_PIXEL);
-        assert_eq!(kinds.len(), MAX_NOTCHES_PER_EVENT as usize);
+        let (_, rows) = residue.notches((0.0, 100_000.0), DELTA_PIXEL);
+        assert_eq!(rows.unsigned_abs(), MAX_NOTCHES_PER_EVENT);
     }
 }

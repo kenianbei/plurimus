@@ -7,16 +7,16 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
+use plurimus_term::MouseButton;
 use plurimus_test::{
-    press_at, press_key, release_at, send_focus, send_mouse, set_focus, write_mouse,
+    click_button, move_to, press_at, press_key, release_at, send_focus, send_press_at,
+    write_move_to, write_press_at,
 };
 use plurimus_ui::Key;
-use plurimus_ui::{Click, FocusWithin, Hovered, Pressed, UiArea, UiHidden, UiWidget, ValueChange};
+use plurimus_ui::bevy_picking::events::PointerClick;
+use plurimus_ui::{Hidden, Hovered, Pressed, Propagate, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus_widgets::{
-    Slider, SliderAction, SliderKeys, SliderRange, SliderValue, WidgetsPlugin, slider_self_update,
-};
+use plurimus_widgets::{Slider, SliderRange, SliderValue, WidgetsPlugin, slider_self_update};
 
 fn app() -> App {
     let mut app = App::new();
@@ -38,10 +38,10 @@ fn hover_tracks_cursor_over_computed_area() {
         ))
         .id();
 
-    send_mouse(&mut app, MouseKind::Moved, 3, 1);
+    move_to(&mut app, 3, 1);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(true)));
 
-    send_mouse(&mut app, MouseKind::Moved, 0, 0);
+    move_to(&mut app, 0, 0);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(false)));
 }
 
@@ -51,9 +51,10 @@ fn spawn_slider(app: &mut App) -> Entity {
         .spawn((
             UiWidget::new(Paragraph::new("track")),
             UiArea::Fixed(Rect::new(0, 0, 10, 1)),
-            Slider,
+            Slider::default(),
             SliderRange::new(0.0, 100.0),
             SliderValue(50.0),
+            Hovered::default(),
         ))
         .id();
     app.world_mut()
@@ -68,8 +69,8 @@ fn press_lands_when_the_cursor_leaves_in_the_same_frame() {
     app.world_mut().spawn(TerminalCamera::default());
     let slider = spawn_slider(&mut app);
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 9, 0);
-    write_mouse(&mut app, MouseKind::Moved, 18, 4);
+    write_press_at(&mut app, 9, 0);
+    write_move_to(&mut app, 18, 4);
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_some());
@@ -86,8 +87,8 @@ fn press_outside_is_not_delivered_when_the_cursor_arrives_later() {
     app.world_mut().spawn(TerminalCamera::default());
     let slider = spawn_slider(&mut app);
 
-    write_mouse(&mut app, MouseKind::Down(MouseButton::Left), 25, 6);
-    write_mouse(&mut app, MouseKind::Moved, 5, 0);
+    write_press_at(&mut app, 25, 6);
+    write_move_to(&mut app, 5, 0);
     app.update();
 
     assert!(app.world().get::<Pressed>(slider).is_none());
@@ -108,14 +109,16 @@ fn hidden_widget_ignores_pointer_until_unhidden() {
             UiWidget::new(Paragraph::new("btn")),
             UiArea::Fixed(Rect::new(2, 1, 5, 1)),
             Hovered::default(),
-            UiHidden,
+            Propagate(Hidden),
         ))
         .id();
 
-    send_mouse(&mut app, MouseKind::Moved, 3, 1);
+    move_to(&mut app, 3, 1);
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(false)));
 
-    app.world_mut().entity_mut(widget).remove::<UiHidden>();
+    app.world_mut()
+        .entity_mut(widget)
+        .remove::<Propagate<Hidden>>();
     app.update();
     assert_eq!(app.world().get::<Hovered>(widget), Some(&Hovered(true)));
 }
@@ -139,7 +142,7 @@ fn click_presses_focuses_and_triggers() {
         .id();
     app.world_mut()
         .entity_mut(widget)
-        .observe(|_click: On<Click>, mut clicks: ResMut<Clicks>| clicks.0 += 1);
+        .observe(|_click: On<PointerClick>, mut clicks: ResMut<Clicks>| clicks.0 += 1);
 
     press_at(&mut app, 3, 1);
     assert!(app.world().get::<Pressed>(widget).is_some());
@@ -173,65 +176,11 @@ fn tab_cycles_focus_through_a_group() {
         .id();
     app.update();
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(first));
 
-    press_key(&mut app, KeyCode::Tab);
+    press_key(&mut app, Key::Tab);
     assert_eq!(app.world().resource::<InputFocus>().get(), Some(second));
-}
-
-#[test]
-fn focus_within_tracks_the_ancestor_chain() {
-    let mut app = app();
-    let pane_a = app.world_mut().spawn_empty().id();
-    let pane_b = app.world_mut().spawn_empty().id();
-    let widget_a = app.world_mut().spawn(ChildOf(pane_a)).id();
-    let widget_b = app.world_mut().spawn(ChildOf(pane_b)).id();
-    app.update();
-
-    set_focus(&mut app, widget_a);
-    app.update();
-    assert!(app.world().get::<FocusWithin>(pane_a).is_some());
-    assert!(app.world().get::<FocusWithin>(pane_b).is_none());
-
-    set_focus(&mut app, widget_b);
-    app.update();
-    assert!(app.world().get::<FocusWithin>(pane_a).is_none());
-    assert!(app.world().get::<FocusWithin>(pane_b).is_some());
-
-    app.world_mut().resource_mut::<InputFocus>().clear();
-    app.update();
-    assert!(app.world().get::<FocusWithin>(pane_b).is_none());
-}
-
-#[test]
-fn a_remapped_slider_steps_on_its_own_keys() {
-    let mut app = app();
-    app.world_mut().spawn(TerminalCamera::default());
-    let slider = spawn_slider(&mut app);
-    app.world_mut().entity_mut(slider).insert((
-        TabIndex(0),
-        SliderKeys(vec![
-            (Key::Character("h".into()).into(), SliderAction::Decrease),
-            (Key::Character("l".into()).into(), SliderAction::Increase),
-        ]),
-    ));
-    app.update();
-    set_focus(&mut app, slider);
-
-    press_key(&mut app, KeyCode::Char('l'));
-    assert!(value(&app, slider) > 50.0, "the bound key steps");
-
-    let stepped = value(&app, slider);
-    press_key(&mut app, KeyCode::Right);
-    assert_eq!(
-        value(&app, slider),
-        stepped,
-        "and the key it replaced does nothing"
-    );
-
-    press_key(&mut app, KeyCode::Char('h'));
-    assert_eq!(value(&app, slider), 50.0);
 }
 
 #[derive(Resource, Default)]
@@ -253,8 +202,8 @@ fn a_drag_cut_off_by_a_focus_loss_commits_where_it_reached() {
         },
     );
 
-    send_mouse(&mut app, MouseKind::Down(MouseButton::Left), 0, 0);
-    send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 9, 0);
+    send_press_at(&mut app, 0, 0);
+    move_to(&mut app, 9, 0);
     send_focus(&mut app, false);
 
     assert!(app.world().get::<Pressed>(slider).is_none());
@@ -263,4 +212,16 @@ fn a_drag_cut_off_by_a_focus_loss_commits_where_it_reached() {
 
 fn value(app: &App, slider: Entity) -> f32 {
     app.world().get::<SliderValue>(slider).unwrap().0
+}
+
+#[test]
+fn a_secondary_click_neither_seeks_nor_presses_a_slider() {
+    let mut app = app();
+    app.world_mut().spawn(TerminalCamera::default());
+    let slider = spawn_slider(&mut app);
+
+    click_button(&mut app, MouseButton::Right, 9, 0);
+
+    assert!(app.world().get::<Pressed>(slider).is_none());
+    assert!((value(&app, slider) - 50.0).abs() < f32::EPSILON);
 }

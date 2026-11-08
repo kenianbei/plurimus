@@ -10,13 +10,13 @@ use core::num::NonZeroU32;
 
 use bevy_asset::Assets;
 use bevy_camera::{ImageRenderTarget, RenderTarget};
-use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, ResMut};
+use bevy_ecs::prelude::{Commands, Component, Entity, On, Query, Res, ResMut};
 use bevy_image::Image;
 use bevy_math::UVec2;
 use bevy_render::gpu_readback::{Readback, ReadbackComplete};
 use bevy_render::render_resource::{TextureFormat, TextureUsages};
 use bevy_render::renderer::RenderDevice;
-use plurimus_core::ResolvedViewport;
+use plurimus_core::{CellSize, ResolvedViewport};
 
 use crate::strategy::Strategy3d;
 
@@ -33,15 +33,11 @@ pub struct ReadbackFrame {
     pub size: UVec2,
 }
 
-/// Height of a terminal cell in cell widths; render-target pixels are
-/// physically square at the supported per-cell densities.
-const CELL_ASPECT: f32 = 2.0;
-
 /// Letterboxes the camera to a fixed scene aspect ratio.
 ///
 /// The ratio is width over height in square pixels - the scene aspect
-/// as a 3d author thinks of it (e.g. `4.0 / 3.0`); the 1:2 terminal
-/// cell shape is handled internally. Absent, the render stretch-fills
+/// as a 3d author thinks of it (e.g. `4.0 / 3.0`); the cell's own shape,
+/// [`CellSize`], is handled internally. Absent, the render stretch-fills
 /// the viewport. The letterbox bars are cells the conversion never
 /// writes, so they show the camera background.
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
@@ -62,6 +58,7 @@ pub struct Supersample(pub NonZeroU32);
 pub(crate) struct TargetSize(pub(crate) UVec2);
 
 pub(crate) fn sync_render_targets(
+    cell: Res<CellSize>,
     mut images: ResMut<Assets<Image>>,
     cameras: Query<(
         Entity,
@@ -76,7 +73,11 @@ pub(crate) fn sync_render_targets(
     for (entity, resolved, strategy, aspect, supersample, current) in &cameras {
         let viewport = resolved.0;
         let (columns, rows) = match aspect {
-            Some(aspect) => aspect_fit_cells((viewport.width, viewport.height), aspect.ratio),
+            Some(aspect) => aspect_fit_cells(
+                (viewport.width, viewport.height),
+                aspect.ratio,
+                cell.y / cell.x,
+            ),
             None => (viewport.width, viewport.height),
         };
         let scale = strategy.pixels_per_cell() * supersample.map_or(1, |factor| factor.0.get());
@@ -99,19 +100,19 @@ pub(crate) fn sync_render_targets(
     }
 }
 
-/// Largest cell rect of physical aspect `ratio` inside `viewport`,
-/// with the 1:2 cell shape factored in.
-fn aspect_fit_cells(viewport: (u16, u16), ratio: f32) -> (u16, u16) {
+/// Largest cell rect of physical aspect `ratio` inside `viewport`, a cell
+/// being `cell_aspect` widths tall.
+fn aspect_fit_cells(viewport: (u16, u16), ratio: f32, cell_aspect: f32) -> (u16, u16) {
     let (columns, rows) = viewport;
-    if ratio <= 0.0 || columns == 0 || rows == 0 {
+    if ratio <= 0.0 || cell_aspect <= 0.0 || columns == 0 || rows == 0 {
         return (columns, rows);
     }
-    let full_ratio = f32::from(columns) / (f32::from(rows) * CELL_ASPECT);
+    let full_ratio = f32::from(columns) / (f32::from(rows) * cell_aspect);
     if full_ratio > ratio {
-        let fit = (f32::from(rows) * CELL_ASPECT * ratio).round().max(1.0) as u16;
+        let fit = (f32::from(rows) * cell_aspect * ratio).round().max(1.0) as u16;
         (fit.min(columns), rows)
     } else {
-        let fit = (f32::from(columns) / (ratio * CELL_ASPECT))
+        let fit = (f32::from(columns) / (ratio * cell_aspect))
             .round()
             .max(1.0) as u16;
         (columns, fit.min(rows))
@@ -173,18 +174,23 @@ mod tests {
 
     #[test]
     fn aspect_fit_pillarboxes_wide_viewports() {
-        assert_eq!(aspect_fit_cells((80, 20), 1.0), (40, 20));
+        assert_eq!(aspect_fit_cells((80, 20), 1.0, 2.0), (40, 20));
     }
 
     #[test]
     fn aspect_fit_letterboxes_tall_viewports() {
-        assert_eq!(aspect_fit_cells((40, 40), 2.0), (40, 10));
+        assert_eq!(aspect_fit_cells((40, 40), 2.0, 2.0), (40, 10));
     }
 
     #[test]
     fn aspect_fit_passes_matching_and_degenerate_ratios_through() {
-        assert_eq!(aspect_fit_cells((40, 20), 1.0), (40, 20));
-        assert_eq!(aspect_fit_cells((80, 20), 0.0), (80, 20));
+        assert_eq!(aspect_fit_cells((40, 20), 1.0, 2.0), (40, 20));
+        assert_eq!(aspect_fit_cells((80, 20), 0.0, 2.0), (80, 20));
+    }
+
+    #[test]
+    fn a_square_cell_fits_a_square_scene_in_as_many_rows_as_columns() {
+        assert_eq!(aspect_fit_cells((80, 20), 1.0, 1.0), (20, 20));
     }
 
     const PADDING: u8 = 0xEE;

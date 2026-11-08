@@ -54,10 +54,12 @@ terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_color`, and
 
 Everything that needs a terminal to mean anything, in both directions.
 
-Inbound arrives in two shapes from the same events. Discrete messages -
-`KeyMessage`, `MouseMessage` (cell coordinates), `PasteMessage`, `FocusMessage`,
-`TerminalResized` - for text entry and keymaps; polled `ButtonInput<KeyCode>`
-and `ButtonInput<MouseButton>` for game loops.
+Inbound arrives in two shapes from the same events. Discrete messages - bevy's
+`KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
+`WindowFocused`, plus `PasteMessage` and `TerminalResized` - for text entry and
+keymaps; polled `ButtonInput<KeyCode>` and `ButtonInput<MouseButton>` for game
+loops. The pointer sits at a cell's centre in `CellSize` pixels, which is what
+`bevy_picking` hit-tests against.
 
 Outbound is `TerminalRequest`: copy to a clipboard selection, set the window
 title. Best-effort, because nothing a terminal is asked can be confirmed.
@@ -66,9 +68,7 @@ title. Best-effort, because nothing a terminal is asked can be confirmed.
 the kitty keyboard protocol give real press, repeat, and release; elsewhere
 releases are synthesized on a `ReleaseTimeout`, which is degraded but documented
 rather than silent. Losing focus releases every held key on any tier, since a
-terminal reports nothing while unfocused. `MultiClickWindow` is the other knob
-set once for every widget: how soon a second press has to land to count as a
-double-click, which no terminal reports either.
+terminal reports nothing while unfocused.
 
 ### Crossterm (`plurimus_crossterm`)
 
@@ -95,11 +95,10 @@ and an app's exit hands the page a `plurimus-exit` event to act on.
 Interaction over any entity with an area. It computes widget areas, resolves
 hover with z-order hit testing, and routes pointer press, drag, release, click,
 and wheel events. Focus runs over `bevy_input_focus`, with a directional
-navigation map for arrow-key movement, scrolling through `ScrollArea`,
-`ScrollIntoView` and `ScrollKeys` - a wheel tick and a bound key both arriving
-as one `ScrollBy` - and the modal-overlay primitives menus and popovers are
-built from. A press carries how many have run together on it, so a double-click
-is the second `Click` reporting `2`.
+navigation map for arrow-key movement, scrolling through `ScrollArea` and
+`ScrollIntoView` - a wheel tick arriving as a `ScrollBy` an app's own key
+handler can send too - and the modal-overlay primitives menus and popovers are
+built from.
 
 Keys are bound as data: a `KeyBinding` is a `Key` and the modifiers it must be
 pressed under, and `first_bound` is the scan every bindings component shares, so
@@ -126,10 +125,14 @@ resolving the `UiTheme` and driving the cache that `plurimus_ui` owns.
 The component and event vocabulary mirrors `bevy_ui_widgets`: widgets are
 stateless controllers emitting `Activate` and `ValueChange`, applied by the app
 for controlled behavior or by the stock `*_self_update` observers for
-uncontrolled. Every widget takes its keys from a bindings component -
-`ActivateKeys`, `ListBoxKeys`, `TableKeys`, `TabBarKeys`, `SliderKeys`,
-`MenuKeys`, `TextInputKeys`, `TextEditorKeys` - each with a default table, so
-remapping a list to vim keys is a component swap rather than a rewrite.
+uncontrolled. The button, checkbox, radio group, slider, list box, tab bar and
+menu are upstream's own types and observers, drawn in cells, so they answer to
+upstream's fixed keys and follow its models - a list's cursor and `Selected`
+rows, a tab bar's roving focus, a menu that closes when focus leaves it. The
+widgets upstream has no counterpart for take their keys from a bindings
+component - `TableKeys`, `TextInputKeys`, `TextEditorKeys` - each with a default
+table, so remapping a table to vim keys is a component swap rather than a
+rewrite.
 
 ### `bevy_ui` Layout (`plurimus_bui`)
 
@@ -139,14 +142,16 @@ Only layout runs: `bevy_ui`'s text, focus, picking, and asset systems stay out,
 and text is measured by grapheme width rather than font rasterization.
 
 Use it instead of hand-computed `Rect`s for responsive panels and nested rows
-and columns. Nodes bridge into the interaction routers, so they hover, click,
-and scroll like other widgets.
+and columns. Nodes are picked by `bevy_picking` beside the widgets, so they
+hover, click, and scroll like them.
 
 ### 2d Rendering (`plurimus_2d`)
 
 `Glyph`, `GlyphBlock`, `Pixel`, and `PixelBlock` entities positioned by
-`Transform`s, projected per camera, so panning and zooming are camera
-properties. `RenderLayers` masks which cameras see which entities, and
+`Transform`s, projected per camera through bevy's `Camera2d` and its
+orthographic projection, so panning and zooming are camera properties. Set
+`CellSize { x: 1.0, y: 2.0 }` for squares to draw square on tall cells.
+`RenderLayers` is bevy's, masking which cameras see which entities, and
 `SubcellMode` renders in halfblocks or braille for two or eight times the
 vertical resolution of a cell.
 
@@ -244,12 +249,16 @@ Both APIs come from the same events, so systems can mix them:
 
 ```rust,no_run
 use bevy_ecs::prelude::{MessageReader, Res};
-use plurimus::term::{ButtonInput, KeyCode, KeyKind, KeyMessage};
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyCode, KeyboardInput};
+use plurimus::term::{ButtonInput, HeldModifiers};
 
 // Discrete: one action per press.
-fn handle_commands(mut keys: MessageReader<KeyMessage>) {
+fn handle_commands(mut keys: MessageReader<KeyboardInput>, held: HeldModifiers) {
     for key in keys.read() {
-        if key.kind == KeyKind::Press && key.code == KeyCode::Char('r') {
+        let is_press = key.state == ButtonState::Pressed && !key.repeat;
+        let is_r = key.logical_key == Key::Character("r".into());
+        if is_press && is_r && !held.get().ctrl {
             // reset something
         }
     }
@@ -257,16 +266,18 @@ fn handle_commands(mut keys: MessageReader<KeyMessage>) {
 
 // Polled: continuous, for movement.
 fn move_player(keys: Res<ButtonInput<KeyCode>>) {
-    if keys.pressed(KeyCode::Char('w')) {
+    if keys.pressed(KeyCode::KeyW) {
         // step forward while held
     }
 }
 ```
 
-Polled keys are keyed by `KeyCode::held_as`, the key a character is _held_ as:
-`Char('w')` stays held whether it was struck or released as `w` or `W`, so shift
-pressed midway through a hold does not strand it. Poll for the lowercase key -
-`pressed(KeyCode::Char('W'))` is never true.
+A message carries the character the terminal produced as its `logical_key`, case
+and all; polled keys are keyed by the physical `KeyCode` the sink infers from
+it, so `KeyW` stays held whether it was struck or released as `w` or `W`, and
+shift pressed midway through a hold does not strand it. The modifiers held with
+a key are polled through `HeldModifiers`, since bevy's `KeyboardInput` carries
+none of its own.
 
 ### Exiting
 
@@ -313,8 +324,9 @@ let top_row: String = (0..frame.area.width)
 assert!(top_row.starts_with("ready"));
 ```
 
-Input is injected the same way the backend delivers it - write a `KeyMessage` or
-`MouseMessage` into the world and run `app.update()`.
+Input is injected the same way the backend delivers it - `plurimus_test`'s
+helpers write bevy's messages into the world through the same sink a backend
+uses and run `app.update()`.
 
 ## Examples
 
@@ -361,9 +373,9 @@ header and a footer of totals, sorted by clicking a header cell, with vim keys
 bound through `TableKeys`.
 
 **tabs** switches panels from a `TabBar` drawn in the joined look, driven by the
-arrows, `[`/`]`, and digits through a remapped `TabBarKeys`; its Settings panel
-holds a vertical bar that picks the top bar's look - plain, divided, boxed,
-joined, padded. Tab moves between the two bars while Settings is open.
+arrows and by `[`/`]` and digits the app binds itself; its Settings panel holds
+a vertical bar that picks the top bar's look - plain, divided, boxed, joined,
+padded. Tab moves between the two bars while Settings is open.
 
 **pong** puts the 2d and ui pipelines in one camera: a halfblock ball and
 paddles in world space under a widget score line. W/S steps the left paddle,

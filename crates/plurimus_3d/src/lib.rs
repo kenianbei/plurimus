@@ -27,6 +27,7 @@ mod depth_copy;
 mod occlude;
 mod overlay;
 mod pipeline;
+mod projection;
 mod render_stack;
 mod sample;
 mod strategy;
@@ -42,6 +43,8 @@ pub use strategy::{
 pub use target::{Aspect3d, ReadbackFrame, Supersample};
 
 use bevy_app::{App, Plugin, PostUpdate};
+use bevy_camera::CameraUpdateSystems;
+use bevy_camera::visibility::VisibilitySystems;
 use bevy_core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy_ecs::prelude::IntoScheduleConfigs;
 use bevy_render::RenderApp;
@@ -61,6 +64,12 @@ impl Plugin for Plugin3d {
         app.add_systems(
             PostUpdate,
             (target::sync_render_targets, depth::sync_depth_targets).chain(),
+        );
+        app.add_systems(
+            PostUpdate,
+            projection::fit_cell_projection
+                .after(CameraUpdateSystems)
+                .before(VisibilitySystems::UpdateFrusta),
         );
         app.add_observer(target::store_readback);
         app.add_observer(depth::store_depth_readback);

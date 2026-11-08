@@ -1,74 +1,60 @@
 //! Terminal contract for plurimus: the messages crossing between an app and
 //! whichever backend drives its terminal, in both directions.
 //!
-//! Inbound, a backend reports [`KeyMessage`], [`MouseMessage`],
-//! [`PasteMessage`], [`FocusMessage`] and [`TerminalResized`], and
-//! [`ButtonInput`] and [`CursorCell`] are the state derived from them;
+//! Inbound, a backend reports keys, the pointer and focus through
+//! [`TerminalInput`], which writes bevy's own messages for the virtual
+//! primary window, and [`PasteMessage`] and [`TerminalResized`] as itself;
 //! [`InputCapabilities`] records which of it the terminal can actually
-//! manage. What no terminal reports at all is synthesized against the real
-//! clock: key releases below the kitty tier, and - by whoever routes the
-//! presses, bounded by the [`MultiClickWindow`] set here - the click count a
-//! double-click gesture needs. Outbound, [`TerminalRequest`] is what
-//! an app asks of the terminal and [`TerminalCursorStyle`] is the shape it
-//! asks the caret to take.
+//! manage, and [`HeldModifiers`] and [`PointerModifiers`] read back the
+//! modifiers bevy's messages carry no field for. What no terminal reports at all - a key release below
+//! the kitty tier, anything while unfocused - is synthesized against the
+//! real clock. Outbound, [`TerminalRequest`] is what an app asks of the
+//! terminal and [`TerminalCursorStyle`] is the shape it asks the caret to
+//! take.
 //!
 //! What is here is what needs a terminal to mean anything. Rendering to a
 //! cell grid does not: `plurimus_core` drives any ratatui `Backend`,
 //! terminal or otherwise, and never depends on this crate.
 
-pub mod bevy_compat;
-mod click;
+mod clipboard;
 mod cursor;
+mod input;
 mod keyboard;
-mod mouse;
+mod keymap;
 mod request;
 mod resize;
-mod state;
 mod synthesis;
 
-pub use click::MultiClickWindow;
+pub use clipboard::Clipboard;
 pub use cursor::TerminalCursorStyle;
 
+pub use bevy_input;
 pub use bevy_input::ButtonInput;
 pub use bevy_input::mouse::MouseButton;
-pub use keyboard::{KeyCode, KeyKind, KeyMessage, KeyModifiers, ModifierKey};
-pub use mouse::{CursorCell, MouseKind, MouseMessage};
+pub use input::{InputSystems, PointerModifiers, TerminalInput, VirtualWindow};
+pub use keyboard::{HeldModifiers, KeyModifiers, held_modifiers};
+pub use keymap::physical_code;
 pub use request::{ClipboardTarget, LastCopied, RequestSystems, TerminalRequest};
 pub use resize::TerminalResized;
-pub use state::InputSystems;
 pub use synthesis::ReleaseTimeout;
 
+pub(crate) use input::PendingInput;
 pub(crate) use request::echo_clipboard_writes;
-pub(crate) use state::{track_cursor_cell, update_button_input};
 pub(crate) use synthesis::{
-    HeldKeys, cancel_pointer_on_focus_loss, expire_held_keys, record_held_keys,
+    HeldKeys, expire_held_keys, record_held_keys, release_buttons_on_focus_loss,
     release_keys_on_focus_loss, releases_are_synthesized,
 };
 
-use bevy_app::{App, Last, Plugin, PreUpdate};
+use bevy_app::{App, First, Last, Plugin, PreStartup, PreUpdate};
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{IntoScheduleConfigs, Resource};
+use bevy_input::InputPlugin;
+use bevy_window::{CursorMoved, WindowEvent, WindowFocused, WindowResized};
 use plurimus_core::CameraSystems;
 
 /// Text pasted into the terminal (bracketed paste).
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
 pub struct PasteMessage(pub String);
-
-/// Terminal focus change.
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct FocusMessage {
-    /// Whether the terminal gained focus.
-    pub gained: bool,
-}
-
-impl FocusMessage {
-    /// A focus change, `gained` for focus arriving.
-    #[must_use]
-    pub const fn new(gained: bool) -> Self {
-        Self { gained }
-    }
-}
 
 /// What the active terminal backend can report.
 ///
@@ -85,9 +71,9 @@ impl FocusMessage {
 pub struct InputCapabilities {
     /// Real key-release events arrive (kitty keyboard protocol).
     pub key_release: bool,
-    /// Modifier keys arrive as [`KeyCode::Modifier`] events (kitty keyboard
-    /// protocol). When unset, [`bevy_compat::forward_keyboard`] synthesizes
-    /// modifier transitions from [`KeyModifiers`] instead.
+    /// Modifier keys arrive as key events of their own (kitty keyboard
+    /// protocol). When unset, [`TerminalInput`] synthesizes their presses
+    /// and releases from the [`KeyModifiers`] bits each event carries.
     pub modifier_keys: bool,
 }
 
@@ -131,7 +117,8 @@ impl Default for InputCapabilities {
     }
 }
 
-/// Registers the terminal messages, polled input state, and the
+/// Registers the terminal messages, `bevy_input`'s polled state, the
+/// [`VirtualWindow`] every message names where the app opened none, and the
 /// `PreUpdate` phases backends and consumers order against.
 ///
 /// Requires [`plurimus_core::CorePlugin`] to be added first: applying a
@@ -143,54 +130,73 @@ impl Plugin for TermPlugin {
         if !app.is_plugin_added::<bevy_time::TimePlugin>() {
             app.add_plugins(bevy_time::TimePlugin);
         }
-        app.init_resource::<CursorCell>();
+        if !app.is_plugin_added::<InputPlugin>() {
+            app.add_plugins(InputPlugin);
+        }
         app.init_resource::<TerminalCursorStyle>();
         app.init_resource::<InputCapabilities>();
         app.init_resource::<ReleaseTimeout>();
-        app.init_resource::<MultiClickWindow>();
         app.init_resource::<HeldKeys>();
-        app.init_resource::<ButtonInput<KeyCode>>();
-        app.init_resource::<ButtonInput<MouseButton>>();
         app.init_resource::<LastCopied>();
-        app.add_message::<KeyMessage>();
-        app.add_message::<MouseMessage>();
+        app.init_resource::<PointerModifiers>();
+        app.init_resource::<PendingInput>();
         app.add_message::<PasteMessage>();
-        app.add_message::<FocusMessage>();
         app.add_message::<TerminalRequest>();
         app.add_message::<TerminalResized>();
-        app.configure_sets(
-            PreUpdate,
-            (
-                InputSystems::Pump,
-                InputSystems::Synthesize,
-                InputSystems::Update,
-            )
-                .chain(),
-        );
-        app.add_systems(
-            PreUpdate,
-            (
-                // Recording this frame's presses first, so a focus lost in
-                // the same frame releases them too.
-                (
-                    record_held_keys,
-                    expire_held_keys.run_if(releases_are_synthesized),
-                    release_keys_on_focus_loss,
-                    cancel_pointer_on_focus_loss,
-                )
-                    .chain()
-                    .in_set(InputSystems::Synthesize),
-                (update_button_input, track_cursor_cell)
-                    .chain()
-                    .in_set(InputSystems::Update),
-            ),
-        );
-        // Into core's own set, so a resize reported this frame reaches the
-        // cameras that resolve against it in the same frame.
-        app.add_systems(
-            PreUpdate,
-            resize::apply_terminal_resize.in_set(CameraSystems::SyncSize),
-        );
-        app.add_systems(Last, echo_clipboard_writes.in_set(RequestSystems::Echo));
+        app.add_message::<WindowEvent>();
+        app.add_message::<WindowFocused>();
+        app.add_message::<WindowResized>();
+        app.add_message::<CursorMoved>();
+        app.add_systems(PreStartup, input::spawn_virtual_window);
+        add_schedule(app);
     }
+}
+
+fn add_schedule(app: &mut App) {
+    app.configure_sets(
+        First,
+        (InputSystems::Pump, InputSystems::Synthesize)
+            .chain()
+            .after(bevy_time::TimeSystems)
+            .after(bevy_ecs::message::MessageUpdateSystems),
+    );
+    app.add_systems(
+        First,
+        (
+            // Recording this frame's presses first, so a focus lost in
+            // the same frame releases them too.
+            (
+                record_held_keys,
+                expire_held_keys.run_if(releases_are_synthesized),
+                release_keys_on_focus_loss,
+            )
+                .chain()
+                .in_set(InputSystems::Synthesize),
+        ),
+    );
+    app.add_systems(
+        PreUpdate,
+        (
+            // Into core's own set, so a resize reported this frame reaches
+            // the cameras that resolve against it in the same frame.
+            (resize::apply_terminal_resize, resize::size_virtual_window)
+                .chain()
+                .in_set(CameraSystems::SyncSize),
+            // After bevy applies the frame's presses, so one pumped with the
+            // focus loss is released too, and inside its set, so focus
+            // dispatch reads the settled state.
+            release_buttons_on_focus_loss
+                .in_set(bevy_input::InputSystems)
+                .after(bevy_input::mouse::mouse_button_input_system),
+        ),
+    );
+    // At the frame's end, so what a press held back lands for the whole
+    // of the next frame, before anything reads the stream.
+    app.add_systems(
+        Last,
+        (
+            input::flush_pending,
+            echo_clipboard_writes.in_set(RequestSystems::Echo),
+        ),
+    );
 }

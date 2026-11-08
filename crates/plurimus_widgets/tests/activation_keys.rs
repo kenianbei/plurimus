@@ -1,5 +1,6 @@
-//! `ActivateKeys`: which keys activate a widget, and what a key it is not
-//! bound to does instead.
+//! The keys that activate a button, a checkbox or a radio: upstream's
+//! Enter and space, matched by physical key, and what any other key does
+//! instead.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -7,12 +8,10 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
 use bevy_input_focus::FocusedInput;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{press_chord, press_key, repeat_key, set_focus};
-use plurimus_ui::{InteractionDisabled, KeyBinding, ValueChange};
-use plurimus_widgets::{
-    Activate, ActivateKeys, RadioGroup, WidgetsPlugin, button, checkbox, radio,
-};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{character, press_key, press_key_with, repeat_key, set_focus};
+use plurimus_ui::{InteractionDisabled, ValueChange};
+use plurimus_widgets::{Activate, WidgetsPlugin, button, checkbox};
 
 fn app() -> App {
     let mut app = App::new();
@@ -31,10 +30,6 @@ struct Activations(u32);
 /// widget below it did not consume.
 #[derive(Resource, Default)]
 struct Unconsumed(Vec<Key>);
-
-fn space() -> Key {
-    Key::Character(" ".into())
-}
 
 fn track_unconsumed(app: &mut App, entity: Entity) {
     app.world_mut().entity_mut(entity).observe(
@@ -72,140 +67,17 @@ fn the_default_bindings_activate_and_consume() {
     count_activations(&mut app, button);
     set_focus(&mut app, button);
 
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, character(' '));
 
     assert_eq!(
         app.world().resource::<Activations>().0,
         2,
-        "the required component should bind Enter and space with no app help"
+        "upstream's observer binds Enter and space with no app help"
     );
     assert!(
         seen(&app).is_empty(),
         "an activating key is consumed, not propagated"
-    );
-}
-
-#[test]
-fn a_narrowed_checkbox_leaves_enter_to_the_form() {
-    let mut app = app();
-    let form = form(&mut app);
-    let check = app
-        .world_mut()
-        .spawn((
-            checkbox("agree"),
-            ActivateKeys(vec![space().into()]),
-            ChildOf(form),
-        ))
-        .id();
-    app.world_mut().entity_mut(check).observe(
-        |_on: On<ValueChange<bool>>, mut activations: ResMut<Activations>| activations.0 += 1,
-    );
-    set_focus(&mut app, check);
-
-    press_key(&mut app, KeyCode::Enter);
-    assert_eq!(
-        app.world().resource::<Activations>().0,
-        0,
-        "Enter is unbound, so it must not toggle"
-    );
-    assert_eq!(
-        seen(&app),
-        [Key::Enter],
-        "the key the checkbox left alone must reach the form"
-    );
-
-    press_key(&mut app, KeyCode::Char(' '));
-    assert_eq!(app.world().resource::<Activations>().0, 1);
-    assert_eq!(seen(&app), [Key::Enter], "the bound key is consumed");
-}
-
-// Ctrl+Enter is the submit a form binds while its button keeps plain
-// Enter, so the two have to tell apart in both directions.
-#[test]
-fn a_chord_activates_apart_from_its_bare_key() {
-    let mut app = app();
-    let form = form(&mut app);
-    let ok = app
-        .world_mut()
-        .spawn((
-            button("ok"),
-            ActivateKeys(vec![KeyBinding::new(Key::Enter).with_ctrl()]),
-            ChildOf(form),
-        ))
-        .id();
-    app.world_mut()
-        .entity_mut(ok)
-        .observe(|_on: On<Activate>, mut activations: ResMut<Activations>| activations.0 += 1);
-    set_focus(&mut app, ok);
-
-    press_key(&mut app, KeyCode::Enter);
-    assert_eq!(
-        app.world().resource::<Activations>().0,
-        0,
-        "bare Enter is unbound"
-    );
-    assert_eq!(seen(&app), [Key::Enter], "and so reaches the form");
-
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Enter);
-    assert_eq!(
-        app.world().resource::<Activations>().0,
-        1,
-        "ctrl+Enter activates"
-    );
-    let enters = seen(&app).iter().filter(|key| **key == Key::Enter).count();
-    assert_eq!(
-        enters, 1,
-        "the chord's press is consumed; only the bare Enter reached the form"
-    );
-}
-
-#[test]
-fn a_narrowed_radio_uses_only_its_bound_key() {
-    let mut app = app();
-    let group = app.world_mut().spawn(RadioGroup).id();
-    app.world_mut().entity_mut(group).observe(
-        |_on: On<ValueChange<Entity>>, mut activations: ResMut<Activations>| activations.0 += 1,
-    );
-    track_unconsumed(&mut app, group);
-    let option = app
-        .world_mut()
-        .spawn((
-            radio("one"),
-            ActivateKeys(vec![Key::Enter.into()]),
-            ChildOf(group),
-        ))
-        .id();
-    set_focus(&mut app, option);
-
-    press_key(&mut app, KeyCode::Char(' '));
-    assert_eq!(app.world().resource::<Activations>().0, 0);
-    assert_eq!(seen(&app), [space()]);
-
-    press_key(&mut app, KeyCode::Enter);
-    assert_eq!(app.world().resource::<Activations>().0, 1);
-    assert_eq!(seen(&app), [space()]);
-}
-
-#[test]
-fn an_empty_binding_list_activates_on_nothing() {
-    let mut app = app();
-    let form = form(&mut app);
-    let button = app
-        .world_mut()
-        .spawn((button("ok"), ActivateKeys(Vec::new()), ChildOf(form)))
-        .id();
-    count_activations(&mut app, button);
-    set_focus(&mut app, button);
-
-    press_key(&mut app, KeyCode::Enter);
-    press_key(&mut app, KeyCode::Char(' '));
-
-    assert_eq!(app.world().resource::<Activations>().0, 0);
-    assert_eq!(
-        seen(&app),
-        [Key::Enter, space()],
-        "a widget bound to nothing keeps the keyboard path out of its way"
     );
 }
 
@@ -222,7 +94,7 @@ fn a_disabled_widget_leaves_its_bound_keys_alone() {
     );
     set_focus(&mut app, check);
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
 
     assert_eq!(app.world().resource::<Activations>().0, 0);
     assert_eq!(
@@ -239,12 +111,41 @@ fn a_repeat_of_a_bound_key_does_not_activate() {
     count_activations(&mut app, button);
     set_focus(&mut app, button);
 
-    press_key(&mut app, KeyCode::Enter);
-    repeat_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
+    repeat_key(&mut app, Key::Enter);
 
     assert_eq!(
         app.world().resource::<Activations>().0,
         1,
         "one intent commits once, however long the key is held"
     );
+}
+
+// No modifier is consulted, so a chord is its bare key.
+#[test]
+fn a_chord_activates_as_its_bare_key() {
+    let mut app = app();
+    let form = form(&mut app);
+    let ok = app.world_mut().spawn((button("ok"), ChildOf(form))).id();
+    count_activations(&mut app, ok);
+    set_focus(&mut app, ok);
+
+    press_key_with(&mut app, Key::Enter, KeyModifiers::none().with_ctrl(true));
+
+    assert_eq!(app.world().resource::<Activations>().0, 1);
+    assert!(!seen(&app).contains(&Key::Enter), "and consumed");
+}
+
+#[test]
+fn a_key_upstream_does_not_bind_propagates() {
+    let mut app = app();
+    let form = form(&mut app);
+    let ok = app.world_mut().spawn((button("ok"), ChildOf(form))).id();
+    count_activations(&mut app, ok);
+    set_focus(&mut app, ok);
+
+    press_key(&mut app, character('x'));
+
+    assert_eq!(app.world().resource::<Activations>().0, 0);
+    assert_eq!(seen(&app), [character('x')]);
 }

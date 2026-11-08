@@ -3835,6 +3835,7 @@ name = "plurimus_2d"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_ecs",
  "bevy_math",
  "bevy_transform",
@@ -3887,7 +3888,6 @@ dependencies = [
  "bevy_input",
  "bevy_input_focus",
  "bevy_math",
- "bevy_picking",
  "bevy_text",
  "bevy_time",
  "bevy_ui",
@@ -3908,8 +3908,11 @@ name = "plurimus_core"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_color",
  "bevy_ecs",
+ "bevy_extract",
+ "bevy_math",
  "ratatui-core",
 ]
 
@@ -3919,6 +3922,7 @@ version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_input",
  "bevy_log",
  "crossterm",
  "plurimus_core",
@@ -3934,7 +3938,9 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_input",
+ "bevy_math",
  "bevy_time",
+ "bevy_window",
  "plurimus_core",
 ]
 
@@ -3944,7 +3950,9 @@ version = "0.9.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "bevy_input",
  "bevy_input_focus",
+ "bevy_window",
  "plurimus_core",
  "plurimus_term",
 ]
@@ -3954,6 +3962,7 @@ name = "plurimus_ui"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_camera",
  "bevy_ecs",
  "bevy_input",
  "bevy_input_focus",
@@ -3969,6 +3978,7 @@ dependencies = [
  "plurimus_test",
  "ratatui-widgets",
  "tui-scrollview",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -3976,7 +3986,9 @@ name = "plurimus_web"
 version = "0.9.0"
 dependencies = [
  "bevy_app",
+ "bevy_clipboard",
  "bevy_ecs",
+ "bevy_input",
  "console_error_panic_hook",
  "critical-section",
  "plurimus_core",
@@ -4003,7 +4015,6 @@ dependencies = [
  "plurimus_ui",
  "ratatui-textarea",
  "ratatui-widgets",
- "unicode-segmentation",
 ]
 
 [[package]]

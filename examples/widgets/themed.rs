@@ -10,7 +10,7 @@ use bevy_app::{App, AppExit, Startup, Update};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::prelude::{
-    Added, ChildOf, Commands, Component, Entity, MessageWriter, On, Query, Res, ResMut, With,
+    Added, ChildOf, Commands, Component, Entity, MessageWriter, On, Or, Query, Res, ResMut, With,
 };
 use bevy_ecs::system::SystemParam;
 use bevy_math::CompassOctant;
@@ -22,15 +22,14 @@ use plurimus::ui::bevy_input_focus::InputFocus;
 use plurimus::ui::bevy_input_focus::directional_navigation::DirectionalNavigationMap;
 use plurimus::ui::bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use plurimus::ui::tui_scrollview::ScrollbarVisibility;
-use plurimus::ui::{Checked, ScrollArea, UiLabel, UiTheme, ValueChange};
+use plurimus::ui::{Checked, ScrollArea, Selected, UiLabel, UiTheme, ValueChange};
 use plurimus::widgets::ratatui_textarea::TextArea;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
-use plurimus::widgets::ratatui_widgets::scrollbar::ScrollbarOrientation;
 use plurimus::widgets::{
-    Activate, ListBoxSelectionMarker, ListBoxStripe, ListItemText, RadioGroup, SliderStep,
+    Activate, ControlOrientation, ListBoxSelectionMarker, ListBoxStripe, ListItemText, SliderStep,
     SliderValue, TextEditor, TextInput, TextMask, button, checkbox, checkbox_self_update,
-    editable_text, list_item, listbox, listbox_self_update, menu_button, menu_item, menu_popup,
-    pane, radio, radio_self_update, scrollbar, slider, slider_self_update, text_editor,
+    list_item, listbox, listbox_update_selection, menu_button, menu_item, menu_popup, pane, radio,
+    radio_group, radio_self_update, scrollbar, slider, slider_self_update, text_editor, text_field,
 };
 
 use crate::{
@@ -252,8 +251,10 @@ fn spawn_controls(commands: &mut Commands, parent: Entity) -> (Entity, Entity) {
 }
 
 fn spawn_radio_group(commands: &mut Commands, parent: Entity) -> Entity {
+    let options = Rect::new(BUTTON.x, RADIO_TOP, RADIO_WIDTH, RADIO_LABELS.len() as u16);
     let group = commands
-        .spawn((RadioGroup, ChildOf(parent)))
+        .spawn((radio_group(), UiArea::Fixed(options), ChildOf(parent)))
+        .insert(TabIndex(RADIO_TAB_INDEX))
         .observe(radio_self_update)
         .observe(
             |on: On<ValueChange<Entity>>, labels: Query<&UiLabel>, mut state: ResMut<DemoState>| {
@@ -263,19 +264,15 @@ fn spawn_radio_group(commands: &mut Commands, parent: Entity) -> Entity {
             },
         )
         .id();
-    let mut last = group;
     for (index, label) in RADIO_LABELS.iter().enumerate() {
         let row = RADIO_TOP + index as u16;
-        last = commands
-            .spawn((
-                radio(*label),
-                UiArea::Fixed(Rect::new(BUTTON.x, row, RADIO_WIDTH, 1)),
-                ChildOf(group),
-            ))
-            .insert(TabIndex(RADIO_TAB_INDEX + index as i32))
-            .id();
+        commands.spawn((
+            radio(*label),
+            UiArea::Fixed(Rect::new(BUTTON.x, row, RADIO_WIDTH, 1)),
+            ChildOf(group),
+        ));
     }
-    last
+    group
 }
 
 fn spawn_listbox(commands: &mut Commands, parent: Entity) {
@@ -291,7 +288,7 @@ fn spawn_listbox(commands: &mut Commands, parent: Entity) {
             ChildOf(parent),
         ))
         .insert(TabIndex(LIST_TAB_INDEX))
-        .observe(listbox_self_update)
+        .observe(listbox_update_selection)
         .observe(
             |on: On<ValueChange<Entity>>, labels: Query<&UiLabel>, mut state: ResMut<DemoState>| {
                 if let Ok(label) = labels.get(on.value) {
@@ -308,7 +305,7 @@ fn spawn_listbox(commands: &mut Commands, parent: Entity) {
 fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
     commands
         .spawn((
-            editable_text(FIELD_TEXT),
+            text_field(FIELD_TEXT),
             UiArea::Fixed(TEXT_FIELD),
             Stretched::Inset(TEXT_FIELD),
             ChildOf(parent),
@@ -316,7 +313,7 @@ fn spawn_text_widgets(commands: &mut Commands, parent: Entity) {
         .insert(TabIndex(FIELD_TAB_INDEX));
     commands
         .spawn((
-            editable_text(FIELD_TEXT),
+            text_field(FIELD_TEXT),
             TextMask(MASK),
             UiArea::Fixed(MASKED_FIELD),
             Stretched::Inset(MASKED_FIELD),
@@ -355,7 +352,7 @@ fn spawn_log(commands: &mut Commands, parent: Entity) {
         ));
     }
     commands.spawn((
-        scrollbar(view, ScrollbarOrientation::VerticalRight),
+        scrollbar(view, ControlOrientation::Vertical),
         UiArea::Fixed(LOG_SCROLLBAR),
         Stretched::LogScrollbar(LOG_SCROLLBAR),
         ChildOf(parent),
@@ -434,10 +431,10 @@ fn spawn_menu(commands: &mut Commands, root: Entity) {
 
 #[derive(SystemParam)]
 struct ResetTargets<'w, 's> {
-    sliders: Query<'w, 's, &'static mut SliderValue>,
+    sliders: Query<'w, 's, Entity, With<SliderValue>>,
     fields: Query<'w, 's, &'static mut TextInput>,
     editors: Query<'w, 's, &'static TextEditor>,
-    checked: Query<'w, 's, Entity, With<Checked>>,
+    checked: Query<'w, 's, Entity, Or<(With<Checked>, With<Selected>)>>,
 }
 
 // Widget components own what is rendered, so a reset must restore them
@@ -450,8 +447,8 @@ fn reset_demo(
     mut commands: Commands,
 ) {
     *state = DemoState::default();
-    for mut value in &mut targets.sliders {
-        value.0 = SLIDER_START;
+    for slider in &targets.sliders {
+        commands.entity(slider).insert(SliderValue(SLIDER_START));
     }
     for mut field in &mut targets.fields {
         *field = TextInput::new(FIELD_TEXT);
@@ -460,6 +457,6 @@ fn reset_demo(
         *editor.lock() = TextArea::from(EDITOR_TEXT.lines());
     }
     for entity in &targets.checked {
-        commands.entity(entity).remove::<Checked>();
+        commands.entity(entity).remove::<(Checked, Selected)>();
     }
 }

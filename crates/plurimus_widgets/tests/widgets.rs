@@ -2,11 +2,11 @@
 
 use bevy_app::App;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{release_at, set_focus, write_key, write_mouse, write_press_at};
+use plurimus_test::{character, release_at, set_focus, write_key, write_move_to, write_press_at};
 use plurimus_ui::{Checked, Hovered, UiArea, UiWidget, ValueChange};
 use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{
@@ -48,7 +48,7 @@ fn button_activates_on_click_and_enter() {
     release_at(&mut app, 2, 1);
     assert_eq!(app.world().resource::<Activations>().0, 1);
 
-    write_key(&mut app, KeyCode::Enter);
+    write_key(&mut app, Key::Enter);
     app.update();
     assert_eq!(app.world().resource::<Activations>().0, 2);
 }
@@ -65,7 +65,7 @@ fn slider_steps_seeks_and_scrubs() {
         .spawn((
             UiWidget::new(Paragraph::new("track")),
             UiArea::Fixed(Rect::new(2, 2, 11, 1)),
-            Slider,
+            Slider::default(),
             SliderRange::new(0.0, 100.0),
             SliderValue(50.0),
             SliderStep(10.0),
@@ -83,7 +83,7 @@ fn slider_steps_seeks_and_scrubs() {
     );
     set_focus(&mut app, slider);
 
-    write_key(&mut app, KeyCode::Right);
+    write_key(&mut app, Key::ArrowRight);
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((60.0, true)));
     assert!((app.world().get::<SliderValue>(slider).unwrap().0 - 60.0).abs() < f32::EPSILON);
@@ -92,7 +92,7 @@ fn slider_steps_seeks_and_scrubs() {
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((0.0, false)));
 
-    write_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 7, 2);
+    write_move_to(&mut app, 7, 2);
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((50.0, false)));
 
@@ -110,7 +110,7 @@ fn slider_scrub_holds_capture_outside_the_track() {
         .spawn((
             UiWidget::new(Paragraph::new("track")),
             UiArea::Fixed(Rect::new(2, 2, 11, 1)),
-            Slider,
+            Slider::default(),
             SliderRange::new(0.0, 100.0),
             SliderValue(50.0),
             Hovered::default(),
@@ -126,9 +126,8 @@ fn slider_scrub_holds_capture_outside_the_track() {
     app.update();
     assert_eq!(app.world().resource::<LastChange>().0, Some((0.0, false)));
 
-    write_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 25, 6);
+    write_move_to(&mut app, 25, 6);
     app.update();
-    assert!(!app.world().get::<Hovered>(slider).unwrap().0);
     assert_eq!(app.world().resource::<LastChange>().0, Some((100.0, false)));
 }
 
@@ -155,7 +154,7 @@ fn checkbox_toggles_via_self_update() {
     assert!(app.world().get::<Checked>(checkbox).is_some());
 
     set_focus(&mut app, checkbox);
-    write_key(&mut app, KeyCode::Char(' '));
+    write_key(&mut app, character(' '));
     app.update();
     app.update();
     assert!(app.world().get::<Checked>(checkbox).is_none());

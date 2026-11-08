@@ -5,12 +5,12 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
 use bevy_ecs::query::QuerySingleError;
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use bevy_window::{PrimaryWindow, Window};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize, UiArea, UiWidget};
-use plurimus_term::KeyCode;
 use plurimus_test::{press_key, set_focus};
 use plurimus_ui::UiPlugin;
 use ratatui_widgets::paragraph::Paragraph;
@@ -57,7 +57,7 @@ fn the_apps_own_primary_window_is_adopted_and_navigates() {
 
     assert_eq!(primary_window(&mut app).ok(), Some(own), "no second window");
     set_focus(&mut app, left);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focused(&app), Some(right));
 }
 

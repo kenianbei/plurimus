@@ -1,6 +1,6 @@
-//! Clicking a tab: the event it emits on the bar, and where focus goes.
-//! Before any widget holds focus the virtual window does, so "the bar did
-//! not take focus" is the assertion, never `None`.
+//! Clicking a tab: the selection request it sends the list, and where focus
+//! goes. Before any widget holds focus the virtual window does, so "the tab
+//! did not take focus" is the assertion, never `None`.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -8,12 +8,12 @@ use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input_focus::InputFocus;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_test::{click, press_at};
-use plurimus_ui::{Checked, InteractionDisabled, PressFocusDisabled, UiArea, ValueChange};
-use plurimus_widgets::{WidgetsPlugin, tab_bar, tab_bar_self_update, tab_item};
+use plurimus_test::{click, move_to, press_at, release_at};
+use plurimus_ui::{InteractionDisabled, PressFocusDisabled, Selected, UiArea, ValueChange};
+use plurimus_widgets::{SelectedTab, WidgetsPlugin, tab_bar, tab_item, tablist_self_update};
 
 #[derive(Resource, Default)]
-struct Activated(Vec<Entity>);
+struct Requested(Vec<Option<Entity>>);
 
 struct Bar {
     bar: Entity,
@@ -25,11 +25,11 @@ fn app() -> App {
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(20, 3));
     app.world_mut().spawn(TerminalCamera::default());
-    app.init_resource::<Activated>();
+    app.init_resource::<Requested>();
     app
 }
 
-/// `a` at cells 0..3, `b` at 3..6, `b` active.
+/// `a` at cells 0..3, `b` at 3..6, `b` selected.
 fn spawn_bar(app: &mut App) -> Bar {
     let bar = app
         .world_mut()
@@ -38,22 +38,24 @@ fn spawn_bar(app: &mut App) -> Bar {
     app.world_mut()
         .entity_mut(bar)
         .observe(
-            |change: On<ValueChange<Entity>>, mut seen: ResMut<Activated>| {
+            |change: On<ValueChange<Option<Entity>>>, mut seen: ResMut<Requested>| {
                 seen.0.push(change.value);
             },
         )
-        .observe(tab_bar_self_update);
+        .observe(tablist_self_update);
     let items: Vec<Entity> = ["a", "b"]
         .iter()
         .map(|label| app.world_mut().spawn((tab_item(*label), ChildOf(bar))).id())
         .collect();
-    app.world_mut().entity_mut(items[1]).insert(Checked);
+    app.world_mut()
+        .entity_mut(bar)
+        .insert(SelectedTab(Some(items[1])));
     app.update();
     Bar { bar, items }
 }
 
-fn activated(app: &App) -> Vec<Entity> {
-    app.world().resource::<Activated>().0.clone()
+fn requested(app: &App) -> Vec<Option<Entity>> {
+    app.world().resource::<Requested>().0.clone()
 }
 
 fn focused(app: &App) -> Option<Entity> {
@@ -61,58 +63,72 @@ fn focused(app: &App) -> Option<Entity> {
 }
 
 #[test]
-fn a_click_activates_the_item_and_focuses_the_bar() {
+fn a_click_selects_the_tab_and_focuses_it() {
     let mut app = app();
     let bar = spawn_bar(&mut app);
 
     click(&mut app, 1, 0);
     app.update();
 
-    assert_eq!(activated(&app), [bar.items[0]]);
-    assert_eq!(focused(&app), Some(bar.bar));
-    assert!(app.world().get::<Checked>(bar.items[0]).is_some());
-    assert!(app.world().get::<Checked>(bar.items[1]).is_none());
+    assert_eq!(requested(&app), [Some(bar.items[0])]);
+    assert_eq!(focused(&app), Some(bar.items[0]));
+    assert!(app.world().get::<Selected>(bar.items[0]).is_some());
+    assert!(app.world().get::<Selected>(bar.items[1]).is_none());
 }
 
-// An item has no TabIndex, so the press walks up to the bar: focus moves
-// on the way down, as it does for any other press.
+// A tab carries its own roving TabIndex, so the walk stops at it: focus
+// moves on the way down, as it does for any other press.
 #[test]
-fn a_press_on_an_item_focuses_the_bar_before_the_release() {
+fn a_press_on_a_tab_focuses_it_before_the_release() {
     let mut app = app();
     let bar = spawn_bar(&mut app);
 
     press_at(&mut app, 1, 0);
 
-    assert_eq!(focused(&app), Some(bar.bar));
-    assert_eq!(activated(&app), []);
+    assert_eq!(focused(&app), Some(bar.items[0]));
+    assert_eq!(requested(&app), []);
 }
 
 #[test]
-fn clicking_the_active_item_activates_it_again() {
+fn clicking_the_selected_tab_requests_nothing() {
     let mut app = app();
-    let bar = spawn_bar(&mut app);
+    spawn_bar(&mut app);
 
     click(&mut app, 4, 0);
 
-    assert_eq!(activated(&app), [bar.items[1]]);
+    assert_eq!(requested(&app), []);
+}
+
+// A tab presses and clicks by bevy's hover map, uncaptured, so a release
+// that has left it is no click on it.
+#[test]
+fn a_release_off_the_tab_selects_nothing() {
+    let mut app = app();
+    spawn_bar(&mut app);
+
+    press_at(&mut app, 1, 0);
+    move_to(&mut app, 15, 2);
+    release_at(&mut app, 15, 2);
+
+    assert_eq!(requested(&app), []);
 }
 
 #[test]
-fn press_focus_disabled_on_the_bar_leaves_focus_alone() {
+fn press_focus_disabled_on_a_tab_leaves_focus_alone() {
     let mut app = app();
     let bar = spawn_bar(&mut app);
     app.world_mut()
-        .entity_mut(bar.bar)
+        .entity_mut(bar.items[0])
         .insert(PressFocusDisabled);
 
     click(&mut app, 1, 0);
 
-    assert_eq!(activated(&app), [bar.items[0]]);
-    assert_ne!(focused(&app), Some(bar.bar));
+    assert_eq!(requested(&app), [Some(bar.items[0])]);
+    assert_ne!(focused(&app), Some(bar.items[0]));
 }
 
 #[test]
-fn a_disabled_item_activates_nothing() {
+fn a_disabled_tab_selects_nothing() {
     let mut app = app();
     let bar = spawn_bar(&mut app);
     app.world_mut()
@@ -122,11 +138,11 @@ fn a_disabled_item_activates_nothing() {
 
     click(&mut app, 1, 0);
 
-    assert_eq!(activated(&app), []);
+    assert_eq!(requested(&app), []);
 }
 
 #[test]
-fn a_disabled_bar_activates_nothing() {
+fn a_disabled_bar_selects_nothing() {
     let mut app = app();
     let bar = spawn_bar(&mut app);
     app.world_mut()
@@ -136,6 +152,6 @@ fn a_disabled_bar_activates_nothing() {
 
     click(&mut app, 1, 0);
 
-    assert_eq!(activated(&app), []);
-    assert_ne!(focused(&app), Some(bar.bar));
+    assert_eq!(requested(&app), []);
+    assert_ne!(focused(&app), Some(bar.items[0]));
 }

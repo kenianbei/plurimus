@@ -1,8 +1,8 @@
 //! The single-line field's editing state.
 //!
 //! [`TextInput`] owns its value and cursor rather than deferring to an
-//! engine, which is what separates the field from [`TextEditor`] and its
-//! ratatui-textarea backing. Keeping the state here means every edit passes
+//! engine, which is what separates it from `plurimus_widgets`' multi-line
+//! `TextEditor` and its ratatui-textarea backing. Keeping the state here means every edit passes
 //! through one type that snaps to cluster boundaries, so callers may propose
 //! any target - a word rule, a click, an arrow key - without each of them
 //! having to know about grapheme clusters.
@@ -12,6 +12,7 @@ use std::ops::Range;
 use bevy_ecs::prelude::Component;
 
 use super::grapheme::{char_to_byte, snap_backward, snap_forward};
+use super::word::word_around;
 
 /// The field's editing state: value plus cursor as a char index resting
 /// on grapheme-cluster boundaries, and the selection's other end.
@@ -82,6 +83,15 @@ impl TextInput {
     pub fn select_all(&mut self) {
         self.cursor = self.value.chars().count();
         self.anchor = (self.cursor != 0).then_some(0);
+    }
+
+    /// Selects the word, spacing or punctuation run holding the char at
+    /// `index`, or the last char's for one past the end - what a double click
+    /// selects.
+    pub fn select_word_at(&mut self, index: usize) {
+        let word = word_around(&self.value, index);
+        self.move_to(word.start);
+        self.select_to(word.end);
     }
 
     /// Ends the selection, leaving the cursor where it is.

@@ -1,5 +1,5 @@
 //! A focused list box or table copies its rows on `Ctrl+c`: the cursor
-//! row, or every checked row of a multi-select container, and with nothing
+//! row, or every selected row of a multi-select container, and with nothing
 //! to copy the key reaches the container's ancestors.
 
 use bevy_app::App;
@@ -11,13 +11,13 @@ use bevy_input_focus::FocusedInput;
 use plurimus_core::ratatui_core::layout::{Constraint, Rect};
 use plurimus_core::ratatui_core::text::Text;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
-use plurimus_test::{clipboard_writes, press_chord, press_key, set_focus};
-use plurimus_ui::{Checked, InteractionDisabled, KeyBinding, UiArea};
+use plurimus_term::KeyModifiers;
+use plurimus_test::{character, clipboard_writes, press_key_with, set_focus};
+use plurimus_ui::{Checked, InteractionDisabled, Selected, UiArea};
 use plurimus_widgets::{
-    ActiveColumn, ActiveDescendant, ListBoxAction, ListBoxKeys, ListBoxMultiSelect, ListItemText,
-    ListItemTrailing, Marked, TableMultiSelect, TableSelection, WidgetsPlugin, list_item, listbox,
-    table, table_footer, table_header, table_row,
+    ActiveColumn, ActiveDescendant, ListBoxMultiSelect, ListItemText, ListItemTrailing, Marked,
+    TableMultiSelect, TableSelection, WidgetsPlugin, list_item, listbox, table, table_footer,
+    table_header, table_row,
 };
 
 const AREA: Rect = Rect::new(0, 0, 20, 6);
@@ -76,7 +76,7 @@ fn point_at(app: &mut App, list: Entity, row: Entity) {
 }
 
 fn copy(app: &mut App) {
-    press_chord(app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+    press_key_with(app, character('c'), KeyModifiers::none().with_ctrl(true));
 }
 
 fn propagated(app: &App) -> &[Key] {
@@ -102,12 +102,12 @@ fn ctrl_c_copies_the_cursor_row() {
 }
 
 #[test]
-fn a_multi_select_list_copies_its_checked_rows_in_order() {
+fn a_multi_select_list_copies_its_selected_rows_in_order() {
     let mut app = app();
     let (list, rows) = spawn_greek(&mut app);
     app.world_mut().entity_mut(list).insert(ListBoxMultiSelect);
-    app.world_mut().entity_mut(rows[2]).insert(Checked);
-    app.world_mut().entity_mut(rows[0]).insert(Checked);
+    app.world_mut().entity_mut(rows[2]).insert(Selected);
+    app.world_mut().entity_mut(rows[0]).insert(Selected);
     point_at(&mut app, list, rows[1]);
 
     copy(&mut app);
@@ -116,10 +116,10 @@ fn a_multi_select_list_copies_its_checked_rows_in_order() {
 }
 
 #[test]
-fn a_single_select_list_copies_the_cursor_row_past_its_checked_one() {
+fn a_single_select_list_copies_the_cursor_row_past_its_selected_one() {
     let mut app = app();
     let (list, rows) = spawn_greek(&mut app);
-    app.world_mut().entity_mut(rows[0]).insert(Checked);
+    app.world_mut().entity_mut(rows[0]).insert(Selected);
     point_at(&mut app, list, rows[1]);
 
     copy(&mut app);
@@ -158,7 +158,10 @@ fn trailing_text_and_marked_rows_are_left_out() {
 #[test]
 fn a_list_with_no_cursor_row_copies_nothing_and_propagates() {
     let mut app = app();
-    spawn_greek(&mut app);
+    let (list, _) = spawn_greek(&mut app);
+    app.world_mut()
+        .entity_mut(list)
+        .insert(ActiveDescendant(None));
 
     copy(&mut app);
 
@@ -186,24 +189,6 @@ fn a_disabled_list_copies_nothing_and_propagates() {
     copy(&mut app);
 
     assert_passed_on(&mut app);
-}
-
-#[test]
-fn copy_follows_a_remapped_binding() {
-    let mut app = app();
-    let (list, rows) = spawn_greek(&mut app);
-    point_at(&mut app, list, rows[2]);
-    let keys = ListBoxKeys(vec![(
-        KeyBinding::new(Key::Character("y".into())),
-        ListBoxAction::Copy,
-    )]);
-    app.world_mut().entity_mut(list).insert(keys);
-
-    press_key(&mut app, KeyCode::Char('y'));
-    copy(&mut app);
-
-    assert_eq!(clipboard_writes(&mut app), ["gamma"]);
-    assert_eq!(propagated(&app), [Key::Character("c".into())]);
 }
 
 #[test]

@@ -50,9 +50,7 @@ fn bold_rows(buffer: &Buffer) -> Vec<u16> {
 fn set_active(app: &mut App, container: Entity, row: Option<Entity>) {
     app.world_mut()
         .entity_mut(container)
-        .get_mut::<ActiveDescendant>()
-        .expect("the container keeps its cursor")
-        .0 = row;
+        .insert(ActiveDescendant(row));
 }
 
 fn spawn_list(app: &mut App) -> (Entity, Vec<Entity>) {

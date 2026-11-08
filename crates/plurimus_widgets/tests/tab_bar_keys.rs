@@ -1,22 +1,23 @@
-//! `TabBarKeys`: what each binding activates, where stepping stops, what
-//! a repeat does, and what propagates past the bar.
+//! A tab bar's keys, upstream's: the arrows along the bar move focus among
+//! the tabs, wrapping, Enter or space select the focused one, and what the
+//! bar does not bind propagates past it.
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
 use bevy_input::keyboard::{Key, KeyboardInput};
-use bevy_input_focus::FocusedInput;
+use bevy_input_focus::{FocusedInput, InputFocus};
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::KeyCode;
-use plurimus_test::{press_key, repeat_key, set_focus};
-use plurimus_ui::{Checked, InteractionDisabled, UiArea, ValueChange};
+use plurimus_test::{character, press_key, repeat_key, set_focus};
+use plurimus_ui::{InteractionDisabled, Selected, UiArea, ValueChange};
 use plurimus_widgets::{
-    TabBarAction, TabBarKeys, WidgetsPlugin, tab_bar, tab_bar_self_update, tab_item,
+    ControlOrientation, SelectedTab, TabActivation, TabList, WidgetsPlugin, tab_bar, tab_item,
+    tablist_self_update,
 };
 
 #[derive(Resource, Default)]
-struct Activated(Vec<Entity>);
+struct Requested(Vec<Option<Entity>>);
 
 #[derive(Resource, Default)]
 struct Unconsumed(Vec<Key>);
@@ -31,14 +32,15 @@ fn app() -> App {
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(40, 3));
     app.world_mut().spawn(TerminalCamera::default());
-    app.init_resource::<Activated>();
+    app.init_resource::<Requested>();
     app.init_resource::<Unconsumed>();
     app
 }
 
-/// A bar inside a form that records what propagates past it, with
-/// `active` checked and every activation recorded and applied.
-fn spawn_bar(app: &mut App, labels: &[&'static str], active: Option<usize>) -> Bar {
+/// A bar inside a form that records what propagates past it, with the tab
+/// at `selected` selected and focused, and every request recorded and
+/// applied.
+fn spawn_bar(app: &mut App, labels: &[&'static str], list: TabList, selected: usize) -> Bar {
     let form = app.world_mut().spawn_empty().id();
     app.world_mut().entity_mut(form).observe(
         |input: On<FocusedInput<KeyboardInput>>, mut seen: ResMut<Unconsumed>| {
@@ -51,181 +53,171 @@ fn spawn_bar(app: &mut App, labels: &[&'static str], active: Option<usize>) -> B
         .world_mut()
         .spawn((
             tab_bar(),
-            UiArea::Fixed(Rect::new(0, 0, 40, 1)),
+            list,
+            UiArea::Fixed(Rect::new(0, 0, 40, 3)),
             ChildOf(form),
         ))
         .id();
     app.world_mut()
         .entity_mut(bar)
         .observe(
-            |change: On<ValueChange<Entity>>, mut seen: ResMut<Activated>| {
+            |change: On<ValueChange<Option<Entity>>>, mut seen: ResMut<Requested>| {
                 seen.0.push(change.value);
             },
         )
-        .observe(tab_bar_self_update);
+        .observe(tablist_self_update);
     let items: Vec<Entity> = labels
         .iter()
         .map(|label| app.world_mut().spawn((tab_item(*label), ChildOf(bar))).id())
         .collect();
-    if let Some(index) = active {
-        app.world_mut().entity_mut(items[index]).insert(Checked);
-    }
-    set_focus(app, bar);
+    app.world_mut()
+        .entity_mut(bar)
+        .insert(SelectedTab(Some(items[selected])));
+    set_focus(app, items[selected]);
     app.update();
     Bar { bar, items }
 }
 
-fn activated(app: &App) -> Vec<Entity> {
-    app.world().resource::<Activated>().0.clone()
+fn horizontal(app: &mut App, labels: &[&'static str], selected: usize) -> Bar {
+    spawn_bar(app, labels, TabList::default(), selected)
+}
+
+fn requested(app: &App) -> Vec<Option<Entity>> {
+    app.world().resource::<Requested>().0.clone()
 }
 
 fn unconsumed(app: &App) -> Vec<Key> {
     app.world().resource::<Unconsumed>().0.clone()
 }
 
-fn is_checked(app: &App, item: Entity) -> bool {
-    app.world().get::<Checked>(item).is_some()
+fn focused(app: &App) -> Option<Entity> {
+    app.world().resource::<InputFocus>().get()
 }
 
 #[test]
-fn arrows_step_on_both_axes_and_home_end_jump() {
+fn the_arrows_along_the_bar_move_focus_and_wrap() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b", "c"], Some(1));
+    let bar = horizontal(&mut app, &["a", "b", "c"], 1);
 
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Up);
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::End);
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowRight);
+    assert_eq!(focused(&app), Some(bar.items[2]));
+    press_key(&mut app, Key::ArrowRight);
+    assert_eq!(
+        focused(&app),
+        Some(bar.items[0]),
+        "Right wraps to the first"
+    );
+    press_key(&mut app, Key::ArrowLeft);
+    assert_eq!(focused(&app), Some(bar.items[2]), "and Left to the last");
+    press_key(&mut app, Key::Home);
+    assert_eq!(focused(&app), Some(bar.items[0]));
+    press_key(&mut app, Key::End);
+    assert_eq!(focused(&app), Some(bar.items[2]));
 
     assert_eq!(
-        activated(&app),
-        [
-            bar.items[2],
-            bar.items[1],
-            bar.items[0],
-            bar.items[2],
-            bar.items[1],
-            bar.items[2]
-        ]
+        requested(&app),
+        [],
+        "a manual bar selects nothing by moving"
     );
-    assert!(is_checked(&app, bar.items[2]));
     assert_eq!(unconsumed(&app), []);
 }
 
 #[test]
-fn stepping_stops_at_the_ends_and_passes_the_key_on() {
+fn enter_or_space_selects_the_focused_tab_once() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
+    let bar = horizontal(&mut app, &["a", "b", "c"], 0);
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Home);
-    press_key(&mut app, KeyCode::Right);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
+    press_key(&mut app, Key::Enter);
+    press_key(&mut app, character(' '));
+    app.update();
 
-    assert_eq!(activated(&app), [bar.items[1]]);
     assert_eq!(
-        unconsumed(&app),
-        [Key::ArrowLeft, Key::Home, Key::ArrowRight]
+        requested(&app),
+        [Some(bar.items[1])],
+        "space on the tab Enter selected requests nothing more"
     );
+    assert!(app.world().get::<Selected>(bar.items[1]).is_some());
+    assert!(app.world().get::<Selected>(bar.items[0]).is_none());
 }
 
 #[test]
-fn next_with_nothing_active_lands_on_the_first() {
+fn an_automatic_bar_selects_as_focus_moves() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b"], None);
+    let list = TabList {
+        activation: TabActivation::Automatic,
+        ..TabList::default()
+    };
+    let bar = spawn_bar(&mut app, &["a", "b"], list, 0);
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
 
-    assert_eq!(activated(&app), [bar.items[0]]);
+    assert_eq!(requested(&app), [Some(bar.items[1])]);
 }
 
 #[test]
-fn a_disabled_item_is_stepped_over() {
+fn the_cross_axis_arrows_propagate() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b", "c"], Some(0));
-    app.world_mut()
-        .entity_mut(bar.items[1])
-        .insert(InteractionDisabled);
+    let bar = horizontal(&mut app, &["a", "b"], 0);
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::ArrowUp);
 
-    assert_eq!(activated(&app), [bar.items[2]]);
+    assert_eq!(unconsumed(&app), [Key::ArrowDown, Key::ArrowUp]);
+    assert_eq!(focused(&app), Some(bar.items[0]));
 }
 
 #[test]
-fn a_held_arrow_keeps_stepping() {
+fn a_vertical_bar_steps_on_up_and_down() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b", "c"], Some(0));
+    let list = TabList {
+        orientation: ControlOrientation::Vertical,
+        ..TabList::default()
+    };
+    let bar = spawn_bar(&mut app, &["a", "b"], list, 0);
 
-    press_key(&mut app, KeyCode::Right);
-    repeat_key(&mut app, KeyCode::Right);
-
-    assert_eq!(activated(&app), [bar.items[1], bar.items[2]]);
-}
-
-fn remap(app: &mut App, bar: &Bar) {
-    app.world_mut().entity_mut(bar.bar).insert(TabBarKeys(vec![
-        (Key::Character("[".into()).into(), TabBarAction::Previous),
-        (Key::Character("]".into()).into(), TabBarAction::Next),
-        (Key::Character("1".into()).into(), TabBarAction::Select(0)),
-        (Key::Character("2".into()).into(), TabBarAction::Select(1)),
-        (Key::Character("9".into()).into(), TabBarAction::Select(8)),
-    ]));
-}
-
-#[test]
-fn a_remapped_table_drives_the_bar_and_the_arrows_propagate() {
-    let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
-    remap(&mut app, &bar);
-
-    press_key(&mut app, KeyCode::Char(']'));
-    press_key(&mut app, KeyCode::Char('['));
-    press_key(&mut app, KeyCode::Right);
-
-    assert_eq!(activated(&app), [bar.items[1], bar.items[0]]);
+    press_key(&mut app, Key::ArrowDown);
+    assert_eq!(focused(&app), Some(bar.items[1]));
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(unconsumed(&app), [Key::ArrowRight]);
 }
 
 #[test]
-fn select_activates_its_item_every_press_and_never_on_a_repeat() {
+fn a_disabled_tab_is_stepped_over() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
-    remap(&mut app, &bar);
+    let bar = horizontal(&mut app, &["a", "b", "c"], 0);
+    app.world_mut()
+        .entity_mut(bar.items[1])
+        .insert(InteractionDisabled);
+    app.update();
 
-    press_key(&mut app, KeyCode::Char('2'));
-    press_key(&mut app, KeyCode::Char('2'));
-    repeat_key(&mut app, KeyCode::Char('2'));
+    press_key(&mut app, Key::ArrowRight);
 
-    assert_eq!(activated(&app), [bar.items[1], bar.items[1]]);
-    assert_eq!(unconsumed(&app), []);
+    assert_eq!(focused(&app), Some(bar.items[2]));
 }
 
 #[test]
-fn select_past_the_last_item_activates_nothing_and_propagates() {
+fn a_held_arrow_steps_once() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
-    remap(&mut app, &bar);
+    let bar = horizontal(&mut app, &["a", "b", "c"], 0);
 
-    press_key(&mut app, KeyCode::Char('9'));
+    press_key(&mut app, Key::ArrowRight);
+    repeat_key(&mut app, Key::ArrowRight);
 
-    assert_eq!(activated(&app), []);
-    assert_eq!(unconsumed(&app), [Key::Character("9".into())]);
+    assert_eq!(focused(&app), Some(bar.items[1]));
 }
 
 #[test]
 fn a_disabled_bar_consumes_nothing() {
     let mut app = app();
-    let bar = spawn_bar(&mut app, &["a", "b"], Some(0));
+    let bar = horizontal(&mut app, &["a", "b"], 0);
     app.world_mut()
         .entity_mut(bar.bar)
         .insert(InteractionDisabled);
+    app.update();
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
 
-    assert_eq!(activated(&app), []);
+    assert_eq!(requested(&app), []);
     assert_eq!(unconsumed(&app), [Key::ArrowRight]);
 }

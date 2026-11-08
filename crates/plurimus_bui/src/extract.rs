@@ -18,8 +18,8 @@ use bevy_camera::visibility::InheritedVisibility;
 use bevy_color::ColorToPacked;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::prelude::{Commands, ResMut, Resource, With};
-use bevy_ecs::query::QueryState;
+use bevy_ecs::prelude::{Commands, Query, ResMut, Resource, With};
+use bevy_ecs::system::SystemParam;
 use bevy_ecs::world::World;
 use bevy_math::Vec2;
 use bevy_ui::{
@@ -29,14 +29,16 @@ use bevy_ui::{
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Color as CellColor;
 use plurimus_core::{
-    ExtractedWidget, MainWorld, ResolvedViewport, TerminalCamera, UiArea, UiOrder, UiWidget,
+    CellSize, Extract, ExtractedWidget, MainEntity, ResolvedViewport, UiArea, UiOrder, UiWidget,
 };
+use plurimus_ui::TextRow;
 
 use super::decorate::{
     Decoration, ValBasis, offset_and_inflate, resolve_gradients, resolve_shadows, rounded_corners,
 };
+use super::field::FieldRow;
 use super::rasterize::FramedNodes;
-use super::rect::{CellBox, CellSize, clip_cells, node_boxes};
+use super::rect::{CellBox, clip_cells, node_boxes};
 use super::text::ResolvedText;
 
 /// The layer a frame's nodes draw at, above the frame's own widget at 0.
@@ -50,13 +52,14 @@ pub(crate) struct ExtractedBuiNodes {
 }
 
 pub(crate) struct ExtractedBuiNode {
-    pub(crate) camera: Entity,
+    pub(crate) camera: MainEntity,
     pub(crate) rect: CellBox,
     pub(crate) clip: Option<Rect>,
     pub(crate) background: Option<CellColor>,
     pub(crate) border: Option<BorderSides>,
     pub(crate) outline: Option<OutlineRing>,
     pub(crate) text: Option<TextRun>,
+    pub(crate) field: Option<FieldRun>,
     pub(crate) decoration: Decoration,
 }
 
@@ -74,38 +77,45 @@ pub(crate) struct OutlineRing {
     pub(crate) color: CellColor,
 }
 
+/// A text field's row, drawn at the top of its node's content box.
+pub(crate) struct FieldRun {
+    pub(crate) row: TextRow,
+    pub(crate) content: CellBox,
+}
+
 pub(crate) struct TextRun {
     pub(crate) text: ResolvedText,
     pub(crate) content: CellBox,
 }
 
+/// The main world as node extraction reads it: whole, for the per-node
+/// walk, and through the three queries that walk is framed by.
+#[derive(SystemParam)]
+pub(crate) struct MainNodes<'w, 's> {
+    world: Extract<'w, 's, &'static World>,
+    viewports: Extract<'w, 's, Query<'static, 'static, &'static ResolvedViewport>>,
+    parents: Extract<'w, 's, Query<'static, 'static, &'static ChildOf>>,
+    widgets: Extract<'w, 's, Query<'static, 'static, (), With<UiWidget>>>,
+}
+
 pub(crate) fn extract_bui_nodes(
-    mut main_world: ResMut<MainWorld>,
+    main: MainNodes,
     mut out: ResMut<ExtractedBuiNodes>,
     mut commands: Commands,
 ) {
+    let main_world: &World = &main.world;
     out.nodes.clear();
     out.cell = main_world.resource::<CellSize>().vec();
     let cell = out.cell;
-    let viewports: HashMap<Entity, Rect> = {
-        let mut cameras = main_world.query::<(Entity, &TerminalCamera, &ResolvedViewport)>();
-        cameras
-            .iter(&main_world)
-            .filter(|(_, camera, _)| camera.active)
-            .map(|(entity, _, resolved)| (entity, resolved.0))
-            .collect()
-    };
-    let mut parents = main_world.query::<&ChildOf>();
-    let mut widgets = main_world.query_filtered::<(), With<UiWidget>>();
     let stack = main_world.resource::<UiStack>();
     // Keyed by camera too: a frame that is no node makes each child a root
     // of its own, and two roots may name different cameras.
-    let mut groups: HashMap<(Entity, Entity), Vec<ExtractedBuiNode>> = HashMap::new();
+    let mut groups: HashMap<(Entity, MainEntity), Vec<ExtractedBuiNode>> = HashMap::new();
     for &entity in &stack.uinodes {
-        let Some(node) = convert(&main_world, entity, &viewports, cell) else {
+        let Some(node) = convert(main_world, entity, &main.viewports, cell) else {
             continue;
         };
-        match frame_of(&main_world, entity, (&mut parents, &mut widgets)) {
+        match frame_of(entity, &main.parents, &main.widgets) {
             None => out.nodes.push(node),
             Some(frame) => groups.entry((frame, node.camera)).or_default().push(node),
         }
@@ -115,7 +125,7 @@ pub(crate) fn extract_bui_nodes(
         commands.spawn(
             ExtractedWidget::new(Arc::new(FramedNodes { nodes, cell }), UiArea::Fill, frame)
                 .with_order(order)
-                .with_target(Some(camera))
+                .with_target(Some(camera.id()))
                 .with_layer(FRAMED_LAYER),
         );
     }
@@ -124,19 +134,14 @@ pub(crate) fn extract_bui_nodes(
 /// The nearest strict ancestor of `entity` carrying a widget, unless
 /// `entity` carries one itself.
 fn frame_of(
-    world: &World,
     entity: Entity,
-    (parents, widgets): (
-        &mut QueryState<&ChildOf>,
-        &mut QueryState<(), With<UiWidget>>,
-    ),
+    parents: &Query<&ChildOf>,
+    widgets: &Query<(), With<UiWidget>>,
 ) -> Option<Entity> {
-    let widgets = widgets.query(world);
     if widgets.contains(entity) {
         return None;
     }
     parents
-        .query(world)
         .iter_ancestors(entity)
         .find(|&ancestor| widgets.contains(ancestor))
 }
@@ -144,7 +149,7 @@ fn frame_of(
 fn convert(
     world: &World,
     entity: Entity,
-    viewports: &HashMap<Entity, Rect>,
+    viewports: &Query<&ResolvedViewport>,
     cell: Vec2,
 ) -> Option<ExtractedBuiNode> {
     if !world
@@ -155,7 +160,7 @@ fn convert(
     }
     let computed = world.get::<ComputedNode>(entity)?;
     let camera = world.get::<ComputedUiTargetCamera>(entity)?.get()?;
-    let viewport = *viewports.get(&camera)?;
+    let viewport = viewports.get(camera).ok()?.0;
     let transform = world.get::<UiGlobalTransform>(entity)?;
     let (rect, content) = node_boxes(computed, transform, viewport, cell);
     if rect.is_empty() {
@@ -183,13 +188,17 @@ fn convert(
         !decoration.border_gradients.is_empty(),
     );
     Some(ExtractedBuiNode {
-        camera,
+        camera: MainEntity::from(camera),
         rect,
         clip,
         background,
         border,
         outline: outline_ring(world, entity, computed, frame),
         text: text_run(world, entity, content),
+        field: world
+            .get::<FieldRow>(entity)
+            .and_then(|drawn| drawn.0.clone())
+            .map(|row| FieldRun { row, content }),
         decoration,
     })
 }

@@ -16,10 +16,15 @@ use ratatui_widgets::scrollbar::{
     Scrollbar as ScrollbarWidget, ScrollbarOrientation, ScrollbarState,
 };
 
+use plurimus_ui::bevy_ui_widgets::ControlOrientation;
+
+use plurimus_core::CellSize;
 use plurimus_core::UiWidget;
+use plurimus_ui::bevy_picking::events::{PointerClick, PointerDrag, PointerPress};
+use plurimus_ui::bevy_picking::pointer::PointerButton;
 use plurimus_ui::{
-    ComputedWidgetArea, Hovered, PointerDrag, PointerPress, PointerRelease, ScrollArea,
-    ScrollOffset, StylistDisabled, UiTheme, apply_offset, max_offset,
+    ComputedWidgetArea, Hovered, ScrollArea, ScrollOffset, StylistDisabled, UiTheme, apply_offset,
+    pointer_cell,
 };
 use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 
@@ -34,14 +39,15 @@ use plurimus_ui::{StateQuery, StylistCache, hashed_bits, observed};
 pub struct Scrollbar {
     /// The scroll-area entity this bar controls.
     pub target: Entity,
-    /// The bar's axis and which edge its symbols face.
-    pub orientation: ScrollbarOrientation,
+    /// The bar's axis. Which edge it sits on is where the app places its
+    /// strip, the bar filling the area it is given.
+    pub orientation: ControlOrientation,
 }
 
 impl Scrollbar {
     /// A bar driving `target` along `orientation`'s axis.
     #[must_use]
-    pub const fn new(target: Entity, orientation: ScrollbarOrientation) -> Self {
+    pub const fn new(target: Entity, orientation: ControlOrientation) -> Self {
         Self {
             target,
             orientation,
@@ -51,11 +57,11 @@ impl Scrollbar {
 
 /// Spawn bundle for a scrollbar driving `target`.
 #[must_use]
-pub fn scrollbar(target: Entity, orientation: ScrollbarOrientation) -> impl Bundle {
+pub fn scrollbar(target: Entity, orientation: ControlOrientation) -> impl Bundle {
     (Scrollbar::new(target, orientation), UiWidget::default())
 }
 
-type BarQuery<'w, 's> = Query<'w, 's, (&'static ComputedWidgetArea, &'static Scrollbar)>;
+type Bar<'a> = (&'a ComputedWidgetArea, &'a Scrollbar);
 
 type TargetQuery<'w, 's> = Query<
     'w,
@@ -68,62 +74,85 @@ type TargetQuery<'w, 's> = Query<
 >;
 
 pub(crate) fn scrollbar_press(
-    event: On<PointerPress>,
-    bars: BarQuery,
+    mut event: On<PointerPress>,
+    cell: Res<CellSize>,
+    bars: Query<Bar>,
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
+    let Ok(bar) = bars.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
     seek(
-        (event.entity, event.position),
-        &bars,
+        bar,
+        pointer_cell(&event.pointer, *cell),
         &mut targets,
         &mut commands,
     );
 }
 
 pub(crate) fn scrollbar_drag(
-    event: On<PointerDrag>,
-    bars: BarQuery,
+    mut event: On<PointerDrag>,
+    cell: Res<CellSize>,
+    bars: Query<Bar>,
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
+    let Ok(bar) = bars.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
     seek(
-        (event.entity, event.position),
-        &bars,
+        bar,
+        pointer_cell(&event.pointer, *cell),
         &mut targets,
         &mut commands,
     );
 }
 
+// The click rather than the release: bevy sends a release to whatever the
+// pointer is over, and a click only to what this pointer pressed.
 pub(crate) fn scrollbar_release(
-    event: On<PointerRelease>,
-    bars: BarQuery,
+    mut event: On<PointerClick>,
+    cell: Res<CellSize>,
+    bars: Query<Bar>,
     mut targets: TargetQuery,
     mut commands: Commands,
 ) {
+    if event.button != PointerButton::Primary {
+        return;
+    }
+    let Ok(bar) = bars.get(event.entity) else {
+        return;
+    };
+    event.propagate(false);
     seek(
-        (event.entity, event.position),
-        &bars,
+        bar,
+        pointer_cell(&event.pointer, *cell),
         &mut targets,
         &mut commands,
     );
 }
 
 fn seek(
-    (entity, pointer): (Entity, Position),
-    bars: &BarQuery,
+    (bar_area, bar): Bar,
+    pointer: Position,
     targets: &mut TargetQuery,
     commands: &mut Commands,
 ) {
-    let Ok((bar_area, bar)) = bars.get(entity) else {
-        return;
-    };
     let track = bar_area.0;
     let Ok((scroll, target_area, mut offset)) = targets.get_mut(bar.target) else {
         return;
     };
-    let max = max_offset(scroll.content_size, scroll.viewport(target_area.0));
-    let sought = if bar.orientation.is_vertical() {
+    let max = scroll.max_offset(target_area.0);
+    let sought = if bar.orientation == ControlOrientation::Vertical {
         Position::new(
             offset.0.x,
             track_value(track.y, track.height, pointer.y, max.y),
@@ -155,7 +184,7 @@ pub(crate) fn style_scrollbars(
             continue;
         };
         let shown = scroll.viewport(area.0);
-        let (position, content, viewport) = if bar.orientation.is_vertical() {
+        let (position, content, viewport) = if bar.orientation == ControlOrientation::Vertical {
             (offset.0.y, scroll.content_size.height, shown.height)
         } else {
             (offset.0.x, scroll.content_size.width, shown.width)
@@ -165,11 +194,19 @@ pub(crate) fn style_scrollbars(
             continue;
         }
         *widget = UiWidget::stateful(
-            ScrollbarWidget::new(bar.orientation.clone()).style(next.style(&theme)),
+            ScrollbarWidget::new(drawn_orientation(bar.orientation)).style(next.style(&theme)),
             ScrollbarState::new(usize::from(content))
                 .position(usize::from(position))
                 .viewport_content_length(usize::from(viewport)),
         );
+    }
+}
+
+// A bar's area is its own one-cell strip, so either edge of it is the bar.
+const fn drawn_orientation(orientation: ControlOrientation) -> ScrollbarOrientation {
+    match orientation {
+        ControlOrientation::Vertical => ScrollbarOrientation::VerticalRight,
+        ControlOrientation::Horizontal => ScrollbarOrientation::HorizontalBottom,
     }
 }
 

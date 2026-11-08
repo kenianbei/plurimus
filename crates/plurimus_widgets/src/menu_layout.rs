@@ -7,36 +7,34 @@
 //! inside it that the item's own hit-testing then uses.
 
 use bevy_ecs::change_detection::DetectChangesMut;
-use bevy_ecs::entity::Entity;
 use bevy_ecs::hierarchy::Children;
 use bevy_ecs::prelude::{Query, With, Without};
 use plurimus_core::ratatui_core::layout::{Rect, Size};
 
-use crate::menu::{MenuAccess, MenuItem, MenuPopup};
 use crate::popover::Popover;
 use plurimus_core::UiArea;
 use plurimus_ui::ComputedWidgetArea;
 use plurimus_ui::UiLabel;
+use plurimus_ui::bevy_ui_widgets::{MenuItem, MenuPopup};
 
 const POPUP_FRAME: u16 = 1;
 const ITEM_PADDING: u16 = 1;
 
 pub(crate) fn size_menu_popups(
-    labels: Query<&UiLabel>,
-    mut popups: Query<(Entity, &mut Popover), With<MenuPopup>>,
-    menus: MenuAccess,
+    mut popups: Query<(&mut Popover, Option<&Children>), With<MenuPopup>>,
+    items: Query<&UiLabel, With<MenuItem>>,
 ) {
-    for (popup, mut popover) in &mut popups {
-        let rows = menus.item_rows(popup);
-        let widest = rows
-            .iter()
-            .filter_map(|&item| labels.get(item).ok())
-            .map(|label| label.0.width() as u16)
-            .max()
-            .unwrap_or(0);
+    for (mut popover, children) in &mut popups {
+        let labels = children
+            .into_iter()
+            .flatten()
+            .filter_map(|&child| items.get(child).ok());
+        let (rows, widest) = labels.fold((0u16, 0u16), |(rows, widest), label| {
+            (rows + 1, widest.max(label.0.width() as u16))
+        });
         let size = Size::new(
             widest + 2 * (POPUP_FRAME + ITEM_PADDING),
-            rows.len() as u16 + 2 * POPUP_FRAME,
+            rows + 2 * POPUP_FRAME,
         );
         if popover.size != size {
             popover.size = size;
@@ -44,9 +42,9 @@ pub(crate) fn size_menu_popups(
     }
 }
 
-// Items carry no camera of their own: they are children of the popup, and
-// the popup holds the UiCamera its anchor gave it, so the hierarchy already
-// says where they draw.
+// Items carry no camera of their own: they are children of the popup, which
+// propagates the camera its anchor gave it, so the hierarchy already says
+// where they draw.
 pub(crate) fn place_menu_items(
     popups: Query<(&UiArea, &ComputedWidgetArea, &Children), (With<MenuPopup>, Without<MenuItem>)>,
     mut items: Query<(&mut UiArea, &mut ComputedWidgetArea), With<MenuItem>>,

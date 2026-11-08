@@ -2,10 +2,9 @@
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
+use plurimus_core::bevy_camera::{Camera, ClearColorConfig};
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::{
-    Background, ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize, Viewport,
-};
+use plurimus_core::{ComputedUiCamera, CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_widgets::WidgetsPlugin;
 
 pub fn app() -> App {
@@ -17,12 +16,14 @@ pub fn app() -> App {
 
 pub fn spawn_camera(app: &mut App, viewport: Rect, order: isize) -> Entity {
     app.world_mut()
-        .spawn(
-            TerminalCamera::default()
-                .with_order(order)
-                .with_viewport(Viewport::Fixed(viewport))
-                .with_background(Background::Transparent),
-        )
+        .spawn((
+            TerminalCamera::Fixed(viewport),
+            Camera {
+                order,
+                clear_color: ClearColorConfig::None,
+                ..Camera::default()
+            },
+        ))
         .id()
 }
 

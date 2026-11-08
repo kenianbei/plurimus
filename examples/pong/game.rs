@@ -7,10 +7,13 @@ use bevy_ecs::prelude::{
 use bevy_math::Vec2;
 use bevy_time::{Time, Timer, TimerMode};
 use bevy_transform::components::Transform;
-use plurimus::core::TerminalCamera;
+use plurimus::core::bevy_camera::Camera2d;
 use plurimus::core::ratatui_core::style::{Color, Style};
-use plurimus::render2d::{Glyph, Pixel, Projection2d};
-use plurimus::term::{KeyCode, KeyKind, KeyMessage};
+use plurimus::core::{CellSize, TerminalCamera};
+use plurimus::render2d::{Glyph, Pixel};
+use plurimus::term::HeldModifiers;
+use plurimus::term::bevy_input::ButtonState;
+use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 use plurimus::ui::UiWidget;
 use plurimus::widgets::ratatui_widgets::paragraph::Paragraph;
 
@@ -29,7 +32,7 @@ const PADDLE_GLYPH_COUNT: i32 = (2.0 * PADDLE_HALF_HEIGHT / CELL_HEIGHT) as i32;
 
 #[derive(Component)]
 pub struct Paddle {
-    pub direction_keys: (KeyCode, KeyCode),
+    pub direction_keys: (Key, Key),
 }
 
 #[derive(Component, Default)]
@@ -56,6 +59,10 @@ impl Default for ServeDelay {
 }
 
 pub fn add_game(app: &mut App) {
+    app.insert_resource(CellSize {
+        x: WALL_CELL_WIDTH,
+        y: CELL_HEIGHT,
+    });
     app.init_resource::<Score>();
     app.init_resource::<ServeDelay>();
     app.add_systems(Startup, spawn_scene);
@@ -64,15 +71,15 @@ pub fn add_game(app: &mut App) {
 }
 
 fn spawn_scene(mut commands: Commands) {
-    commands.spawn((TerminalCamera::default(), Projection2d::default()));
+    commands.spawn((TerminalCamera::default(), Camera2d));
     commands.spawn((UiWidget::new(Paragraph::new("0 : 0").centered()), ScoreLine));
     spawn_court(&mut commands);
     spawn_paddle(
         &mut commands,
         -PADDLE_X,
-        (KeyCode::Char('w'), KeyCode::Char('s')),
+        (Key::Character("w".into()), Key::Character("s".into())),
     );
-    spawn_paddle(&mut commands, PADDLE_X, (KeyCode::Up, KeyCode::Down));
+    spawn_paddle(&mut commands, PADDLE_X, (Key::ArrowUp, Key::ArrowDown));
     commands.spawn((
         Ball::default(),
         Pixel::new(Color::White),
@@ -93,7 +100,7 @@ fn spawn_court(commands: &mut Commands) {
     }
 }
 
-fn spawn_paddle(commands: &mut Commands, x: f32, direction_keys: (KeyCode, KeyCode)) {
+fn spawn_paddle(commands: &mut Commands, x: f32, direction_keys: (Key, Key)) {
     let root = commands
         .spawn((Paddle { direction_keys }, Transform::from_xyz(x, 0.0, 0.0)))
         .id();
@@ -109,18 +116,18 @@ fn spawn_paddle(commands: &mut Commands, x: f32, direction_keys: (KeyCode, KeyCo
 }
 
 fn move_paddles(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
     mut paddles: Query<(&Paddle, &mut Transform)>,
 ) {
     for key in keys.read() {
-        if key.kind == KeyKind::Release {
+        if key.state == ButtonState::Released {
             continue;
         }
         for (paddle, mut transform) in &mut paddles {
-            let (up, down) = paddle.direction_keys;
-            let step = if key.code == up {
+            let (up, down) = &paddle.direction_keys;
+            let step = if key.logical_key == *up {
                 CELL_HEIGHT
-            } else if key.code == down {
+            } else if key.logical_key == *down {
                 -CELL_HEIGHT
             } else {
                 continue;
@@ -204,20 +211,21 @@ fn award_point(score: &mut Score, ball_x: f32) {
 }
 
 fn handle_keys(
-    mut keys: MessageReader<KeyMessage>,
+    mut keys: MessageReader<KeyboardInput>,
+    held: HeldModifiers,
     score: Res<Score>,
     mut balls: Query<&mut Ball>,
     mut exit: MessageWriter<AppExit>,
 ) {
     for key in keys.read() {
-        if key.kind != KeyKind::Press {
+        if key.state != ButtonState::Pressed || key.repeat {
             continue;
         }
-        let ctrl_c = key.modifiers.ctrl && key.code == KeyCode::Char('c');
-        if key.code == KeyCode::Char('q') || ctrl_c {
+        let ctrl_c = held.get().ctrl && key.logical_key == Key::Character("c".into());
+        if key.logical_key == Key::Character("q".into()) || ctrl_c {
             exit.write(AppExit::Success);
         }
-        if key.code == KeyCode::Char('r')
+        if key.logical_key == Key::Character("r".into())
             && let Ok(mut ball) = balls.single_mut()
         {
             serve(&score, &mut ball);

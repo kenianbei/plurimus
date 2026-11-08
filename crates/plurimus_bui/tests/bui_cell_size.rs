@@ -11,11 +11,11 @@ use bevy_ui::{
     UiRect, Val,
 };
 use plurimus_bui::bevy_ui_widgets::{Button, ScrollArea};
-use plurimus_bui::{BuiPlugin, CellSize, ComputedNodeRect};
+use plurimus_bui::{BuiPlugin, ComputedNodeRect};
+use plurimus_core::CellSize;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::MouseKind;
-use plurimus_test::{click, composed_frame, send_mouse};
+use plurimus_test::{click, composed_frame, scroll_at};
 use plurimus_ui::Activate;
 
 const CELL: CellSize = CellSize { x: 8.0, y: 16.0 };
@@ -175,7 +175,7 @@ fn a_tick_scrolls_one_row_of_pixels() {
     }
     settle(&mut app);
 
-    send_mouse(&mut app, MouseKind::ScrollDown, 2, 1);
+    scroll_at(&mut app, 2, 1, 1);
 
     assert_eq!(
         app.world().get::<ScrollPosition>(list).unwrap().0,

@@ -3,15 +3,17 @@
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, ModifierKey};
+use plurimus_term::KeyModifiers;
 use plurimus_test::{
-    composed_styled_frame, press_chord, press_key, repeat_key, send_paste, set_focus, write_paste,
+    character, composed_styled_frame, press_key, press_key_with, repeat_key, send_paste, set_focus,
+    write_paste,
 };
-use plurimus_ui::{Key, KeyBinding, UiArea, ValueChange};
+use plurimus_ui::{KeyBinding, UiArea, ValueChange};
 use plurimus_widgets::{
-    Submit, TextInput, TextInputAction, TextInputKeys, WidgetsPlugin, editable_text,
+    Submit, TextInput, TextInputAction, TextInputKeys, WidgetsPlugin, text_field,
 };
 
 #[derive(Resource, Default)]
@@ -39,7 +41,7 @@ fn app() -> App {
 fn spawn_field(app: &mut App, value: &str) -> Entity {
     let world = app.world_mut();
     let field = world
-        .spawn((editable_text(value), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
+        .spawn((text_field(value), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
         .id();
     set_focus(app, field);
     field
@@ -58,8 +60,8 @@ fn typing_edits_and_notifies() {
     let mut app = app();
     let field = spawn_field(&mut app, "");
 
-    press_key(&mut app, KeyCode::Char('h'));
-    press_key(&mut app, KeyCode::Char('i'));
+    press_key(&mut app, character('h'));
+    press_key(&mut app, character('i'));
 
     assert_eq!(value_of(&app, field), "hi");
     assert_eq!(
@@ -73,14 +75,14 @@ fn movement_and_deletion_edit_at_the_cursor() {
     let mut app = app();
     let field = spawn_field(&mut app, "hi");
 
-    press_key(&mut app, KeyCode::Left);
-    press_key(&mut app, KeyCode::Backspace);
+    press_key(&mut app, Key::ArrowLeft);
+    press_key(&mut app, Key::Backspace);
     assert_eq!(value_of(&app, field), "i");
 
-    press_key(&mut app, KeyCode::Delete);
+    press_key(&mut app, Key::Delete);
     assert_eq!(value_of(&app, field), "");
 
-    press_key(&mut app, KeyCode::Backspace);
+    press_key(&mut app, Key::Backspace);
     assert_eq!(value_of(&app, field), "");
     assert_eq!(app.world().resource::<Edits>().0.len(), 2);
 }
@@ -90,7 +92,7 @@ fn enter_and_blur_emit_final() {
     let mut app = app();
     spawn_field(&mut app, "ok");
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(app.world().resource::<Edits>().0, [("ok".to_owned(), true)]);
 
     let other = app.world_mut().spawn(()).id();
@@ -110,7 +112,7 @@ fn enter_submits_and_blur_does_not() {
     let mut app = app();
     spawn_field(&mut app, "ok");
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(app.world().resource::<Submits>().0, ["ok".to_owned()]);
 
     let other = app.world_mut().spawn(()).id();
@@ -136,9 +138,9 @@ fn holding_enter_submits_once() {
     let mut app = app();
     spawn_field(&mut app, "ok");
 
-    press_key(&mut app, KeyCode::Enter);
-    repeat_key(&mut app, KeyCode::Enter);
-    repeat_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
+    repeat_key(&mut app, Key::Enter);
+    repeat_key(&mut app, Key::Enter);
 
     assert_eq!(app.world().resource::<Submits>().0, ["ok".to_owned()]);
     assert_eq!(
@@ -153,8 +155,12 @@ fn a_chorded_character_never_reaches_the_value() {
     let mut app = app();
     let field = spawn_field(&mut app, "");
 
-    press_key(&mut app, KeyCode::Char('c'));
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('c'));
+    press_key(&mut app, character('c'));
+    press_key_with(
+        &mut app,
+        character('c'),
+        KeyModifiers::none().with_ctrl(true),
+    );
 
     assert_eq!(value_of(&app, field), "c");
 }
@@ -206,7 +212,7 @@ fn paste_without_focus_is_dropped() {
     let mut app = app();
     let field = app
         .world_mut()
-        .spawn((editable_text(""), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
+        .spawn((text_field(""), UiArea::Fixed(Rect::new(0, 0, 6, 1))))
         .id();
 
     send_paste(&mut app, "hi");
@@ -221,7 +227,7 @@ fn field_windows_long_values_and_marks_the_cursor() {
     spawn_field(&mut app, "");
 
     for ch in ['a', 'b', 'c', 'd', 'e', 'f', 'g'] {
-        press_key(&mut app, KeyCode::Char(ch));
+        press_key(&mut app, character(ch));
     }
     app.update();
 
@@ -250,14 +256,14 @@ fn a_field_submitting_on_a_chord_leaves_enter_alone() {
             TextInputAction::Submit,
         )]));
 
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert!(
         app.world().resource::<Submits>().0.is_empty(),
         "bare Enter no longer submits"
     );
     assert_eq!(value_of(&app, field), "hi", "and types nothing");
 
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Enter);
+    press_key_with(&mut app, Key::Enter, KeyModifiers::none().with_ctrl(true));
     assert_eq!(app.world().resource::<Submits>().0, vec!["hi".to_owned()]);
 }
 
@@ -274,11 +280,15 @@ fn a_field_binds_an_edit_to_a_chord() {
             TextInputAction::Home,
         )]));
 
-    press_chord(&mut app, ModifierKey::ControlLeft, KeyCode::Char('a'));
+    press_key_with(
+        &mut app,
+        character('a'),
+        KeyModifiers::none().with_ctrl(true),
+    );
     assert_eq!(cursor(&app, field), 0, "ctrl+a moves to the start");
     assert_eq!(value_of(&app, field), "abc", "and types nothing");
 
-    press_key(&mut app, KeyCode::Char('a'));
+    press_key(&mut app, character('a'));
     assert_eq!(value_of(&app, field), "aabc", "a bare a still types");
 }
 

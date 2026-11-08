@@ -8,24 +8,26 @@ use std::time::Duration;
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Bundle, ChildOf, On, ResMut, Resource};
+use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy_time::TimeUpdateStrategy;
 use bevy_ui::{
-    FixedNode, FlexDirection, Node, Overflow, PositionType, ScrollPosition, Selected, Val,
+    FixedNode, FlexDirection, Node, Overflow, PositionType, ScrollPosition, Selected, UiTransform,
+    Val, Val2,
 };
 use plurimus_bui::bevy_ui_widgets::popover::{Popover, PopoverPlacement, PopoverSide};
 use plurimus_bui::bevy_ui_widgets::{
-    Checkbox, ControlOrientation, ListBox, ListItem, MenuAction, MenuEvent, MenuFocusState,
-    MenuItem, MenuPopup, ModalDialog, RadioButton, RadioGroup, Scrollbar, ScrollbarThumb,
-    SelectedTab, Slider, SliderRange, SliderThumb, SliderValue, Tab, TabList, checkbox_self_update,
-    listbox_update_selection, radio_self_update, slider_self_update, tablist_self_update,
+    Checkbox, ControlOrientation, Dialog, DialogDragHandle, ListBox, ListItem, MenuAction,
+    MenuEvent, MenuFocusState, MenuItem, MenuPopup, ModalDialog, RadioButton, RadioGroup,
+    Scrollbar, ScrollbarThumb, SelectedTab, Slider, SliderRange, SliderThumb, SliderValue, Tab,
+    TabList, checkbox_self_update, listbox_update_selection, radio_self_update, slider_self_update,
+    tablist_self_update,
 };
 use plurimus_bui::{BuiPlugin, ComputedNodeRect};
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
-use plurimus_term::{KeyCode, MouseButton, MouseKind};
-use plurimus_test::{click, press_at, press_key, release_at, send_mouse};
+use plurimus_core::{CellSize, CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_test::{character, click, move_to, press_at, press_key, release_at};
 use plurimus_ui::Checked;
 
 fn app() -> App {
@@ -107,14 +109,14 @@ fn a_slider_drags_and_steps_by_key() {
 
     press_at(&mut app, 2, 0);
     for x in 3..=12 {
-        send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), x, 0);
+        move_to(&mut app, x, 0);
     }
     release_at(&mut app, 12, 0);
     let hundredths =
         |app: &App| (app.world().get::<SliderValue>(slider).unwrap().0 * 100.0).round();
     assert_eq!(hundredths(&app), 5263.0, "ten cells of nineteen");
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(hundredths(&app), 5363.0);
 }
 
@@ -154,7 +156,7 @@ fn a_scrollbar_thumb_follows_the_offset_and_drags_it() {
 
     press_at(&mut app, 10, 0);
     for y in 1..=3 {
-        send_mouse(&mut app, MouseKind::Drag(MouseButton::Left), 10, y);
+        move_to(&mut app, 10, y);
     }
 
     assert_eq!(app.world().get::<ScrollPosition>(area).unwrap().y, 8.0);
@@ -189,8 +191,8 @@ fn a_list_box_selects_by_click_and_by_key() {
     assert_eq!(selected(&app), Some(1));
     assert_eq!(focus(&app), Some(list), "a press focuses the list");
 
-    press_key(&mut app, KeyCode::Down);
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::ArrowDown);
+    press_key(&mut app, Key::Enter);
     assert_eq!(selected(&app), Some(2));
 }
 
@@ -211,9 +213,9 @@ fn a_tab_list_selects_by_click_and_by_key() {
     assert_eq!(selected_tab(&app), Some(tab[1]));
     assert_eq!(focus(&app), Some(tab[1]), "a press focuses the tab");
 
-    press_key(&mut app, KeyCode::Right);
+    press_key(&mut app, Key::ArrowRight);
     assert_eq!(focus(&app), Some(tab[2]));
-    press_key(&mut app, KeyCode::Enter);
+    press_key(&mut app, Key::Enter);
     assert_eq!(selected_tab(&app), Some(tab[2]));
 }
 
@@ -238,7 +240,7 @@ fn a_radio_group_checks_by_click_and_by_key() {
     assert_eq!(checked(&app), Some(1));
     assert_eq!(focus(&app), Some(group), "a press focuses the group");
 
-    press_key(&mut app, KeyCode::Down);
+    press_key(&mut app, Key::ArrowDown);
     assert_eq!(checked(&app), Some(2));
 }
 
@@ -256,7 +258,7 @@ fn a_checkbox_toggles_by_click_and_by_key() {
     click(&mut app, 1, 0);
     assert!(app.world().get::<Checked>(checkbox).is_some());
 
-    press_key(&mut app, KeyCode::Char(' '));
+    press_key(&mut app, character(' '));
     assert!(app.world().get::<Checked>(checkbox).is_none());
 }
 
@@ -322,6 +324,35 @@ fn a_modal_dialog_focuses_its_last_field() {
     settle(&mut app);
 
     assert_eq!(focus(&app), Some(fields[1]));
+}
+
+/// Upstream keeps the pointer 16 px inside the primary window, so on 40 x 12
+/// cells of 8 x 16 the corner stops the dialog at 276, 168.
+#[test]
+fn a_dialog_drag_stops_inside_the_terminal() {
+    let mut app = app();
+    app.insert_resource(CellSize { x: 8.0, y: 16.0 });
+    let dialog = app
+        .world_mut()
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                flex_direction: FlexDirection::Column,
+                ..px(80.0, 32.0)
+            },
+            Dialog,
+        ))
+        .id();
+    children(&mut app, dialog, 1, || (px(80.0, 16.0), DialogDragHandle));
+    settle(&mut app);
+
+    press_at(&mut app, 2, 0);
+    move_to(&mut app, 3, 0);
+    move_to(&mut app, 38, 11);
+    release_at(&mut app, 38, 11);
+
+    let translation = app.world().get::<UiTransform>(dialog).unwrap().translation;
+    assert_eq!(translation, Val2::px(276.0, 168.0));
 }
 
 #[test]
@@ -432,6 +463,6 @@ fn a_menu_closes_from_outside_and_on_escape() {
         .insert(MenuFocusState::Opening(NavAction::First));
     app.update();
     assert_eq!(focus(&app), Some(item));
-    press_key(&mut app, KeyCode::Esc);
+    press_key(&mut app, Key::Escape);
     assert_eq!(closes(&app), 2);
 }
