@@ -22,6 +22,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     subtree are picked inside it - an overlay built of nodes works, and one
     drawn over nodes covers them - and nothing is picked outside it, where a
     press or a tick dismisses it.
+  - A dialog dragged by its `DialogDragHandle` stays on the terminal, since
+    upstream keeps the dragging pointer 16 px inside the window and the window
+    now has the terminal's size. That margin is sixteen cells at the one-pixel
+    `CellSize` default, so an app dragging dialogs names its cell.
   - `bevy_ui` nodes are picked, stacked and painted in `UiStack` order, so
     `ZIndex` and `GlobalZIndex` order both, and a root spawned later stands over
     an earlier one, as in a window.
@@ -50,7 +54,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   one. A tree sized for a window - `8 x 16` puts a 560 px card in 70 columns and
   a 16 px control in one row - lays out the same in the terminal once the cell
   is named; the camera mirror, layout, text measurement, decoration, picking,
-  `RemSize` and the 2d projection all follow it.
+  `RemSize`, the 2d projection and the virtual window all follow it.
 - **`examples/todo`**: one `bevy_ui` tree of upstream widgets tagged by `Part`,
   run in the terminal or, with `--desktop`, in a bevy window assembled from the
   granular crates. Each target skins the same tree - cells and box-drawing in
@@ -99,8 +103,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the image. `plurimus_core` re-exports `bevy_camera`. In an app with
   bevy_render installed, a terminal camera that is not also a `Camera3d` logs
   bevy_render's "no render graph" warning once at spawn, which no terminal build
-  has a subscriber for; a projected one, such as a 2d camera, is also sized by
-  bevy_render against the virtual window.
+  has a subscriber for; a projected one, such as a 2d camera, is sized by
+  bevy_render as well, against the virtual window, which has the terminal's
+  size, so the two agree.
 - **Breaking: a 2d view is bevy's `Camera2d`.** `plurimus_2d` draws for every
   terminal camera carrying `Camera2d`, projected through its
   `OrthographicProjection` by `Camera::world_to_viewport`: the camera's
@@ -256,10 +261,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Breaking: input is bevy's own messages.** A backend reports what its
   terminal said through `plurimus_term::TerminalInput`, and an app reads bevy's
   `KeyboardInput`, `MouseButtonInput`, `MouseWheel`, `CursorMoved` and
-  `WindowFocused`, written for the primary window - the one `TermPlugin` spawns
-  where the app opened none - as `bevy_winit` would write them, each also in the
-  ordered `WindowEvent` stream. `PasteMessage` and `TerminalResized` stay,
-  having no bevy counterpart.
+  `WindowFocused`, written for the primary window - where the app opened none,
+  the `VirtualWindow` `TermPlugin` spawns, kept at the terminal's size in
+  `CellSize` pixels with a `WindowResized` for each change - as `bevy_winit`
+  would write them, each also in the ordered `WindowEvent` stream.
+  `PasteMessage` and `TerminalResized` stay, having no bevy counterpart.
   - A key names bevy's `Key` and the `KeyCode` `physical_code` infers from it: a
     letter or digit is its own key whatever its case, a named key its namesake,
     a modifier its left side. `KeyboardInput::text` carries a character press.

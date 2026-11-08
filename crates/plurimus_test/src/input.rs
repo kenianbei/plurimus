@@ -4,9 +4,9 @@ use bevy_ecs::prelude::{In, With};
 use bevy_input::ButtonState;
 use bevy_input::keyboard::Key;
 use bevy_input_focus::{FocusCause, InputFocus};
-use bevy_window::{PrimaryWindow, Window};
+use bevy_window::PrimaryWindow;
 use plurimus_core::ratatui_core::layout::Position;
-use plurimus_term::{KeyModifiers, MouseButton, PasteMessage, TerminalInput};
+use plurimus_term::{KeyModifiers, MouseButton, PasteMessage, TerminalInput, VirtualWindow};
 
 /// The key a character is typed as.
 #[must_use]
@@ -33,7 +33,7 @@ fn window(app: &mut App) {
         .single(world)
         .is_err()
     {
-        world.spawn((Window::default(), PrimaryWindow));
+        world.spawn(VirtualWindow);
     }
 }
 

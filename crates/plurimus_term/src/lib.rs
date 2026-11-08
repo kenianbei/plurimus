@@ -29,7 +29,7 @@ pub use cursor::TerminalCursorStyle;
 pub use bevy_input;
 pub use bevy_input::ButtonInput;
 pub use bevy_input::mouse::MouseButton;
-pub use input::{InputSystems, PointerModifiers, TerminalInput};
+pub use input::{InputSystems, PointerModifiers, TerminalInput, VirtualWindow};
 pub use keyboard::{HeldModifiers, KeyModifiers, held_modifiers};
 pub use keymap::physical_code;
 pub use request::{ClipboardTarget, LastCopied, RequestSystems, TerminalRequest};
@@ -47,7 +47,7 @@ use bevy_app::{App, First, Last, Plugin, PreStartup, PreUpdate};
 use bevy_ecs::message::Message;
 use bevy_ecs::prelude::{IntoScheduleConfigs, Resource};
 use bevy_input::InputPlugin;
-use bevy_window::{CursorMoved, WindowEvent, WindowFocused};
+use bevy_window::{CursorMoved, WindowEvent, WindowFocused, WindowResized};
 use plurimus_core::CameraSystems;
 
 /// Text pasted into the terminal (bracketed paste).
@@ -115,9 +115,9 @@ impl Default for InputCapabilities {
     }
 }
 
-/// Registers the terminal messages, `bevy_input`'s polled state, the virtual
-/// window every message names, and the `PreUpdate` phases backends and
-/// consumers order against.
+/// Registers the terminal messages, `bevy_input`'s polled state, the
+/// [`VirtualWindow`] every message names where the app opened none, and the
+/// `PreUpdate` phases backends and consumers order against.
 ///
 /// Requires [`plurimus_core::CorePlugin`] to be added first: applying a
 /// resize writes core's `TerminalSize`.
@@ -143,6 +143,7 @@ impl Plugin for TermPlugin {
         app.add_message::<TerminalResized>();
         app.add_message::<WindowEvent>();
         app.add_message::<WindowFocused>();
+        app.add_message::<WindowResized>();
         app.add_message::<CursorMoved>();
         app.add_systems(PreStartup, input::spawn_virtual_window);
         add_schedule(app);
@@ -176,7 +177,9 @@ fn add_schedule(app: &mut App) {
         (
             // Into core's own set, so a resize reported this frame reaches
             // the cameras that resolve against it in the same frame.
-            resize::apply_terminal_resize.in_set(CameraSystems::SyncSize),
+            (resize::apply_terminal_resize, resize::size_virtual_window)
+                .chain()
+                .in_set(CameraSystems::SyncSize),
             // After bevy applies the frame's presses, so one pumped with the
             // focus loss is released too, and inside its set, so focus
             // dispatch reads the settled state.

@@ -90,7 +90,9 @@ a 2d camera projects against terminal viewports as against a window. A
 `Camera3d` renders to an image and is bevy_render's, sized from that image, so
 the two writers split every 3d camera off from its first frame; a projected
 terminal camera in an app that also installs bevy_render is written by both,
-bevy_render's sizing it against the virtual window. Core also owns the subcell
+bevy_render's sizing it against the primary window, which agrees where that
+window is the one `plurimus_term` lends. Core's mirror and that window take
+their pixels from one formula, `CellSize::pixels`. Core also owns the subcell
 raster primitives in `raster` (halfblock and braille grids, blits, color
 averaging, `ColorDepth` downsampling), and the widget primitive: a `UiWidget`
 placed by `UiArea`/`UiCamera`/`UiOrder` is extracted and drawn in one z-sorted
@@ -165,9 +167,12 @@ of the next frame, because bevy hit-tests once a frame at the pointer's final
 position and sends a click against that frame's maps - so a release lands at its
 own cell against the state the press left, the menu a press opened or the widget
 a press captured. Keys and focus flow. `TermPlugin` installs bevy's
-`InputPlugin` and `TimePlugin` where the app has not, spawns the virtual window
-where the app opened none, and requires `CorePlugin` first, since applying a
-resize writes core's `TerminalSize`.
+`InputPlugin` and `TimePlugin` where the app has not, and requires `CorePlugin`
+first, since applying a resize writes core's `TerminalSize`. Where the app
+opened no window it spawns a `VirtualWindow` and keeps it at that size in
+`CellSize` pixels, reporting each change as `bevy_winit` reports a resize, so
+whatever reads a window's size - an upstream dialog's drag, bevy_render's camera
+sizing - reads the terminal's; a window the app opened itself is never resized.
 
 Synthesis is the input no terminal sends. `InputCapabilities` records what the
 active backend can report - real key releases, and modifier keys as keys: the

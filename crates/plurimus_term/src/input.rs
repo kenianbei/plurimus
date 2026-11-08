@@ -8,7 +8,9 @@
 //! ordered [`WindowEvent`] stream.
 
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Commands, DetectChangesMut, Query, Res, ResMut, Resource, With, World};
+use bevy_ecs::prelude::{
+    Commands, Component, DetectChangesMut, Query, Res, ResMut, Resource, With, World,
+};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Local, Single, SystemParam};
 use bevy_input::ButtonState;
@@ -255,6 +257,14 @@ pub(crate) fn flush_pending(world: &mut World) {
     }
 }
 
+/// The primary window lent to an app that opened none, kept at the
+/// terminal's size in [`CellSize`] pixels so whatever reads a window's size
+/// reads the terminal's. A window an app opens itself carries none and is
+/// never resized.
+#[derive(Component, Debug, Default, Clone, Copy)]
+#[require(Window, PrimaryWindow)]
+pub struct VirtualWindow;
+
 // Every message names a window and the focus dispatch queries one, so an
 // app opening no window of its own is lent one; an app's own exists by
 // now, WindowPlugin spawning it on build.
@@ -263,7 +273,7 @@ pub(crate) fn spawn_virtual_window(
     mut commands: Commands,
 ) {
     if primary.is_empty() {
-        commands.spawn((Window::default(), PrimaryWindow));
+        commands.spawn(VirtualWindow);
     }
 }
 

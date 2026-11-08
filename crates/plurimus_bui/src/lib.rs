@@ -66,6 +66,11 @@ use plurimus_ui::UiPlugin;
 /// [`CellSize`] pixels per cell; the fontless `bevy_ui_widgets` plugins
 /// that drive nodes are installed by [`UiPlugin`], which this adds when
 /// absent.
+///
+/// Upstream's constants are window pixels, cells only through [`CellSize`]:
+/// a dialog drag keeps the pointer 16 px inside the window, sixteen cells at
+/// the one-pixel default, so a terminal under 32 cells in an axis cannot
+/// drag a dialog along it. An app dragging dialogs names its cell.
 pub struct BuiPlugin;
 
 impl Plugin for BuiPlugin {

@@ -20,7 +20,7 @@ use bevy_ecs::prelude::{
 };
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::SystemParam;
-use bevy_math::{UVec2, Vec2};
+use bevy_math::UVec2;
 use ratatui_core::layout::Rect;
 
 use crate::camera::{DefaultCamera, TerminalCamera};
@@ -123,8 +123,8 @@ pub(crate) fn resolve_camera_viewports(
     mut commands: Commands,
 ) {
     let screen = size.rect();
-    let cell = cell.vec();
-    let target = scale(size.cols, size.rows, cell);
+    let cell = *cell;
+    let target = cell.pixels(size.cols, size.rows);
     let mut ordered: Vec<_> = cameras.iter_mut().collect();
     ordered.sort_by_key(|(entity, _, camera, ..)| (camera.order, *entity));
     let mut remaining = screen;
@@ -166,7 +166,7 @@ fn sync_camera(
     projection: Option<Mut<Projection>>,
     rect: Rect,
     target: UVec2,
-    cell: Vec2,
+    cell: CellSize,
 ) {
     let mut changed = mirror_into_camera(camera.bypass_change_detection(), rect, target, cell);
     if let Some(mut projection) = projection
@@ -195,10 +195,6 @@ fn fit_projection(camera: &mut Camera, projection: &mut Projection) -> bool {
     projection.update(size.x, size.y);
     camera.computed.clip_from_view = projection.get_clip_from_view();
     true
-}
-
-fn scale(x: u16, y: u16, cell: Vec2) -> UVec2 {
-    (Vec2::new(f32::from(x), f32::from(y)) * cell).as_uvec2()
 }
 
 fn resolve_one(placement: TerminalCamera, screen: Rect, remaining: Rect, strip: Rect) -> Rect {
@@ -239,9 +235,9 @@ fn carve(remaining: &mut Rect, edge: Edge, cells: u16) -> Rect {
 
 /// Returns whether anything was written. Neither bevy type is `PartialEq`,
 /// so the comparison is by field.
-fn mirror_into_camera(camera: &mut Camera, rect: Rect, target: UVec2, cell: Vec2) -> bool {
-    let position = scale(rect.x, rect.y, cell);
-    let extent = scale(rect.width, rect.height, cell);
+fn mirror_into_camera(camera: &mut Camera, rect: Rect, target: UVec2, cell: CellSize) -> bool {
+    let position = cell.pixels(rect.x, rect.y);
+    let extent = cell.pixels(rect.width, rect.height);
     let viewport_differs = camera.viewport.as_ref().is_none_or(|viewport| {
         viewport.physical_position != position || viewport.physical_size != extent
     });

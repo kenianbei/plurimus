@@ -9,7 +9,7 @@
 
 use bevy_ecs::prelude::Resource;
 use bevy_extract::extract_resource::ExtractResource;
-use bevy_math::Vec2;
+use bevy_math::{UVec2, Vec2};
 use ratatui_core::layout::Rect;
 
 use crate::TerminalRenderApp;
@@ -78,5 +78,13 @@ impl CellSize {
     #[must_use]
     pub const fn vec(self) -> Vec2 {
         Vec2::new(self.x, self.y)
+    }
+
+    /// `x` by `y` cells in whole pixels, truncated: the one formula every
+    /// pixel size a terminal camera or window reports is taken from, so a
+    /// camera's target and the window it stands in agree exactly.
+    #[must_use]
+    pub fn pixels(self, x: u16, y: u16) -> UVec2 {
+        (Vec2::new(f32::from(x), f32::from(y)) * self.vec()).as_uvec2()
     }
 }

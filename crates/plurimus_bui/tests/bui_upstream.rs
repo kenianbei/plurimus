@@ -13,18 +13,20 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::{NavAction, TabIndex};
 use bevy_time::TimeUpdateStrategy;
 use bevy_ui::{
-    FixedNode, FlexDirection, Node, Overflow, PositionType, ScrollPosition, Selected, Val,
+    FixedNode, FlexDirection, Node, Overflow, PositionType, ScrollPosition, Selected, UiTransform,
+    Val, Val2,
 };
 use plurimus_bui::bevy_ui_widgets::popover::{Popover, PopoverPlacement, PopoverSide};
 use plurimus_bui::bevy_ui_widgets::{
-    Checkbox, ControlOrientation, ListBox, ListItem, MenuAction, MenuEvent, MenuFocusState,
-    MenuItem, MenuPopup, ModalDialog, RadioButton, RadioGroup, Scrollbar, ScrollbarThumb,
-    SelectedTab, Slider, SliderRange, SliderThumb, SliderValue, Tab, TabList, checkbox_self_update,
-    listbox_update_selection, radio_self_update, slider_self_update, tablist_self_update,
+    Checkbox, ControlOrientation, Dialog, DialogDragHandle, ListBox, ListItem, MenuAction,
+    MenuEvent, MenuFocusState, MenuItem, MenuPopup, ModalDialog, RadioButton, RadioGroup,
+    Scrollbar, ScrollbarThumb, SelectedTab, Slider, SliderRange, SliderThumb, SliderValue, Tab,
+    TabList, checkbox_self_update, listbox_update_selection, radio_self_update, slider_self_update,
+    tablist_self_update,
 };
 use plurimus_bui::{BuiPlugin, ComputedNodeRect};
 use plurimus_core::ratatui_core::layout::Rect;
-use plurimus_core::{CorePlugin, TerminalCamera, TerminalSize};
+use plurimus_core::{CellSize, CorePlugin, TerminalCamera, TerminalSize};
 use plurimus_test::{character, click, move_to, press_at, press_key, release_at};
 use plurimus_ui::Checked;
 
@@ -322,6 +324,35 @@ fn a_modal_dialog_focuses_its_last_field() {
     settle(&mut app);
 
     assert_eq!(focus(&app), Some(fields[1]));
+}
+
+/// Upstream keeps the pointer 16 px inside the primary window, so on 40 x 12
+/// cells of 8 x 16 the corner stops the dialog at 276, 168.
+#[test]
+fn a_dialog_drag_stops_inside_the_terminal() {
+    let mut app = app();
+    app.insert_resource(CellSize { x: 8.0, y: 16.0 });
+    let dialog = app
+        .world_mut()
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                flex_direction: FlexDirection::Column,
+                ..px(80.0, 32.0)
+            },
+            Dialog,
+        ))
+        .id();
+    children(&mut app, dialog, 1, || (px(80.0, 16.0), DialogDragHandle));
+    settle(&mut app);
+
+    press_at(&mut app, 2, 0);
+    move_to(&mut app, 3, 0);
+    move_to(&mut app, 38, 11);
+    release_at(&mut app, 38, 11);
+
+    let translation = app.world().get::<UiTransform>(dialog).unwrap().translation;
+    assert_eq!(translation, Val2::px(276.0, 168.0));
 }
 
 #[test]
