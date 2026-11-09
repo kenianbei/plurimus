@@ -38,17 +38,19 @@ app and reads its input. Anything not enabled is not compiled.
 
 The render sub-app, cameras, compositing, and the presenter. Always compiled.
 
-`TerminalCamera` carries an `order` (higher composites on top), a `Viewport`
-(`Full`, a `Fixed` cell rect, a `Docked` edge strip, or `Fill` for what
-remains), and a background. Entities carrying a `UiWidget` - any ratatui widget,
-including stateful ones - are placed by `UiArea`, ordered by `UiOrder`, and
-drawn every frame. The `TerminalSize` resource is the target's cell dimensions,
-so a resize is a value change layout systems react to - written by
-`plurimus_term` when a real terminal reports one, and by the app otherwise.
+A terminal camera is a bevy `Camera`, and `TerminalCamera` says where it sits in
+the cell grid: `Full`, a `Fixed` cell rect, a `Docked` edge strip, or `Fill` for
+what remains. Compositing order, activity, and what untouched cells become are
+`Camera`'s own `order`, `is_active`, and `clear_color`. Entities carrying a
+`UiWidget` - any ratatui widget, including stateful ones - are placed by
+`UiArea`, ordered by `UiOrder`, and drawn every frame. The `TerminalSize`
+resource is the target's cell dimensions, so a resize is a value change layout
+systems react to - written by `plurimus_term` when a real terminal reports one,
+and by the app otherwise.
 
 The presenter is generic over ratatui's `Backend`, so core renders without a
-terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_color`, and
-`ratatui-core`.
+terminal. Dependencies are `bevy_app`, `bevy_ecs`, `bevy_camera`,
+`bevy_extract`, `bevy_color`, `bevy_math`, and `ratatui-core`.
 
 ### Terminal (`plurimus_term`)
 
@@ -92,17 +94,18 @@ and an app's exit hands the page a `plurimus-exit` event to act on.
 
 ### UI (`plurimus_ui`)
 
-Interaction over any entity with an area. It computes widget areas, resolves
-hover with z-order hit testing, and routes pointer press, drag, release, click,
-and wheel events. Focus runs over `bevy_input_focus`, with a directional
-navigation map for arrow-key movement, scrolling through `ScrollArea` and
-`ScrollIntoView` - a wheel tick arriving as a `ScrollBy` an app's own key
-handler can send too - and the modal-overlay primitives menus and popovers are
-built from.
+Interaction over any entity with an area. It computes widget areas and is the
+`bevy_picking` backend for them, so hover, press, drag, release, and click are
+bevy's pointer events, and it routes wheel ticks itself, by z-order. Focus runs
+over `bevy_input_focus`, with a directional navigation map for arrow-key
+movement, scrolling through `ScrollArea` and `ScrollIntoView` - a wheel tick
+arriving as a `ScrollBy` an app's own key handler can send too - and the
+modal-overlay primitives menus and popovers are built from.
 
 Keys are bound as data: a `KeyBinding` is a `Key` and the modifiers it must be
 pressed under, and `first_bound` is the scan every bindings component shares, so
-a widget written outside this workspace remaps the same way the stock ones do.
+a widget written outside this workspace remaps the same way the table and the
+text widgets do.
 
 It also owns the styling contract a widget library builds on, rather than
 inventing its own: the `UiTheme` resource, `UiStyle` to patch one entity's
@@ -137,13 +140,15 @@ rewrite.
 ### `bevy_ui` Layout (`plurimus_bui`)
 
 `bevy_ui`'s layout stack - `Node` trees computed by taffy - run against terminal
-cameras at one pixel per cell, with backgrounds, borders, gradients, and text.
-Only layout runs: `bevy_ui`'s text, focus, picking, and asset systems stay out,
-and text is measured by grapheme width rather than font rasterization.
+cameras at `CellSize` pixels per cell, with backgrounds, borders, gradients, and
+text. Layout, stacking, and picking run; `bevy_ui`'s font, focus, and asset
+systems stay out, and text is measured by grapheme width rather than font
+rasterization.
 
 Use it instead of hand-computed `Rect`s for responsive panels and nested rows
 and columns. Nodes are picked by `bevy_picking` beside the widgets, so they
-hover, click, and scroll like them.
+hover, click, and scroll like them, and upstream `bevy_ui_widgets` - buttons,
+sliders, menus, the text field - run on a node tree unchanged.
 
 ### 2d Rendering (`plurimus_2d`)
 
@@ -161,7 +166,9 @@ A GPU camera read back and converted to cells. `Render3dPlugins` assembles a
 headless bevy render stack; the camera renders to an image, the pixels are read
 back, and a `Strategy3d` converts them - halfblock color, luminance ramps
 (ASCII, blocks, braille, shading), or depth ramps. Depth readback drives
-cross-camera occlusion and sobel edge overlays.
+cross-camera occlusion and sobel edge overlays. Set
+`CellSize { x: 1.0, y: 2.0 }` as in 2d: the projection and `Aspect3d`'s
+letterbox take the cell's shape from it.
 
 This is the only tier pulling in `bevy_render` and wgpu, and it needs a GPU
 adapter. Scene building stays with the app: plurimus stops at the render stack,
@@ -174,7 +181,7 @@ and the app adds its material system (`PbrPlugin`) and asset loading such as
 
 ```toml
 [dependencies]
-plurimus = "0.9"
+plurimus = "0.10"
 bevy_app = "0.20"
 bevy_ecs = "0.20"
 ratatui-widgets = "0.3"
@@ -290,12 +297,12 @@ In a browser the runner stops, restores the page title and dispatches
 
 Viewports compose: dock a status strip to the bottom, dock a sidebar to the
 left, and let the main view `Fill` the rest, and the three stay correct across
-resizes. A higher `order` composites a camera on top, which is how overlays and
-modal layers are built.
+resizes. A higher `Camera::order` composites a camera on top, which is how
+overlays and modal layers are built.
 
 Widgets drawn with default styling inherit whatever a 2d or 3d pipeline drew
 beneath them, so a HUD over a rendered world belongs on its own camera: a docked
-strip, or a transparent-background overlay.
+strip, or an overlay whose `clear_color` is `ClearColorConfig::None`.
 
 ### Testing headlessly
 
@@ -429,7 +436,7 @@ than crawl.
 
 | plurimus | bevy | ratatui-core |
 | -------- | ---- | ------------ |
-| 0.9      | 0.20 | 0.1          |
+| 0.10     | 0.20 | 0.1          |
 
 - **Rust 1.97.1** or newer, edition 2024.
 - **Bevy 0.20** for any bevy crates added alongside.
