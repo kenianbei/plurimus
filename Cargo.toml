@@ -54,6 +54,7 @@ bevy_reflect = "0.20"
 bevy_shader = "0.20"
 bevy_tasks = "0.20"
 bevy_gltf = "0.20"
+bevy_animation = "0.20"
 bevy_world_serialization = "0.20"
 bevy_winit = "0.20"
 bevy_ui_render = "0.20"
@@ -171,7 +172,9 @@ bevy_camera = { workspace = true }
 bevy_color = { workspace = true }
 bevy_core_pipeline = { workspace = true }
 bevy_ecs = { workspace = true }
-bevy_gltf = { workspace = true }
+# The animated_mesh example's skinned fox.
+bevy_animation = { workspace = true }
+bevy_gltf = { workspace = true, features = ["bevy_animation"] }
 bevy_image = { workspace = true, features = ["jpeg", "png"] }
 bevy_input = { workspace = true }
 bevy_light = { workspace = true }
@@ -245,6 +248,11 @@ test = true
 [[example]]
 name = "lander"
 required-features = ["widgets", "3d"]
+test = true
+
+[[example]]
+name = "animated_mesh"
+required-features = ["crossterm", "3d"]
 test = true
 
 [lints]

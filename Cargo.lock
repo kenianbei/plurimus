@@ -444,6 +444,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_animation"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eeb07a161a4667469dbd515fccfe89cc5be15f0a6650fa8764179e41b460e0c0"
+dependencies = [
+ "bevy_animation_macros",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_color",
+ "bevy_curve",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_mesh",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_time",
+ "bevy_transform",
+ "bevy_utils",
+ "bitvec",
+ "blake3",
+ "derive_more",
+ "downcast-rs",
+ "either",
+ "petgraph",
+ "ron",
+ "serde",
+ "smallvec",
+ "thiserror 2.0.21",
+ "thread_local",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "bevy_animation_macros"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f227e40a03bff5f480feb03f571638272a859d4905fb0b7c0477f4bf4b5a95a6"
+dependencies = [
+ "bevy_macro_utils",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "bevy_app"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -753,6 +799,7 @@ checksum = "704ec362cc84b5e55e894cbf7500926728ae78aa465da576586185b2f1dce76e"
 dependencies = [
  "async-lock",
  "base64 0.23.1",
+ "bevy_animation",
  "bevy_app",
  "bevy_asset",
  "bevy_camera",
@@ -1062,7 +1109,7 @@ checksum = "9c1280bc12c975ddb041b8341b005415024994477479861ea4490b9b7f9f6185"
 dependencies = [
  "bytemuck",
  "critical-section",
- "foldhash",
+ "foldhash 0.2.0",
  "futures-channel",
  "futures-lite",
  "hashbrown 0.16.1",
@@ -1098,10 +1145,11 @@ dependencies = [
  "disqualified",
  "downcast-rs",
  "erased-serde",
- "foldhash",
+ "foldhash 0.2.0",
  "glam",
  "indexmap",
  "inventory",
+ "petgraph",
  "serde",
  "smallvec",
  "smol_str",
@@ -2258,6 +2306,12 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "foldhash"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+
+[[package]]
+name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
@@ -2530,13 +2584,22 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
+version = "0.15.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
+dependencies = [
+ "foldhash 0.1.5",
+]
+
+[[package]]
+name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.2.0",
  "serde",
  "serde_core",
 ]
@@ -2549,7 +2612,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.2.0",
 ]
 
 [[package]]
@@ -3734,6 +3797,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "petgraph"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
+dependencies = [
+ "fixedbitset",
+ "hashbrown 0.15.5",
+ "indexmap",
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3787,6 +3863,7 @@ name = "plurimus"
 version = "0.10.1"
 dependencies = [
  "bevy_a11y",
+ "bevy_animation",
  "bevy_app",
  "bevy_asset",
  "bevy_camera",
