@@ -70,8 +70,8 @@ fn add_scene(app: &mut App) {
         },
         Render3dPlugins,
     ));
-    // The order lander documents: the glTF handler registry before
-    // PbrPlugin, glTF loading after the render stack.
+    // PbrPlugin's build registers a glTF material handler, so the registry
+    // comes first; GltfPlugin's finish reads RenderPlugin's, so it follows.
     app.init_resource::<GltfExtensionHandlers>();
     app.add_plugins(PbrPlugin::default());
     app.add_plugins((
@@ -168,9 +168,7 @@ fn setup_camera_and_environment(
     commands.spawn((
         Camera3d::default(),
         Transform::from_translation(CAMERA_POSITION).looking_at(ORBIT_TARGET, Vec3::Y),
-        // What the terminal adds: the view fills the terminal, the readback
-        // starts as halfblocks, depth is read back for the depth edges, and
-        // the camera orbits from upstream's position.
+        // Beyond upstream: DepthReadback feeds the depth-sourced edge modes.
         Orbit::from_offset(CAMERA_POSITION - ORBIT_TARGET),
         TerminalCamera::Fill,
         Strategy3d::default(),
