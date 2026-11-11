@@ -420,7 +420,11 @@ normal, focused patched over the winner - and `UiStyle` and `StylistDisabled`
 are the two escapes from it. `UiTheme::caret` and `UiTheme::selection` are the
 terms `resolve` does not answer, a caret or a selection a widget draws into its
 own cells being a thing inside the widget rather than a state the widget is in;
-whoever draws one patches it over the characters it covers. Beside that
+whoever draws one patches it over the characters it covers. `UiTheme::overflow`
+is the third such term: what text wider than its room becomes, clipped or ended
+in an ellipsis, applied through `TextOverflow::fit` - the one cut by display
+width and whole grapheme clusters every stock cell widget makes, and the one a
+widget family outside the workspace calls to cut the same way. Beside that
 vocabulary sits the engine that consumes it: `StylistCache` records what a
 widget last drew and `StylistCache::redraws` is the compare-and-swap every
 stylist gates on, so a theme swap, an edited label, or a dirtied container
@@ -555,10 +559,13 @@ borders draw closed.
 A stylist rebuilds a widget's `UiWidget` from `plurimus_ui`'s `UiTheme` when the
 state it last drew differs from the current one, or when its label changed, not
 every frame, and they run in the `WidgetSystems::Style` set an app orders its
-own against. Only the stylists themselves are the crate's: the cache they gate
-on, the state they read, the label they draw, and the theme vocabulary the app
-speaks all belong to `plurimus_ui`, which is what lets a widget family outside
-this workspace be written against the same engine. `StylistDisabled` exempts an
+own against. A one-row label is the exception, its stylist not knowing the rect
+it will be drawn into: it is cut against that rect as it is drawn, where a list
+row or a table cell is cut when it restyles, a row's label before its trailing
+text. Only the stylists themselves are the crate's: the cache they gate on, the
+state they read, the label they draw, and the theme vocabulary the app speaks
+all belong to `plurimus_ui`, which is what lets a widget family outside this
+workspace be written against the same engine. `StylistDisabled` exempts an
 entity so an app takes its look while keeping its behavior, and `UiStyle`
 patches over the style an entity would otherwise resolve to, on a widget or on
 one list or table row.
@@ -640,10 +647,11 @@ rather than an entity, so nothing can be a child of one and
 `TableGeometry::cell_rect` publishes where a cell is instead - a host floating a
 field over that rect is how a cell is edited in place. It and the click router
 resolve against one column solve, taken from the table's current state rather
-than from what was last drawn, so the two agree whoever moved the cursor; and it
-is why an unstated `TableColumns` is divided by this crate rather than by
-ratatui, whose identical rule would answer to its own render area and so could
-drift from the geometry that has been published.
+than from what was last drawn, so the two agree whoever moved the cursor - and
+the stylist cuts each cell to the same solve, so a cut cell is the rect it is
+published at; and it is why an unstated `TableColumns` is divided by this crate
+rather than by ratatui, whose identical rule would answer to its own render area
+and so could drift from the geometry that has been published.
 
 Re-exports `ratatui_widgets`, `ratatui_textarea`, `bevy_input_focus`, and
 `bevy_input`'s `Key`.
