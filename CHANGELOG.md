@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`examples/animated_mesh`**, bevy's own `animation/animated_mesh` showcase
+  ported to the terminal: the skinned glTF fox on its run cycle, drawn through
+  the 3d readback pipeline. Upstream's setup and ready observer are kept by name
+  and body, so the file reads beside bevy's; the fox model ships with its CC0
+  and CC BY 4.0 credits. `t` cycles the cell strategy and `e` toggles the
+  luminance edge overlay. The camera orbits the fox by itself until space stops
+  it; arrows or a left drag turn it and the wheel zooms. Runs with
+  `--features 3d`.
+- **The README opens on a 2d/3d pair**: the `pong` recording beside a recording
+  of the fox.
+
 ## [0.10.1] - 2026-11-10
 
 ### Added
