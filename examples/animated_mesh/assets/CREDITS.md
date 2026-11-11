@@ -2,7 +2,8 @@
 
 `Fox.glb` is copied unchanged from bevy's
 [`assets/models/animated/Fox.glb`](https://github.com/bevyengine/bevy/blob/v0.20.0/assets/models/animated/Fox.glb),
-itself the [Fox](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox)
+itself the
+[Fox](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox)
 from the Khronos glTF Sample Assets.
 
 - Low poly fox mesh by
