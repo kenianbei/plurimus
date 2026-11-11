@@ -53,7 +53,7 @@ pub struct Score {
 struct ScoreLine;
 
 /// Present when both paddles play themselves, for recording.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct Demo;
 
 #[derive(Resource)]
@@ -156,7 +156,7 @@ fn move_paddles(
 // flattens into a horizontal line.
 fn track_ball(
     time: Res<Time>,
-    balls: Query<(&Ball, &Transform), Without<Paddle>>,
+    balls: Query<(&Ball, &Transform)>,
     mut paddles: Query<&mut Transform, (With<Paddle>, Without<Ball>)>,
 ) {
     let Ok((ball, ball_transform)) = balls.single() else {

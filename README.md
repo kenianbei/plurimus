@@ -36,8 +36,7 @@ Each feature enables one crate, and the tiers stack.
 | `3d`        | `plurimus_3d`        | GPU camera readback                 |
 
 `crossterm`, `web`, and `ui` imply `term`; `widgets` and `bevy-ui` imply `ui`.
-The default is `crossterm`; `default-features = false` leaves core alone,
-rendering into your own `Backend`.
+The default is `crossterm`; `default-features = false` builds core only.
 
 ## Quick start
 
@@ -50,9 +49,9 @@ ratatui-widgets = "0.3"
 ```
 
 Add whichever bevy crates you use at 0.20 and cargo unifies them with
-plurimus's. What plurimus's own contracts are written in is re-exported:
-`ratatui_core` from core, `bevy_input` from `term`, `bevy_input_focus` and `Key`
-from `ui`, and `ratatui_widgets` from `widgets`.
+plurimus's. Plurimus re-exports the crates its API uses: `ratatui_core` from
+core, `bevy_input` from `term`, `bevy_input_focus` and `Key` from `ui`, and
+`ratatui_widgets` from `widgets`.
 
 ```rust,no_run
 use std::time::Duration;
@@ -144,10 +143,8 @@ python -m http.server -d examples
 ```
 
 Swap in the example's name and features, and open its directory under the
-server - ratman and the lander are also linked from the landing page, as on the
-[live demos][Demos]. The lander needs hardware WebGPU: Chrome on Linux falls
-back to software unless started with
-`--enable-unsafe-webgpu --enable-features=Vulkan`.
+server. The lander needs hardware WebGPU: Chrome on Linux falls back to software
+unless started with `--enable-unsafe-webgpu --enable-features=Vulkan`.
 
 ## Requirements
 

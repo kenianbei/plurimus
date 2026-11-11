@@ -27,7 +27,7 @@ fn main() -> AppExit {
     ));
     game::add_game(&mut app);
     if std::env::args().any(|arg| arg == DEMO_FLAG) {
-        app.init_resource::<game::Demo>();
+        app.insert_resource(game::Demo);
     }
     app.run()
 }
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn demo_paddles_keep_the_rally_going() {
         let mut app = headless_app();
-        app.init_resource::<Demo>();
+        app.insert_resource(Demo);
 
         for _ in 0..400 {
             app.update();
