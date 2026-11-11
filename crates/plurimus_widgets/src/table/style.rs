@@ -122,7 +122,6 @@ struct Bands {
     cursor: Option<usize>,
 }
 
-// The solved columns each cell is cut to, by the theme's rule.
 struct CellFit {
     columns: Rc<[Rect]>,
     overflow: TextOverflow,
@@ -206,8 +205,10 @@ pub(crate) fn style_tables(
         let active_row = active.and_then(|active| active.0);
         let widths = resolved_widths(columns, || widest_row(children, &rows), width);
         let gutter = selection.map_or(0, |selection| cursor_gutter(*selection, active_row, symbol));
-        let fit = CellFit::solve((area, layout, scroll), &widths, gutter, theme.overflow);
-        let bands = bands(children, &rows, (&styles, &fit), active_row);
+        // Under `Clip` nothing is cut, so the columns need no solving here.
+        let fit = (theme.overflow != TextOverflow::Clip)
+            .then(|| CellFit::solve((area, layout, scroll), &widths, gutter, theme.overflow));
+        let bands = bands(children, &rows, (&styles, fit.as_ref()), active_row);
         let chrome = Chrome {
             widths,
             layout: layout.copied().unwrap_or_default(),
@@ -230,7 +231,7 @@ pub(crate) fn style_tables(
 fn bands(
     children: &Children,
     rows: &TableRows,
-    (styles, fit): (&RowStyles, &CellFit),
+    (styles, fit): (&RowStyles, Option<&CellFit>),
     active: Option<Entity>,
 ) -> Bands {
     let mut bands = Bands::default();
@@ -273,8 +274,11 @@ fn widest_row(children: &Children, rows: &TableRows) -> usize {
 }
 
 // A cell past the solved columns is not drawn, so it has no width to fit.
-fn row_widget(cells: &TableRow, style: Style, fit: &CellFit) -> Row<'static> {
+fn row_widget(cells: &TableRow, style: Style, fit: Option<&CellFit>) -> Row<'static> {
     let fitted = cells.0.iter().enumerate().map(|(index, cell)| {
+        let Some(fit) = fit else {
+            return Cell::from(cell.clone());
+        };
         let width = fit
             .columns
             .get(index)

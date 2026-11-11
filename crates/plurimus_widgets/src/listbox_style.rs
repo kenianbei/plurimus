@@ -77,7 +77,6 @@ const CHECKED_MARKER: &str = "▪ ";
 const MARKER_WIDTH: u16 = 2;
 const UNCHECKED_MARKER: &str = "  ";
 
-// What keeps a label from running into its trailing text.
 const MIN_GAP: u16 = 1;
 
 type RowItems<'w, 's> = Query<
@@ -107,6 +106,12 @@ struct RowStyles {
     every: Style,
     cursor: Style,
     stripe: Option<Style>,
+}
+
+#[derive(Clone, Copy)]
+struct RowFit {
+    width: u16,
+    overflow: TextOverflow,
 }
 
 struct Gutters {
@@ -160,7 +165,10 @@ pub(crate) fn style_listboxes(
             marker,
             cursor: cursor_symbol(cursor.map(|cursor| &cursor.0)),
         };
-        let fit = (width, theme.overflow);
+        let fit = RowFit {
+            width,
+            overflow: theme.overflow,
+        };
         *widget = list_widget((children, &items), active.0, (gutters, fit), styles);
     }
 }
@@ -192,7 +200,7 @@ fn cursor_width(over: Option<&ListBoxCursor>) -> u16 {
 fn list_widget(
     (children, items): (&Children, &RowItems),
     active: Option<Entity>,
-    (gutters, fit): (Gutters, (u16, TextOverflow)),
+    (gutters, fit): (Gutters, RowFit),
     styles: RowStyles,
 ) -> UiWidget {
     let mut rows = Vec::new();
@@ -234,7 +242,7 @@ fn list_widget(
 fn aligned_line(
     label: &Line<'static>,
     trailing: &Line<'static>,
-    (width, overflow): (u16, TextOverflow),
+    RowFit { width, overflow }: RowFit,
 ) -> Line<'static> {
     let trailing_width = u16::try_from(trailing.width()).unwrap_or(u16::MAX);
     let room = width.saturating_sub(trailing_width.saturating_add(MIN_GAP));
@@ -249,10 +257,7 @@ fn aligned_line(
     aligned
 }
 
-fn list_row(
-    content: &RowContent,
-    (marker, (width, overflow)): (bool, (u16, TextOverflow)),
-) -> ListRow<'static> {
+fn list_row(content: &RowContent, (marker, fit): (bool, RowFit)) -> ListRow<'static> {
     let mark = if content.lit {
         CHECKED_MARKER
     } else {
@@ -266,7 +271,7 @@ fn list_row(
     let first = content
         .trailing
         .zip(source.first())
-        .map(|(trailing, line)| aligned_line(line, &trailing.0, (width, overflow)));
+        .map(|(trailing, line)| aligned_line(line, &trailing.0, fit));
     // Ratatui blanks the cursor gutter below a row's first line; the
     // marker column is ours, so its continuation blanks are drawn here.
     let mut drawn = Text::from(
@@ -276,7 +281,7 @@ fn list_row(
             .map(|(index, line)| {
                 let line = match first.as_ref().filter(|_| index == 0) {
                     Some(aligned) => Cow::Borrowed(aligned),
-                    None => overflow.fit(line, width),
+                    None => fit.overflow.fit(line, fit.width),
                 };
                 match (marker, index) {
                     (false, _) => line.into_owned(),
