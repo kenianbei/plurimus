@@ -13,6 +13,7 @@ use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::symbols::line;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::ratatui_core::widgets::Widget;
+use plurimus_ui::TextOverflow;
 use ratatui_widgets::block::{Block, Padding};
 use ratatui_widgets::borders::BorderType;
 
@@ -46,6 +47,7 @@ pub(crate) struct Boxed {
     pub(crate) style: Style,
     pub(crate) joint: Option<Joint>,
     pub(crate) active: bool,
+    pub(crate) overflow: TextOverflow,
 }
 
 impl Widget for &Boxed {
@@ -59,7 +61,11 @@ impl Widget for &Boxed {
             ..block.inner(area)
         };
         Widget::render(block, area, buffer);
-        Widget::render(&self.label, label, buffer);
+        Widget::render(
+            self.overflow.fit(&self.label, label.width).as_ref(),
+            label,
+            buffer,
+        );
         if let Some(joint) = self.joint {
             join(area, joint, self.active, self.style, buffer);
         }

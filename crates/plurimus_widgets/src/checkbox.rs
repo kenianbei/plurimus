@@ -13,12 +13,12 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::bevy_ui_widgets::Checkbox;
-use ratatui_widgets::paragraph::Paragraph;
 
+use crate::fitted::{FittedLabel, LabelFrame};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
-use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
+use plurimus_ui::{LabeledQuery, StylistCache, restyle};
 
 /// Spawn bundle for a standard checkbox: a tab stop emitting
 /// [`ValueChange<bool>`](plurimus_ui::ValueChange).
@@ -49,7 +49,11 @@ pub(crate) fn style_checkboxes(
         &mut boxes,
         |state, label, style| {
             let mark = if state.checked() { "[x] " } else { "[ ] " };
-            UiWidget::new(Paragraph::new(decorate(mark, label, "")).style(style))
+            let frame = LabelFrame {
+                prefix: mark,
+                ..LabelFrame::PLAIN
+            };
+            UiWidget::new(FittedLabel::new(label, style, frame, theme.overflow))
         },
     );
 }

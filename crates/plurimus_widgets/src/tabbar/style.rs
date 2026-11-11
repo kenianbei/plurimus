@@ -16,16 +16,18 @@ use plurimus_core::ratatui_core::layout::Rect;
 use plurimus_core::ratatui_core::style::Style;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::ratatui_core::widgets::Widget;
-use ratatui_widgets::block::{Block, Padding};
-use ratatui_widgets::paragraph::Paragraph;
+use ratatui_widgets::block::Block;
 
 use super::boxed::{Boxed, Joint};
 use super::{TabBar, TabBarActiveStyle, TabBarLook};
+use crate::fitted::{FittedLabel, LabelFrame};
 use crate::rows::ContentDirty;
 use plurimus_core::UiWidget;
 use plurimus_ui::bevy_ui_widgets::{ControlOrientation, Tab, TabList};
 use plurimus_ui::{ComputedDisabled, ComputedWidgetArea, Selected, UiLabel, UiStyle, UiTheme};
-use plurimus_ui::{Hovered, InteractionState, Pressed, Stylable, StylistCache, observed};
+use plurimus_ui::{
+    Hovered, InteractionState, Pressed, Stylable, StylistCache, TextOverflow, observed,
+};
 
 pub(crate) type TabItemsChanged = Changed<ComputedWidgetArea>;
 
@@ -208,7 +210,14 @@ pub(crate) fn style_tab_items(
             continue;
         }
         let style = item_style(next, active.0, over, &theme);
-        *widget = item_widget(&look, list.orientation, &label.0, style, selected);
+        let overflow = theme.overflow;
+        *widget = item_widget(
+            &look,
+            list.orientation,
+            &label.0,
+            (style, overflow),
+            selected,
+        );
     }
 }
 
@@ -226,22 +235,23 @@ fn item_widget(
     look: &TabBarLook,
     orientation: ControlOrientation,
     label: &Line<'static>,
-    style: Style,
+    (style, overflow): (Style, TextOverflow),
     active: bool,
 ) -> UiWidget {
-    match look.border {
-        Some(border) => UiWidget::new(Boxed {
-            label: label.clone().style(style),
-            border,
+    let Some(border) = look.border else {
+        let frame = LabelFrame {
             padding: look.padding,
-            style,
-            joint: look.joint(orientation),
-            active,
-        }),
-        None => UiWidget::new(
-            Paragraph::new(label.clone())
-                .style(style)
-                .block(Block::new().padding(Padding::horizontal(look.padding))),
-        ),
-    }
+            ..LabelFrame::PLAIN
+        };
+        return UiWidget::new(FittedLabel::new(label, style, frame, overflow));
+    };
+    UiWidget::new(Boxed {
+        label: label.clone().style(style),
+        border,
+        padding: look.padding,
+        style,
+        joint: look.joint(orientation),
+        active,
+        overflow,
+    })
 }

@@ -13,6 +13,7 @@
 
 mod button;
 mod checkbox;
+mod fitted;
 mod listbox;
 mod listbox_style;
 mod menu;

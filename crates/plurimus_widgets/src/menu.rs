@@ -26,15 +26,15 @@ use plurimus_core::ratatui_core::text::Line;
 use plurimus_core::ratatui_core::widgets::Widget;
 use ratatui_widgets::block::Block;
 use ratatui_widgets::clear::Clear;
-use ratatui_widgets::paragraph::Paragraph;
 
+use crate::fitted::{FittedLabel, LabelFrame};
 use crate::popover::Popover;
 use plurimus_core::{Hidden, Propagate, UiOrder, UiWidget};
 use plurimus_ui::bevy_ui_widgets::{
     MenuAction, MenuButton, MenuEvent, MenuFocusState, MenuItem, MenuPopup,
 };
 use plurimus_ui::{Hovered, PressFocusDisabled, UiLabel, UiStyle, UiTheme, WheelReceptive};
-use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, decorate, restyle};
+use plurimus_ui::{InteractionState, LabeledQuery, Stylable, StylistCache, restyle};
 
 /// Items render above the popup frame.
 const ITEM_ORDER: UiOrder = UiOrder(UiOrder::OVERLAY.0 + 1);
@@ -136,7 +136,14 @@ pub(crate) fn style_menu_items(
         theme.is_changed(),
         &focus,
         &mut items,
-        |_, label, style| UiWidget::new(Paragraph::new(decorate(" ", label, " ")).style(style)),
+        |_, label, style| {
+            let frame = LabelFrame {
+                prefix: " ",
+                suffix: " ",
+                ..LabelFrame::PLAIN
+            };
+            UiWidget::new(FittedLabel::new(label, style, frame, theme.overflow))
+        },
     );
 }
 
