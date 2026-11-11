@@ -116,3 +116,17 @@ fn a_boxed_vertical_tab_is_cut_inside_its_box() {
         .spawn((tab_item("Planning ahead"), ChildOf(bar)));
     assert_eq!(rows(&mut app)[1], "│ Pla… │");
 }
+
+#[test]
+fn an_unboxed_tab_is_cut_inside_its_padding() {
+    let mut app = app(8, 1, ELLIPSIS);
+    let list = TabList {
+        orientation: ControlOrientation::Vertical,
+        ..TabList::default()
+    };
+    let look = TabBarLook::default().with_padding(1);
+    let bar = spawn_at(&mut app, Rect::new(0, 0, 8, 1), (tab_bar(), list, look));
+    app.world_mut()
+        .spawn((tab_item("Planning ahead"), ChildOf(bar)));
+    assert_eq!(rows(&mut app), [" Plann… "]);
+}
