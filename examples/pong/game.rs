@@ -1,8 +1,8 @@
 use bevy_app::{App, AppExit, FixedUpdate, Startup, Update};
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::prelude::{
-    ChildOf, Commands, Component, MessageReader, MessageWriter, Query, Res, ResMut, Resource, With,
-    Without,
+    ChildOf, Commands, Component, IntoScheduleConfigs, MessageReader, MessageWriter, Query, Res,
+    ResMut, Resource, With, Without, resource_exists,
 };
 use bevy_math::Vec2;
 use bevy_time::{Time, Timer, TimerMode};
@@ -23,6 +23,9 @@ const WALL_CELL_WIDTH: f32 = 1.0;
 pub const CELL_HEIGHT: f32 = 2.0;
 const PADDLE_X: f32 = 35.0;
 const PADDLE_HALF_HEIGHT: f32 = 4.0;
+const PADDLE_LIMIT: f32 = COURT_HALF_HEIGHT - PADDLE_HALF_HEIGHT - CELL_HEIGHT / 2.0;
+const DEMO_PADDLE_SPEED: f32 = 24.0;
+const DEMO_AIM: f32 = 0.5;
 const BALL_SPEED: f32 = 32.0;
 const MAX_DEFLECTION: f32 = 0.8;
 const SERVE_RISE: f32 = 0.35;
@@ -49,6 +52,10 @@ pub struct Score {
 #[derive(Component)]
 struct ScoreLine;
 
+/// Present when both paddles play themselves, for recording.
+#[derive(Resource, Default)]
+pub struct Demo;
+
 #[derive(Resource)]
 struct ServeDelay(Timer);
 
@@ -66,7 +73,14 @@ pub fn add_game(app: &mut App) {
     app.init_resource::<Score>();
     app.init_resource::<ServeDelay>();
     app.add_systems(Startup, spawn_scene);
-    app.add_systems(FixedUpdate, (auto_serve, move_ball));
+    app.add_systems(
+        FixedUpdate,
+        (
+            auto_serve,
+            track_ball.run_if(resource_exists::<Demo>),
+            move_ball,
+        ),
+    );
     app.add_systems(Update, (move_paddles, handle_keys, update_score_line));
 }
 
@@ -132,9 +146,28 @@ fn move_paddles(
             } else {
                 continue;
             };
-            let limit = COURT_HALF_HEIGHT - PADDLE_HALF_HEIGHT - CELL_HEIGHT / 2.0;
-            transform.translation.y = (transform.translation.y + step).clamp(-limit, limit);
+            transform.translation.y =
+                (transform.translation.y + step).clamp(-PADDLE_LIMIT, PADDLE_LIMIT);
         }
+    }
+}
+
+// Leading the ball by part of a paddle keeps contact off-centre, so no rally
+// flattens into a horizontal line.
+fn track_ball(
+    time: Res<Time>,
+    balls: Query<(&Ball, &Transform), Without<Paddle>>,
+    mut paddles: Query<&mut Transform, (With<Paddle>, Without<Ball>)>,
+) {
+    let Ok((ball, ball_transform)) = balls.single() else {
+        return;
+    };
+    let lead = DEMO_AIM * PADDLE_HALF_HEIGHT * ball.velocity.y.signum();
+    let target = (ball_transform.translation.y - lead).clamp(-PADDLE_LIMIT, PADDLE_LIMIT);
+    let max_step = DEMO_PADDLE_SPEED * time.delta_secs();
+    for mut transform in &mut paddles {
+        let y = transform.translation.y;
+        transform.translation.y = y + (target - y).clamp(-max_step, max_step);
     }
 }
 
