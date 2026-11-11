@@ -16,12 +16,10 @@ use bevy_input_focus::InputFocus;
 use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::bevy_ui_widgets::{RadioButton, RadioGroup};
-use ratatui_widgets::paragraph::Paragraph;
 
+use crate::fitted::{FittedLabel, LabelFrame};
 use plurimus_core::UiWidget;
-use plurimus_ui::{
-    Hovered, StateQuery, Stylable, StylistCache, UiLabel, UiTheme, decorate, observed,
-};
+use plurimus_ui::{Hovered, StateQuery, Stylable, StylistCache, UiLabel, UiTheme, observed};
 
 /// Spawn bundle for a radio option; parent it to a [`radio_group`]
 /// directly, since the group's updater and its focus display both read the
@@ -70,7 +68,11 @@ pub(crate) fn style_radios(theme: Res<UiTheme>, focus: Res<InputFocus>, mut radi
             continue;
         }
         let mark = if shown.checked() { "(•) " } else { "( ) " };
-        *widget =
-            UiWidget::new(Paragraph::new(decorate(mark, &label.0, "")).style(shown.style(&theme)));
+        let frame = LabelFrame {
+            prefix: mark,
+            ..LabelFrame::PLAIN
+        };
+        let style = shown.style(&theme);
+        *widget = UiWidget::new(FittedLabel::new(&label.0, style, frame, theme.overflow));
     }
 }

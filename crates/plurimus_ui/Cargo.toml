@@ -27,6 +27,7 @@ plurimus_core = { workspace = true }
 plurimus_term = { workspace = true }
 tui-scrollview = { workspace = true }
 unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
 
 [dev-dependencies]
 insta = "1"

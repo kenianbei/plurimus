@@ -6,6 +6,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Cut text can end in an ellipsis.** `UiTheme::overflow` takes a
+  `TextOverflow`: `Clip`, the default and what every widget drew before, or
+  `Ellipsis`, which ends text too wide for its room in a string of the app's
+  choosing, `"…"` or `"..."`. The stock cell widgets all apply it - buttons,
+  checkboxes, radio options, menu rows, tabs, pane titles, list rows and table
+  cells, headers and footers included.
+  - A cut never splits a wide glyph or a grapheme cluster, keeps each span's
+    style, and gives the ellipsis the style of the span it cut. A line too
+    narrow for the ellipsis itself clips as before.
+  - A button, checkbox or radio keeps its decoration, so a narrow button still
+    ends in `]`. A list row with `ListItemTrailing` cuts its label and keeps the
+    trailing text whole, and every line of a `ListItemText` is cut to the row. A
+    table cell is cut to the column `TableGeometry::cell_rect` reports.
+  - `TextOverflow::fit` is the rule itself, public so a widget family outside
+    the workspace cuts the same way. Text fields and editors scroll to their
+    caret rather than cut, and `bevy_ui` text nodes keep clipping, bevy having
+    no ellipsis for a window to match.
+
 ### Changed
 
 - **An app can take over arrow-key navigation.** Adding bevy's

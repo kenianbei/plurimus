@@ -9,6 +9,7 @@
 //! [`ContentDirty`](crate::rows::ContentDirty) for its rows'.
 
 use core::slice;
+use std::borrow::Cow;
 
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
@@ -30,7 +31,7 @@ use crate::rows::{ContentDirty, mark_cleared, mark_dirty_content};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::bevy_ui_widgets::{ListBox, ListItem};
-use plurimus_ui::{ComputedWidgetArea, ScrollArea, Selected, UiStyle, UiTheme};
+use plurimus_ui::{ComputedWidgetArea, ScrollArea, Selected, TextOverflow, UiStyle, UiTheme};
 use plurimus_ui::{StateQuery, Stylable, StylistCache, decorate, hashed_bits, observed};
 
 // `ListItem` catches a child that becomes a row without its label
@@ -76,6 +77,8 @@ const CHECKED_MARKER: &str = "▪ ";
 const MARKER_WIDTH: u16 = 2;
 const UNCHECKED_MARKER: &str = "  ";
 
+const MIN_GAP: u16 = 1;
+
 type RowItems<'w, 's> = Query<
     'w,
     's,
@@ -103,6 +106,12 @@ struct RowStyles {
     every: Style,
     cursor: Style,
     stripe: Option<Style>,
+}
+
+#[derive(Clone, Copy)]
+struct RowFit {
+    width: u16,
+    overflow: TextOverflow,
 }
 
 struct Gutters {
@@ -156,7 +165,11 @@ pub(crate) fn style_listboxes(
             marker,
             cursor: cursor_symbol(cursor.map(|cursor| &cursor.0)),
         };
-        *widget = list_widget((children, &items), active.0, (gutters, width), styles);
+        let fit = RowFit {
+            width,
+            overflow: theme.overflow,
+        };
+        *widget = list_widget((children, &items), active.0, (gutters, fit), styles);
     }
 }
 
@@ -187,7 +200,7 @@ fn cursor_width(over: Option<&ListBoxCursor>) -> u16 {
 fn list_widget(
     (children, items): (&Children, &RowItems),
     active: Option<Entity>,
-    (gutters, width): (Gutters, u16),
+    (gutters, fit): (Gutters, RowFit),
     styles: RowStyles,
 ) -> UiWidget {
     let mut rows = Vec::new();
@@ -209,7 +222,7 @@ fn list_widget(
                 over,
                 banded,
             },
-            (gutters.marker, width),
+            (gutters.marker, fit),
         ));
     }
     let mut highlight = ListState::default();
@@ -224,18 +237,27 @@ fn list_widget(
 }
 
 /// `label` with `trailing` pushed to `width`'s right edge, keeping at least
-/// one space between them so a list too narrow for both truncates rather
-/// than running the two together.
-fn aligned_line(label: &Line<'static>, trailing: &Line<'static>, width: u16) -> Line<'static> {
+/// one space between them. A list too narrow for both cuts the label by
+/// `overflow`, so the trailing text is what survives whole.
+fn aligned_line(
+    label: &Line<'static>,
+    trailing: &Line<'static>,
+    RowFit { width, overflow }: RowFit,
+) -> Line<'static> {
+    let trailing_width = u16::try_from(trailing.width()).unwrap_or(u16::MAX);
+    let room = width.saturating_sub(trailing_width.saturating_add(MIN_GAP));
+    let label = overflow.fit(label, room);
     let used = label.width().saturating_add(trailing.width());
-    let gap = usize::from(width).saturating_sub(used).max(1);
-    let mut aligned = label.clone();
+    let gap = usize::from(width)
+        .saturating_sub(used)
+        .max(usize::from(MIN_GAP));
+    let mut aligned = label.into_owned();
     aligned.push_span(Span::raw(" ".repeat(gap)));
     aligned.spans.extend(trailing.spans.iter().cloned());
     aligned
 }
 
-fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'static> {
+fn list_row(content: &RowContent, (marker, fit): (bool, RowFit)) -> ListRow<'static> {
     let mark = if content.lit {
         CHECKED_MARKER
     } else {
@@ -249,7 +271,7 @@ fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'stat
     let first = content
         .trailing
         .zip(source.first())
-        .map(|(trailing, line)| aligned_line(line, &trailing.0, width));
+        .map(|(trailing, line)| aligned_line(line, &trailing.0, fit));
     // Ratatui blanks the cursor gutter below a row's first line; the
     // marker column is ours, so its continuation blanks are drawn here.
     let mut drawn = Text::from(
@@ -257,11 +279,14 @@ fn list_row(content: &RowContent, (marker, width): (bool, u16)) -> ListRow<'stat
             .iter()
             .enumerate()
             .map(|(index, line)| {
-                let line = first.as_ref().filter(|_| index == 0).unwrap_or(line);
+                let line = match first.as_ref().filter(|_| index == 0) {
+                    Some(aligned) => Cow::Borrowed(aligned),
+                    None => fit.overflow.fit(line, fit.width),
+                };
                 match (marker, index) {
-                    (false, _) => line.clone(),
-                    (true, 0) => decorate(mark, line, ""),
-                    (true, _) => decorate(UNCHECKED_MARKER, line, ""),
+                    (false, _) => line.into_owned(),
+                    (true, 0) => decorate(mark, &line, ""),
+                    (true, _) => decorate(UNCHECKED_MARKER, &line, ""),
                 }
             })
             .collect::<Vec<_>>(),

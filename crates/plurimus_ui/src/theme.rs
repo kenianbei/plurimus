@@ -8,6 +8,7 @@
 //! [`UiStyle`] and [`StylistDisabled`] are the two escapes from it: patch one
 //! entity's style, or take one entity's look over entirely.
 
+use crate::overflow::TextOverflow;
 use bevy_ecs::prelude::{Component, Resource};
 use plurimus_core::ratatui_core::style::{Color, Modifier, Style};
 
@@ -69,6 +70,11 @@ pub struct UiTheme {
     /// Like the caret, this reaches only a selection the widget draws into
     /// its own cells, not one belonging to a text engine.
     pub selection: Style,
+    /// What a widget draws when its text is wider than its room: clipped,
+    /// by default, or ended in an ellipsis. Applies to the text the stock
+    /// cell widgets draw in one row - labels, rows and cells - and not to a
+    /// text field's or editor's, which scroll to their caret instead.
+    pub overflow: TextOverflow,
 }
 
 impl Default for UiTheme {
@@ -121,6 +127,7 @@ impl UiTheme {
             focused: Style::new().add_modifier(Modifier::BOLD).fg(Color::Yellow),
             caret: Style::new().add_modifier(Modifier::REVERSED),
             selection: Style::new().add_modifier(Modifier::REVERSED),
+            overflow: TextOverflow::Clip,
         }
     }
 
@@ -171,6 +178,13 @@ impl UiTheme {
     #[must_use]
     pub const fn with_selection(mut self, selection: Style) -> Self {
         self.selection = selection;
+        self
+    }
+
+    /// Sets what a widget draws when its text is wider than its room.
+    #[must_use]
+    pub const fn with_overflow(mut self, overflow: TextOverflow) -> Self {
+        self.overflow = overflow;
         self
     }
 

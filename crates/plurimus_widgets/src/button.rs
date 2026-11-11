@@ -12,12 +12,12 @@ use bevy_input_focus::tab_navigation::TabIndex;
 use plurimus_core::ratatui_core::layout::Alignment;
 use plurimus_core::ratatui_core::text::Line;
 use plurimus_ui::bevy_ui_widgets::Button;
-use ratatui_widgets::paragraph::Paragraph;
 
+use crate::fitted::{FittedLabel, LabelFrame};
 use plurimus_core::UiWidget;
 use plurimus_ui::UiLabel;
 use plurimus_ui::{Hovered, UiTheme};
-use plurimus_ui::{LabeledQuery, StylistCache, decorate, restyle};
+use plurimus_ui::{LabeledQuery, StylistCache, restyle};
 
 /// Spawn bundle for a standard button: a tab stop emitting
 /// [`Activate`](crate::Activate).
@@ -43,11 +43,13 @@ pub(crate) fn style_buttons(
         &focus,
         &mut buttons,
         |_, label, style| {
-            UiWidget::new(
-                Paragraph::new(decorate("[ ", label, " ]"))
-                    .style(style)
-                    .alignment(Alignment::Center),
-            )
+            let frame = LabelFrame {
+                prefix: "[ ",
+                suffix: " ]",
+                alignment: Alignment::Center,
+                ..LabelFrame::PLAIN
+            };
+            UiWidget::new(FittedLabel::new(label, style, frame, theme.overflow))
         },
     );
 }
