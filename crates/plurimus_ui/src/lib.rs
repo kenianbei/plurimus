@@ -29,6 +29,7 @@ mod interaction;
 mod keys;
 mod modal;
 mod nav;
+mod overflow;
 mod pointer;
 mod scroll;
 mod scrolled;
@@ -50,6 +51,7 @@ pub use interaction::{
 };
 pub use keys::{KeyBinding, first_bound};
 pub use modal::{ModalDismiss, ModalOpen, ModalityToggle};
+pub use overflow::TextOverflow;
 pub use plurimus_core::{Hidden, Propagate, TerminalWidget, UiArea, UiCamera, UiOrder, UiWidget};
 pub use pointer::{click_cell, pointer_cell};
 pub use scroll::{
