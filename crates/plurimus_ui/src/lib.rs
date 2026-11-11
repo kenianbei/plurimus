@@ -117,6 +117,12 @@ pub enum UiSystems {
 /// press already moves focus here and a second writer would race it - so
 /// upstream's `Button`, `Checkbox` and `RadioGroup` work on a cell widget
 /// as on a node.
+///
+/// A focus plugin the app adds before this one is the app's to configure.
+/// `InputFocusPlugin` first skips `InputDispatchPlugin` and
+/// `TabNavigationPlugin` too; `DirectionalNavigationPlugin` first skips the
+/// arrow keys and the grid tuning in `AutoNavigationConfig`, while the map is
+/// still built from widget areas for the app's own keys to navigate.
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
