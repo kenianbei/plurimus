@@ -89,27 +89,19 @@ fn t_cycles_through_all_four_strategies() {
 }
 
 #[test]
-fn e_cycles_the_edge_overlay_and_back_off() {
+fn e_toggles_the_luminance_edge_overlay() {
     let mut app = keys_app();
     let camera = app.world_mut().spawn(Strategy3d::default()).id();
 
     let mut seen = Vec::new();
-    for _ in 0..4 {
+    for _ in 0..2 {
         write_key(&mut app, character('e'));
         app.update();
         let overlay = app.world().entity(camera).get::<EdgeOverlay>();
         seen.push(overlay.map(|overlay| overlay.source));
     }
 
-    assert_eq!(
-        seen,
-        [
-            Some(EdgeSource::Luminance),
-            Some(EdgeSource::Depth),
-            Some(EdgeSource::Both),
-            None,
-        ]
-    );
+    assert_eq!(seen, [Some(EdgeSource::Luminance), None]);
 }
 
 #[test]

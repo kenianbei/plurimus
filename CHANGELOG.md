@@ -12,9 +12,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ported to the terminal: the skinned glTF fox on its run cycle, drawn through
   the 3d readback pipeline. Upstream's setup and ready observer are kept by name
   and body, so the file reads beside bevy's; the fox model ships with its CC0
-  and CC BY 4.0 credits. `t` cycles the cell strategy, `e` the edge overlay. The
-  camera orbits the fox by itself until space stops it; arrows or a left drag
-  turn it and the wheel zooms. Runs with `--features 3d`.
+  and CC BY 4.0 credits. `t` cycles the cell strategy and `e` toggles the
+  luminance edge overlay. The camera orbits the fox by itself until space stops
+  it; arrows or a left drag turn it and the wheel zooms. Runs with
+  `--features 3d`.
 - **The README opens on a 2d/3d pair**: the `pong` recording beside a recording
   of the fox.
 

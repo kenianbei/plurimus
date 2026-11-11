@@ -42,25 +42,23 @@ fn handle_render_keys(
                 *strategy = next_strategy(*strategy);
             }
         } else if key.logical_key == Key::Character("e".into()) {
-            cycle_edges(&cameras, &mut commands);
+            toggle_edges(&cameras, &mut commands);
         }
     }
 }
 
-fn cycle_edges(
+// Luminance edges only: depth edges draw nothing at this scene's scale.
+fn toggle_edges(
     cameras: &Query<(Entity, &mut Strategy3d, Option<&EdgeOverlay>)>,
     commands: &mut Commands,
 ) {
     for (camera, _, overlay) in cameras {
-        match next_edge_source(overlay.map(|overlay| overlay.source)) {
-            Some(source) => {
-                commands
-                    .entity(camera)
-                    .insert(EdgeOverlay::default().with_source(source));
-            }
-            None => {
-                commands.entity(camera).remove::<EdgeOverlay>();
-            }
+        if overlay.is_some() {
+            commands.entity(camera).remove::<EdgeOverlay>();
+        } else {
+            commands
+                .entity(camera)
+                .insert(EdgeOverlay::default().with_source(EdgeSource::Luminance));
         }
     }
 }
@@ -75,14 +73,5 @@ fn next_strategy(strategy: Strategy3d) -> Strategy3d {
         }
         Strategy3d::Luminance(_) => Strategy3d::Braille,
         _ => Strategy3d::Halfblocks,
-    }
-}
-
-const fn next_edge_source(source: Option<EdgeSource>) -> Option<EdgeSource> {
-    match source {
-        None => Some(EdgeSource::Luminance),
-        Some(EdgeSource::Luminance) => Some(EdgeSource::Depth),
-        Some(EdgeSource::Depth) => Some(EdgeSource::Both),
-        Some(_) => None,
     }
 }

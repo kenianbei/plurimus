@@ -1,6 +1,6 @@
 # The README's recording. Re-render from the workspace root:
 #   vhs examples/animated_mesh/demo.tape
-#   ffmpeg -y -i target/animated_mesh.mp4 -vf "fps=12,scale=735:-1:flags=neighbor,split[a][b];\
+#   ffmpeg -y -i target/animated_mesh.mp4 -vf "fps=10,split[a][b];\
 #     [a]palettegen=stats_mode=diff:max_colors=128[p];\
 #     [b][p]paletteuse=dither=none:diff_mode=rectangle" \
 #     examples/animated_mesh/demo.gif
@@ -37,4 +37,6 @@ Sleep 200ms
 Type "t"
 Sleep 1s
 Show
+Sleep 2s
+Type "e"
 Sleep 3s

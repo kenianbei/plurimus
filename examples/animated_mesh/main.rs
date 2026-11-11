@@ -1,11 +1,10 @@
 //! Plays an animation on a skinned glTF model of a fox. Ported from bevy's
 //! `examples/animation/animated_mesh.rs` (0.20) onto the terminal 3d
 //! pipeline. `t` cycles the pixel-to-cell strategy (halfblocks, shading
-//! and ascii luminance, braille), `e` cycles the sobel edge overlay (off,
-//! luminance, depth, both), `q` or ctrl-c quits. The camera orbits the
-//! fox by itself; space stops it, arrows or a left drag turn it, and the
-//! wheel zooms. The first frames take a few seconds while GPU pipelines
-//! compile.
+//! and ascii luminance, braille), `e` toggles the sobel edge overlay, `q`
+//! or ctrl-c quits. The camera orbits the fox by itself; space stops it,
+//! arrows or a left drag turn it, and the wheel zooms. The first frames
+//! take a few seconds while GPU pipelines compile.
 
 mod camera;
 mod render_keys;
@@ -33,7 +32,7 @@ use bevy_world_serialization::{WorldAssetRoot, WorldInstanceReady, WorldSerializ
 use camera::{ORBIT_TARGET, Orbit};
 use plurimus::core::{CellSize, CorePlugin, TerminalCamera};
 use plurimus::crossterm::CrosstermPlugin;
-use plurimus::render3d::{DepthReadback, Plugin3d, Render3dPlugins, Strategy3d};
+use plurimus::render3d::{Plugin3d, Render3dPlugins, Strategy3d};
 
 const ASSET_ROOT: &str = "examples/animated_mesh/assets";
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -168,11 +167,9 @@ fn setup_camera_and_environment(
     commands.spawn((
         Camera3d::default(),
         Transform::from_translation(CAMERA_POSITION).looking_at(ORBIT_TARGET, Vec3::Y),
-        // Beyond upstream: DepthReadback feeds the depth-sourced edge modes.
         Orbit::from_offset(CAMERA_POSITION - ORBIT_TARGET),
         TerminalCamera::Fill,
         Strategy3d::default(),
-        DepthReadback,
         Tonemapping::None,
         DebandDither::Disabled,
     ));
