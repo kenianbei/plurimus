@@ -149,16 +149,6 @@ fn update_until<T>(app: &mut App, mut found: impl FnMut(&mut App) -> Option<T>) 
     panic!("gave up waiting after {MAX_LOAD_POLLS} frames");
 }
 
-fn set_paused(app: &mut App, player: Entity, is_paused: bool) {
-    let mut entity = app.world_mut().entity_mut(player);
-    let mut player = entity.get_mut::<AnimationPlayer>().unwrap();
-    if is_paused {
-        player.pause_all();
-    } else {
-        player.resume_all();
-    }
-}
-
 #[test]
 #[ignore = "requires a wgpu adapter"]
 fn the_run_animates_through_readback() {
@@ -168,7 +158,8 @@ fn the_run_animates_through_readback() {
         let mut players = world.query_filtered::<Entity, With<AnimationGraphHandle>>();
         players.iter(world).next()
     });
-    set_paused(&mut app, player, true);
+    let mut entity = app.world_mut().entity_mut(player);
+    entity.get_mut::<AnimationPlayer>().unwrap().pause_all();
     let world = app.world_mut();
     let mut orbits = world.query::<&mut Orbit>();
     orbits.single_mut(world).unwrap().is_auto = false;
@@ -193,7 +184,8 @@ fn the_run_animates_through_readback() {
         (settled == SETTLED_FRAMES).then(|| previous.clone())
     });
 
-    set_paused(&mut app, player, false);
+    let mut entity = app.world_mut().entity_mut(player);
+    entity.get_mut::<AnimationPlayer>().unwrap().resume_all();
     for _ in 0..PLAYED_FRAMES {
         app.update();
     }

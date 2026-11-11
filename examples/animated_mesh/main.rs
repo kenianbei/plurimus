@@ -171,7 +171,7 @@ fn setup_camera_and_environment(
         // What the terminal adds: the view fills the terminal, the readback
         // starts as halfblocks, depth is read back for the depth edges, and
         // the camera orbits from upstream's position.
-        Orbit::from_offset(CAMERA_POSITION - ORBIT_TARGET, true),
+        Orbit::from_offset(CAMERA_POSITION - ORBIT_TARGET),
         TerminalCamera::Fill,
         Strategy3d::default(),
         DepthReadback,

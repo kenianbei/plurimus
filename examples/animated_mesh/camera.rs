@@ -12,7 +12,7 @@ use bevy_window::CursorMoved;
 use plurimus::core::CellSize;
 use plurimus::term::bevy_input::ButtonInput;
 use plurimus::term::bevy_input::keyboard::KeyCode;
-use plurimus::term::bevy_input::mouse::{MouseButton, MouseScrollUnit, MouseWheel};
+use plurimus::term::bevy_input::mouse::{AccumulatedMouseScroll, MouseButton, MouseScrollUnit};
 
 /// The point upstream's camera looks at, about the fox's chest.
 pub const ORBIT_TARGET: Vec3 = Vec3::new(0.0, 20.0, 0.0);
@@ -28,7 +28,7 @@ const MIN_PITCH: f32 = 0.05;
 const MAX_PITCH: f32 = 1.45;
 
 /// The camera's place on a sphere about [`ORBIT_TARGET`].
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Component, Debug, Clone, Copy)]
 pub struct Orbit {
     pub yaw: f32,
     pub pitch: f32,
@@ -37,14 +37,15 @@ pub struct Orbit {
 }
 
 impl Orbit {
-    /// The orbit placing the camera at `ORBIT_TARGET + offset`.
-    pub fn from_offset(offset: Vec3, is_auto: bool) -> Self {
+    /// The orbit placing the camera at `ORBIT_TARGET + offset`, turning by
+    /// itself.
+    pub fn from_offset(offset: Vec3) -> Self {
         let distance = offset.length();
         Self {
             yaw: offset.x.atan2(offset.z),
             pitch: (offset.y / distance).asin(),
             distance,
-            is_auto,
+            is_auto: true,
         }
     }
 
@@ -63,7 +64,6 @@ pub fn add_camera_controls(app: &mut App) {
                 orbit_with_keys,
                 orbit_with_drag,
                 zoom_with_wheel,
-                toggle_auto_orbit,
                 auto_orbit,
             ),
             apply_orbit,
@@ -77,9 +77,8 @@ fn orbit_with_keys(
     time: Res<Time>,
     mut orbits: Query<&mut Orbit>,
 ) {
-    let axis = |positive, negative| {
-        f32::from(u8::from(keys.pressed(positive))) - f32::from(u8::from(keys.pressed(negative)))
-    };
+    let axis =
+        |positive, negative| f32::from(keys.pressed(positive)) - f32::from(keys.pressed(negative));
     let turn = Vec2::new(
         axis(KeyCode::ArrowRight, KeyCode::ArrowLeft),
         axis(KeyCode::ArrowUp, KeyCode::ArrowDown),
@@ -120,16 +119,13 @@ fn orbit_with_drag(
 
 fn zoom_with_wheel(
     cell: Res<CellSize>,
-    mut wheels: MessageReader<MouseWheel>,
+    scroll: Res<AccumulatedMouseScroll>,
     mut orbits: Query<&mut Orbit>,
 ) {
-    let notches: f32 = wheels
-        .read()
-        .map(|wheel| match wheel.unit {
-            MouseScrollUnit::Line => wheel.y,
-            MouseScrollUnit::Pixel => wheel.y / cell.y,
-        })
-        .sum();
+    let notches = match scroll.unit {
+        MouseScrollUnit::Line => scroll.delta.y,
+        MouseScrollUnit::Pixel => scroll.delta.y / cell.y,
+    };
     if notches == 0.0 {
         return;
     }
@@ -138,17 +134,12 @@ fn zoom_with_wheel(
     }
 }
 
-fn toggle_auto_orbit(keys: Res<ButtonInput<KeyCode>>, mut orbits: Query<&mut Orbit>) {
-    if !keys.just_pressed(KeyCode::Space) {
-        return;
-    }
+fn auto_orbit(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut orbits: Query<&mut Orbit>) {
+    let is_toggled = keys.just_pressed(KeyCode::Space);
     for mut orbit in &mut orbits {
-        orbit.is_auto = !orbit.is_auto;
-    }
-}
-
-fn auto_orbit(time: Res<Time>, mut orbits: Query<&mut Orbit>) {
-    for mut orbit in &mut orbits {
+        if is_toggled {
+            orbit.is_auto = !orbit.is_auto;
+        }
         if orbit.is_auto {
             orbit.yaw += AUTO_RADIANS_PER_SECOND * time.delta_secs();
         }
@@ -203,7 +194,10 @@ mod tests {
     #[test]
     fn from_offset_places_the_camera_at_the_offset() {
         let offset = Vec3::new(100.0, 80.0, 150.0);
-        let (app, camera) = orbit_app(Orbit::from_offset(offset, false));
+        let (app, camera) = orbit_app(Orbit {
+            is_auto: false,
+            ..Orbit::from_offset(offset)
+        });
 
         let transform = app.world().entity(camera).get::<Transform>().unwrap();
 
