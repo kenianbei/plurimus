@@ -78,8 +78,12 @@ fn t_cycles_through_all_four_strategies() {
         seen.push(*app.world().entity(camera).get::<Strategy3d>().unwrap());
     }
 
-    assert!(matches!(seen[0], Strategy3d::Luminance(ramp) if ramp.characters == RAMP_SHADING));
-    assert!(matches!(seen[1], Strategy3d::Luminance(ramp) if ramp.characters == RAMP_ASCII));
+    let is_ramp = |strategy: Strategy3d, characters: &[char]| {
+        matches!(strategy, Strategy3d::Luminance(ramp)
+            if ramp.characters == characters && ramp.scale == render_keys::LUMINANCE_SCALE)
+    };
+    assert!(is_ramp(seen[0], RAMP_SHADING));
+    assert!(is_ramp(seen[1], RAMP_ASCII));
     assert_eq!(seen[2], Strategy3d::Braille);
     assert_eq!(seen[3], Strategy3d::Halfblocks);
 }

@@ -5,6 +5,10 @@ use plurimus::term::HeldModifiers;
 use plurimus::term::bevy_input::ButtonState;
 use plurimus::term::bevy_input::keyboard::{Key, KeyboardInput};
 
+/// Upstream's daylit scene sits high in linear space, where the ramp's
+/// default boost for dark scenes would saturate every cell.
+pub const LUMINANCE_SCALE: f32 = 0.8;
+
 pub fn add_render_keys(app: &mut App) {
     app.add_systems(Update, (quit_on_key, handle_render_keys));
 }
@@ -63,9 +67,11 @@ fn cycle_edges(
 
 fn next_strategy(strategy: Strategy3d) -> Strategy3d {
     match strategy {
-        Strategy3d::Halfblocks => Strategy3d::Luminance(LuminanceRamp::new(RAMP_SHADING)),
+        Strategy3d::Halfblocks => {
+            Strategy3d::Luminance(LuminanceRamp::new(RAMP_SHADING).with_scale(LUMINANCE_SCALE))
+        }
         Strategy3d::Luminance(ramp) if ramp.characters == RAMP_SHADING => {
-            Strategy3d::Luminance(LuminanceRamp::default())
+            Strategy3d::Luminance(LuminanceRamp::default().with_scale(LUMINANCE_SCALE))
         }
         Strategy3d::Luminance(_) => Strategy3d::Braille,
         _ => Strategy3d::Halfblocks,

@@ -6,8 +6,9 @@
 A Bevy-native terminal renderer: cameras, widgets, and 2d/3d pipelines drawn to
 terminal cells.
 
-![The pong example: two cyan paddles return a white ball across a dark court
-under a score line][Pong Demo]
+| 2d: `pong`                          | 3d: `animated_mesh`              |
+| ----------------------------------- | -------------------------------- |
+| ![Pong: paddles, ball, score][Pong] | ![bevy's fox, running][Fox Demo] |
 
 Plurimus renders a Bevy world to the terminal the way `bevy_render` renders one
 to a window. Your program is an ordinary Bevy `App`; any number of systems
@@ -116,19 +117,19 @@ assert!(top_row.starts_with("ready"));
 
 Run one with `cargo run --example <name> --features <features>`.
 
-| example         | features                | shows                                  |
-| --------------- | ----------------------- | -------------------------------------- |
-| `basic`         | _(default)_             | every stock ratatui widget             |
-| `headless`      | `--no-default-features` | core alone into a `TestBackend`        |
-| `widgets`       | `widgets,bevy-ui`       | the control library, two layouts       |
-| `todo`          | `widgets,bevy-ui`       | one tree, terminal or `-- --desktop`   |
-| `table`         | `widgets`               | a sortable table with vim keys         |
-| `tabs`          | `widgets`               | tab bars in every look                 |
-| `pong`          | `widgets,2d`            | 2d sprites and a widget score line     |
-| `ratman`        | `widgets,2d`            | a maze chase in pixel art              |
-| `lander`        | `widgets,3d`            | 3d readback with a widget HUD          |
-| `animated_mesh` | `3d`                    | bevy's skinned fox, an orbiting camera |
-| `web`           | `web,widgets`           | the browser tier, built as below       |
+| example         | features                | shows                            |
+| --------------- | ----------------------- | -------------------------------- |
+| `basic`         | _(default)_             | every stock ratatui widget       |
+| `headless`      | `--no-default-features` | core alone into a `TestBackend`  |
+| `widgets`       | `widgets,bevy-ui`       | the control library, two layouts |
+| `todo`          | `widgets,bevy-ui`       | terminal, or `-- --desktop`      |
+| `table`         | `widgets`               | a sortable table with vim keys   |
+| `tabs`          | `widgets`               | tab bars in every look           |
+| `pong`          | `widgets,2d`            | 2d sprites, a widget score line  |
+| `ratman`        | `widgets,2d`            | a maze chase in pixel art        |
+| `lander`        | `widgets,3d`            | 3d readback with a widget HUD    |
+| `animated_mesh` | `3d`                    | bevy's running fox, orbit camera |
+| `web`           | `web,widgets`           | the browser tier, built as below |
 
 ### In the browser
 
@@ -188,5 +189,7 @@ dual licensed as above, without any additional terms or conditions.
   https://deps.rs/repo/github/kenianbei/plurimus/status.svg?style=flat-square
 [License]: https://github.com/kenianbei/plurimus#license
 [License Badge]: https://img.shields.io/crates/l/plurimus?style=flat-square
-[Pong Demo]:
+[Fox Demo]:
+  https://raw.githubusercontent.com/kenianbei/plurimus/HEAD/examples/animated_mesh/demo.gif
+[Pong]:
   https://raw.githubusercontent.com/kenianbei/plurimus/HEAD/examples/pong/demo.gif
