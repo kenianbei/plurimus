@@ -2,9 +2,12 @@
 //! `examples/animation/animated_mesh.rs` (0.20) onto the terminal 3d
 //! pipeline. `t` cycles the pixel-to-cell strategy (halfblocks, shading
 //! and ascii luminance, braille), `e` cycles the sobel edge overlay (off,
-//! luminance, depth, both), `q` or ctrl-c quits. The first frames take a
-//! few seconds while GPU pipelines compile.
+//! luminance, depth, both), `q` or ctrl-c quits. The camera orbits the
+//! fox by itself; space stops it, arrows or a left drag turn it, and the
+//! wheel zooms. The first frames take a few seconds while GPU pipelines
+//! compile.
 
+mod camera;
 mod render_keys;
 
 use std::f32::consts::PI;
@@ -27,12 +30,14 @@ use bevy_pbr::{MeshMaterial3d, PbrPlugin, StandardMaterial};
 use bevy_shape::Plane3d;
 use bevy_transform::components::Transform;
 use bevy_world_serialization::{WorldAssetRoot, WorldInstanceReady, WorldSerializationPlugin};
+use camera::{ORBIT_TARGET, Orbit};
 use plurimus::core::{CellSize, CorePlugin, TerminalCamera};
 use plurimus::crossterm::CrosstermPlugin;
 use plurimus::render3d::{DepthReadback, Plugin3d, Render3dPlugins, Strategy3d};
 
 const ASSET_ROOT: &str = "examples/animated_mesh/assets";
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+const CAMERA_POSITION: Vec3 = Vec3::new(100.0, 100.0, 150.0);
 
 // An example asset that contains a mesh and animation.
 const GLTF_PATH: &str = "Fox.glb";
@@ -76,6 +81,7 @@ fn add_scene(app: &mut App) {
         Plugin3d,
     ));
     render_keys::add_render_keys(app);
+    camera::add_camera_controls(app);
     app.add_systems(Startup, setup_mesh_and_animation);
     app.add_systems(Startup, setup_camera_and_environment);
 }
@@ -161,9 +167,11 @@ fn setup_camera_and_environment(
     // Camera
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(100.0, 100.0, 150.0).looking_at(Vec3::new(0.0, 20.0, 0.0), Vec3::Y),
+        Transform::from_translation(CAMERA_POSITION).looking_at(ORBIT_TARGET, Vec3::Y),
         // What the terminal adds: the view fills the terminal, the readback
-        // starts as halfblocks, and depth is read back for the depth edges.
+        // starts as halfblocks, depth is read back for the depth edges, and
+        // the camera orbits from upstream's position.
+        Orbit::from_offset(CAMERA_POSITION - ORBIT_TARGET, true),
         TerminalCamera::Fill,
         Strategy3d::default(),
         DepthReadback,

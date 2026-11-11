@@ -169,6 +169,9 @@ fn the_run_animates_through_readback() {
         players.iter(world).next()
     });
     set_paused(&mut app, player, true);
+    let world = app.world_mut();
+    let mut orbits = world.query::<&mut Orbit>();
+    orbits.single_mut(world).unwrap().is_auto = false;
     let mut settled = 0;
     let mut previous = String::new();
     let still = update_until(&mut app, |app| {
