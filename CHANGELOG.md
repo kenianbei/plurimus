@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **An app can take over arrow-key navigation.** Adding bevy's
+  `DirectionalNavigationPlugin` before `UiPlugin` now skips plurimus's arrow
+  keys along with its grid tuning of `AutoNavigationConfig`. In an app that
+  reads the arrows itself, an arrow therefore no longer moves focus, nor hands
+  it to the first widget when nothing is focused. The navigation map is still
+  built from widget areas, for the app to navigate from its own keys through
+  `DirectionalNavigation`. An app that already added the plugin first and relied
+  on plurimus's arrows now drives them itself. `UiPlugin`'s documentation names
+  what adding `InputFocusPlugin` first skips as well: `InputDispatchPlugin` and
+  `TabNavigationPlugin`.
+
 ## [0.10.0] - 2026-11-08
 
 ### Added
