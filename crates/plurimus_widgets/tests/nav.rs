@@ -6,7 +6,9 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Bundle, ChildOf};
 use bevy_input::keyboard::Key;
 use bevy_input_focus::InputFocus;
-use bevy_input_focus::directional_navigation::DirectionalNavigationMap;
+use bevy_input_focus::directional_navigation::{
+    DirectionalNavigationMap, DirectionalNavigationPlugin,
+};
 use bevy_input_focus::tab_navigation::{TabGroup, TabIndex};
 use bevy_math::CompassOctant;
 use plurimus_core::ratatui_core::layout::Rect;
@@ -17,7 +19,10 @@ use plurimus_widgets::ratatui_widgets::paragraph::Paragraph;
 use plurimus_widgets::{SelectedTab, WidgetsPlugin, slider, tab_bar, tab_item};
 
 fn app() -> App {
-    let mut app = App::new();
+    app_from(App::new())
+}
+
+fn app_from(mut app: App) -> App {
     app.add_plugins((CorePlugin, WidgetsPlugin));
     app.insert_resource(TerminalSize::new(40, 12));
     app.world_mut().spawn(TerminalCamera::default());
@@ -177,6 +182,20 @@ fn arrows_move_focus_between_widgets() {
 
     press_key(&mut app, Key::ArrowDown);
     assert_eq!(focused(&app), Some(left));
+}
+
+#[test]
+fn a_pre_added_navigation_plugin_takes_the_arrows_and_keeps_the_map() {
+    let mut pre_added = App::new();
+    pre_added.add_plugins(DirectionalNavigationPlugin);
+    let mut app = app_from(pre_added);
+    let (left, right) = spawn_grouped_pair(&mut app);
+    app.update();
+    let before = focused(&app);
+
+    press_key(&mut app, Key::ArrowRight);
+    assert_eq!(focused(&app), before);
+    assert_eq!(neighbor(&app, left, CompassOctant::East), Some(right));
 }
 
 #[test]

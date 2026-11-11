@@ -37,8 +37,8 @@ pub(crate) fn install(app: &mut App) {
             min_alignment_factor: GRID_MIN_ALIGNMENT,
             ..AutoNavigationConfig::default()
         });
+        app.add_observer(navigate_on_arrows);
     }
-    app.add_observer(navigate_on_arrows);
 }
 
 // A negative index is `bevy_input_focus`'s "focusable, but not a stop":
