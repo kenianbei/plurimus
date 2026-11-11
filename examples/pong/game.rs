@@ -163,9 +163,11 @@ fn track_ball(
         return;
     };
     let lead = DEMO_AIM * PADDLE_HALF_HEIGHT * ball.velocity.y.signum();
-    let target = (ball_transform.translation.y - lead).clamp(-PADDLE_LIMIT, PADDLE_LIMIT);
+    let intercept = (ball_transform.translation.y - lead).clamp(-PADDLE_LIMIT, PADDLE_LIMIT);
     let max_step = DEMO_PADDLE_SPEED * time.delta_secs();
     for mut transform in &mut paddles {
+        let is_incoming = ball.velocity.x * transform.translation.x > 0.0;
+        let target = if is_incoming { intercept } else { 0.0 };
         let y = transform.translation.y;
         transform.translation.y = y + (target - y).clamp(-max_step, max_step);
     }

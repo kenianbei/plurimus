@@ -138,7 +138,7 @@ readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
-exclude = ["examples/**/*.png"]
+exclude = ["examples/pong/demo.*"]
 
 [features]
 default = ["crossterm"]
