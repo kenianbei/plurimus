@@ -1,6 +1,7 @@
 //! Pong: the 2d pipeline composed with the ui pipeline in one camera.
 //! W/S steps the left paddle one cell, Up/Down the right; the ball serves
 //! itself after a short delay, `r` serves immediately, `q` or ctrl-c quits.
+//! `--demo` lets both paddles play themselves.
 
 mod game;
 
@@ -13,6 +14,7 @@ use plurimus::render2d::Plugin2d;
 use plurimus::widgets::WidgetsPlugin;
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+const DEMO_FLAG: &str = "--demo";
 
 fn main() -> AppExit {
     let mut app = App::new();
@@ -24,6 +26,9 @@ fn main() -> AppExit {
         Plugin2d,
     ));
     game::add_game(&mut app);
+    if std::env::args().any(|arg| arg == DEMO_FLAG) {
+        app.insert_resource(game::Demo);
+    }
     app.run()
 }
 
@@ -36,7 +41,7 @@ mod tests {
     use plurimus_test::character;
     use plurimus_test::write_key;
 
-    use super::game::{Ball, CELL_HEIGHT, Paddle, Score, add_game};
+    use super::game::{Ball, CELL_HEIGHT, Demo, Paddle, Score, add_game};
     use super::*;
 
     const STEP: Duration = Duration::from_millis(50);
@@ -129,5 +134,19 @@ mod tests {
         });
 
         assert!(served);
+    }
+
+    #[test]
+    fn demo_paddles_keep_the_rally_going() {
+        let mut app = headless_app();
+        app.insert_resource(Demo);
+
+        for _ in 0..400 {
+            app.update();
+        }
+
+        let score = app.world().resource::<Score>();
+        assert_eq!((score.left, score.right), (0, 0));
+        assert!(ball_state(&mut app).0 != Vec2::ZERO);
     }
 }
